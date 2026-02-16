@@ -10,6 +10,7 @@ export type TableConfig = {
   maxBuyInCents: number;
   visibility: TableVisibility;
   passwordHash?: string;
+  speed: "normal" | "fast";
   createdAt: number;
 };
 
@@ -24,6 +25,7 @@ export type LobbyTableSummary = {
   minBuyInCents: number;
   maxBuyInCents: number;
   visibility: TableVisibility;
+  speed: "normal" | "fast";
   runningSince?: number;
   createdAt: number;
 };

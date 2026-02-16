@@ -12,7 +12,12 @@ const classesByVariant: Record<Variant, string> = {
   danger: "text-danger text-sm",
 };
 
-export function Text({ style, ...props }: TextProps & { variant?: Variant }) {
-  const variant = props.variant ?? "body";
-  return <RNText {...props} className={classesByVariant[variant]} style={style} />;
+type AppTextProps = TextProps & {
+  variant?: Variant;
+  className?: string;
+};
+
+export function Text({ style, className, variant = "body", ...props }: AppTextProps) {
+  const mergedClassName = className ? `${classesByVariant[variant]} ${className}` : classesByVariant[variant];
+  return <RNText {...props} className={mergedClassName} style={style} />;
 }

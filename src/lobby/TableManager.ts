@@ -23,6 +23,7 @@ export async function buildTableConfig(input: {
   maxBuyInCents: number;
   visibility: "PUBLIC" | "PRIVATE";
   password?: string;
+  speed: "normal" | "fast";
 }): Promise<TableConfig> {
   const tableId = makeTableId();
   const createdAt = Date.now();
@@ -40,6 +41,7 @@ export async function buildTableConfig(input: {
     minBuyInCents: input.minBuyInCents,
     maxBuyInCents: input.maxBuyInCents,
     visibility: input.visibility,
+    speed: input.speed,
     passwordHash,
     createdAt,
   };

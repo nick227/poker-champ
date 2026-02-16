@@ -161,6 +161,7 @@ describe("basic table flow", () => {
       roomId: "room_poker_1",
       playerId: "user_1",
       tableId: "table_poker_1",
+      joinMode: "NEW",
     });
 
     room.userIdBySessionId.set("session_1", "user_1");

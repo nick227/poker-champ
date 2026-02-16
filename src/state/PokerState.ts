@@ -7,6 +7,7 @@ export class PokerState extends Schema {
   @type("string") tableId: string = "";
   @type("string") tableName: string = "Hold'em";
   @type("string") visibility: "PUBLIC" | "PRIVATE" = "PUBLIC";
+  @type("string") speed: "normal" | "fast" = "normal";
 
   /** Seat capacity for this table (2..10). */
   @type("number") maxSeats: number = 9;
@@ -20,6 +21,7 @@ export class PokerState extends Schema {
   @type("string") handId: string = "";
   @type("number") handNumber: number = 0;
   @type("number") actionCount: number = 0;
+  @type("number") nextHandAtTs: number = 0;
   @type("string") street: Street = "WAITING";
 
   @type("number") dealerSeat: number = 0;

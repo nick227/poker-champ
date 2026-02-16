@@ -1,47 +1,28 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
-import { Input } from "@/components/base/Input";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
+import { ChipButton } from "@/components/base/ChipButton";
 import { MODAL } from "@/constants/copy";
 
 type CreateGameModalProps = {
   visible: boolean;
   onClose: () => void;
   onSubmit: (config: {
-    name: string;
     maxSeats: number;
-    smallBlindCents: number;
-    bigBlindCents: number;
-    minBuyInCents: number;
-    maxBuyInCents: number;
-    visibility: "PUBLIC" | "PRIVATE";
+    speed: "normal" | "fast";
   }) => void;
 };
 
 export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalProps) {
-  const [name, setName] = useState("Hold'em");
-  const [seats, setSeats] = useState("6");
-  const [sb, setSb] = useState("100");
-  const [bb, setBb] = useState("200");
-  const [minBuy, setMinBuy] = useState("2000");
-  const [maxBuy, setMaxBuy] = useState("20000");
+  const [speed, setSpeed] = useState<"normal" | "fast">("normal");
+  const [seats, setSeats] = useState<3 | 6>(6);
 
   const handleSubmit = () => {
-    const seatsNum = parseInt(seats, 10) || 6;
-    const sbNum = parseInt(sb, 10) || 100;
-    const bbNum = parseInt(bb, 10) || 200;
-    const minNum = parseInt(minBuy, 10) || 2000;
-    const maxNum = parseInt(maxBuy, 10) || 20000;
     onSubmit({
-      name,
-      maxSeats: seatsNum,
-      smallBlindCents: sbNum,
-      bigBlindCents: bbNum,
-      minBuyInCents: minNum,
-      maxBuyInCents: maxNum,
-      visibility: "PUBLIC",
+      maxSeats: seats,
+      speed,
     });
     onClose();
   };
@@ -49,12 +30,20 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
   return (
     <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame}>
       <View className="ui-stack-4">
-        <Input label="Table name" value={name} onChangeText={setName} />
-        <Input label="Seats" value={seats} onChangeText={setSeats} keyboardType="numeric" />
-        <Input label="Small blind (cents)" value={sb} onChangeText={setSb} keyboardType="numeric" />
-        <Input label="Big blind (cents)" value={bb} onChangeText={setBb} keyboardType="numeric" />
-        <Input label="Min buy-in (cents)" value={minBuy} onChangeText={setMinBuy} keyboardType="numeric" />
-        <Input label="Max buy-in (cents)" value={maxBuy} onChangeText={setMaxBuy} keyboardType="numeric" />
+        <View>
+          <Text variant="label">Game Speed</Text>
+          <View className="ui-row ui-inline-2">
+            <ChipButton title="Fast" selected={speed === "fast"} onPress={() => setSpeed("fast")} />
+            <ChipButton title="Normal" selected={speed === "normal"} onPress={() => setSpeed("normal")} />
+          </View>
+        </View>
+        <View>
+          <Text variant="label">Seats</Text>
+          <View className="ui-row ui-inline-2">
+            <ChipButton title="3" selected={seats === 3} onPress={() => setSeats(3)} />
+            <ChipButton title="6" selected={seats === 6} onPress={() => setSeats(6)} />
+          </View>
+        </View>
         <View className="ui-row ui-inline-2">
           <Button variant="ghost" title="Cancel" onPress={onClose} />
           <Button variant="primary" title="Apply" onPress={handleSubmit} />

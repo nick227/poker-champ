@@ -60,6 +60,25 @@ export function ActionBar({
     typeof betMax === "number" &&
     (actionOptions?.canBet || actionOptions?.canRaise);
 
+  const submitWager = useCallback(
+    (rawAmount: number) => {
+      if (!actionOptions) return;
+      const min = actionOptions.minRaiseTo;
+      const max = actionOptions.maxRaiseTo;
+      if (typeof min !== "number" || typeof max !== "number" || max <= 0) return;
+
+      // Clamp to server-authoritative bounds to avoid INVALID_ACTION / INSUFFICIENT_STACK noise.
+      const clamped = Math.max(min, Math.min(rawAmount, max));
+      if (clamped >= max && actionOptions.canAllIn) {
+        onAction({ type: "ALL_IN" });
+        return;
+      }
+      if (actionOptions.canRaise) onAction({ type: "RAISE", amount: clamped });
+      else if (actionOptions.canBet) onAction({ type: "BET", amount: clamped });
+    },
+    [actionOptions, onAction],
+  );
+
   useEffect(() => {
     if (betMin == null || betMax == null || betMax < betMin) return;
     setBetValue((v) => Math.max(betMin, Math.min(v || betMin, betMax)));
@@ -71,36 +90,31 @@ export function ActionBar({
   }, [actionOptions, onAction]);
 
   const handleBetRaise = useCallback(() => {
-    if (actionOptions?.canRaise) onAction({ type: "RAISE", amount: betValue });
-    else if (actionOptions?.canBet) onAction({ type: "BET", amount: betValue });
-  }, [actionOptions, betValue, onAction]);
+    submitWager(betValue);
+  }, [betValue, submitWager]);
 
   const handleMin = useCallback(() => {
     if (betMin != null) {
-      if (actionOptions?.canRaise) onAction({ type: "RAISE", amount: betMin });
-      else if (actionOptions?.canBet) onAction({ type: "BET", amount: betMin });
+      submitWager(betMin);
     }
-  }, [actionOptions, betMin, onAction]);
+  }, [betMin, submitWager]);
 
   const handleHalfPot = useCallback(() => {
     const amount = Math.max(0, Math.floor(potCents / 2 / 100) * 100);
-    if (actionOptions?.canRaise) onAction({ type: "RAISE", amount });
-    else if (actionOptions?.canBet) onAction({ type: "BET", amount });
-  }, [actionOptions, onAction, potCents]);
+    submitWager(amount);
+  }, [potCents, submitWager]);
 
   const handlePot = useCallback(() => {
     const amount = Math.max(0, Math.floor(potCents / 100) * 100);
-    if (actionOptions?.canRaise) onAction({ type: "RAISE", amount });
-    else if (actionOptions?.canBet) onAction({ type: "BET", amount });
-  }, [actionOptions, onAction, potCents]);
+    submitWager(amount);
+  }, [potCents, submitWager]);
 
   const handleMax = useCallback(() => {
     if (actionOptions?.canAllIn) onAction({ type: "ALL_IN" });
     else if (betMax != null) {
-      if (actionOptions?.canRaise) onAction({ type: "RAISE", amount: betMax });
-      else if (actionOptions?.canBet) onAction({ type: "BET", amount: betMax });
+      submitWager(betMax);
     }
-  }, [actionOptions, betMax, onAction]);
+  }, [actionOptions, betMax, onAction, submitWager]);
 
   return (
     <View className="ui-bottom-bar border-t border-border-subtle ui-p-4 ui-stack-3">

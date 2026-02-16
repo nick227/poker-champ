@@ -9,6 +9,11 @@ import { logger } from "../lib/logger.js";
 type LobbyState = any;
 
 export class LobbyRoom extends Room<LobbyState> {
+  async pushTableListUpdate() {
+    const tables = await this.queryTables();
+    this.broadcastLobbyMessage("TABLE_LIST", { tables });
+  }
+
   onCreate() {
     this.onMessage("LIST_TABLES", async (client, message) => {
       const inbound = LobbyInboundMessageSchema.safeParse({ type: "LIST_TABLES", payload: message });
@@ -47,9 +52,7 @@ export class LobbyRoom extends Room<LobbyState> {
       }
 
       this.sendLobbyMessage(client, "TABLE_CREATED", { tableId: cfg.tableId, roomId });
-
-      const tables = await this.queryTables();
-      this.broadcastLobbyMessage("TABLE_LIST", { tables });
+      await this.pushTableListUpdate();
     });
 
     this.onMessage("JOIN_TABLE", async (client, message) => {

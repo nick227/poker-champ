@@ -15,7 +15,7 @@ type ChooseTableModalProps = {
   balanceCents: number;
   minBuyInCents: number;
   maxBuyInCents: number;
-  onApply: (opts: { buyInCents: number; speed: "fast" | "normal"; players: 3 | 6 }) => void;
+  onApply: (opts: { buyInCents: number }) => void;
 };
 
 export function ChooseTableModal({
@@ -29,15 +29,13 @@ export function ChooseTableModal({
   const maxAllowed = Math.min(maxBuyInCents, balanceCents);
   const [buyInCents, setBuyInCents] = useState(minBuyInCents);
   const [buyInAtMax, setBuyInAtMax] = useState(false);
-  const [speed, setSpeed] = useState<"fast" | "normal">("normal");
-  const [players, setPlayers] = useState<3 | 6>(6);
 
   useEffect(() => {
     if (buyInAtMax) setBuyInCents(maxAllowed);
   }, [buyInAtMax, maxAllowed]);
 
   const handleApply = () => {
-    onApply({ buyInCents, speed, players });
+    onApply({ buyInCents });
     onClose();
   };
 
@@ -62,20 +60,6 @@ export function ChooseTableModal({
             step={100}
             disabled={buyInAtMax}
           />
-        </View>
-        <View>
-          <Text variant="label">Game Speed</Text>
-          <View className="ui-row ui-inline-2">
-            <ChipButton title="Fast" selected={speed === "fast"} onPress={() => setSpeed("fast")} />
-            <ChipButton title="Normal" selected={speed === "normal"} onPress={() => setSpeed("normal")} />
-          </View>
-        </View>
-        <View>
-          <Text variant="label">Players</Text>
-          <View className="ui-row ui-inline-2">
-            <ChipButton title="3" selected={players === 3} onPress={() => setPlayers(3)} />
-            <ChipButton title="6" selected={players === 6} onPress={() => setPlayers(6)} />
-          </View>
         </View>
         <View className="ui-row ui-inline-2">
           <Button variant="ghost" title="Cancel" onPress={onClose} />

@@ -300,6 +300,30 @@ async function main() {
       }
     }
 
+    // Room persistence check: after all players leave consented, table room should still be discoverable and joinable.
+    await room.onLeave(clients.user_a as any, 4000);
+    await room.onLeave(clients.user_b as any, 4000);
+    await room.onLeave(clients.user_c as any, 4000);
+
+    const roomsAfterEmpty = await matchMaker.query({ name: "poker" });
+    const persistedRoom = roomsAfterEmpty.find((r: any) => r.roomId === roomId);
+    if (!persistedRoom) {
+      throw new Error(`Room ${roomId} is missing after all players left; expected persistent cash-game room.`);
+    }
+
+    const localRoomAfterEmpty = (matchMaker as any).getLocalRoomById(roomId) as PokerRoom | undefined;
+    if (!localRoomAfterEmpty) {
+      throw new Error(`Room ${roomId} is not locally joinable after all players left.`);
+    }
+
+    clients.user_a = makeClient("sess_rejoin_a", "user_a");
+    await localRoomAfterEmpty.onJoin(
+      clients.user_a as any,
+      { buyInCents: 5000 },
+      { userId: "user_a", username: "alice" },
+    );
+    await waitFor(() => Boolean(snapshots.user_a?.hero.youAreSeated), 5000, "rejoin after empty room");
+
     // eslint-disable-next-line no-console
     console.log(
       `Headless harness OK: baseline=${firstHandId}; sidepotSignals=allIn:${seenShortAllIn},raise:${seenLargeRaise},call:${seenCallAfterRaise}; reconnectJoinUser=${reconnectUserId}; reconnectGraceUser=${graceUserId}; settlementChecks=${lastHandResultsByHandId.size}`,

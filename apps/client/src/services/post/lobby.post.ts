@@ -1,14 +1,15 @@
 import { serviceRegistry } from "@/registry/service.registry";
 
 type CreateTableInput = {
-  name: string;
+  name?: string;
   maxSeats: number;
-  smallBlindCents: number;
-  bigBlindCents: number;
-  minBuyInCents: number;
-  maxBuyInCents: number;
-  visibility: "PUBLIC" | "PRIVATE";
+  smallBlindCents?: number;
+  bigBlindCents?: number;
+  minBuyInCents?: number;
+  maxBuyInCents?: number;
+  visibility?: "PUBLIC" | "PRIVATE";
   password?: string;
+  speed: "normal" | "fast";
 };
 
 export async function postCreateTable(input: CreateTableInput) {

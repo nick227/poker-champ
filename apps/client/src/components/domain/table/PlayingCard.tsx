@@ -22,6 +22,8 @@ export function PlayingCard({
   suit?: string;
   faceDown?: boolean;
 }) {
+  const normalizedSuit = suit?.toLowerCase();
+  const normalizedRank = rank?.toUpperCase();
   const size = { width: CARD_WIDTH, height: CARD_HEIGHT };
   if (faceDown) {
     return (
@@ -30,14 +32,14 @@ export function PlayingCard({
       </View>
     );
   }
-  const r = rank ? RANKS[rank] ?? rank : "?";
-  const s = suit ? SUITS[suit] ?? suit : "?";
-  const red = suit ? isRedSuit(suit) : false;
-  const suitClass = red ? "text-danger" : "text-text";
+  const r = normalizedRank ? RANKS[normalizedRank] ?? normalizedRank : "?";
+  const s = normalizedSuit ? SUITS[normalizedSuit] ?? normalizedSuit : "?";
+  const red = normalizedSuit ? isRedSuit(normalizedSuit) : false;
+  const suitClass = red ? "text-danger" : "text-zinc-900";
   return (
     <View style={size} className="ui-col ui-center justify-center rounded-card border border-border-subtle bg-card-face gap-1">
-      <Text variant="h2" className={`text-lg leading-tight ${suitClass}`}>{r}</Text>
-      <Text variant="body" className={`text-sm font-semibold ${suitClass}`}>{s}</Text>
+      <Text variant="h2" className={`text-xl leading-tight font-extrabold ${suitClass}`}>{r}</Text>
+      <Text variant="body" className={`text-base leading-none font-bold ${suitClass}`}>{s}</Text>
     </View>
   );
 }

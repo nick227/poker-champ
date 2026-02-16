@@ -17,6 +17,7 @@ model PokerTable {
 
   players   PokerPlayer[]
   hands     Hand[]
+  snapshotLogs TableSnapshotLog[]
   balances  PlayerBalance[]
   transactions BalanceTransaction[]
 }
@@ -114,6 +115,7 @@ model Hand {
   players   HandPlayer[]
   actions   HandAction[]
   payouts   HandPayout[]
+  snapshotLogs TableSnapshotLog[]
   txs       BalanceTransaction[]
 }
 
@@ -146,6 +148,7 @@ model HandAction {
   player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   seat      Int
+  actionIndex Int
   street    String // PREFLOP/FLOP/TURN/RIVER
   action    String // FOLD/CHECK/CALL/BET/RAISE/ALL_IN/AUTO_FOLD/AUTO_CHECK
   amountCents Int @default(0)
@@ -155,6 +158,8 @@ model HandAction {
 
   metaJson Json?
   @@index([handId, createdAt])
+  @@index([handId, actionIndex])
+  @@unique([handId, actionIndex])
 }
 
 model HandPayout {
@@ -167,8 +172,45 @@ model HandPayout {
   playerId  String
   player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
+  payoutIndex Int
   amountCents Int
   @@index([handId])
+  @@index([handId, payoutIndex])
+  @@unique([handId, payoutIndex])
+}
+
+enum SnapshotLogReason {
+  HAND_START
+  ACTION_ACCEPTED
+  STREET_TRANSITION
+  POT_UPDATED
+  SHOWDOWN
+  HAND_END
+  PLAYER_JOIN
+  PLAYER_LEAVE
+}
+
+model TableSnapshotLog {
+  id            String            @id @default(cuid())
+  createdAt     DateTime          @default(now())
+
+  tableId       String
+  table         PokerTable        @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  handId        String?
+  hand          Hand?             @relation(fields: [handId], references: [id], onDelete: SetNull)
+
+  snapshotId    String            @unique
+  reason        SnapshotLogReason
+  street        String
+  payloadJson   Json
+  payloadBytes  Int
+  stateHash     String
+  schemaVersion Int               @default(1)
+
+  @@index([tableId, createdAt])
+  @@index([tableId, handId, createdAt])
+  @@index([tableId, reason, createdAt])
 }
 
 enum UserRole {
@@ -249,4 +291,35 @@ model UserSession {
   expiresAt DateTime
   
   @@index([userId])
+}
+
+enum TableSeatSessionState {
+  SEATED_ACTIVE
+  SEATED_SITTING_OUT
+  LEFT
+}
+
+model TableSeatSession {
+  id                String                 @id @default(cuid())
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  tableId           String
+  userId            String
+  seat              Int
+  state             TableSeatSessionState  @default(SEATED_ACTIVE)
+
+  stackCentsSnapshot Int                   @default(0)
+  buyInCents         Int                   @default(0)
+  handIdSnapshot     String?
+
+  disconnectAt      DateTime?
+  lastSeenAt        DateTime               @default(now())
+  reservedUntil     DateTime?
+
+  schemaVersion     Int                    @default(1)
+
+  @@index([tableId])
+  @@index([tableId, state])
+  @@unique([tableId, userId])
 }

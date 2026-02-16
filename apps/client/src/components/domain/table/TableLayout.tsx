@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { View } from "react-native";
+import { vars } from "nativewind";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { Spacer } from "@/components/base/Layout";
 import { TableTopBar } from "./TableTopBar";
@@ -8,6 +9,10 @@ import { DealerAnnounceBar } from "./DealerAnnounceBar";
 import { CommunityBoard } from "./CommunityBoard";
 import { HeroZone } from "./HeroZone";
 import { ActionBar, type ActionBarOnAction } from "./ActionBar";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { Icon } from "@/components/base/Icons";
+import { IconButton } from "@/components/base/IconButton";
+import { ThemePickerSheet } from "./ThemePickerSheet";
 import {
   getHeroStatus,
   getIsMyTurn,
@@ -19,11 +24,14 @@ import {
 
 export type { Opponent };
 
+export type HandResultMessage = { winnerName: string; amountCents: number; winningHandDescr?: string };
+
 export type TableLayoutProps = {
   snapshot: TableSnapshotPayload;
   opponents: Opponent[];
   balanceCents: number;
   tableStatus?: string;
+  handResultMessage?: HandResultMessage;
   topBarLeft?: ReactNode;
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
@@ -38,6 +46,7 @@ export function TableLayout({
   opponents,
   balanceCents,
   tableStatus,
+  handResultMessage,
   topBarLeft,
   topBarRight,
   onAction,
@@ -46,6 +55,7 @@ export function TableLayout({
   potOdds,
   outs,
 }: TableLayoutProps) {
+  const [themePickerVisible, setThemePickerVisible] = useState(false);
   const { hand } = snapshot;
   const heroStatus = getHeroStatus(snapshot);
   const isMyTurn = getIsMyTurn(snapshot);
@@ -54,16 +64,49 @@ export function TableLayout({
   const heroCards = getHeroCards(snapshot);
   const heroStackCents = getHeroStackCents(snapshot);
   const heroActionOptions = snapshot.hero.actionOptions;
+  const { 
+    feltColor, 
+    cardFaceColor, 
+    cardBackColor, 
+    accentColor, 
+    backgroundColor, 
+    tableRadius 
+  } = usePreferencesStore();
 
   return (
-    <View className="flex-1 ui-surface-card overflow-hidden rounded-table border border-border-subtle shadow-lg">
-      <TableTopBar balanceCents={balanceCents} left={topBarLeft} right={topBarRight} />
+    <View
+      style={vars({
+        "--c-felt": feltColor,
+        "--c-card-face": cardFaceColor,
+        "--c-card-back": cardBackColor,
+        "--c-gold": accentColor,
+        "--c-brand": accentColor,
+        "--c-bg": backgroundColor,
+        "--r-table": tableRadius,
+      })}
+      className="flex-1 ui-surface-card overflow-hidden rounded-table border border-border-subtle shadow-lg"
+    >
+      <TableTopBar
+        balanceCents={balanceCents}
+        left={topBarLeft}
+        right={
+          <View className="ui-row ui-inline-1">
+            <IconButton
+              variant="ghost"
+              icon={<Icon name="theme" size={20} />}
+              onPress={() => setThemePickerVisible(true)}
+            />
+            {topBarRight}
+          </View>
+        }
+      />
       <OpponentStrip opponents={opponents} onPlayerPress={onPlayerPress} />
       <Spacer />
       <DealerAnnounceBar
-        hand={{ street: hand!.street, potCents: hand!.potCents }}
-        lastHandResult={snapshot.lastHandResult}
+        hand={hand ? { street: hand.street, potCents: hand.potCents } : undefined}
+        handResultMessage={handResultMessage}
         tableStatus={tableStatus}
+        nextHandAtTs={snapshot.nextHandAtTs}
       />
       <CommunityBoard cards={communityCards} potCents={potCents} />
       <Spacer />
@@ -83,6 +126,7 @@ export function TableLayout({
         potCents={potCents}
         onAction={onAction}
       />
+      <ThemePickerSheet visible={themePickerVisible} onClose={() => setThemePickerVisible(false)} />
     </View>
   );
 }

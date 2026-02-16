@@ -3,6 +3,14 @@ import { getPrisma } from "../../db/prisma.js";
 import { nanoid } from "nanoid";
 
 export class CashierService {
+  private static async ensureTableExists(tx: any, tableId: string) {
+    await tx.pokerTable.upsert({
+      where: { id: tableId },
+      create: { id: tableId },
+      update: {},
+    });
+  }
+
   /**
    * Cash Game Buy-In
    * Atomically debits User.bankrollCents and credits PlayerBalance.
@@ -17,6 +25,9 @@ export class CashierService {
     const { userId, tableId, amountCents, externalRef } = params;
 
     return await prisma.$transaction(async (tx: any) => {
+      // Ensure FK target exists for PlayerBalance/BalanceTransaction writes.
+      await CashierService.ensureTableExists(tx, tableId);
+
       // 1. Check idempotency
       const existingTx = await tx.balanceTransaction.findUnique({
         where: { externalRef },
@@ -95,6 +106,9 @@ export class CashierService {
     const { userId, tableId, amountCents, externalRef } = params;
 
     return await prisma.$transaction(async (tx: any) => {
+       // Ensure FK target exists for BalanceTransaction writes.
+       await CashierService.ensureTableExists(tx, tableId);
+
        // 1. Idempotency Check
        const existingTx = await tx.balanceTransaction.findUnique({
         where: { externalRef },

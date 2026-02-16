@@ -16,15 +16,16 @@ const serviceByKey = {
     authLogin: (input: { email: string; password: string }) => withApiError(() => auth.login(input)),
     authLogout: () => withApiError(() => auth.logout()),
     joinTable: (input: {
-      name: string;
       maxSeats: number;
-      smallBlindCents: number;
-      bigBlindCents: number;
-      minBuyInCents: number;
-      maxBuyInCents: number;
-      visibility: "PUBLIC" | "PRIVATE";
+      speed: "normal" | "fast";
+      name?: string;
+      smallBlindCents?: number;
+      bigBlindCents?: number;
+      minBuyInCents?: number;
+      maxBuyInCents?: number;
+      visibility?: "PUBLIC" | "PRIVATE";
       password?: string;
-    }) => withApiError(() => lobby.createTable(input)),
+    }) => withApiError(() => lobby.createTable(input as any)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>
       withApiError(() => economy.buyIn(input)),
   },

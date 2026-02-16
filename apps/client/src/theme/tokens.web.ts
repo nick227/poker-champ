@@ -67,7 +67,7 @@ export const TOKENS_CSS = `/* Design tokens: single source of truth. 4px base sc
 
   /* ---- Poker (table, chips, cards) ---- */
   --c-felt: 158 30% 14%;
-  --c-card-face: 0 0% 98%;
+  --c-card-face: 0 50% 98%;
   --c-card-back: 217 50% 22%;
   --r-table: 28px;
   --r-card: 8px;

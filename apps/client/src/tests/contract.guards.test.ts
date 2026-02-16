@@ -6,7 +6,7 @@ describe("realtime contract guards", () => {
     expect(isValidLobbyInbound("LIST_TABLES")).toBe(true);
     expect(isValidLobbyOutbound("TABLE_LIST", { tables: [] })).toBe(true);
     expect(isValidTableInbound("ACTION", { action: "RAISE", amountCents: 100 })).toBe(true);
-    expect(isValidTableOutbound("WELCOME", { roomId: "r1", playerId: "u1", tableId: "t1" })).toBe(true);
+    expect(isValidTableOutbound("WELCOME", { roomId: "r1", playerId: "u1", tableId: "t1", joinMode: "NEW" })).toBe(true);
   });
 
   it("rejects invalid lobby/table envelopes", () => {

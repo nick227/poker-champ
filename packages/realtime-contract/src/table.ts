@@ -5,6 +5,7 @@ const SchemaVersion = z.literal(1).default(1);
 const StreetEnum = z.enum(["WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"]);
 const PlayerStatusEnum = z.enum(["WAITING", "ACTIVE", "FOLDED", "ALL_IN", "ABANDONED", "OUT"]);
 const VisibilityEnum = z.enum(["PUBLIC", "PRIVATE"]);
+const JoinModeEnum = z.enum(["NEW", "RESTORE"]);
 export const TableErrorCodeEnum = z.enum([
   "NOT_YOUR_TURN",
   "INVALID_ACTION",
@@ -81,6 +82,7 @@ export const TableSnapshotPayloadSchema = z.object({
   stateHash: z.string().min(1),
   reason: SnapshotReasonEnum,
   actionId: z.string().min(1).optional(),
+  nextHandAtTs: z.number().int().nonnegative().optional(),
 
   table: z.object({
     tableId: z.string().min(1),
@@ -124,6 +126,8 @@ export const TableSnapshotPayloadSchema = z.object({
       winnerId: z.string().min(1).optional(),
       payoutsByUserId: z.record(z.string(), z.number().int().nonnegative()).default({}),
       board: z.array(z.string().min(2).max(2)).max(5).optional(),
+      winnerHoleCards: z.array(z.string().min(2).max(2)).length(2).optional(),
+      winningHandDescr: z.string().optional(),
     })
     .optional(),
 });
@@ -136,6 +140,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
       roomId: z.string().min(1),
       playerId: z.string().min(1),
       tableId: z.string().min(1),
+      joinMode: JoinModeEnum,
     }),
   }),
   z.object({
@@ -144,6 +149,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
       version: SchemaVersion,
       userId: z.string().min(1),
       deadlineTs: z.number(),
+      joinMode: JoinModeEnum,
     }),
   }),
   z.object({

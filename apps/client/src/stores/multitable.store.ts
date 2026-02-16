@@ -4,12 +4,14 @@ import { toServerActionPayload } from "@/realtime/action.mapper";
 import { isValidTableInbound } from "@/realtime/contract.guards";
 
 type RealtimeSender = (type: string, payload?: unknown) => boolean;
+type TableJoinState = { buyInCents?: number; password?: string };
 
 type MultiTableState = {
   openTableIds: string[];
   activeTableId: string | null;
   tableSenders: Record<string, RealtimeSender>;
-  openTable: (id: string) => void;
+  tableJoinById: Record<string, TableJoinState>;
+  openTable: (id: string, joinState?: TableJoinState) => void;
   closeTable: (id: string) => void;
   setActive: (id: string) => void;
   registerTableSender: (id: string, sender: RealtimeSender) => void;
@@ -24,22 +26,50 @@ export const useMultiTableStore = create<MultiTableState>((set, get) => ({
   openTableIds: [],
   activeTableId: null,
   tableSenders: {},
-  openTable: (id) =>
+  tableJoinById: {},
+  openTable: (id, joinState) =>
     set((s) => {
       const exists = s.openTableIds.includes(id);
+      const isAlreadyFront = exists && s.openTableIds[0] === id;
+
+      const prevJoin = s.tableJoinById[id];
+      const nextJoin = joinState ? { ...prevJoin, ...joinState } : prevJoin;
+      const joinChanged =
+        Boolean(joinState) &&
+        (nextJoin?.buyInCents !== prevJoin?.buyInCents || nextJoin?.password !== prevJoin?.password);
+
       const open = exists
-        ? [id, ...s.openTableIds.filter((x) => x !== id)]
+        ? (isAlreadyFront ? s.openTableIds : [id, ...s.openTableIds.filter((x) => x !== id)])
         : [id, ...s.openTableIds].slice(0, 8);
-      return { openTableIds: open, activeTableId: id };
+
+      const activeChanged = s.activeTableId !== id;
+      const openChanged = open !== s.openTableIds;
+      if (!openChanged && !activeChanged && !joinChanged) return s;
+
+      return {
+        openTableIds: open,
+        activeTableId: id,
+        tableJoinById: joinState
+          ? {
+              ...s.tableJoinById,
+              [id]: nextJoin ?? {},
+            }
+          : s.tableJoinById,
+      };
     }),
   closeTable: (id) =>
     set((s) => {
       const open = s.openTableIds.filter((x) => x !== id);
       const active = s.activeTableId === id ? open[0] ?? null : s.activeTableId;
       const { [id]: _, ...restSenders } = s.tableSenders;
-      return { openTableIds: open, activeTableId: active, tableSenders: restSenders };
+      const { [id]: __, ...restJoin } = s.tableJoinById;
+      return { openTableIds: open, activeTableId: active, tableSenders: restSenders, tableJoinById: restJoin };
     }),
-  setActive: (id) => set({ activeTableId: id }),
+  setActive: (id) =>
+    set((s) => {
+      if (s.activeTableId === id) return s;
+      return { activeTableId: id };
+    }),
   registerTableSender: (id, sender) =>
     set((s) => ({
       tableSenders: {
@@ -69,5 +99,5 @@ export const useMultiTableStore = create<MultiTableState>((set, get) => ({
     if (!sender) return false;
     return sender("REMOVE_BOT", { botId });
   },
-  closeAll: () => set({ openTableIds: [], activeTableId: null, tableSenders: {} }),
+  closeAll: () => set({ openTableIds: [], activeTableId: null, tableSenders: {}, tableJoinById: {} }),
 }));

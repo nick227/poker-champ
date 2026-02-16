@@ -190,15 +190,15 @@ async addBot(botId: string, name: string, buyInCents: number) {
 
 ### 6.2 Safety Guard: No Bot-Only Hands
 
-Prevent infinite unattended hands when the table has only bots:
+Prevent infinite unattended hands when the table has only bots (or only bots + sitting-out human):
 
 ```ts
 // Before startHand
-if (this.countHumanPlayers() === 0) return;  // do not start hand
+if (this.countActiveHumanPlayers() === 0) return;  // do not start hand
 ```
 
-- **Why**: Otherwise the server could run infinite hands with no human at the table.
-- **MVP**: `countHumanPlayers() === 0` → skip `startHand`. Simple and sufficient.
+- **Why**: Otherwise the server could run infinite bot-vs-bot hands.
+- **Edge case**: One human seated but sitting out (ABANDONED, busted) + only bots active → use `countActiveHumanPlayers()` (humans who are ACTIVE, have chips) not `countHumanPlayers()`.
 
 ### 6.3 Bot Orchestration
 

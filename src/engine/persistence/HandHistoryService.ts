@@ -4,6 +4,12 @@ import { nanoid } from "nanoid";
 export class HandHistoryService {
   constructor(private prisma: PrismaClient, private tableId: string) {}
 
+  private assertTableId(tableId: string) {
+    if (tableId !== this.tableId) {
+      throw new Error(`TABLE_ID_MISMATCH: expected=${this.tableId} got=${tableId}`);
+    }
+  }
+
   async ensureTableAndPlayers(players: { id: string; name: string; seat: number }[]) {
     await this.prisma.pokerTable.upsert({
       where: { id: this.tableId },
@@ -21,16 +27,18 @@ export class HandHistoryService {
   }
 
   async startHand(params: {
+    tableId: string;
     handId: string;
     dealerSeat: number;
     smallBlindCents: number;
     bigBlindCents: number;
     players: { id: string; seat: number; startingStackCents: number; holeCards: string[] }[];
   }) {
+    this.assertTableId(params.tableId);
     await this.prisma.hand.create({
       data: {
         id: params.handId,
-        tableId: this.tableId,
+        tableId: params.tableId,
         dealerSeat: params.dealerSeat,
         smallBlindCents: params.smallBlindCents,
         bigBlindCents: params.bigBlindCents,
@@ -50,9 +58,11 @@ export class HandHistoryService {
   }
 
   async recordAction(params: {
+    tableId: string;
     handId: string;
     playerId: string;
     seat: number;
+    actionIndex: number;
     street: string;
     action: string;
     amountCents: number;
@@ -60,12 +70,14 @@ export class HandHistoryService {
     potAfterCents: number;
     meta?: any;
   }) {
+    this.assertTableId(params.tableId);
     await this.prisma.handAction.create({
       data: {
         id: nanoid(),
         handId: params.handId,
         playerId: params.playerId,
         seat: params.seat,
+        actionIndex: params.actionIndex,
         street: params.street,
         action: params.action,
         amountCents: params.amountCents,
@@ -76,18 +88,33 @@ export class HandHistoryService {
     });
   }
 
-  async recordPayout(params: { handId: string; playerId: string; amountCents: number }) {
+  async recordPayout(params: {
+    tableId: string;
+    handId: string;
+    playerId: string;
+    payoutIndex: number;
+    amountCents: number;
+  }) {
+    this.assertTableId(params.tableId);
     await this.prisma.handPayout.create({
       data: {
         id: nanoid(),
         handId: params.handId,
         playerId: params.playerId,
+        payoutIndex: params.payoutIndex,
         amountCents: params.amountCents,
       },
     });
   }
 
-  async endHand(params: { handId: string; reason: string; board: string[]; endingStacks: { playerId: string; endingStackCents: number }[] }) {
+  async endHand(params: {
+    tableId: string;
+    handId: string;
+    reason: string;
+    board: string[];
+    endingStacks: { playerId: string; endingStackCents: number }[];
+  }) {
+    this.assertTableId(params.tableId);
     await this.prisma.hand.update({
       where: { id: params.handId },
       data: {

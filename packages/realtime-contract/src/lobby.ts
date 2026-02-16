@@ -6,12 +6,13 @@ export const CreateTableSchema = z
   .object({
     name: z.string().min(1).max(80).default("Hold'em"),
     maxSeats: z.number().int().min(2).max(10),
-    smallBlindCents: z.number().int().positive(),
-    bigBlindCents: z.number().int().positive(),
-    minBuyInCents: z.number().int().positive(),
-    maxBuyInCents: z.number().int().positive(),
-    visibility: VisibilityEnum,
+    smallBlindCents: z.number().int().positive().default(100),
+    bigBlindCents: z.number().int().positive().default(200),
+    minBuyInCents: z.number().int().positive().default(2000),
+    maxBuyInCents: z.number().int().positive().default(20000),
+    visibility: VisibilityEnum.default("PUBLIC"),
     password: z.string().min(1).max(64).optional(),
+    speed: z.enum(["normal", "fast"]).default("normal"),
   })
   .superRefine((v, ctx) => {
     if (v.bigBlindCents < v.smallBlindCents) {

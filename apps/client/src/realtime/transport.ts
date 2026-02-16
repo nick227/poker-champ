@@ -1,4 +1,5 @@
 import { Client } from "@colyseus/sdk";
+import { lobby } from "@poker-champ/sdk";
 
 export type RealtimeOutboundMessage = {
   type: string;
@@ -40,6 +41,13 @@ function toWsUrl(raw?: string): string | null {
   if (raw.startsWith("http://")) return raw.replace("http://", "ws://");
   if (raw.startsWith("https://")) return raw.replace("https://", "wss://");
   return null;
+}
+
+async function resolveRoomIdByTableId(tableId: string): Promise<string | null> {
+  const data = await lobby.listTables();
+  const match = (data.tables ?? []).find((t) => String(t.tableId ?? "") === tableId);
+  const roomId = match?.roomId;
+  return typeof roomId === "string" && roomId.length > 0 ? roomId : null;
 }
 
 function normalizeInbound(data: unknown): RealtimeInboundMessage | null {
@@ -167,9 +175,33 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let shouldReconnect = true;
   let room: any = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let activeRoomId = options.roomId;
+  let attemptedRoomIdRecovery = false;
+  let attemptedEmptyErrorRetry = false;
+  const debugLog = (...args: unknown[]) => {
+    // eslint-disable-next-line no-console
+    console.log("[COLYSEUS_RT]", ...args);
+  };
+
+  const isRetryableJoinError = (message: string): boolean => {
+    if (!message || message.trim().length === 0) return true;
+    const normalized = message.toLowerCase();
+    if (normalized.includes("room \"") && normalized.includes("\" not found")) return false;
+    if (normalized.includes("missing_buy_in_cents")) return false;
+    if (normalized.includes("bad_join_options")) return false;
+    if (normalized.includes("invalid or expired session")) return false;
+    if (normalized.includes("authentication required")) return false;
+    return true;
+  };
+
+  const isRoomNotFoundError = (message: string): boolean => {
+    const normalized = message.toLowerCase();
+    return normalized.includes("room \"") && normalized.includes("\" not found");
+  };
 
   const scheduleReconnect = () => {
     if (!shouldReconnect || reconnectTimer) return;
+    debugLog("SCHEDULE_RECONNECT", { roomId: options.roomId, roomName: options.roomName });
     options.onMessage({ type: "RECONNECTING" });
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -180,11 +212,19 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   const connect = async () => {
     try {
       const client = new Client(url);
-      room = options.roomId
-        ? await client.joinById(options.roomId, options.joinOptions ?? {})
+      debugLog("SOCKET_CONNECT_ATTEMPT", {
+        url,
+        roomId: activeRoomId,
+        roomName: options.roomName,
+        hasJoinOptions: Boolean(options.joinOptions),
+        joinOptionKeys: options.joinOptions ? Object.keys(options.joinOptions) : [],
+      });
+      room = activeRoomId
+        ? await client.joinById(activeRoomId, options.joinOptions ?? {})
         : await client.joinOrCreate(options.roomName ?? "lobby", options.joinOptions ?? {});
 
       connected = true;
+      debugLog("CONNECTED", { roomId: room?.roomId ?? options.roomId, sessionId: room?.sessionId });
       options.onMessage({ type: "CONNECTED" });
       options.onOpen?.();
 
@@ -193,11 +233,13 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       });
 
       room.onError((code: number, message: string) => {
+        debugLog("ROOM_ERROR", { code, message, roomId: room?.roomId ?? options.roomId });
         options.onError?.(`Colyseus error (${code}): ${message}`);
       });
 
       room.onLeave(() => {
         connected = false;
+        debugLog("LEFT", { roomId: room?.roomId ?? options.roomId, willReconnect: shouldReconnect });
         options.onMessage({ type: "DISCONNECTED" });
         options.onClose?.();
         scheduleReconnect();
@@ -205,8 +247,57 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     } catch (err: any) {
       connected = false;
       options.onMessage({ type: "DISCONNECTED" });
-      options.onError?.(err?.message ?? "Unable to connect to Colyseus");
-      scheduleReconnect();
+      const message = err?.message ?? "Unable to connect to Colyseus";
+      debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message });
+
+      const tableIdCandidate = options.joinOptions?.tableId;
+      if (
+        activeRoomId &&
+        isRoomNotFoundError(message) &&
+        !attemptedRoomIdRecovery &&
+        typeof tableIdCandidate === "string" &&
+        tableIdCandidate.length > 0
+      ) {
+        attemptedRoomIdRecovery = true;
+        try {
+          const recoveredRoomId = await resolveRoomIdByTableId(tableIdCandidate);
+          if (recoveredRoomId && recoveredRoomId !== activeRoomId) {
+            activeRoomId = recoveredRoomId;
+            debugLog("ROOM_ID_RECOVERED", { tableId: tableIdCandidate, recoveredRoomId });
+            await connect();
+            return;
+          }
+          debugLog("ROOM_ID_RECOVERY_MISS", { tableId: tableIdCandidate, attemptedRoomId: activeRoomId });
+        } catch (recoveryErr: any) {
+          debugLog("ROOM_ID_RECOVERY_FAILED", { tableId: tableIdCandidate, message: recoveryErr?.message ?? String(recoveryErr) });
+        }
+      }
+
+      if (
+        (!message || message.trim().length === 0) &&
+        !attemptedEmptyErrorRetry &&
+        typeof tableIdCandidate === "string" &&
+        tableIdCandidate.length > 0
+      ) {
+        attemptedEmptyErrorRetry = true;
+        try {
+          const recoveredRoomId = await resolveRoomIdByTableId(tableIdCandidate);
+          if (recoveredRoomId && recoveredRoomId !== activeRoomId) {
+            activeRoomId = recoveredRoomId;
+            debugLog("EMPTY_ERROR_ROOM_ID_RECOVERED", { tableId: tableIdCandidate, recoveredRoomId });
+          }
+        } catch (recoveryErr: any) {
+          debugLog("EMPTY_ERROR_ROOM_ID_RECOVERY_FAILED", {
+            tableId: tableIdCandidate,
+            message: recoveryErr?.message ?? String(recoveryErr),
+          });
+        }
+      }
+
+      options.onError?.(message);
+      if (isRetryableJoinError(message)) {
+        scheduleReconnect();
+      }
     }
   };
 
@@ -221,6 +312,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     },
     disconnect: () => {
       shouldReconnect = false;
+      debugLog("DISCONNECT_REQUESTED", { roomId: room?.roomId ?? activeRoomId });
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
@@ -234,4 +326,3 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     },
   };
 }
-

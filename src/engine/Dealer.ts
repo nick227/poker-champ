@@ -26,6 +26,7 @@ import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotP
 import { newBotId } from "./bots/botIds.js";
 import { RandomBotBrain } from "./bots/BotBrain.js";
 import type { BotBrain } from "./bots/BotBrain.js";
+import { getAutoActionHandCap } from "../config/seats.js";
 
 type SnapshotReason = TableSnapshotPayload["reason"];
 
@@ -55,12 +56,46 @@ export class Dealer {
   private pendingSeatReleaseUserIds: Set<string> = new Set();
   private lastHandResult: TableSnapshotPayload["lastHandResult"] | undefined = undefined;
   private readonly botBrain: BotBrain = new RandomBotBrain();
+  private readonly autoActionsByUserId: Map<string, number> = new Map();
+  private readonly currentHandAutoActedUserIds: Set<string> = new Set();
+  private readonly onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
+  private readonly onTableSnapshotEmitted?: (args: {
+    tableId: string;
+    handId?: string;
+    snapshotId: string;
+    reason: SnapshotReason;
+    street: string;
+    payloadJson: TableSnapshotPayload;
+    stateHash: string;
+    schemaVersion: number;
+  }) => Promise<void> | void;
 
   private actionQueue: Promise<void> = Promise.resolve();
+  private currentHandActionIndex = 0;
+  private currentHandPayoutIndex = 0;
+  private currentHandIncludesBotParticipants = false;
 
-  constructor(state: PokerState, persistence?: PersistenceFacade) {
+  constructor(
+    state: PokerState,
+    persistence?: PersistenceFacade,
+    options?: {
+      onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
+      onTableSnapshotEmitted?: (args: {
+        tableId: string;
+        handId?: string;
+        snapshotId: string;
+        reason: SnapshotReason;
+        street: string;
+        payloadJson: TableSnapshotPayload;
+        stateHash: string;
+        schemaVersion: number;
+      }) => Promise<void> | void;
+    },
+  ) {
     this.state = state;
     this.persistence = persistence ?? new PersistenceFacade(this.state.tableId || "table_poc");
+    this.onAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
+    this.onTableSnapshotEmitted = options?.onTableSnapshotEmitted;
     if (this.state.seats.length === 0) {
       for (let i = 0; i < (this.state.maxSeats || 9); i++) this.state.seats.push("");
     }
@@ -124,6 +159,50 @@ export class Dealer {
     }
   }
 
+  async restorePlayerFromSession(
+    userId: string,
+    name: string,
+    seat: number,
+    stackCents: number,
+    options?: { connected?: boolean; sittingOut?: boolean },
+  ) {
+    if (this.state.playersById.has(userId)) return;
+    if (seat < 0 || seat >= this.state.seats.length) {
+      throw new PokerError("BAD_STATE", "Invalid seat from persisted session.");
+    }
+    const occupant = this.state.seats[seat];
+    if (occupant && occupant !== userId) {
+      throw new PokerError("BAD_STATE", "Persisted seat is currently occupied.");
+    }
+
+    const p = new PlayerState();
+    p.id = userId;
+    p.userId = userId;
+    p.kind = "HUMAN";
+    p.name = name;
+    p.seat = seat;
+    const connected = options?.connected ?? true;
+    const sittingOut = options?.sittingOut ?? false;
+    p.status = stackCents > 0 ? (sittingOut ? "ABANDONED" : "ACTIVE") : "OUT";
+    p.connected = connected;
+    p.disconnectDeadlineTs = 0;
+    p.stackCents = Math.max(0, stackCents);
+    p.roundBetCents = 0;
+    p.committedCents = 0;
+    p.needsAction = false;
+
+    this.state.playersById.set(userId, p);
+    this.autoActionsByUserId.delete(userId);
+    this.state.seats[seat] = userId;
+    await this.ensurePlayerPersistence(p);
+    this.sendTableSnapshotToAll("RECONNECT");
+
+    logger.info({ userId, seat, stackCents: p.stackCents }, "player restored from persisted seat session");
+    if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
+      await this.startHand();
+    }
+  }
+
   async addBot(botId: string, name: string, buyInCents: number) {
     if (this.state.playersById.has(botId)) return;
     const seat = this.findOpenSeat();
@@ -148,7 +227,7 @@ export class Dealer {
       await this.persistence.handHistory.ensureTableAndPlayers([{ id: p.id, name: p.name, seat: p.seat }]);
     }
     this.sendTableSnapshotToAll("SEAT_CHANGE");
-    await this.maybeActForBot();
+    this.maybeActForBot();
 
     logger.info({ botId, seat }, "bot joined");
     if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
@@ -161,11 +240,13 @@ export class Dealer {
     if (!p) return;
 
     this.pendingSeatReleaseUserIds.delete(botId);
+    this.autoActionsByUserId.delete(botId);
+    this.currentHandAutoActedUserIds.delete(botId);
     this.state.seats[p.seat] = "";
     this.state.playersById.delete(botId);
     this.holeCardsByPlayerId.delete(botId);
     this.sendTableSnapshotToAll("SEAT_CHANGE");
-    await this.maybeActForBot();
+    this.maybeActForBot();
 
     logger.info({ botId }, "bot left");
 
@@ -213,12 +294,14 @@ export class Dealer {
     }
 
     this.pendingSeatReleaseUserIds.delete(userId);
+    this.autoActionsByUserId.delete(userId);
+    this.currentHandAutoActedUserIds.delete(userId);
 
     this.state.seats[p.seat] = "";
     this.state.playersById.delete(userId);
     this.holeCardsByPlayerId.delete(userId);
     this.sendTableSnapshotToAll("SEAT_CHANGE");
-    await this.maybeActForBot();
+    this.maybeActForBot();
     logger.info({ userId }, "player left");
 
     if (this.state.street === "WAITING") {
@@ -248,13 +331,16 @@ export class Dealer {
     p.connected = false;
     p.disconnectDeadlineTs = disconnectDeadlineTs;
     this.sendTableSnapshotToAll("SEAT_CHANGE");
+    this.maybeActForBot();
   }
 
   markReconnected(userId: string) {
     const p = this.state.playersById.get(userId);
     if (!p) return;
     p.connected = true;
+    if (p.status === "ABANDONED" && p.stackCents > 0) p.status = "ACTIVE";
     p.disconnectDeadlineTs = 0;
+    this.autoActionsByUserId.delete(userId);
     this.sendTableSnapshotToAll("RECONNECT");
   }
 
@@ -317,33 +403,71 @@ export class Dealer {
     if (p.seat !== this.state.toActSeat) throw new PokerError("NOT_YOUR_TURN", "Not your turn.");
 
     const callAmount = Math.max(0, this.state.roundCurrentBetCents - p.roundBetCents);
+    const potBefore = this.state.potCents;
 
     switch (msg.action) {
       case "FOLD":
+        await this.recordAcceptedAction({
+          player: p,
+          action: "FOLD",
+          amountCents: 0,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore,
+        });
         p.status = "FOLDED";
         clearPlayerNeedsAction(p);
         break;
 
       case "CHECK":
         if (callAmount !== 0) throw new PokerError("INVALID_ACTION", "Cannot check; must call/fold/raise.");
+        await this.recordAcceptedAction({
+          player: p,
+          action: "CHECK",
+          amountCents: 0,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore,
+        });
         clearPlayerNeedsAction(p);
         break;
 
       case "CALL":
         if (callAmount > 0) {
           this.assertCanAfford(p, callAmount);
-          await this.debitAndPayExact(p, callAmount, "CALL");
+          const next = await this.persistDebitForAction(p, callAmount, "CALL");
+          await this.recordAcceptedAction({
+            player: p,
+            action: "CALL",
+            amountCents: callAmount,
+            potBeforeCents: potBefore,
+            potAfterCents: potBefore + callAmount,
+          });
+          this.applyDebitToRuntimeState(p, callAmount, next);
+        } else {
+          await this.recordAcceptedAction({
+            player: p,
+            action: "CALL",
+            amountCents: 0,
+            potBeforeCents: potBefore,
+            potAfterCents: potBefore,
+          });
         }
         clearPlayerNeedsAction(p);
         break;
 
       case "BET": {
         if (this.state.roundCurrentBetCents !== 0) throw new PokerError("INVALID_ACTION", "Cannot BET; use RAISE.");
-        const amt = msg.amountCents ?? 0;
+        const requested = msg.amountCents ?? 0;
+        const amt = Math.min(requested, p.stackCents);
         if (amt <= 0) throw new PokerError("INVALID_ACTION", "BET requires amountCents > 0.");
-
-        this.assertCanAfford(p, amt);
-        await this.debitAndPayExact(p, amt, "BET");
+        const next = await this.persistDebitForAction(p, amt, "BET");
+        await this.recordAcceptedAction({
+          player: p,
+          action: "BET",
+          amountCents: amt,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore + amt,
+        });
+        this.applyDebitToRuntimeState(p, amt, next);
 
         this.state.roundCurrentBetCents = p.roundBetCents;
         this.state.minRaiseCents = Math.max(this.state.bigBlindCents, amt);
@@ -353,17 +477,28 @@ export class Dealer {
 
       case "RAISE": {
         if (this.state.roundCurrentBetCents === 0) throw new PokerError("INVALID_ACTION", "Cannot RAISE; use BET.");
-        const raiseTo = msg.amountCents ?? 0;
-        if (raiseTo <= this.state.roundCurrentBetCents) throw new PokerError("INVALID_ACTION", "RAISE must be > current bet.");
+        const raiseToRequested = msg.amountCents ?? 0;
+        if (raiseToRequested <= this.state.roundCurrentBetCents) throw new PokerError("INVALID_ACTION", "RAISE must be > current bet.");
 
+        const neededRequested = Math.max(0, raiseToRequested - p.roundBetCents);
+        const needed = Math.min(neededRequested, p.stackCents);
+        const raiseTo = p.roundBetCents + needed;
         const delta = raiseTo - this.state.roundCurrentBetCents;
         if (delta < this.state.minRaiseCents && p.stackCents > (raiseTo - p.roundBetCents)) {
           throw new PokerError("INVALID_ACTION", "RAISE below minRaise.");
         }
 
-        const needed = Math.max(0, raiseTo - p.roundBetCents);
-        this.assertCanAfford(p, needed);
-        await this.debitAndPayExact(p, needed, "RAISE", { raiseTo });
+        if (needed <= 0) throw new PokerError("INVALID_ACTION", "RAISE requires chips.");
+        const next = await this.persistDebitForAction(p, needed, "RAISE", { raiseTo });
+        await this.recordAcceptedAction({
+          player: p,
+          action: "RAISE",
+          amountCents: needed,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore + needed,
+          meta: { raiseTo },
+        });
+        this.applyDebitToRuntimeState(p, needed, next);
 
         const newLevel = p.roundBetCents;
         this.state.minRaiseCents = Math.max(this.state.minRaiseCents, newLevel - this.state.roundCurrentBetCents);
@@ -376,7 +511,15 @@ export class Dealer {
       case "ALL_IN": {
         const pay = p.stackCents;
         if (pay <= 0) throw new PokerError("INVALID_ACTION", "No chips to go all-in.");
-        await this.debitAndPayExact(p, pay, "ALL_IN");
+        const next = await this.persistDebitForAction(p, pay, "ALL_IN");
+        await this.recordAcceptedAction({
+          player: p,
+          action: "ALL_IN",
+          amountCents: pay,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore + pay,
+        });
+        this.applyDebitToRuntimeState(p, pay, next);
 
         if (p.roundBetCents > this.state.roundCurrentBetCents) {
           const delta = p.roundBetCents - this.state.roundCurrentBetCents;
@@ -405,7 +548,7 @@ export class Dealer {
     this.state.toActSeat = this.findNextToActSeat(this.state.toActSeat);
     const reason: SnapshotReason = p.kind === "BOT" ? "BOT_ACTION" : "ACTION_ACCEPTED";
     this.sendTableSnapshotToAll(reason, `act_${this.state.handId}_${nanoid(8)}`);
-    await this.maybeActForBot();
+    this.maybeActForBot();
   }
 
   // -------------------------
@@ -413,17 +556,22 @@ export class Dealer {
   // -------------------------
 
   private async startHand() {
-    if (this.countHumanPlayers() === 0) return;
+    if (this.countActiveHumanPlayers() === 0) return;
     this.state.runningSinceTs = Date.now();
 
     this.state.dealerSeat = this.findNextActiveSeat(this.state.dealerSeat) ?? 0;
 
     this.state.handId = newId("hand");
     this.state.handNumber += 1;
+    this.currentHandAutoActedUserIds.clear();
+    // Reset deterministic per-hand persistence ordering counters.
+    this.currentHandActionIndex = 0;
+    this.currentHandPayoutIndex = 0;
     this.state.street = "PREFLOP";
     this.state.board.clear();
     this.state.potCents = 0;
     this.state.actionCount = 0;
+    this.state.nextHandAtTs = 0;
     this.lastHandResult = undefined;
 
     resetBettingRound(this.state);
@@ -447,11 +595,33 @@ export class Dealer {
     this.deck = new DeckService();
     this.deck.shuffle();
 
+    const activePlayers = [...this.iterPlayersInSeatOrder()].filter((p) => p.status === "ACTIVE");
+    this.currentHandIncludesBotParticipants = activePlayers.some((p) => p.kind === "BOT");
+    const startingStacksByUserId = new Map<string, number>();
+    for (const p of activePlayers) {
+      startingStacksByUserId.set(p.id, p.stackCents);
+    }
+
     this.holeCardsByPlayerId.clear();
-    for (const p of this.iterPlayersInSeatOrder()) {
-      if (p.status !== "ACTIVE") continue;
+    for (const p of activePlayers) {
       const cards = [this.drawCard(), this.drawCard()];
       this.holeCardsByPlayerId.set(p.id, cards);
+    }
+
+    if (this.persistence.enabled && this.persistence.handHistory) {
+      await this.persistence.handHistory.startHand({
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        dealerSeat: this.state.dealerSeat,
+        smallBlindCents: this.state.smallBlindCents,
+        bigBlindCents: this.state.bigBlindCents,
+        players: activePlayers.map((p) => ({
+          id: p.id,
+          seat: p.seat,
+          startingStackCents: startingStacksByUserId.get(p.id) ?? p.stackCents,
+          holeCards: this.holeCardsByPlayerId.get(p.id) ?? [],
+        })),
+      });
     }
 
     const sbSeat = this.findNextActiveSeat(this.state.dealerSeat) ?? this.state.dealerSeat;
@@ -508,7 +678,7 @@ export class Dealer {
 
     logger.info({ handId: this.state.handId }, "hand started");
     this.sendTableSnapshotToAll("HAND_START");
-    await this.maybeActForBot();
+    this.maybeActForBot();
   }
 
   private async advanceStreetOrShowdown() {
@@ -535,7 +705,7 @@ export class Dealer {
     this.state.toActSeat = this.findNextToActSeat(this.state.dealerSeat);
 
     this.sendTableSnapshotToAll("AUTO_TRANSITION");
-    await this.maybeActForBot();
+    this.maybeActForBot();
   }
 
   private runoutToRiver() {
@@ -551,6 +721,7 @@ export class Dealer {
     const winner = [...this.state.playersById.values()].find(p => p.status !== "FOLDED" && p.status !== "OUT");
     if (!winner) { this.state.street = "WAITING"; return; }
 
+    await this.recordAcceptedPayout(winner.id, this.state.potCents);
     const next = await this.persistence.creditPayout({
       userId: winner.id,
       handId: this.state.handId,
@@ -559,6 +730,7 @@ export class Dealer {
       player: winner,
     });
     winner.stackCents = next;
+    await this.applyDisconnectedAutoActionCapForHand();
 
     this.lastHandResult = {
       handId: this.state.handId,
@@ -570,10 +742,13 @@ export class Dealer {
     };
     this.sendTableSnapshotToAll("HAND_END");
 
+    await this.finalizePersistedHand("ALL_FOLDED");
     this.state.street = "WAITING";
     await this.releasePendingSeats();
     this.scheduleNextHand("HAND_END");
-    await this.persistence.assertHandBalanced(this.state.handId);
+    if (!this.currentHandIncludesBotParticipants) {
+      await this.persistence.assertHandBalanced(this.state.handId);
+    }
   }
 
   private async finishHandShowdownWithSidePots() {
@@ -647,6 +822,7 @@ export class Dealer {
     for (const [id, amt] of payouts.entries()) {
       const p = this.state.playersById.get(id);
       if (p) {
+        await this.recordAcceptedPayout(id, amt);
         const next = await this.persistence.creditPayout({
           userId: id,
           handId: this.state.handId,
@@ -658,19 +834,32 @@ export class Dealer {
       }
     }
 
+    const payoutsEntries = [...payouts.entries()];
+    const primaryWinnerId = payoutsEntries[0]?.[0];
+    const primaryWinnerCards = primaryWinnerId ? this.holeCardsByPlayerId.get(primaryWinnerId) : undefined;
+    const primarySolved = primaryWinnerId ? solved.get(primaryWinnerId) : undefined;
+    const winningDescr = primarySolved?.descr ?? primarySolved?.name;
+
     this.lastHandResult = {
       handId: this.state.handId,
       reason: "SHOWDOWN",
       potCents: this.state.potCents,
-      payoutsByUserId: Object.fromEntries(payouts.entries()),
+      winnerId: payoutsEntries.length === 1 ? primaryWinnerId : undefined,
+      payoutsByUserId: Object.fromEntries(payoutsEntries),
       board,
+      winnerHoleCards: primaryWinnerCards?.length === 2 ? primaryWinnerCards : undefined,
+      winningHandDescr: typeof winningDescr === "string" ? winningDescr : undefined,
     };
+    await this.applyDisconnectedAutoActionCapForHand();
     this.sendTableSnapshotToAll("HAND_END");
 
+    await this.finalizePersistedHand("SHOWDOWN");
     this.state.street = "WAITING";
     await this.releasePendingSeats();
     this.scheduleNextHand("HAND_END");
-    await this.persistence.assertHandBalanced(this.state.handId);
+    if (!this.currentHandIncludesBotParticipants) {
+      await this.persistence.assertHandBalanced(this.state.handId);
+    }
   }
 
 // -------------------------
@@ -679,23 +868,31 @@ export class Dealer {
 private nextHandScheduled = false;
 
   private scheduleNextHand(reason: string) {
-  if (this.nextHandScheduled) return;
-  this.nextHandScheduled = true;
+    if (this.nextHandScheduled) return;
+    this.nextHandScheduled = true;
 
-  // Allow previous snapshot emit to flush before restarting.
-  setTimeout(() => {
-    this.nextHandScheduled = false;
+    this.state.nextHandAtTs = Date.now() + 3000;
+    
+    // Emit snapshot so clients see the countdown
+    this.sendTableSnapshotToAll("AUTO_TRANSITION");
 
-    const seated = [...this.state.playersById.values()]
-      .filter(p => p.seat >= 0 && p.status !== "OUT");
+    setTimeout(() => {
+      this.nextHandScheduled = false;
+      this.state.nextHandAtTs = 0;
 
-    if (this.state.street === "WAITING" && seated.length >= 2) {
-      this.startHand().catch((err) => {
-        logger.error({ err, reason }, "Failed to auto-start next hand");
-      });
-    }
-  }, 0);
-}
+      const seated = [...this.state.playersById.values()]
+        .filter(p => p.seat >= 0 && p.status !== "OUT");
+
+      if (this.state.street === "WAITING" && seated.length >= 2) {
+        this.startHand().catch((err) => {
+          logger.error({ err, reason }, "Failed to auto-start next hand");
+        });
+      } else {
+        // If we still cannot start (e.g. players left), ensure clients know we are WAITING
+        this.sendTableSnapshotToAll("AUTO_TRANSITION");
+      }
+    }, 3000);
+  }
 
   private async releasePendingSeats() {
     const toRelease = [...this.pendingSeatReleaseUserIds];
@@ -709,27 +906,37 @@ private nextHandScheduled = false;
   // Chip accounting
   // -------------------------
 
-  private async debitAndPayExact(
+  private async persistDebitForAction(
     p: PlayerState,
     amountCents: number,
     action: any, // Action type like "CALL", "BET", etc.
     meta?: any,
-  ) {
-    if (amountCents <= 0) return;
+  ): Promise<number> {
+    if (amountCents <= 0) return p.stackCents;
 
-    this.state.actionCount++;
     const next = await this.persistence.debitBet({
       userId: p.id,
       handId: this.state.handId,
       street: this.state.street,
       action: action === "POST_SB" || action === "POST_BB" ? "BET" : action,
       amountCents,
-      sequenceNum: this.state.actionCount,
+      sequenceNum: this.state.actionCount + 1,
       currentBalance: p.stackCents,
       player: p,
     });
 
-    p.stackCents = next;
+    return next;
+  }
+
+  private applyDebitToRuntimeState(
+    p: PlayerState,
+    amountCents: number,
+    nextStackCents: number,
+  ) {
+    if (amountCents <= 0) return;
+
+    this.state.actionCount++;
+    p.stackCents = nextStackCents;
     p.roundBetCents += amountCents;
     p.committedCents += amountCents;
     this.state.potCents += amountCents;
@@ -738,6 +945,72 @@ private nextHandScheduled = false;
       p.status = "ALL_IN";
       p.needsAction = false;
     }
+  }
+
+  private async recordAcceptedAction(params: {
+    player: PlayerState;
+    action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
+    amountCents: number;
+    potBeforeCents: number;
+    potAfterCents: number;
+    meta?: Record<string, unknown>;
+  }) {
+    if (!this.persistence.enabled || !this.persistence.handHistory) return;
+    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot persist action without active handId.");
+    const nextActionIndex = this.currentHandActionIndex + 1;
+    await this.persistence.handHistory.recordAction({
+      tableId: this.state.tableId,
+      handId: this.state.handId,
+      playerId: params.player.id,
+      seat: params.player.seat,
+      actionIndex: nextActionIndex,
+      street: this.state.street,
+      action: params.action,
+      amountCents: params.amountCents,
+      potBeforeCents: params.potBeforeCents,
+      potAfterCents: params.potAfterCents,
+      meta: params.meta,
+    });
+    this.currentHandActionIndex = nextActionIndex;
+  }
+
+  private async recordAcceptedPayout(playerId: string, amountCents: number) {
+    if (!this.persistence.enabled || !this.persistence.handHistory) return;
+    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot persist payout without active handId.");
+    const nextPayoutIndex = this.currentHandPayoutIndex + 1;
+    await this.persistence.handHistory.recordPayout({
+      tableId: this.state.tableId,
+      handId: this.state.handId,
+      playerId,
+      payoutIndex: nextPayoutIndex,
+      amountCents,
+    });
+    this.currentHandPayoutIndex = nextPayoutIndex;
+  }
+
+  private async finalizePersistedHand(reason: "SHOWDOWN" | "ALL_FOLDED") {
+    if (!this.persistence.enabled || !this.persistence.handHistory) return;
+    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot finalize hand without handId.");
+    await this.persistence.handHistory.endHand({
+      tableId: this.state.tableId,
+      handId: this.state.handId,
+      reason,
+      board: [...this.state.board],
+      endingStacks: [...this.state.playersById.values()].map((p) => ({
+        playerId: p.id,
+        endingStackCents: p.stackCents,
+      })),
+    });
+  }
+
+  private async debitAndPayExact(
+    p: PlayerState,
+    amountCents: number,
+    action: any,
+    meta?: any,
+  ) {
+    const next = await this.persistDebitForAction(p, amountCents, action, meta);
+    this.applyDebitToRuntimeState(p, amountCents, next);
   }
 
   private assertCanAfford(p: PlayerState, amountCents: number) {
@@ -870,15 +1143,41 @@ private nextHandScheduled = false;
     return c;
   }
 
-  private async maybeActForBot(): Promise<void> {
+  /** Humans who will be dealt in (ACTIVE, not sitting out, have chips). Prevents bot-only hands. */
+  private countActiveHumanPlayers(): number {
+    let c = 0;
+    for (const p of this.state.playersById.values()) {
+      if (p.kind !== "HUMAN") continue;
+      if (p.status === "OUT" || p.status === "ABANDONED") continue;
+      if (p.stackCents <= 0) continue;
+      c++;
+    }
+    return c;
+  }
+
+  /**
+   * Automation hook for non-human turn blocking:
+   * - bots take a delayed action via BotBrain
+   * - disconnected humans auto-check when legal, otherwise auto-fold
+   */
+  private maybeActForBot(): void {
     if (this.state.street === "WAITING") return;
     const toActId = this.state.seats[this.state.toActSeat] ?? "";
     const p = this.state.playersById.get(toActId);
-    if (!toActId || !p || p.kind !== "BOT") return;
+    if (!toActId || !p) return;
     if (!eligibleToAct(p) || !p.needsAction) return;
 
     const options = this.buildHeroActionOptions(toActId);
     if (!options) return;
+
+    if (p.kind !== "BOT" && p.connected) return;
+
+    if (p.kind !== "BOT" && !p.connected) {
+      const payload: ActionPayload = options.canCheck ? { action: "CHECK" } : { action: "FOLD" };
+      this.currentHandAutoActedUserIds.add(toActId);
+      this.enqueueInternalAction(toActId, payload);
+      return;
+    }
 
     const ctx = {
       heroActionOptions: options,
@@ -890,9 +1189,60 @@ private nextHandScheduled = false;
       },
       seatSnapshot: { stackCents: p.stackCents, roundBetCents: p.roundBetCents, seat: p.seat },
     };
-    await new Promise((r) => setTimeout(r, BOT_ACTION_DELAY_MS));
     const payload = this.botBrain.pickAction(ctx);
-    await this.handleAction(toActId, payload);
+
+    this.enqueueInternalAction(toActId, payload, BOT_ACTION_DELAY_MS);
+  }
+
+  private enqueueInternalAction(userId: string, payload: ActionPayload, delayMs = 0): void {
+    this.actionQueue = this.actionQueue.then(async () => {
+      if (delayMs > 0) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      await this._handleAction(userId, payload);
+    }).catch((err) => {
+      if (this.isSkippableQueuedActionError(err)) {
+        logger.warn(
+          { err, userId, action: payload.action, street: this.state.street },
+          "Queued auto-action skipped after state changed",
+        );
+        return;
+      }
+      logger.error({ err, userId, action: payload.action }, "Queued auto-action failed");
+    });
+  }
+
+  private isSkippableQueuedActionError(err: unknown): boolean {
+    if (!(err instanceof PokerError)) return false;
+    return err.code === "HAND_NOT_STARTED" || err.code === "NOT_YOUR_TURN" || err.code === "NOT_ELIGIBLE";
+  }
+
+  private async applyDisconnectedAutoActionCapForHand() {
+    const cap = getAutoActionHandCap();
+    if (cap <= 0) return;
+
+    for (const p of this.state.playersById.values()) {
+      if (p.kind !== "HUMAN") continue;
+      const autoActed = this.currentHandAutoActedUserIds.has(p.id);
+      if (autoActed && !p.connected) {
+        const nextCount = (this.autoActionsByUserId.get(p.id) ?? 0) + 1;
+        this.autoActionsByUserId.set(p.id, nextCount);
+        if (nextCount >= cap) {
+          // In-memory ABANDONED is the gameplay sit-out marker. Persisted seat state uses SEATED_SITTING_OUT.
+          p.status = "ABANDONED";
+          p.needsAction = false;
+          if (this.onAutoSitOutReachedCap) {
+            await this.onAutoSitOutReachedCap({ userId: p.id, stackCents: p.stackCents });
+          }
+          logger.info({ userId: p.id, autoActionHands: nextCount, cap }, "AUTO_ACTION_CAP_REACHED_SIT_OUT");
+        }
+        continue;
+      }
+
+      if (p.connected) {
+        this.autoActionsByUserId.delete(p.id);
+      }
+    }
   }
 
   private countNotFoldedPlayers(): number {
@@ -912,6 +1262,20 @@ private nextHandScheduled = false;
         continue;
       }
       client.send("TABLE_SNAPSHOT", payload);
+      if (this.onTableSnapshotEmitted) {
+        void Promise.resolve(this.onTableSnapshotEmitted({
+          tableId: this.state.tableId,
+          handId: this.state.handId || undefined,
+          snapshotId: payload.snapshotId,
+          reason,
+          street: payload.hand?.street ?? "WAITING",
+          payloadJson: payload,
+          stateHash: payload.stateHash,
+          schemaVersion: payload.version,
+        })).catch((err) => {
+          logger.warn({ err, tableId: this.state.tableId, snapshotId: payload.snapshotId }, "TABLE_SNAPSHOT_LOG_WRITE_FAILED");
+        });
+      }
       logger.debug({
         snapshotVersion: payload.version,
         handId: payload.hand?.handId ?? "",
@@ -934,6 +1298,20 @@ private nextHandScheduled = false;
     }
 
     client.send("TABLE_SNAPSHOT", payload);
+    if (this.onTableSnapshotEmitted) {
+      void Promise.resolve(this.onTableSnapshotEmitted({
+        tableId: this.state.tableId,
+        handId: this.state.handId || undefined,
+        snapshotId: payload.snapshotId,
+        reason,
+        street: payload.hand?.street ?? "WAITING",
+        payloadJson: payload,
+        stateHash: payload.stateHash,
+        schemaVersion: payload.version,
+      })).catch((err) => {
+        logger.warn({ err, tableId: this.state.tableId, snapshotId: payload.snapshotId }, "TABLE_SNAPSHOT_LOG_WRITE_FAILED");
+      });
+    }
     logger.debug({
       snapshotVersion: payload.version,
       handId: payload.hand?.handId ?? "",
@@ -986,6 +1364,7 @@ private nextHandScheduled = false;
       serverTimeTs: nowTs,
       reason,
       actionId,
+      nextHandAtTs: this.state.nextHandAtTs || undefined,
       table: {
         tableId: this.state.tableId,
         tableName: this.state.tableName,

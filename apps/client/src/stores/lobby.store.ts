@@ -6,7 +6,7 @@ type LobbyState = {
   busy: boolean;
   error: string | null;
   transportState: "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
-  refresh: () => Promise<void>;
+  refresh: (opts?: { background?: boolean }) => Promise<void>;
 };
 
 export const useLobbyStore = create<LobbyState>((set) => ({
@@ -14,8 +14,9 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   busy: false,
   error: null,
   transportState: "DISCONNECTED",
-  refresh: async () => {
-    set({ busy: true, error: null });
+  refresh: async (opts) => {
+    const background = opts?.background === true;
+    if (!background) set({ busy: true, error: null });
     try {
       const tables = await getLobbyTables();
       set({ tables, busy: false });

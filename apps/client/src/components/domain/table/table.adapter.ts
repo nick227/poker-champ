@@ -5,7 +5,12 @@ export type UiCard = { rank: string; suit: string } | null;
 
 export function decodeCard(card: string | undefined): UiCard {
   if (!card || card.length < 2) return null;
-  return { rank: card[0], suit: card[1] };
+  const raw = String(card).trim();
+  if (raw.length < 2) return null;
+  const suit = raw.slice(-1).toLowerCase();
+  let rank = raw.slice(0, -1).toUpperCase();
+  if (rank === "10") rank = "T";
+  return { rank, suit };
 }
 
 export function getCommunityCards(snapshot: TableSnapshotPayload): UiCard[] {

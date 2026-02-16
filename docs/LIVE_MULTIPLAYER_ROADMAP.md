@@ -18,6 +18,11 @@ What is done now:
 - seated session restore path
 - non-consented leave + reconnect grace path
 - settlement math check (`sum(lastHandResult.payoutsByUserId) === lastHandResult.potCents`)
+- empty-table persistence and rejoinability check (room remains queryable/joinable after all players leave)
+- Client room-id recovery path is implemented for stale join targets:
+- table routes use stable `tableId`
+- transport resolves latest `roomId` by `tableId` (one retry) on `room "... not found"`
+- route identity guard test added: `apps/client/src/tests/lobbyTables.normalize.test.ts`
 - CI workflow is added at `.github/workflows/headless-harness.yml`.
 - Settlement root-cause fix applied in `src/engine/Dealer.ts`: blinds now increment `committedCents`, aligning side-pot construction with pot accounting.
 - Showdown payout reconciliation safeguard remains in `src/engine/Dealer.ts` as a defensive fallback.
@@ -35,11 +40,13 @@ What is done now:
 - Verified `User.bankrollCents` default is `1000000` in MySQL metadata.
 - Phase 5 execution log template added: `docs/PHASE5_TWO_BROWSER_RELEASE_GATE_LOG.md`.
 - Automated Phase 5 gate command implemented and passing: `pnpm phase5:auto` (`artifacts/phase5-automated-gate.json`).
+- Preventive regression matrix documented: `docs/PREVENTIVE_TEST_PLAN.md`.
 
 What is still open:
 - Execute bankroll backfill in apply mode in remaining target environments (staging/production as applicable).
 - Apply Prisma schema default rollout in remaining target environments (current workflow uses `prisma db push`; no migration history exists yet in this repo).
 - Execute two-browser manual release gate and record evidence in `docs/PHASE5_TWO_BROWSER_RELEASE_GATE_LOG.md`.
+- Confirm in manual browser run that stale-tab/old-room join attempts recover via `tableId -> roomId` fallback without user intervention.
 
 ## Current System Baseline (As-Built)
 Detailed baseline reference: `docs/CURRENT_ARCHITECTURE_BASELINE.md`.

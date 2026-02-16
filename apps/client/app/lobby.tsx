@@ -54,6 +54,12 @@ export default function LobbyScreen() {
 
   useLobbyRealtime();
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void refresh({ background: true });
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [refresh]);
 
   const sortedTables = useMemo(() => {
     const rows = tables.map(normalizeTable);
@@ -71,10 +77,10 @@ export default function LobbyScreen() {
     }
   };
 
-  const handleJoinApply = useCallback((_opts: { buyInCents: number; speed: "fast" | "normal"; players: 3 | 6 }) => {
+  const handleJoinApply = useCallback((opts: { buyInCents: number }) => {
     if (!chooseTableModal) return;
-    openTable(chooseTableModal.id);
-    router.push(tablePath(chooseTableModal.id));
+    openTable(chooseTableModal.id, { buyInCents: opts.buyInCents });
+    router.push(tablePath(chooseTableModal.id, { buyInCents: opts.buyInCents }));
     setChooseTableModal(null);
   }, [chooseTableModal, openTable, router]);
 

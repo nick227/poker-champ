@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Panel } from "@/components/base/Panel";
 import { Text } from "@/components/base/Text";
@@ -18,6 +18,7 @@ type AuthMode = "login" | "register";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const setToken = useAuthStore((s) => s.setToken);
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("test@example.com");
@@ -37,7 +38,8 @@ export default function LoginScreen() {
         return;
       }
       setToken(res.token);
-      router.replace(lobbyPath());
+      const nextPath = typeof next === "string" && next.startsWith("/") ? next : lobbyPath();
+      router.replace(nextPath);
     } catch (e) {
       const err = e as ApiError;
       setError(err?.message ?? "Sign in failed");
@@ -65,7 +67,8 @@ export default function LoginScreen() {
         return;
       }
       setToken(res.token);
-      router.replace(lobbyPath());
+      const nextPath = typeof next === "string" && next.startsWith("/") ? next : lobbyPath();
+      router.replace(nextPath);
     } catch (e) {
       const err = e as ApiError;
       setError(err?.message ?? "Create account failed");
