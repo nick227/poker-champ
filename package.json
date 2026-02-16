@@ -1,0 +1,58 @@
+{
+  "name": "poker-client-scaffold",
+  "private": true,
+  "version": "0.2.0",
+  "packageManager": "pnpm@9.15.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "pnpm -C apps/client dev:web",
+    "dev": "pnpm -C apps/client dev",
+    "build:web": "pnpm -C apps/client build:web",
+    "build:android": "pnpm -C apps/client build:android",
+    "build:ios": "pnpm -C apps/client build:ios",
+    "build:desktop": "pnpm -C apps/client build:desktop",
+    "test:client": "pnpm -C apps/client test:run",
+    "lint": "pnpm -C apps/client lint",
+    "typecheck": "pnpm -C apps/client typecheck",
+    "server:typecheck": "tsc -p tsconfig.json --noEmit",
+    "realtime:check": "pnpm -C packages/realtime-contract typecheck && pnpm server:typecheck && pnpm -C apps/client typecheck",
+    "harness:headless": "tsx scripts/headless-two-client.ts",
+    "phase5:auto": "tsx scripts/phase5-automated-gate.ts",
+    "bankroll:backfill": "tsx scripts/backfill-starting-bankroll.ts",
+    "bankroll:backfill:apply": "tsx scripts/backfill-starting-bankroll.ts --apply",
+    "openapi:export": "tsx scripts/export-openapi.ts",
+    "sdk:gen": "pnpm openapi:export && node scripts/sync-sdk-version.mjs && npx openapi-typescript openapi.json -o packages/sdk/src/types.gen.ts",
+    "sdk:check": "pnpm sdk:gen && pnpm -C packages/sdk typecheck",
+    "ui:no-fetch": "node scripts/check-no-ui-fetch.mjs",
+    "verify": "pnpm sdk:check && pnpm test:client && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.17.36",
+    "@colyseus/schema": "^4.0.12",
+    "@colyseus/ws-transport": "^0.17.9",
+    "@poker-champ/realtime-contract": "workspace:*",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-openapi-validator": "^5.6.2",
+    "nanoid": "^5.1.6",
+    "pino": "^10.3.1",
+    "poker-odds-calculator": "^0.4.0",
+    "pokersolver": "^2.1.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "openapi-typescript": "^7.13.0",
+    "prisma": "5.22.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
+  }
+}

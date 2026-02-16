@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "../src/theme/tokens.css";
+
+/* UI UTILITIES
+   Surfaces:     ui-surface, ui-surface-card
+   Typography:   ui-text, ui-muted, ui-danger, ui-success, ui-warn
+   Layout:       ui-row, ui-col, ui-center
+   Stacks:       ui-stack-2, ui-stack-3, ui-stack-4, ui-stack-6
+   Inline:       ui-inline-2, ui-inline-3
+   Bars:         ui-bottom-bar
+   Touch:        ui-touch
+   (Definitions live in tailwind.config.cjs for NativeWind.)
+*/

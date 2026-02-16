@@ -1,0 +1,69 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build / output
+dist
+**/dist
+build
+**/build
+.expo
+**/.expo
+*.tsbuildinfo
+.turbo
+.vercel
+
+# Environment (keep .env.example committed)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Prisma
+prisma/migrations
+
+# Logs & debug
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+test_output.log
+
+# Test coverage
+coverage
+**/coverage
+.nyc_output
+
+# IDE / OS
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Expo / React Native
+apps/client/.expo
+android/app/build
+ios/build
+ios/Pods
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build
+
+# Tauri (desktop)
+apps/client/src-tauri/target
+
+# Cache / temp
+.cache
+tmp
+temp
+*.local

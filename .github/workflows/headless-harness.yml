@@ -1,0 +1,42 @@
+name: Headless Multiplayer Harness
+
+on:
+  pull_request:
+    paths:
+      - "scripts/headless-two-client.ts"
+      - "src/engine/**"
+      - "src/rooms/**"
+      - "src/state/**"
+      - "src/lobby/**"
+      - "packages/realtime-contract/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/headless-harness.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/headless-two-client.ts"
+      - "src/engine/**"
+      - "src/rooms/**"
+      - "src/state/**"
+      - "src/lobby/**"
+      - "packages/realtime-contract/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/headless-harness.yml"
+  workflow_dispatch:
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm harness:headless

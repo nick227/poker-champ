@@ -1,0 +1,134 @@
+name: Contract First
+
+on:
+  push:
+    paths:
+      - "src/http/openapi.ts"
+      - "src/index.ts"
+      - "src/http/**"
+      - "src/engine/auth/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "packages/sdk/**"
+      - "scripts/export-openapi.ts"
+      - "scripts/export-openapi.mjs"
+      - "scripts/sync-sdk-version.mjs"
+      - "scripts/check-no-ui-fetch.mjs"
+      - "apps/client/**"
+      - ".github/workflows/contract-first.yml"
+  pull_request:
+    paths:
+      - "src/http/openapi.ts"
+      - "src/index.ts"
+      - "src/http/**"
+      - "src/engine/auth/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "packages/sdk/**"
+      - "scripts/export-openapi.ts"
+      - "scripts/export-openapi.mjs"
+      - "scripts/sync-sdk-version.mjs"
+      - "scripts/check-no-ui-fetch.mjs"
+      - "apps/client/**"
+      - ".github/workflows/contract-first.yml"
+
+jobs:
+  contract-first:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce OpenAPI-first Commit Order
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No comparable base SHA; skipping OpenAPI-first check."
+            exit 0
+          fi
+
+          CHANGED_FILES="$(git diff --name-only "$BASE" "$HEAD")"
+          if echo "$CHANGED_FILES" | grep -q "^src/http/openapi.ts$"; then
+            if ! echo "$CHANGED_FILES" | grep -q "^openapi.json$"; then
+              echo "src/http/openapi.ts changed without openapi.json in the same change set."
+              echo "Run: pnpm sdk:gen"
+              exit 1
+            fi
+          fi
+
+      - name: Enforce Breaking Change Marker On OpenAPI Version Bump
+        shell: bash
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No comparable base SHA; skipping breaking marker check."
+            exit 0
+          fi
+
+          extract_version () {
+            node -e "
+              let s='';
+              process.stdin.on('data', d => s += d);
+              process.stdin.on('end', () => {
+                const m =
+                  s.match(/version:\\s*process\\.env\\.API_VERSION\\s*\\?\\?\\s*\\\"([^\\\"]+)\\\"/) ||
+                  s.match(/version:\\s*\\\"([^\\\"]+)\\\"/);
+                process.stdout.write(m ? m[1] : '');
+              });
+            "
+          }
+
+          OLD_VERSION="$(git show \"$BASE:src/http/openapi.ts\" 2>/dev/null | extract_version)"
+          NEW_VERSION="$(git show \"$HEAD:src/http/openapi.ts\" 2>/dev/null | extract_version)"
+
+          if [ -z "$OLD_VERSION" ] || [ -z "$NEW_VERSION" ] || [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "No OpenAPI version bump detected."
+            exit 0
+          fi
+
+          echo "Detected OpenAPI version bump: $OLD_VERSION -> $NEW_VERSION"
+
+          HAS_BREAKING_TOKEN=0
+          if git log --format=%B "$BASE..$HEAD" | grep -q "BREAKING:"; then
+            HAS_BREAKING_TOKEN=1
+          fi
+
+          HAS_BREAKING_LABEL=0
+          if echo "$PR_LABELS" | grep -Eiq "(^|,)(breaking|breaking-change)(,|$)"; then
+            HAS_BREAKING_LABEL=1
+          fi
+
+          if [ "$HAS_BREAKING_TOKEN" -eq 0 ] && [ "$HAS_BREAKING_LABEL" -eq 0 ]; then
+            echo "OpenAPI version was bumped without BREAKING marker."
+            echo "Add commit token 'BREAKING:' or PR label 'breaking' / 'breaking-change'."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm sdk:gen
+      - run: git diff --exit-code -- openapi.json packages/sdk/src/types.gen.ts packages/sdk/src/version.ts
+      - run: pnpm verify

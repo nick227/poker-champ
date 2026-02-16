@@ -1,0 +1,10 @@
+{
+  "build": {
+    "devPath": "http://localhost:8081",
+    "distDir": "../../dist"
+  },
+  "package": { "productName": "Poker Champ", "version": "0.2.0" },
+  "tauri": {
+    "windows": [{ "title": "Poker Champ", "width": 1200, "height": 800, "resizable": true }]
+  }
+}

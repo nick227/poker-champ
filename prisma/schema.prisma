@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model PokerTable {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name      String   @default("POC Table")
+  maxSeats  Int      @default(9)
+
+  players   PokerPlayer[]
+  hands     Hand[]
+  balances  PlayerBalance[]
+  transactions BalanceTransaction[]
+}
+
+model PokerPlayer {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tableId   String
+  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  displayName String @default("Player")
+  seat        Int
+
+
+  actions    HandAction[]
+  payouts    HandPayout[]
+  handsPlayed HandPlayer[]
+
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([tableId, seat])
+}
+
+model PlayerBalance {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tableId   String
+  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  // Link to User primarily now
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  status    String   @default("ACTIVE") // ACTIVE | CASHED_OUT | ABANDONED
+
+  balanceCents Int @default(0)
+
+  @@unique([tableId, userId])
+}
+
+model BalanceTransaction {
+  id        String   @id
+  createdAt DateTime @default(now())
+
+  tableId   String?
+  table     PokerTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  // Optional link to session if relevant
+  // playerId  String?
+  // player    PokerPlayer? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+
+  handId    String?
+  hand      Hand? @relation(fields: [handId], references: [id], onDelete: SetNull)
+
+  amountCents Int
+  
+  // BUYIN, CASHOUT, BET, PAYOUT, REFUND, TOURNAMENT_ENTRY, TOURNAMENT_PAYOUT
+  type      String
+
+  externalRef String? @unique
+
+  metaJson  Json?
+
+  @@index([userId, createdAt])
+  @@index([tableId, userId])
+}
+
+model Hand {
+  id        String   @id
+  createdAt DateTime @default(now())
+  endedAt   DateTime?
+
+  tableId   String
+  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  dealerSeat Int
+  smallBlindCents Int
+  bigBlindCents Int
+
+  reason    String?   // LAST_PLAYER | SHOWDOWN
+  boardJson Json?     // ["Ah","Kd","2c",...]
+
+  players   HandPlayer[]
+  actions   HandAction[]
+  payouts   HandPayout[]
+  txs       BalanceTransaction[]
+}
+
+model HandPlayer {
+  id        String   @id
+  handId    String
+  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+
+  playerId  String
+  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  seat      Int
+  startingStackCents Int
+  endingStackCents   Int?
+
+  holeCardsJson Json? // ["As","Kd"] (stored for audit; encrypt later for prod)
+
+  @@unique([handId, playerId])
+  @@index([handId, seat])
+}
+
+model HandAction {
+  id        String   @id
+  createdAt DateTime @default(now())
+
+  handId    String
+  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+
+  playerId  String
+  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  seat      Int
+  street    String // PREFLOP/FLOP/TURN/RIVER
+  action    String // FOLD/CHECK/CALL/BET/RAISE/ALL_IN/AUTO_FOLD/AUTO_CHECK
+  amountCents Int @default(0)
+
+  potBeforeCents Int @default(0)
+  potAfterCents  Int @default(0)
+
+  metaJson Json?
+  @@index([handId, createdAt])
+}
+
+model HandPayout {
+  id        String   @id
+  createdAt DateTime @default(now())
+
+  handId    String
+  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+
+  playerId  String
+  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  amountCents Int
+  @@index([handId])
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  username      String?   @unique
+  usernameNormalized String? @unique
+  passwordHash  String
+  displayName   String
+  role          UserRole  @default(USER)
+  
+  // Trust & Safety
+  isBanned      Boolean   @default(false)
+  deletedAt     DateTime?
+  trustLevel    Int       @default(1) // 1=New, 2=Verified, 3=Trusted
+  
+  // Economy
+  bankrollCents Int       @default(1000000) // Central wallet
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  sessions      UserSession[]
+  playerHistory PokerPlayer[]
+  
+  // Economy
+  balances      PlayerBalance[]
+  transactions  BalanceTransaction[]
+  registrations TournamentRegistration[]
+
+  @@index([usernameNormalized])
+}
+
+model Tournament {
+  id              String   @id @default(uuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  name            String
+  status          String   @default("REGISTERING") // REGISTERING | RUNNING | FINISHED | CANCELLED
+  
+  entryFeeCents   Int
+  prizePoolCents  Int      @default(0)
+  
+  startTime       DateTime
+  
+  registrations   TournamentRegistration[]
+  transactions    BalanceTransaction[]
+}
+
+model TournamentRegistration {
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime   @default(now())
+  
+  entryTxId    String?    // idempotent ref
+  
+  @@unique([tournamentId, userId])
+}
+
+model UserSession {
+  id        String   @id // Token
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+  expiresAt DateTime
+  
+  @@index([userId])
+}
