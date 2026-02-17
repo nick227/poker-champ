@@ -367,6 +367,27 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/economy/deposit": {
+      post: {
+        tags: ["economy"],
+        operationId: "economyDeposit",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Deposit processed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { bankrollCents: { type: "integer" } },
+                  required: ["bankrollCents"],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/economy/buy-in": {
       post: {
         tags: ["economy"],

@@ -98,7 +98,7 @@ export function ModalSheet({
           }}
           pointerEvents="box-none"
         >
-          <Pressable className="max-h-[80%] rounded-t-lg bg-panel" onPress={(e) => e.stopPropagation()}>
+          <Pressable className="max-h-[80%] bottom-sheet rounded-t-lg bg-panel" onPress={(e) => e.stopPropagation()}>
             <View className="ui-row justify-between ui-border-b ui-p-inline-4 ui-p-stack-3">
               <Text variant="h2">{title}</Text>
               <Pressable onPress={handleClose} className="ui-touch" style={({ pressed }) => ({ opacity: pressed ? PRESS_OPACITY.pressed : 1 })}>

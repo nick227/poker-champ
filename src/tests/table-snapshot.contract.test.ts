@@ -175,5 +175,54 @@ describe("table snapshot contract emission", () => {
     expect(payload.hero.actionOptions!.canAllIn).toBe(false);
     expect(payload.hero.actionOptions!.callAmount).toBe(0);
   });
-});
 
+  it("emits min and max wager bounds when hero can open-bet", () => {
+    const state = new PokerState();
+    state.tableId = "table_snapshot_4";
+    state.tableName = "Snapshot Table 4";
+    state.maxSeats = 6;
+    state.handId = "hand_bet_bounds";
+    state.handNumber = 7;
+    state.street = "FLOP";
+    state.dealerSeat = 1;
+    state.toActSeat = 0;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 200;
+    state.bigBlindCents = 200;
+    state.potCents = 800;
+
+    const dealer = new Dealer(state);
+    const hero = makePlayer({
+      id: "u1",
+      name: "Hero",
+      seat: 0,
+      stackCents: 150,
+      roundBetCents: 0,
+      committedCents: 200,
+    });
+    const villain = makePlayer({
+      id: "u2",
+      name: "Villain",
+      seat: 1,
+      stackCents: 2_000,
+      roundBetCents: 0,
+      committedCents: 200,
+    });
+
+    state.playersById.set(hero.id, hero);
+    state.playersById.set(villain.id, villain);
+    state.seats[0] = hero.id;
+    state.seats[1] = villain.id;
+
+    const client = makeClient();
+    dealer.bindClient(hero.id, client as any);
+    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_bet_bounds");
+
+    const payload = client.send.mock.calls[0][1] as any;
+    expect(payload.hero.actionOptions!.canBet).toBe(true);
+    expect(payload.hero.actionOptions!.canRaise).toBe(false);
+    expect(payload.hero.actionOptions!.callAmount).toBe(0);
+    expect(payload.hero.actionOptions!.minRaiseTo).toBe(150);
+    expect(payload.hero.actionOptions!.maxRaiseTo).toBe(150);
+  });
+});

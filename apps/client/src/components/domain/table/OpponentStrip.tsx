@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
+import { PotWinRing } from "./PotWinEffect";
 
 export type Opponent = {
   id: string;
@@ -24,9 +25,11 @@ function getStatusLabel(status: Opponent["status"]): string | null {
 
 export function OpponentStrip({
   opponents,
+  winnerName,
   onPlayerPress,
 }: {
   opponents: Opponent[];
+  winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
 }) {
   if (opponents.length === 0) return null;
@@ -38,10 +41,11 @@ export function OpponentStrip({
         const inactive = folded || sittingOut;
         const statusLabel = getStatusLabel(o.status);
         const actionText = o.actionLabel ?? statusLabel ?? "—";
+        const isWinner = winnerName === o.name;
         const content = (
           <View
             className={`ui-col ui-center rounded-lg px-3 py-2 min-w-[80px] ${
-              o.isActive ? "border-2 border-brand bg-brand-soft/30" : "ui-surface"
+              o.isActive ? "border-brand bg-brand-soft/30 border-2" : "ui-surface"
             } ${inactive ? "opacity-50" : ""}`}
             style={{ gap: 6 }}
           >
@@ -68,12 +72,17 @@ export function OpponentStrip({
             </Text>
           </View>
         );
+
+        const wrappedContent = isWinner ? (
+          <PotWinRing>{content}</PotWinRing>
+        ) : content;
+
         return onPlayerPress ? (
           <Pressable key={o.id} onPress={() => onPlayerPress(o)} className="ui-touch">
-            {content}
+            {wrappedContent}
           </Pressable>
         ) : (
-          <View key={o.id}>{content}</View>
+          <View key={o.id}>{wrappedContent}</View>
         );
       })}
     </View>

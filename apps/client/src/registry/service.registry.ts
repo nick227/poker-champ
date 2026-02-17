@@ -1,4 +1,4 @@
-import { auth, economy, lobby, tournaments } from "@poker-champ/sdk";
+import { auth, economy, lobby, request, tournaments } from "@poker-champ/sdk";
 import { withApiError } from "@/services/_helpers/withApiError";
 import type { ServiceResult } from "@/services/_helpers/serviceTypes";
 
@@ -28,6 +28,8 @@ const serviceByKey = {
     }) => withApiError(() => lobby.createTable(input as any)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>
       withApiError(() => economy.buyIn(input)),
+    economyDeposit: () =>
+      withApiError(() => request<{ bankrollCents: number }>("POST", "/api/economy/deposit")),
   },
 } as const;
 
@@ -42,6 +44,7 @@ const serviceOrdered = [
   { key: "post.authLogout", call: serviceByKey.post.authLogout },
   { key: "post.joinTable", call: serviceByKey.post.joinTable },
   { key: "post.buyIn", call: serviceByKey.post.buyIn },
+  { key: "post.economyDeposit", call: serviceByKey.post.economyDeposit },
 ] as const;
 
 export const serviceRegistry = {

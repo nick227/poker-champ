@@ -21,6 +21,7 @@ import { useLobbyRealtime } from "@/realtime/useLobbyRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { postCreateTable } from "@/services/post/lobby.post";
+import { postEconomyDeposit } from "@/services/post/economy.post";
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { tablePath } from "@/lib/nav";
@@ -41,7 +42,7 @@ export default function LobbyScreen() {
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setActive = storeRegistry.use.tables((s) => s.setActive);
-  const { cents: bankroll } = useBankroll();
+  const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -84,6 +85,16 @@ export default function LobbyScreen() {
     setChooseTableModal(null);
   }, [chooseTableModal, openTable, router]);
 
+  const handleDeposit = useCallback(async () => {
+    try {
+      await postEconomyDeposit();
+      await refreshBankroll();
+      useToastStore.getState().show("Deposited $1,000", "success");
+    } catch (e) {
+      useToastStore.getState().show((e as Error).message ?? "Deposit failed", "danger");
+    }
+  }, [refreshBankroll]);
+
   const activeTableRows = useMemo(() =>
     openTableIds.map((id) => ({ id, potCents: 1480, bankCents: 105950, betCents: 250, isYourTurn: false })),
     [openTableIds]
@@ -96,7 +107,7 @@ export default function LobbyScreen() {
         <ProfileStrip username={profile.username ?? "Player"} location={profile.location} />
         <View className="ui-row ui-inline-2 ui-section-tight">
           <Button variant="ghost" title="My Account" onPress={() => {}} />
-          <Button variant="ghost" title="Deposit" onPress={() => {}} />
+          <Button variant="ghost" title="Deposit" onPress={handleDeposit} />
           <TableNotificationBell count={openTableIds.length} onPress={() => setActiveTablesDropdownVisible(true)} />
         </View>
         <BankrollDisplay amountCents={bankroll} />

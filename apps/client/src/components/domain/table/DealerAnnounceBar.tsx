@@ -54,7 +54,7 @@ export function DealerAnnounceBar({
   const message = deriveMessage(hand, handResultMessage, tableStatus);
 
   return (
-    <View className="h-[5vh] min-h-[36px] ui-center flex-row border-b border-border-subtle bg-felt">
+    <View className="h-[5vh] min-h-[36px] ui-center flex-row">
       <Text variant="body">{message}</Text>
       {remaining > 0 && (
         <View className="ml-3 px-2 py-0.5 rounded-full bg-surface-lowest/40 border border-border-subtle/30">

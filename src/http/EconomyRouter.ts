@@ -41,6 +41,33 @@ router.get("/transactions", async (req, res) => {
   res.json({ items });
 });
 
+router.post("/deposit", async (req, res) => {
+  const DEPOSIT_CENTS = 100_000;
+  const prisma = getPrisma();
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: req.user!.id },
+      data: { bankrollCents: { increment: DEPOSIT_CENTS } },
+      select: { bankrollCents: true },
+    });
+
+    await tx.balanceTransaction.create({
+      data: {
+        id: nanoid(),
+        userId: req.user!.id,
+        amountCents: DEPOSIT_CENTS,
+        type: "DEPOSIT",
+        externalRef: `deposit_${req.user!.id}_${Date.now()}_${nanoid(6)}`,
+      },
+    });
+
+    return user;
+  });
+
+  res.json(updated);
+});
+
 router.post("/buy-in", async (req, res) => {
   const parsed = BuyInSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -90,4 +117,3 @@ router.post("/cash-out", async (req, res) => {
 });
 
 export const economyRouter = router;
-

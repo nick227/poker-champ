@@ -164,6 +164,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/economy/deposit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["economyDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/economy/buy-in": {
         parameters: {
             query?: never;
@@ -722,6 +738,28 @@ export interface operations {
                         items: {
                             [key: string]: unknown;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    economyDeposit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deposit processed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bankrollCents: number;
                     };
                 };
             };

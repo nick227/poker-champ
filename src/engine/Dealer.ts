@@ -118,9 +118,10 @@ export class Dealer {
     if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
     this.assertValidBuyIn(buyInCents);
 
-    // Process buy-in via CashierService (atomic bankroll -> table balance)
-    // Use deterministic externalRef for idempotency and debugging
-    const externalRef = `buyin_${this.state.tableId}_${userId}`;
+    // Process buy-in via CashierService (atomic bankroll -> table balance).
+    // Use a per-join externalRef so repeat sessions are not treated as prior idempotent operations.
+    const externalRef = `buyin_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
+    let buyInTableBalance = buyInCents;
     try {
       const result = await CashierService.processCashGameBuyIn({
         userId,
@@ -128,6 +129,7 @@ export class Dealer {
         amountCents: buyInCents,
         externalRef,
       });
+      buyInTableBalance = result.newTableBalance;
       logger.info({ userId, buyInCents, newTableBalance: result.newTableBalance }, "buy-in processed");
     } catch (err: any) {
       if (err.message === "INSUFFICIENT_BANKROLL") {
@@ -145,7 +147,7 @@ export class Dealer {
     p.status = "ACTIVE";
     p.connected = true;
     p.disconnectDeadlineTs = 0;
-    p.stackCents = buyInCents;
+    p.stackCents = buyInTableBalance;
 
     this.state.playersById.set(userId, p);
     this.state.seats[seat] = userId;
@@ -156,6 +158,8 @@ export class Dealer {
     logger.info({ userId, seat }, "player joined");
     if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
       await this.startHand();
+    } else {
+      this.maybeActForBot();
     }
   }
 
@@ -200,6 +204,8 @@ export class Dealer {
     logger.info({ userId, seat, stackCents: p.stackCents }, "player restored from persisted seat session");
     if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
       await this.startHand();
+    } else {
+      this.maybeActForBot();
     }
   }
 
@@ -246,27 +252,9 @@ export class Dealer {
     this.state.playersById.delete(botId);
     this.holeCardsByPlayerId.delete(botId);
     this.sendTableSnapshotToAll("SEAT_CHANGE");
-    this.maybeActForBot();
 
     logger.info({ botId }, "bot left");
-
-    if (this.state.street === "WAITING") {
-      if (this.countNonOutPlayers() >= 2) await this.startHand();
-      return;
-    }
-    if (this.countNotFoldedPlayers() <= 1) {
-      await this.finishHandByLastStanding();
-      return;
-    }
-    const toActId = this.state.seats[this.state.toActSeat] ?? "";
-    const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
-    if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
-      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown();
-      } else {
-        this.state.toActSeat = this.findNextToActSeat(p.seat);
-      }
-    }
+    await this.ensureHandAdvancingAfterPlayerRemoval(p.seat);
   }
 
   async removePlayer(userId: string) {
@@ -276,8 +264,8 @@ export class Dealer {
     // Cash out remaining stack via CashierService (atomic table balance -> bankroll)
     const remainingStack = p.stackCents;
     if (remainingStack > 0) {
-      // Use deterministic externalRef for idempotency and debugging
-      const externalRef = `cashout_${this.state.tableId}_${userId}`;
+      // Use a per-leave externalRef so repeated leave/join cycles cash out correctly.
+      const externalRef = `cashout_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
       try {
         await CashierService.processCashGameCashOut({
           userId,
@@ -301,28 +289,10 @@ export class Dealer {
     this.state.playersById.delete(userId);
     this.holeCardsByPlayerId.delete(userId);
     this.sendTableSnapshotToAll("SEAT_CHANGE");
-    this.maybeActForBot();
+
     logger.info({ userId }, "player left");
 
-    if (this.state.street === "WAITING") {
-      if (this.countNonOutPlayers() >= 2) await this.startHand();
-      return;
-    }
-
-    if (this.countNotFoldedPlayers() <= 1) {
-      await this.finishHandByLastStanding();
-      return;
-    }
-
-    const toActId = this.state.seats[this.state.toActSeat] ?? "";
-    const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
-    if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
-      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown();
-      } else {
-        this.state.toActSeat = this.findNextToActSeat(p.seat);
-      }
-    }
+    await this.ensureHandAdvancingAfterPlayerRemoval(p.seat);
   }
 
   markDisconnected(userId: string, disconnectDeadlineTs: number) {
@@ -342,6 +312,7 @@ export class Dealer {
     p.disconnectDeadlineTs = 0;
     this.autoActionsByUserId.delete(userId);
     this.sendTableSnapshotToAll("RECONNECT");
+    this.maybeActForBot();
   }
 
   async markAbandoned(userId: string) {
@@ -370,7 +341,10 @@ export class Dealer {
         await this.advanceStreetOrShowdown();
       } else {
         this.state.toActSeat = this.findNextToActSeat(p.seat);
+        this.maybeActForBot();
       }
+    } else {
+      this.maybeActForBot();
     }
   }
 
@@ -459,6 +433,10 @@ export class Dealer {
         const requested = msg.amountCents ?? 0;
         const amt = Math.min(requested, p.stackCents);
         if (amt <= 0) throw new PokerError("INVALID_ACTION", "BET requires amountCents > 0.");
+        const minOpenBet = Math.min(this.state.bigBlindCents, p.stackCents);
+        if (amt < minOpenBet && p.stackCents > amt) {
+          throw new PokerError("INVALID_ACTION", "BET below minimum.");
+        }
         const next = await this.persistDebitForAction(p, amt, "BET");
         await this.recordAcceptedAction({
           player: p,
@@ -862,6 +840,31 @@ export class Dealer {
     }
   }
 
+  private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
+    if (this.state.street === "WAITING") {
+      if (this.countNonOutPlayers() >= 2) await this.startHand();
+      return;
+    }
+
+    if (this.countNotFoldedPlayers() <= 1) {
+      await this.finishHandByLastStanding();
+      return;
+    }
+
+    const toActId = this.state.seats[this.state.toActSeat] ?? "";
+    const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
+    if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
+      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+        await this.advanceStreetOrShowdown();
+      } else {
+        this.state.toActSeat = this.findNextToActSeat(removedSeat);
+        this.maybeActForBot();
+      }
+    } else {
+      this.maybeActForBot();
+    }
+  }
+
 // -------------------------
 // Hand lifecycle helpers
 // -------------------------
@@ -1199,6 +1202,14 @@ private nextHandScheduled = false;
       if (delayMs > 0) {
         await new Promise((r) => setTimeout(r, delayMs));
       }
+
+      // Skip auto-action if a human reconnected in the meantime
+      const p = this.state.playersById.get(userId);
+      if (p && p.kind !== "BOT" && p.connected) {
+        logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
+        return;
+      }
+
       await this._handleAction(userId, payload);
     }).catch((err) => {
       if (this.isSkippableQueuedActionError(err)) {
@@ -1248,7 +1259,7 @@ private nextHandScheduled = false;
   private countNotFoldedPlayers(): number {
     let c = 0;
     for (const p of this.state.playersById.values()) {
-      if (p.status !== "FOLDED" && p.status !== "ABANDONED" && p.status !== "OUT") c++;
+      if (p.status !== "FOLDED" && p.status !== "OUT") c++;
     }
     return c;
   }
@@ -1409,6 +1420,8 @@ private nextHandScheduled = false;
     const canRaise = isHeroTurn && this.state.roundCurrentBetCents > 0 && maxRaiseTo >= minRaiseTo && p.stackCents > callAmount;
     const canAllIn = isHeroTurn && p.stackCents > 0;
     const canFold = isHeroTurn;
+    const minOpenBetTo = Math.min(this.state.bigBlindCents, maxRaiseTo);
+    const minActionTo = canRaise ? minRaiseTo : canBet ? minOpenBetTo : undefined;
 
     return {
       canFold,
@@ -1418,7 +1431,7 @@ private nextHandScheduled = false;
       canRaise,
       canAllIn,
       callAmount,
-      minRaiseTo: canRaise ? minRaiseTo : undefined,
+      minRaiseTo: minActionTo,
       maxRaiseTo: maxRaiseTo > 0 ? maxRaiseTo : undefined,
     };
   }

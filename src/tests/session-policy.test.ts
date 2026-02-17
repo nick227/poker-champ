@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerRoom } from "../rooms/PokerRoom.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
+import { CashierService } from "../engine/economy/CashierService.js";
 
 describe("session auth policy", () => {
   afterEach(() => {
@@ -50,6 +51,14 @@ describe("session auth policy", () => {
 });
 
 describe("disconnect policy", () => {
+  beforeEach(() => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+  });
+
   it("drop + reconnect keeps same seat and stack", async () => {
     const state = new PokerState();
     const dealer = new Dealer(state);

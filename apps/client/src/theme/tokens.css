@@ -127,3 +127,9 @@ body {
   padding: 0 var(--s-4);
   font-weight: 500;
 }
+
+.bottom-sheet {
+  max-width: 100% !important;
+  width: 640px !important;
+  margin: 0 auto;
+}

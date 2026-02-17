@@ -1,8 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerState } from "../../state/PokerState.js";
 import { Dealer } from "../Dealer.js";
+import { CashierService } from "../economy/CashierService.js";
 
 describe("Dealer v2 smoke", () => {
+  beforeEach(() => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("starts a hand when 2 players join", async () => {
     const state = new PokerState();
     const dealer = new Dealer(state);

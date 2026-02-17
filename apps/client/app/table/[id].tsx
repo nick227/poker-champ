@@ -16,6 +16,7 @@ import { Icon } from "@/components/base/Icons";
 import { storeRegistry } from "@/registry/store.registry";
 import { useTableRealtime } from "@/realtime/useTableRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
+import { useToastStore } from "@/stores/toast.store";
 import { lobbyPath, loginPathWithNext, tablePath } from "@/lib/nav";
 import { normalizeTable } from "@/lib/lobbyTables";
 
@@ -63,6 +64,7 @@ export default function TableScreen() {
   } | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
+  const [outOfChipsNoticeShownForHandId, setOutOfChipsNoticeShownForHandId] = useState<string | null>(null);
 
   const snapshot = snapshotsByTableId[tableId];
   const tableStatus = tableStatusByTableId[tableId] ?? "DISCONNECTED";
@@ -205,6 +207,36 @@ export default function TableScreen() {
     const t = setTimeout(() => setHandResultMessage(null), 3000);
     return () => clearTimeout(t);
   }, [snapshot?.lastHandResult, snapshot, lastShownHandResultId]);
+
+  useEffect(() => {
+    const activeHandId = snapshot?.hand?.handId;
+    const resultHandId = snapshot?.lastHandResult?.handId;
+    if (!activeHandId || !handResultMessage) return;
+    if (activeHandId !== resultHandId) {
+      setHandResultMessage(null);
+    }
+  }, [snapshot?.hand?.handId, snapshot?.lastHandResult?.handId, handResultMessage]);
+
+  useEffect(() => {
+    if (!snapshot?.hero.youAreSeated || snapshot.hero.seat == null) return;
+    const heroSeat = snapshot.seats.find((seat) => seat.seat === snapshot.hero.seat);
+    if (!heroSeat) return;
+    const activeOrLastHandId = snapshot.hand?.handId ?? snapshot.lastHandResult?.handId ?? "no-hand";
+    const shouldNotify = heroSeat.stackCents <= 0 && (heroSeat.status === "OUT" || heroSeat.status === "ABANDONED");
+    if (!shouldNotify) return;
+    if (outOfChipsNoticeShownForHandId === activeOrLastHandId) return;
+    setOutOfChipsNoticeShownForHandId(activeOrLastHandId);
+    useToastStore.getState().show("You are out of chips and sitting out. Add chips to continue.", "danger");
+  }, [snapshot, outOfChipsNoticeShownForHandId]);
+
+  useEffect(() => {
+    if (!tableError) return;
+    if (/INSUFFICIENT_BANKROLL|Insufficient bankroll/i.test(tableError)) {
+      useToastStore.getState().show("Insufficient bankroll for this table. Deposit or choose a lower buy-in.", "danger");
+      return;
+    }
+    useToastStore.getState().show(tableError, "danger");
+  }, [tableError]);
 
   const hasSnapshot = Boolean(snapshot);
   const hasActiveHand = Boolean(snapshot?.hand);

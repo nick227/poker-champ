@@ -177,6 +177,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let activeRoomId = options.roomId;
   let attemptedRoomIdRecovery = false;
+  let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
   const debugLog = (...args: unknown[]) => {
     // eslint-disable-next-line no-console
@@ -211,6 +212,33 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
 
   const connect = async () => {
     try {
+      const tableIdCandidate =
+        typeof options.joinOptions?.tableId === "string" && options.joinOptions.tableId.length > 0
+          ? options.joinOptions.tableId
+          : null;
+
+      // If caller passed tableId as roomId, resolve real Colyseus roomId before first join attempt.
+      if (
+        activeRoomId &&
+        tableIdCandidate &&
+        activeRoomId === tableIdCandidate &&
+        !attemptedRoomIdPreflightRecovery
+      ) {
+        attemptedRoomIdPreflightRecovery = true;
+        try {
+          const recoveredRoomId = await resolveRoomIdByTableId(tableIdCandidate);
+          if (recoveredRoomId && recoveredRoomId !== activeRoomId) {
+            activeRoomId = recoveredRoomId;
+            debugLog("ROOM_ID_PREJOIN_RECOVERED", { tableId: tableIdCandidate, recoveredRoomId });
+          }
+        } catch (recoveryErr: any) {
+          debugLog("ROOM_ID_PREJOIN_RECOVERY_FAILED", {
+            tableId: tableIdCandidate,
+            message: recoveryErr?.message ?? String(recoveryErr),
+          });
+        }
+      }
+
       const client = new Client(url);
       debugLog("SOCKET_CONNECT_ATTEMPT", {
         url,

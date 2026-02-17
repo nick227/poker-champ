@@ -5,6 +5,7 @@ import { CalculationsStrip } from "./CalculationsStrip";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HeroStatus } from "./table.adapter";
+import { PotWinRing } from "./PotWinEffect";
 
 type Card = { rank: string; suit: string } | null;
 
@@ -28,6 +29,7 @@ export function HeroZone({
   equity = 0,
   potOdds = 0,
   outs = 0,
+  isWinner = false,
 }: {
   cards: Card[];
   stackCents: number;
@@ -36,11 +38,12 @@ export function HeroZone({
   equity?: number;
   potOdds?: number;
   outs?: number;
+  isWinner?: boolean;
 }) {
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
-  return (
+  const content = (
     <View className="border-t border-border-subtle ui-p-4 ui-stack-4">
       <CalculationsStrip
         equity={equity}
@@ -69,9 +72,11 @@ export function HeroZone({
         </View>
         <View className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]">
           <Text variant="label">Stack</Text>
-          <Text variant="h2" className="font-semibold">{formatCents(stackCents)}</Text>
+          <Text variant="h2" className="text-2xl font-semibold">{formatCents(stackCents)}</Text>
         </View>
       </View>
     </View>
   );
+
+  return isWinner ? <PotWinRing>{content}</PotWinRing> : content;
 }

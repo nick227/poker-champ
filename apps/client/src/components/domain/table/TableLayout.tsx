@@ -73,6 +73,9 @@ export function TableLayout({
     tableRadius 
   } = usePreferencesStore();
 
+  const heroName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
+  const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
+
   return (
     <View
       style={vars({
@@ -84,7 +87,7 @@ export function TableLayout({
         "--c-bg": backgroundColor,
         "--r-table": tableRadius,
       })}
-      className="flex-1 ui-surface-card overflow-hidden rounded-table border border-border-subtle shadow-lg"
+      className="flex-1 ui-surface-card overflow-hidden border border-border-subtle shadow-lg"
     >
       <TableTopBar
         balanceCents={balanceCents}
@@ -100,7 +103,11 @@ export function TableLayout({
           </View>
         }
       />
-      <OpponentStrip opponents={opponents} onPlayerPress={onPlayerPress} />
+      <OpponentStrip
+        opponents={opponents}
+        winnerName={handResultMessage?.winnerName}
+        onPlayerPress={onPlayerPress}
+      />
       <Spacer />
       <DealerAnnounceBar
         hand={hand ? { street: hand.street, potCents: hand.potCents } : undefined}
@@ -118,6 +125,7 @@ export function TableLayout({
         equity={equity ?? 0}
         potOdds={potOdds ?? 0}
         outs={outs ?? 0}
+        isWinner={isHeroWinner}
       />
       <ActionBar
         isMyTurn={isMyTurn}

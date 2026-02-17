@@ -35,11 +35,11 @@ export function PlayingCard({
   const r = normalizedRank ? RANKS[normalizedRank] ?? normalizedRank : "?";
   const s = normalizedSuit ? SUITS[normalizedSuit] ?? normalizedSuit : "?";
   const red = normalizedSuit ? isRedSuit(normalizedSuit) : false;
-  const suitClass = red ? "text-danger" : "text-zinc-900";
+  const textColor = red ? "#dc2626" : "#111827";
   return (
     <View style={size} className="ui-col ui-center justify-center rounded-card border border-border-subtle bg-card-face gap-1">
-      <Text variant="h2" className={`text-xl leading-tight font-extrabold ${suitClass}`}>{r}</Text>
-      <Text variant="body" className={`text-base leading-none font-bold ${suitClass}`}>{s}</Text>
+      <Text variant="h2" className="text-xl leading-tight font-extrabold" style={{ color: textColor }}>{r}</Text>
+      <Text variant="body" className="text-base leading-none font-bold" style={{ color: textColor }}>{s}</Text>
     </View>
   );
 }

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
+import { CashierService } from "../engine/economy/CashierService.js";
 
 type Tx = {
   playerId: string;
@@ -64,9 +65,77 @@ class MemoryPersistence {
       .reduce((sum, tx) => sum + tx.deltaCents, 0);
     if (delta !== 0) throw new Error(`LEDGER_MISMATCH:${handId}:${delta}`);
   }
+
+  private ensureBalance(playerId: string, currentBalance: number) {
+    if (!this.balances.has(playerId)) {
+      this.balances.set(playerId, currentBalance);
+    }
+  }
+
+  async postBlind(params: {
+    userId: string;
+    handId?: string;
+    amountCents: number;
+    currentBalance: number;
+    action: "POST_SB" | "POST_BB";
+  }) {
+    this.ensureBalance(params.userId, params.currentBalance);
+    const next = await this.debitPlayer({
+      playerId: params.userId,
+      handId: params.handId,
+      kind: params.action,
+      amountCents: params.amountCents,
+    });
+    return next;
+  }
+
+  async debitBet(params: {
+    userId: string;
+    handId?: string;
+    amountCents: number;
+    action: "BET" | "RAISE" | "CALL" | "ALL_IN";
+    currentBalance: number;
+  }) {
+    this.ensureBalance(params.userId, params.currentBalance);
+    const next = await this.debitPlayer({
+      playerId: params.userId,
+      handId: params.handId,
+      kind: params.action,
+      amountCents: params.amountCents,
+    });
+    return next;
+  }
+
+  async creditPayout(params: {
+    userId: string;
+    handId?: string;
+    amountCents: number;
+    currentBalance: number;
+  }) {
+    this.ensureBalance(params.userId, params.currentBalance);
+    const next = await this.creditPlayer({
+      playerId: params.userId,
+      handId: params.handId,
+      kind: "PAYOUT",
+      amountCents: params.amountCents,
+    });
+    return next;
+  }
 }
 
 describe("ledger enforcement", () => {
+  beforeEach(() => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("keeps per-hand ledger balanced for fold-win path", async () => {
     const state = new PokerState();
     state.maxSeats = 6;

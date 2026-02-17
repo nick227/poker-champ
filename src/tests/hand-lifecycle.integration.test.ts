@@ -1,8 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
+import { CashierService } from "../engine/economy/CashierService.js";
 
 describe("hand lifecycle", () => {
+  beforeEach(() => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("auto-starts next hand after a hand ends when >=2 players remain", async () => {
     const s = new PokerState();
     s.maxSeats = 6;
