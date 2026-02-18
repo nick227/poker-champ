@@ -1,13 +1,17 @@
 import { create } from "zustand";
-import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload } from "@poker-champ/realtime-contract";
+
+const CHAT_MESSAGES_CAP = 100;
 
 type TableStoreState = {
   snapshotsByTableId: Record<string, TableSnapshotPayload | undefined>;
+  chatMessagesByTableId: Record<string, ChatMessagePayload[]>;
   lastSeqByTableId: Record<string, number>;
   connectionStatusByTableId: Record<string, "CONNECTED" | "RECONNECTING" | "DISCONNECTED">;
   statusByTableId: Record<string, string | undefined>;
   errorByTableId: Record<string, string | undefined>;
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
+  appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
   setStatus: (tableId: string, status: string) => void;
   setError: (tableId: string, error: string) => void;
@@ -16,10 +20,18 @@ type TableStoreState = {
 
 export const useTableStore = create<TableStoreState>((set) => ({
   snapshotsByTableId: {},
+  chatMessagesByTableId: {},
   lastSeqByTableId: {},
   connectionStatusByTableId: {},
   statusByTableId: {},
   errorByTableId: {},
+  appendChatMessage: (tableId, message) =>
+    set((s) => {
+      const list = s.chatMessagesByTableId[tableId] ?? [];
+      if (list.some((m) => m.id === message.id)) return s;
+      const next = [...list, message].slice(-CHAT_MESSAGES_CAP);
+      return { chatMessagesByTableId: { ...s.chatMessagesByTableId, [tableId]: next } };
+    }),
   setSnapshot: (tableId, snapshot) =>
     set((s) => {
       const lastSeq = s.lastSeqByTableId[tableId] || 0;
@@ -68,11 +80,12 @@ export const useTableStore = create<TableStoreState>((set) => ({
   clearTable: (tableId) =>
     set((s) => {
       const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
+      const { [tableId]: _chat, ...chatMessagesByTableId } = s.chatMessagesByTableId;
       const { [tableId]: _status, ...statusByTableId } = s.statusByTableId;
       const { [tableId]: _error, ...errorByTableId } = s.errorByTableId;
       const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
       const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
-      return { snapshotsByTableId, statusByTableId, errorByTableId, lastSeqByTableId, connectionStatusByTableId };
+      return { snapshotsByTableId, chatMessagesByTableId, statusByTableId, errorByTableId, lastSeqByTableId, connectionStatusByTableId };
     }),
 }));
 

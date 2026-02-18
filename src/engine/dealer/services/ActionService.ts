@@ -13,6 +13,7 @@ import {
   syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
 import { countNotFoldedPlayers, findNextToActSeat } from "../utils/TableNavigator.js";
+import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
 import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
 
 type ActionDebitKind = "CALL" | "BET" | "RAISE" | "ALL_IN";
@@ -20,6 +21,7 @@ type AcceptedActionKind = "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"
 type LastActionOrigin = TableLastAction["origin"];
 type LastActionStreet = TableLastAction["street"];
 
+// ActionService builds action payload fields; Dealer owns monotonic seq assignment.
 export type ActionServiceLastAction = Omit<TableLastAction, "seq">;
 
 export type ActionResult =
@@ -36,22 +38,34 @@ export type ActionExecutionResult = {
 
 export class ActionService {
   private finish(state: PokerState, result: ActionResult): ActionResult {
+    // HAND_FINISHED can be a transient pre-settlement state where betting invariants need not hold.
+    if (result.kind !== "HAND_FINISHED") maybeAssertBettingState(state);
     maybeAssertStateInvariants(state);
     return result;
   }
 
-  private resolvePostAction(state: PokerState, actorKind: PlayerState["kind"]): ActionResult {
+  private resolvePostAction(
+    state: PokerState,
+    actorKind: PlayerState["kind"],
+    opts?: { skipTurnAdvance?: boolean },
+  ): ActionResult {
     if (countNotFoldedPlayers(state) <= 1) {
       return this.finish(state, { kind: "HAND_FINISHED" });
     }
 
+    // All-in runout takes precedence over normal street completion.
     if (allRemainingPlayersAllInOrFolded(state)) {
+      for (const p of state.playersById.values()) clearPlayerNeedsAction(p);
       state.runoutMode = "STAGED";
       return this.finish(state, { kind: "STREET_COMPLETE" });
     }
 
     if (bettingRoundComplete(state) || noFurtherBettingPossible(state)) {
       return this.finish(state, { kind: "STREET_COMPLETE" });
+    }
+
+    if (opts?.skipTurnAdvance) {
+      return this.finish(state, { kind: "TURN_ADVANCED", actorKind });
     }
 
     const nextSeat = findNextToActSeat(state, state.toActSeat);
@@ -91,6 +105,41 @@ export class ActionService {
     };
   }
 
+  private async applyFold(params: {
+    state: PokerState;
+    player: PlayerState;
+    potBeforeCents: number;
+    origin: LastActionOrigin;
+    recordAcceptedAction: (args: {
+      player: PlayerState;
+      action: "FOLD";
+      amountCents: number;
+      potBeforeCents: number;
+      potAfterCents: number;
+      meta?: Record<string, unknown>;
+    }) => Promise<void>;
+  }): Promise<ActionServiceLastAction> {
+    const { state, player, potBeforeCents, origin, recordAcceptedAction } = params;
+    await recordAcceptedAction({
+      player,
+      action: "FOLD",
+      amountCents: 0,
+      potBeforeCents,
+      potAfterCents: potBeforeCents,
+    });
+    player.status = "FOLDED";
+    clearPlayerNeedsAction(player);
+    syncRoundCurrentBetCents(state);
+    return this.buildLastAction({
+      state,
+      player,
+      action: "FOLD",
+      amountCents: 0,
+      potAfterCents: potBeforeCents,
+      origin,
+    });
+  }
+
   async execute(params: {
     state: PokerState;
     userId: string;
@@ -127,33 +176,29 @@ export class ActionService {
     if (state.runoutMode === "STAGED") throw new PokerError("INVALID_ACTION", "Runout in progress.");
     if (!eligibleToAct(player)) throw new PokerError("NOT_ELIGIBLE", "Player not eligible to act.");
     if (player.seat !== state.toActSeat) throw new PokerError("NOT_YOUR_TURN", "Not your turn.");
+    if (countNotFoldedPlayers(state) <= 1) {
+      throw new PokerError("HAND_ALREADY_FINISHED", "Hand is over; only one player remains.");
+    }
 
     const callAmount = Math.max(0, state.roundCurrentBetCents - player.roundBetCents);
     const potBefore = state.potCents;
     let lastAction: ActionServiceLastAction | undefined;
-    const fold = async (): Promise<void> => {
-      await recordAcceptedAction({
-        player,
-        action: "FOLD",
-        amountCents: 0,
-        potBeforeCents: potBefore,
-        potAfterCents: potBefore,
-      });
-      player.status = "FOLDED";
-      clearPlayerNeedsAction(player);
-      lastAction = this.buildLastAction({
-        state,
-        player,
-        action: "FOLD",
-        amountCents: 0,
-        potAfterCents: potBefore,
-        origin,
-      });
+    const assertPotAfter = (expectedPotCents: number, context: string): void => {
+      if (process.env.NODE_ENV === "production") return;
+      // applyActionDebit must synchronously update state.potCents.
+      if (state.potCents !== expectedPotCents) {
+        throw new PokerError("BAD_STATE", `${context}: potCents mismatch (expected ${expectedPotCents}, got ${state.potCents}).`);
+      }
     };
-
     switch (msg.action) {
       case "FOLD": {
-        await fold();
+        lastAction = await this.applyFold({
+          state,
+          player,
+          potBeforeCents: potBefore,
+          origin,
+          recordAcceptedAction,
+        });
         break;
       }
 
@@ -167,6 +212,7 @@ export class ActionService {
           potAfterCents: potBefore,
         });
         clearPlayerNeedsAction(player);
+        syncRoundCurrentBetCents(state);
         lastAction = this.buildLastAction({
           state,
           player,
@@ -179,42 +225,30 @@ export class ActionService {
       }
 
       case "CALL": {
-        if (callAmount > 0) {
-          assertCanAfford(player, callAmount);
-          await applyActionDebit(player, callAmount, "CALL");
-          await recordAcceptedAction({
-            player,
-            action: "CALL",
-            amountCents: callAmount,
-            potBeforeCents: potBefore,
-            potAfterCents: potBefore + callAmount,
-          });
-          lastAction = this.buildLastAction({
-            state,
-            player,
-            action: "CALL",
-            amountCents: callAmount,
-            potAfterCents: potBefore + callAmount,
-            origin,
-          });
-        } else {
-          await recordAcceptedAction({
-            player,
-            action: "CALL",
-            amountCents: 0,
-            potBeforeCents: potBefore,
-            potAfterCents: potBefore,
-          });
-          lastAction = this.buildLastAction({
-            state,
-            player,
-            action: "CALL",
-            amountCents: 0,
-            potAfterCents: potBefore,
-            origin,
-          });
+        if (callAmount === 0) {
+          throw new PokerError("INVALID_ACTION", "Nothing to call; use CHECK.");
         }
+
+        assertCanAfford(player, callAmount);
+        await applyActionDebit(player, callAmount, "CALL");
+        assertPotAfter(potBefore + callAmount, "CALL");
+        await recordAcceptedAction({
+          player,
+          action: "CALL",
+          amountCents: callAmount,
+          potBeforeCents: potBefore,
+          potAfterCents: potBefore + callAmount,
+        });
+        lastAction = this.buildLastAction({
+          state,
+          player,
+          action: "CALL",
+          amountCents: callAmount,
+          potAfterCents: potBefore + callAmount,
+          origin,
+        });
         clearPlayerNeedsAction(player);
+        syncRoundCurrentBetCents(state);
         break;
       }
 
@@ -225,11 +259,12 @@ export class ActionService {
         if (amount <= 0) throw new PokerError("INVALID_ACTION", "BET requires amountCents > 0.");
 
         const isAllIn = amount === player.stackCents;
-        if (amount < state.bigBlindCents && !isAllIn) {
+        if (amount < state.minRaiseCents && !isAllIn) {
           throw new PokerError("INVALID_ACTION", "BET below minimum.");
         }
 
         await applyActionDebit(player, amount, "BET");
+        assertPotAfter(potBefore + amount, "BET");
         await recordAcceptedAction({
           player,
           action: "BET",
@@ -257,9 +292,13 @@ export class ActionService {
         if (raiseToRequested <= state.roundCurrentBetCents) {
           throw new PokerError("INVALID_ACTION", "RAISE must be > current bet.");
         }
+        const maxRaiseTo = player.roundBetCents + player.stackCents;
+        if (raiseToRequested > maxRaiseTo) {
+          throw new PokerError("INVALID_ACTION", "RAISE exceeds max reachable bet.");
+        }
 
         const neededRequested = Math.max(0, raiseToRequested - player.roundBetCents);
-        const needed = Math.min(neededRequested, player.stackCents);
+        const needed = neededRequested;
         const raiseTo = player.roundBetCents + needed;
         const delta = raiseTo - state.roundCurrentBetCents;
         const isAllIn = needed === player.stackCents;
@@ -270,6 +309,7 @@ export class ActionService {
 
         if (needed <= 0) throw new PokerError("INVALID_ACTION", "RAISE requires chips.");
         await applyActionDebit(player, needed, "RAISE", { raiseTo });
+        assertPotAfter(potBefore + needed, "RAISE");
         await recordAcceptedAction({
           player,
           action: "RAISE",
@@ -282,14 +322,16 @@ export class ActionService {
           state,
           player,
           action: "RAISE",
+          // amountCents is chips added by this action; raiseToCents is the actor's new total round bet.
           amountCents: needed,
           raiseToCents: raiseTo,
           potAfterCents: potBefore + needed,
           origin,
         });
         const newLevel = player.roundBetCents;
-        state.minRaiseCents = Math.max(state.minRaiseCents, newLevel - state.roundCurrentBetCents);
-        state.roundCurrentBetCents = Math.max(state.roundCurrentBetCents, newLevel);
+        const raiseSize = newLevel - state.roundCurrentBetCents;
+        state.roundCurrentBetCents = newLevel;
+        state.minRaiseCents = Math.max(state.minRaiseCents, raiseSize);
         onNewBetLevel(state, player.id);
         break;
       }
@@ -301,6 +343,7 @@ export class ActionService {
         const prevRoundCurrentBet = state.roundCurrentBetCents;
         const prevMinRaise = state.minRaiseCents;
         await applyActionDebit(player, pay, "ALL_IN");
+        assertPotAfter(potBefore + pay, "ALL_IN");
         await recordAcceptedAction({
           player,
           action: "ALL_IN",
@@ -316,6 +359,7 @@ export class ActionService {
           potAfterCents: potBefore + pay,
           origin,
         });
+        player.status = "ALL_IN";
         if (player.roundBetCents > prevRoundCurrentBet) {
           const delta = player.roundBetCents - prevRoundCurrentBet;
           state.roundCurrentBetCents = player.roundBetCents;
@@ -323,13 +367,13 @@ export class ActionService {
             state.minRaiseCents = Math.max(state.minRaiseCents, delta);
             onNewBetLevel(state, player.id);
           } else {
+            // Short all-in does not meet minRaise, so action is not reopened for players
+            // who already acted at the current bet level (correct poker rules).
             clearPlayerNeedsAction(player);
           }
         } else {
           clearPlayerNeedsAction(player);
         }
-
-        player.status = "ALL_IN";
         break;
       }
     }
@@ -361,47 +405,23 @@ export class ActionService {
     if (player.status !== "ACTIVE") return { result: this.finish(state, { kind: "NO_OP" }) };
 
     const potBefore = state.potCents;
-    await recordAcceptedAction({
-      player,
-      action: "FOLD",
-      amountCents: 0,
-      potBeforeCents: potBefore,
-      potAfterCents: potBefore,
-    });
-    player.status = "FOLDED";
-    clearPlayerNeedsAction(player);
-    syncRoundCurrentBetCents(state);
-    const lastAction = this.buildLastAction({
+    const lastAction = await this.applyFold({
       state,
       player,
-      action: "FOLD",
-      amountCents: 0,
-      potAfterCents: potBefore,
       origin,
+      potBeforeCents: potBefore,
+      recordAcceptedAction,
     });
-
-    if (countNotFoldedPlayers(state) <= 1) {
-      return { result: this.finish(state, { kind: "HAND_FINISHED" }), lastAction };
-    }
-
-    if (allRemainingPlayersAllInOrFolded(state)) {
-      state.runoutMode = "STAGED";
-      return { result: this.finish(state, { kind: "STREET_COMPLETE" }), lastAction };
-    }
-
-    if (bettingRoundComplete(state) || noFurtherBettingPossible(state)) {
-      return { result: this.finish(state, { kind: "STREET_COMPLETE" }), lastAction };
-    }
 
     if (state.toActSeat === player.seat) {
       const nextSeat = findNextToActSeat(state, player.seat);
-      if (nextSeat === -1) {
-        return { result: this.finish(state, { kind: "STREET_COMPLETE" }), lastAction };
+      if (nextSeat !== -1) {
+        state.toActSeat = nextSeat;
       }
-      state.toActSeat = nextSeat;
     }
+
     return {
-      result: this.finish(state, { kind: "TURN_ADVANCED", actorKind: player.kind }),
+      result: this.resolvePostAction(state, player.kind, { skipTurnAdvance: true }),
       lastAction,
     };
   }

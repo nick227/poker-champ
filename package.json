@@ -19,6 +19,7 @@
     "test:server:join": "vitest run src/tests/table-join.guard.test.ts",
     "test:server:broadcast": "vitest run src/tests/table-action-broadcast.test.ts",
     "test:server:money-safety": "vitest run src/tests/settlement-service.money-safety.test.ts src/tests/fold-path-equivalence.test.ts",
+    "test:server:rejoin": "vitest run src/tests/session-policy.test.ts src/tests/table-join.guard.test.ts src/tests/table-action-broadcast.test.ts src/tests/reconnection.invariant.test.ts src/tests/player-lifecycle.removal-bet-sync.test.ts src/tests/fold-path-equivalence.test.ts",
     "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast && pnpm test:server:money-safety",
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",

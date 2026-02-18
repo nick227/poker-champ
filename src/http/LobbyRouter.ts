@@ -11,11 +11,13 @@ router.get("/tables", async (_req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
   const tables = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
     const metadata = r.metadata ?? {};
+    const humanCount = typeof metadata.humanCount === "number" ? metadata.humanCount : undefined;
     return {
       tableId: metadata.tableId ?? r.roomId,
       roomId: r.roomId,
       name: metadata.name ?? "Hold'em",
-      players: r.clients ?? 0,
+      // Keep lobby occupancy aligned with delete rules ("no seated humans").
+      players: humanCount ?? r.clients ?? 0,
       maxSeats: metadata.maxSeats ?? r.maxClients ?? 9,
       smallBlindCents: metadata.smallBlindCents ?? 50,
       bigBlindCents: metadata.bigBlindCents ?? 100,
@@ -26,7 +28,7 @@ router.get("/tables", async (_req, res) => {
       runningSince: metadata.runningSince ?? null,
       createdAt: metadata.createdAt ?? Date.now(),
       creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
-      humanCount: typeof metadata.humanCount === "number" ? metadata.humanCount : undefined,
+      humanCount,
     };
   });
   res.json({ tables });

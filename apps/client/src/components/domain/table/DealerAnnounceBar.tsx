@@ -7,8 +7,6 @@ import { TABLE } from "@/constants/copy";
 type Hand = { street: string; potCents: number };
 type HandResultMessage = { winnerName: string; amountCents: number; winningHandDescr?: string };
 
-type Blinds = { smallBlindCents: number; bigBlindCents: number };
-
 function deriveMessage(
   hand: Hand | undefined,
   actionMessage: string | undefined,
@@ -32,14 +30,12 @@ export function DealerAnnounceBar({
   handResultMessage,
   tableStatus,
   nextHandAtTs,
-  blinds,
 }: {
   hand?: Hand;
   actionMessage?: string;
   handResultMessage?: HandResultMessage;
   tableStatus?: string;
   nextHandAtTs?: number;
-  blinds?: Blinds;
 }) {
   const [remaining, setRemaining] = useState<number>(0);
 
@@ -62,16 +58,15 @@ export function DealerAnnounceBar({
   const message = deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
 
   return (
-    <View className="h-[5vh] min-h-[36px] ui-center gap-x-3">
-      {blinds && (
-        <Text variant="label" className="text-text-subtle">
-          {formatCents(blinds.smallBlindCents)} / {formatCents(blinds.bigBlindCents)}
+    <View collapsable={false} className="h-9 ui-row flex-shrink-0 items-center w-full">
+      <View className="flex-1 min-w-0 justify-center">
+        <Text variant="body" numberOfLines={1} ellipsizeMode="tail" className="text-center" allowFontScaling={false}>
+          {message}
         </Text>
-      )}
-      <Text variant="body">{message}</Text>
+      </View>
       {remaining > 0 && (
-        <View className="px-2 py-0.5 rounded-full bg-surface-lowest/40 border border-border-subtle/30">
-          <Text variant="label" className="font-mono text-text-subtle">
+        <View className="px-2 py-0.5 rounded-full bg-surface-lowest/40 border border-border-subtle/30 flex-shrink-0">
+          <Text variant="label" className="font-mono text-text-subtle" allowFontScaling={false}>
             Next deal: {remaining}s
           </Text>
         </View>

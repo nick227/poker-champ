@@ -132,6 +132,22 @@ export interface paths {
         patch: operations["profileUpdate"];
         trace?: never;
     };
+    "/api/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["leaderboardGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/economy/wallet": {
         parameters: {
             query?: never;
@@ -686,6 +702,64 @@ export interface operations {
             };
             /** @description Bad request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    leaderboardGet: {
+        parameters: {
+            query: {
+                period?: "daily" | "weekly" | "all_time";
+                category: "biggest_winner" | "biggest_donor" | "showdown_sniper" | "all_in_maniac" | "ice_cold" | "heater" | "tight_rock" | "action_junkie";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Leaderboard snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        period: "daily" | "weekly" | "all_time";
+                        category: string;
+                        /** Format: date-time */
+                        computedAt: string | null;
+                        totalEntries: number;
+                        entries: {
+                            rank: number;
+                            userId: string;
+                            displayName: string;
+                            value: string;
+                            valueNumerator: number;
+                            valueDenominator?: number | null;
+                            handCount: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

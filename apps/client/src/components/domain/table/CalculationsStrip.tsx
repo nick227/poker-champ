@@ -4,6 +4,8 @@ import { Pill, type PillVariant } from "@/components/base/Pill";
 import { Text } from "@/components/base/Text";
 import { DURATION } from "@/theme/animation";
 
+const CALC_STRIP_HEIGHT = 40;
+
 function toVariant(favorable: boolean, poor: boolean): PillVariant {
   if (poor) return "danger";
   if (favorable) return "success";
@@ -27,8 +29,13 @@ export function CalculationsStrip({
   const prev = useRef({ equity, potOdds, outs });
 
   useEffect(() => {
+    if (!visible) {
+      opacity.setValue(0);
+      return;
+    }
     if (muted) {
-      opacity.setValue(1);
+      opacity.stopAnimation();
+      opacity.setValue(0.6);
       return;
     }
     const changed =
@@ -43,34 +50,35 @@ export function CalculationsStrip({
       duration: DURATION.fast,
       useNativeDriver: true,
     }).start();
-  }, [equity, potOdds, outs, muted, opacity]);
+  }, [equity, potOdds, outs, muted, visible, opacity]);
 
   useEffect(() => {
-    opacity.setValue(visible ? 1 : 0);
-  }, [visible, opacity]);
+    if (!visible) opacity.setValue(0);
+    else if (muted) opacity.setValue(0.6);
+    else opacity.setValue(1);
+  }, [visible, muted, opacity]);
 
   const eqVariant = typeof equity === "number" ? toVariant(equity > 50, equity < 30) : "neutral";
   const poVariant = typeof potOdds === "number" && typeof equity === "number"
     ? toVariant(potOdds < equity, potOdds > equity + 20)
     : "neutral";
   const content = (
-    <View className="ui-stack-2">
-      <View className="ui-row-wrap ui-inline-2 ui-p-stack-2">
+    <View style={{ flexDirection: "column" }} className="ui-stack-2">
+      <View className="ui-row ui-inline-2 ui-p-stack-2" style={{ flexWrap: "nowrap" }}>
         <Pill label="Equity" value={typeof equity === "number" ? `${equity}%` : "--"} variant={eqVariant} />
         <Pill label="Pot Odds" value={typeof potOdds === "number" ? `${potOdds}%` : "--"} variant={poVariant} />
         <Pill label="Outs" value={typeof outs === "number" ? String(outs) : "--"} variant="neutral" />
       </View>
-      <Text variant="muted" className="text-xs">
-        Outs = cards that tie or win vs one opponent
-      </Text>
     </View>
   );
 
   return (
-    <View style={{ minHeight: 32 }} pointerEvents={visible ? "auto" : "none"}>
-      <View style={{ opacity: !visible ? 0 : muted ? 0.6 : 1 }}>
-        <Animated.View style={{ opacity }}>{content}</Animated.View>
-      </View>
+    <View
+      collapsable={false}
+      style={{ height: CALC_STRIP_HEIGHT }}
+      pointerEvents={visible ? "auto" : "none"}
+    >
+      <Animated.View style={{ height: CALC_STRIP_HEIGHT, opacity }}>{content}</Animated.View>
     </View>
   );
 }

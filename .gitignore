@@ -24,6 +24,10 @@ build
 
 # Prisma
 prisma/migrations
+!prisma/migrations/
+prisma/migrations/*
+!prisma/migrations/20260218_migration_c_leaderboard_snapshot/
+!prisma/migrations/20260218_migration_c_leaderboard_snapshot/migration.sql
 
 # Logs & debug
 *.log

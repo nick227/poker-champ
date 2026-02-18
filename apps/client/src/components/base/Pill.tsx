@@ -23,9 +23,19 @@ export function Pill({
   className?: string;
 }) {
   return (
-    <View className={`min-w-[5rem] ui-row ui-inline-1 rounded-md border px-2 py-1 ${variantClass[variant]} ${className}`}>
-      <Text variant="muted">{label}</Text>
-      <Text variant="body" style={{ fontVariant: ["tabular-nums"], minWidth: 40 }}>
+    <View
+      collapsable={false}
+      className={`min-w-[5rem] ui-inline-1 rounded-md border px-2 py-1 ${variantClass[variant]} ${className}`}
+      style={{ minHeight: 28, flexDirection: "row", alignItems: "center" }}
+    >
+      <Text variant="muted" allowFontScaling={false} numberOfLines={1} style={{ minWidth: 60 }}>
+        {label}
+      </Text>
+      <Text
+        variant="body"
+        allowFontScaling={false}
+        style={{ fontVariant: ["tabular-nums"], minWidth: 40 }}
+      >
         {value}
       </Text>
     </View>

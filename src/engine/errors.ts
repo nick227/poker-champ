@@ -9,6 +9,7 @@ export type PokerErrorCode =
   | "LEDGER_MISMATCH"
   | "TABLE_FULL"
   | "HAND_NOT_STARTED"
+  | "HAND_ALREADY_FINISHED"
   | "DECK_ERROR";
 
 export class PokerError extends Error {

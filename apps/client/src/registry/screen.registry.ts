@@ -1,4 +1,4 @@
-export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings";
+export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard";
 
 type ScreenDefinition = {
   path: string;
@@ -8,6 +8,8 @@ type ScreenDefinition = {
   bottomBarLabel?: string;
   componentPath: string;
 };
+
+const isLeaderboardTabEnabled = process.env.EXPO_PUBLIC_ENABLE_LEADERBOARD !== "false";
 
 const screenByKey: Record<ScreenKey, ScreenDefinition> = {
   index: {
@@ -34,9 +36,24 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     path: "/table/[id]",
     authRequired: true,
     title: "Table",
-    showInBottomBar: true,
-    bottomBarLabel: "Tables",
+    showInBottomBar: false, // Changed: no longer in bottom bar
     componentPath: "app/table/[id].tsx",
+  },
+  history: {
+    path: "/history",
+    authRequired: true,
+    title: "Hand History",
+    showInBottomBar: true,
+    bottomBarLabel: "History",
+    componentPath: "app/history.tsx",
+  },
+  leaderboard: {
+    path: "/leaderboard",
+    authRequired: true,
+    title: "Leaderboard",
+    showInBottomBar: isLeaderboardTabEnabled,
+    bottomBarLabel: "Leaderboard",
+    componentPath: "app/leaderboard.tsx",
   },
   settings: {
     path: "/settings",

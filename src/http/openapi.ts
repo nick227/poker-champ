@@ -11,6 +11,7 @@ export const openApiSpec = {
     { name: "meta" },
     { name: "auth" },
     { name: "profile" },
+    { name: "leaderboard" },
     { name: "economy" },
     { name: "tournaments" },
     { name: "lobby" },
@@ -307,6 +308,92 @@ export const openApiSpec = {
           },
           "400": {
             description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/leaderboard": {
+      get: {
+        tags: ["leaderboard"],
+        operationId: "leaderboardGet",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "period",
+            in: "query",
+            required: false,
+            schema: {
+              type: "string",
+              enum: ["daily", "weekly", "all_time"],
+              default: "weekly",
+            },
+          },
+          {
+            name: "category",
+            in: "query",
+            required: true,
+            schema: {
+              type: "string",
+              enum: [
+                "biggest_winner",
+                "biggest_donor",
+                "showdown_sniper",
+                "all_in_maniac",
+                "ice_cold",
+                "heater",
+                "tight_rock",
+                "action_junkie",
+              ],
+            },
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Leaderboard snapshot",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    period: { type: "string", enum: ["daily", "weekly", "all_time"] },
+                    category: { type: "string" },
+                    computedAt: { type: "string", format: "date-time", nullable: true },
+                    totalEntries: { type: "integer" },
+                    entries: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          rank: { type: "integer" },
+                          userId: { type: "string" },
+                          displayName: { type: "string" },
+                          value: { type: "string" },
+                          valueNumerator: { type: "integer" },
+                          valueDenominator: { type: "integer", nullable: true },
+                          handCount: { type: "integer" },
+                        },
+                        required: ["rank", "userId", "displayName", "value", "valueNumerator", "handCount"],
+                      },
+                    },
+                  },
+                  required: ["period", "category", "computedAt", "totalEntries", "entries"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "401": {
+            description: "Unauthorized",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

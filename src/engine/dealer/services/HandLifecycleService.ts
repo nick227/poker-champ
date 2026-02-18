@@ -11,14 +11,12 @@ import {
   resetBettingRound,
 } from "../../rules/BettingRound.js";
 import { buildSidePots, splitPotCents } from "../../rules/SidePotManager.js";
-import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState, Street } from "../../../state/PokerState.js";
 import { SettlementService } from "./SettlementService.js";
 import {
   countActiveHumanPlayers,
-  findNextActiveSeat,
   findNextToActSeat,
-  iterPlayersInSeatOrder,
+  resolveActivePlayersForHand,
   seatOrderLeftOfDealer,
 } from "../utils/TableNavigator.js";
 import type { SnapshotReason } from "./SnapshotService.js";
@@ -30,10 +28,12 @@ import { HAND_RESULT_HOLD_MS, RUNOUT_STAGE_DELAY_MS } from "../timing.js";
 
 const { Hand } = pokersolver as {
   Hand: {
-    solve(cards: string[]): any;
-    winners(hands: any[]): any[];
+    solve(cards: string[]): unknown;
+    winners(hands: unknown[]): unknown[];
   };
 };
+
+type SolvedHand = { descr?: string; name?: string };
 
 export type HandLifecyclePlan =
   | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
@@ -44,7 +44,9 @@ export type HandLifecyclePlan =
   | { kind: "SCHEDULE_NEXT_HAND"; reason: string; delayMs?: number };
 
 export class HandLifecycleService {
+  /** Lifetime: one hand. Set in startHand after we have 2+ active players; cleared at start of startHand. */
   private deck: DeckService | null = null;
+  /** Set in startHand when we have 2+ active players; reset at start of startHand. Meaningful only after a successful hand start. */
   private currentHandIncludesBotParticipants = false;
 
   constructor(private readonly deps: {
@@ -62,10 +64,10 @@ export class HandLifecycleService {
   async startHand(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    this.deck = null;
+    this.currentHandIncludesBotParticipants = false;
     if (countActiveHumanPlayers(state) === 0) return plans;
     state.runningSinceTs = Date.now();
-
-    state.dealerSeat = findNextActiveSeat(state, state.dealerSeat) ?? 0;
 
     const handId = newId("hand");
     state.handNumber += 1;
@@ -85,6 +87,17 @@ export class HandLifecycleService {
     resetBettingRound(state);
 
     for (const player of state.playersById.values()) {
+      if (
+        player.connected &&
+        player.status === "ABANDONED" &&
+        player.stackCents > 0 &&
+        player.sittingOutUntilNextHand !== true
+      ) {
+        player.status = "ACTIVE";
+      }
+    }
+
+    for (const player of state.playersById.values()) {
       player.roundBetCents = 0;
       player.committedCents = 0;
       player.needsAction = false;
@@ -93,23 +106,10 @@ export class HandLifecycleService {
       }
     }
 
-    let activePlayers = [...iterPlayersInSeatOrder(state)].filter(
-      (player) => player.status === "ACTIVE" && player.sittingOutUntilNextHand !== true,
-    );
+    // Resolve active players while sittingOutUntilNextHand is still set (excludes sit-out for this hand).
+    const activePlayers = resolveActivePlayersForHand(state);
     for (const p of state.playersById.values()) {
       p.sittingOutUntilNextHand = false;
-    }
-    if (activePlayers.length < 2) {
-      const fromMap = [...state.playersById.values()]
-        .filter((p) => p.status === "ACTIVE" && p.sittingOutUntilNextHand !== true)
-        .sort((a, b) => a.seat - b.seat);
-      if (fromMap.length >= 2) activePlayers = fromMap;
-    }
-    if (activePlayers.length < 2) {
-      const anyActive = [...state.playersById.values()]
-        .filter((p) => p.status === "ACTIVE")
-        .sort((a, b) => a.seat - b.seat);
-      if (anyActive.length >= 2) activePlayers = anyActive;
     }
 
     if (activePlayers.length < 2) {
@@ -119,6 +119,15 @@ export class HandLifecycleService {
       maybeAssertStateInvariants(state);
       return plans;
     }
+
+    const activeSeats = activePlayers
+      .map((player) => player.seat)
+      .sort((a, b) => a - b);
+    const nextSeatFrom = (fromSeat: number): number => {
+      const next = activeSeats.find((seat) => seat > fromSeat);
+      return next ?? activeSeats[0]!;
+    };
+    state.dealerSeat = nextSeatFrom(state.dealerSeat);
 
     this.deck = new DeckService();
     this.deck.shuffle();
@@ -153,10 +162,8 @@ export class HandLifecycleService {
     state.handId = handId;
 
     const isHeadsUp = activePlayers.length === 2;
-    const sbSeat = isHeadsUp
-      ? state.dealerSeat
-      : (findNextActiveSeat(state, state.dealerSeat) ?? state.dealerSeat);
-    const bbSeat = findNextActiveSeat(state, sbSeat) ?? sbSeat;
+    const sbSeat = isHeadsUp ? state.dealerSeat : nextSeatFrom(state.dealerSeat);
+    const bbSeat = nextSeatFrom(sbSeat);
     state.sbSeat = sbSeat;
     state.bbSeat = bbSeat;
 
@@ -166,12 +173,20 @@ export class HandLifecycleService {
     if (sbId) {
       const sb = state.playersById.get(sbId);
       if (!sb) throw new PokerError("BAD_STATE", "Small blind player missing.");
+      if (sb.status !== "ACTIVE") {
+        logger.error({ handId: state.handId, sbSeat, sbStatus: sb.status }, "SB not ACTIVE at hand start");
+        throw new PokerError("BAD_STATE", "Small blind must be ACTIVE at hand start.");
+      }
       await this.deps.settlementService.postBlind(sb, "SB", state.smallBlindCents);
     }
 
     if (bbId) {
       const bb = state.playersById.get(bbId);
       if (!bb) throw new PokerError("BAD_STATE", "Big blind player missing.");
+      if (bb.status !== "ACTIVE") {
+        logger.error({ handId: state.handId, bbSeat, bbStatus: bb.status }, "BB not ACTIVE at hand start");
+        throw new PokerError("BAD_STATE", "Big blind must be ACTIVE at hand start.");
+      }
       await this.deps.settlementService.postBlind(bb, "BB", state.bigBlindCents);
     }
 
@@ -199,6 +214,9 @@ export class HandLifecycleService {
   async advanceStreetOrShowdown(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    if (state.street === "WAITING") {
+      throw new PokerError("BAD_STATE", "advanceStreetOrShowdown while WAITING.");
+    }
     if (
       state.runoutMode === "STAGED" &&
       !allRemainingPlayersAllInOrFolded(state) &&
@@ -213,10 +231,7 @@ export class HandLifecycleService {
       noFurtherBettingPossible(state)
     ) {
       state.runoutMode = "STAGED";
-      plans.push(...this.runoutToRiverStaged());
-      state.street = "SHOWDOWN";
-      const showdownPlans = await this.finishHandShowdownWithSidePots();
-      return [...plans, ...showdownPlans];
+      return this.finishHandShowdownWithSidePots();
     }
 
     const next = this.nextStreet(state.street);
@@ -246,12 +261,48 @@ export class HandLifecycleService {
   async finishHandByLastStanding(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
-    const winner = [...state.playersById.values()].find((player) => player.status !== "FOLDED" && player.status !== "OUT");
-    if (!winner) {
+    const remaining = [...state.playersById.values()].filter(
+      (p) => p.status === "ACTIVE" || p.status === "ALL_IN",
+    );
+    if (remaining.length === 0) {
+      const notFoldedOrOut = [...state.playersById.values()].filter(
+        (p) => p.status !== "FOLDED" && p.status !== "OUT",
+      );
+      if (notFoldedOrOut.length === 1) {
+        // Defensive: e.g. sole survivor is ABANDONED; credit pot so it is never left uncredited.
+        const winner = notFoldedOrOut[0]!;
+        await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
+        await this.deps.applyDisconnectedAutoActionCapForHand();
+        this.deps.setLastHandResult({
+          handId: state.handId,
+          reason: "LAST_PLAYER",
+          potCents: state.potCents,
+          winnerId: winner.id,
+          payoutsByUserId: { [winner.id]: state.potCents },
+          board: [...state.board],
+        });
+        await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
+        plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
+        plans.push({ kind: "TRANSITION_TO_WAITING" });
+        plans.push({ kind: "RELEASE_PENDING_SEATS" });
+        plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
+        if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
+          await this.deps.persistence.assertHandBalanced(state.handId);
+        }
+        maybeAssertStateInvariants(state);
+        return plans;
+      }
+      if (notFoldedOrOut.length > 1) {
+        throw new PokerError("BAD_STATE", "finishHandByLastStanding: no ACTIVE/ALL_IN but multiple non-folded players.");
+      }
       state.street = "WAITING";
       state.runoutMode = "NONE";
       return plans;
     }
+    if (remaining.length !== 1) {
+      throw new PokerError("BAD_STATE", "finishHandByLastStanding called with != 1 remaining player.");
+    }
+    const winner = remaining[0]!;
 
     await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
     await this.deps.applyDisconnectedAutoActionCapForHand();
@@ -264,13 +315,12 @@ export class HandLifecycleService {
       payoutsByUserId: { [winner.id]: state.potCents },
       board: [...state.board],
     });
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
-
     await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
     plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-    if (!this.currentHandIncludesBotParticipants) {
+    if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
     maybeAssertStateInvariants(state);
@@ -282,10 +332,15 @@ export class HandLifecycleService {
     const { state } = this.deps;
     if (state.street !== "SHOWDOWN") {
       plans.push(...this.runoutToRiverStaged());
+      // Street is forced to SHOWDOWN after staged runout.
+      state.street = "SHOWDOWN";
     }
 
     const playersAll = [...state.playersById.values()].filter((player) => player.status !== "OUT");
     const eligible = playersAll.filter(eligibleForShowdown);
+    if (eligible.some((p) => p.status === "FOLDED")) {
+      throw new PokerError("BAD_STATE", "Folded player eligible for showdown.");
+    }
 
     if (eligible.length <= 1) {
       return this.finishHandByLastStanding();
@@ -294,10 +349,13 @@ export class HandLifecycleService {
     const pots = buildSidePots(playersAll, eligible);
     const board = [...state.board];
 
-    const solved = new Map<string, any>();
+    const solved = new Map<string, SolvedHand>();
     for (const player of eligible) {
       const cards = this.deps.holeCardsByPlayerId.get(player.id) ?? [];
-      solved.set(player.id, Hand.solve([...cards, ...board]));
+      if (cards.length !== 2) {
+        throw new PokerError("BAD_STATE", `Missing hole cards at showdown for player ${player.id}.`);
+      }
+      solved.set(player.id, Hand.solve([...cards, ...board]) as SolvedHand);
     }
 
     const seatOrder = seatOrderLeftOfDealer(state);
@@ -337,6 +395,7 @@ export class HandLifecycleService {
 
       if (fallbackRecipient) {
         payouts.set(fallbackRecipient.id, (payouts.get(fallbackRecipient.id) ?? 0) + remainder);
+        // Production should alert on this event; silent chip reconciliation masks side-pot bugs.
         logger.warn(
           {
             handId: state.handId,
@@ -344,10 +403,16 @@ export class HandLifecycleService {
             paidCents: totalPaidBeforeReconcile,
             remainderCents: remainder,
             fallbackRecipientUserId: fallbackRecipient.id,
+            event: "SHOWDOWN_REMAINDER_RECONCILED",
           },
           "showdown payout remainder reconciled; investigate uncalled/side-pot edge",
         );
       }
+    }
+
+    const payoutSum = [...payouts.values()].reduce((sum, amount) => sum + amount, 0);
+    if (payoutSum !== state.potCents) {
+      throw new PokerError("BAD_STATE", "Payout sum must equal pot.");
     }
 
     for (const [id, amount] of payouts.entries()) {
@@ -358,7 +423,8 @@ export class HandLifecycleService {
     }
 
     const payoutsEntries = [...payouts.entries()];
-    const primaryWinnerId = payoutsEntries[0]?.[0];
+    const primaryWinnerId = seatOrder.find((id) => payouts.has(id));
+    const displayWinnerId = payoutsEntries.length === 1 ? primaryWinnerId : undefined;
     const primaryWinnerCards = primaryWinnerId ? this.deps.holeCardsByPlayerId.get(primaryWinnerId) : undefined;
     const primarySolved = primaryWinnerId ? solved.get(primaryWinnerId) : undefined;
     const winningDescr = primarySolved?.descr ?? primarySolved?.name;
@@ -374,7 +440,7 @@ export class HandLifecycleService {
       handId: state.handId,
       reason: "SHOWDOWN",
       potCents: state.potCents,
-      winnerId: payoutsEntries.length === 1 ? primaryWinnerId : undefined,
+      winnerId: displayWinnerId,
       payoutsByUserId: Object.fromEntries(payoutsEntries),
       board,
       showdownHoleCardsByUserId,
@@ -389,7 +455,7 @@ export class HandLifecycleService {
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
     plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-    if (!this.currentHandIncludesBotParticipants) {
+    if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
     maybeAssertStateInvariants(state);
@@ -406,7 +472,7 @@ export class HandLifecycleService {
     if (street === "FLOP") return "TURN";
     if (street === "TURN") return "RIVER";
     if (street === "RIVER") return "SHOWDOWN";
-    return "WAITING";
+    throw new PokerError("BAD_STATE", `Unknown street ${street}.`);
   }
 
   private dealCommunityForStreet(street: Street): void {
@@ -416,6 +482,10 @@ export class HandLifecycleService {
 
   private runoutToRiverStaged(): HandLifecyclePlan[] {
     const plans: HandLifecyclePlan[] = [];
+    // NOTE: This function mutates state while constructing plans.
+    // It is only called from lifecycle transitions where immediate mutation is intended.
+    // The execution layer (Dealer) must run plans in order and honor DELAY steps;
+    // skipping or reordering would show community cards without the intended pause.
     while (this.deps.state.street !== "RIVER") {
       const next = this.nextStreet(this.deps.state.street);
       if (next === "SHOWDOWN") break;

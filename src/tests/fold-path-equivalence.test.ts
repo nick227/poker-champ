@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ActionService } from "../engine/dealer/services/ActionService.js";
+import { assertStateInvariants } from "../engine/invariants/assertState.js";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 
@@ -131,5 +132,66 @@ describe("fold / abandon / disconnect money equivalence", () => {
 
     expect(playerFold.applyActionDebit).not.toHaveBeenCalled();
     expect(autoFold.applyActionDebit).not.toHaveBeenCalled();
+  });
+
+  it("keeps roundCurrentBetCents aligned when the highest bettor folds", async () => {
+    const actionService = new ActionService();
+    const state = new PokerState();
+    state.tableId = "table_fold_high_bet";
+    state.handId = "hand_fold_high_bet";
+    state.street = "TURN";
+    state.potCents = 1200;
+    state.roundCurrentBetCents = 300;
+    state.minRaiseCents = 100;
+    state.toActSeat = 0;
+    state.seats.push("u1", "u2", "u3");
+
+    const folder = makePlayer({
+      id: "u1",
+      seat: 0,
+      roundBetCents: 300,
+      committedCents: 300,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    const caller = makePlayer({
+      id: "u2",
+      seat: 1,
+      roundBetCents: 200,
+      committedCents: 200,
+      status: "ACTIVE",
+      needsAction: false,
+    });
+    const allIn = makePlayer({
+      id: "u3",
+      seat: 2,
+      roundBetCents: 100,
+      committedCents: 100,
+      stackCents: 0,
+      status: "ALL_IN",
+      needsAction: false,
+    });
+
+    state.playersById.set(folder.id, folder);
+    state.playersById.set(caller.id, caller);
+    state.playersById.set(allIn.id, allIn);
+
+    const recordAcceptedAction = vi.fn().mockResolvedValue(undefined);
+    const execution = await actionService.execute({
+      state,
+      userId: folder.id,
+      msg: { action: "FOLD" },
+      origin: "PLAYER",
+      applyActionDebit: vi.fn().mockResolvedValue(undefined),
+      recordAcceptedAction,
+      assertCanAfford: () => {},
+    });
+
+    expect(execution.lastAction?.action).toBe("FOLD");
+    expect(state.roundCurrentBetCents).toBe(200);
+    expect(() => assertStateInvariants(state)).not.toThrow();
+    expect(recordAcceptedAction).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "FOLD", amountCents: 0, potBeforeCents: 1200, potAfterCents: 1200 }),
+    );
   });
 });

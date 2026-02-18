@@ -36,9 +36,9 @@ export function Button({
       style={({ pressed }) => ({ opacity: isDisabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
       className={className}
     >
-      <View className={`${base} ${variants[variant]} ${className}`}>
+      <View className={`${base} ${variants[variant]} ${className}`} style={{ minHeight: 44 }}>
         {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : null}
-        <Text variant="body">{title}</Text>
+        <Text variant="body" allowFontScaling={false}>{title}</Text>
       </View>
     </Pressable>
   );

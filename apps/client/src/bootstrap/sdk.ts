@@ -17,7 +17,7 @@ async function checkVersionMismatchOnce() {
       me && typeof me === "object" && "openapiVersion" in me ? String((me as { openapiVersion: unknown }).openapiVersion) : null;
 
     if (serverOpenApiVersion && serverOpenApiVersion !== SDK_VERSION) {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[SDK_VERSION_MISMATCH] server=${serverOpenApiVersion} sdk=${SDK_VERSION}. Regenerate or upgrade @poker-champ/sdk.`,
       );

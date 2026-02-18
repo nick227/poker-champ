@@ -133,4 +133,8 @@ body {
   max-width: 100% !important;
   width: 640px !important;
   margin: 0 auto;
+}
+
+#root .bg-red-500 {
+  background-color: #ef4444 !important;
 }`;

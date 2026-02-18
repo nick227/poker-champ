@@ -1,0 +1,38 @@
+name: Server Rejoin Regression
+
+on:
+  pull_request:
+    paths:
+      - "src/engine/**"
+      - "src/rooms/**"
+      - "src/state/**"
+      - "src/tests/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/server-rejoin-regression.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/engine/**"
+      - "src/rooms/**"
+      - "src/state/**"
+      - "src/tests/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/server-rejoin-regression.yml"
+  workflow_dispatch:
+
+jobs:
+  rejoin-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:server:rejoin

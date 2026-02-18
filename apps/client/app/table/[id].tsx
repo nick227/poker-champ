@@ -71,11 +71,13 @@ export default function TableScreen() {
   const closeTable = storeRegistry.use.tables((s) => s.closeTable);
   const setActive = storeRegistry.use.tables((s) => s.setActive);
   const dispatchTableAction = storeRegistry.use.tables((s) => s.dispatchTableAction);
+  const dispatchSendChat = storeRegistry.use.tables((s) => s.dispatchSendChat);
   const dispatchAddBot = storeRegistry.use.tables((s) => s.dispatchAddBot);
   const dispatchRemoveBot = storeRegistry.use.tables((s) => s.dispatchRemoveBot);
   const joinState = storeRegistry.use.tables((s) => (id ? s.tableJoinById[String(id)] : undefined));
   const lobbyTables = storeRegistry.use.lobby((s) => s.tables);
   const snapshotsByTableId = storeRegistry.use.table((s) => s.snapshotsByTableId);
+  const chatMessagesByTableId = storeRegistry.use.table((s) => s.chatMessagesByTableId);
   const tableStatusByTableId = storeRegistry.use.table((s) => s.connectionStatusByTableId);
   const tableErrorByTableId = storeRegistry.use.table((s) => s.errorByTableId);
   const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
@@ -84,8 +86,15 @@ export default function TableScreen() {
   const tableId = id ? String(id) : "demo";
   const routeBuyInCents = useMemo(() => {
     const raw = Array.isArray(buyInCentsParam) ? buyInCentsParam[0] : buyInCentsParam;
-    const parsed = Number(raw);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+    let parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlBuyIn = params.get("buyInCents");
+      parsed = Number(urlBuyIn ?? "");
+      if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    }
+    return undefined;
   }, [buyInCentsParam]);
   const { cents: balanceCents } = useBankroll();
   const profile = useProfile();
@@ -117,6 +126,7 @@ export default function TableScreen() {
     winningHandDescr?: string;
   } | null>(null);
   const [chatVisible, setChatVisible] = useState(false);
+  const [lastSeenChatCountByTableId, setLastSeenChatCountByTableId] = useState<Record<string, number>>({});
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [outOfChipsNoticeShownForHandId, setOutOfChipsNoticeShownForHandId] = useState<string | null>(null);
   const [addBotPending, setAddBotPending] = useState(false);
@@ -126,6 +136,29 @@ export default function TableScreen() {
   const tableStatus = tableStatusByTableId[tableId] ?? "DISCONNECTED";
   const tableError = tableErrorByTableId[tableId];
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
+  const heroUserId = snapshot?.hero?.userId;
+  const chatMessagesForOverlay = useMemo(() => {
+    const list = chatMessagesByTableId[tableId] ?? [];
+    return list.map((m) => ({
+      id: m.id,
+      sender: m.senderName,
+      text: m.text,
+      isSelf: heroUserId != null && m.senderUserId === heroUserId,
+    }));
+  }, [chatMessagesByTableId, tableId, heroUserId]);
+
+  const unseenChatCount =
+    (lastSeenChatCountByTableId[tableId] ?? 0) < chatMessagesForOverlay.length
+      ? chatMessagesForOverlay.length - (lastSeenChatCountByTableId[tableId] ?? 0)
+      : 0;
+
+  useEffect(() => {
+    if (chatVisible) {
+      setLastSeenChatCountByTableId((prev) => ({ ...prev, [tableId]: chatMessagesForOverlay.length }));
+    } else if (lastSeenChatCountByTableId[tableId] === undefined) {
+      setLastSeenChatCountByTableId((prev) => ({ ...prev, [tableId]: chatMessagesForOverlay.length }));
+    }
+  }, [chatVisible, tableId, chatMessagesForOverlay.length, lastSeenChatCountByTableId[tableId]]);
 
   useEffect(() => {
     if (tableId && lobbyTables.length === 0) {
@@ -215,7 +248,7 @@ export default function TableScreen() {
   }, [authHydrated, authToken, router, tableNextPath]);
 
   useEffect(() => {
-    // eslint-disable-next-line no-console
+     
     console.log("[TABLE_SCREEN]", {
       tableId,
       routeBuyInCents,
@@ -245,11 +278,11 @@ export default function TableScreen() {
   const sendAction = useCallback(
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
-      // eslint-disable-next-line no-console
+       
       console.log("[TABLE_ACTION_SEND]", { tableId, action, amountCents: payload.amount });
       const ok = dispatchTableAction({ tableId, action, amountCents: payload.amount });
       if (!ok) {
-        // eslint-disable-next-line no-console
+         
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
       }
     },
@@ -436,7 +469,7 @@ export default function TableScreen() {
                   loading={addBotPending}
                 />
               ) : null}
-              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} />
+              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} badge={unseenChatCount || undefined} />
               <Button
                 variant="ghost"
                 title="X"
@@ -484,7 +517,7 @@ export default function TableScreen() {
                   loading={addBotPending}
                 />
               ) : null}
-              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} />
+              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} badge={unseenChatCount || undefined} />
               <Button
                 variant="ghost"
                 title="X"
@@ -508,7 +541,12 @@ export default function TableScreen() {
           }}
         />
       )}
-      <ChatOverlay visible={chatVisible} onClose={() => setChatVisible(false)} messages={[]} onSend={() => {}} />
+      <ChatOverlay
+        visible={chatVisible}
+        onClose={() => setChatVisible(false)}
+        messages={chatMessagesForOverlay}
+        onSend={(text) => dispatchSendChat({ tableId, text })}
+      />
       {playerPopup && (
         <PlayerHistoryPopup
           visible

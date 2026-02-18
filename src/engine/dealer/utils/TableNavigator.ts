@@ -107,3 +107,27 @@ export function countNotFoldedPlayers(state: PokerState): number {
   }
   return count;
 }
+
+/**
+ * Players to deal into the next hand. Priority:
+ * 1. Seat order, ACTIVE and not sittingOutUntilNextHand.
+ * 2. All ACTIVE and not sittingOutUntilNextHand, sorted by seat.
+ * 3. All ACTIVE, sorted by seat.
+ * Returns the first set with at least 2 players, or the last attempt (may be 0 or 1).
+ */
+export function resolveActivePlayersForHand(state: PokerState): PlayerState[] {
+  const bySeatOrder = [...iterPlayersInSeatOrder(state)].filter(
+    (p) => p.status === "ACTIVE" && p.sittingOutUntilNextHand !== true,
+  );
+  if (bySeatOrder.length >= 2) return bySeatOrder;
+
+  const fromMapNoSitOut = [...state.playersById.values()]
+    .filter((p) => p.status === "ACTIVE" && p.sittingOutUntilNextHand !== true)
+    .sort((a, b) => a.seat - b.seat);
+  if (fromMapNoSitOut.length >= 2) return fromMapNoSitOut;
+
+  const anyActive = [...state.playersById.values()]
+    .filter((p) => p.status === "ACTIVE")
+    .sort((a, b) => a.seat - b.seat);
+  return anyActive;
+}

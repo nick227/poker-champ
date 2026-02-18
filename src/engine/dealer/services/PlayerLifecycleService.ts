@@ -9,6 +9,7 @@ import {
   bettingRoundComplete,
   eligibleToAct,
   noFurtherBettingPossible,
+  syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
 import { countNonOutPlayers, countNotFoldedPlayers, findNextToActSeat, findOpenSeat } from "../utils/TableNavigator.js";
 import type { SnapshotReason } from "./SnapshotService.js";
@@ -71,11 +72,11 @@ export class PlayerLifecycleService {
     player.kind = "HUMAN";
     player.name = name;
     player.seat = seat;
-    player.status = "ACTIVE";
+    player.status = this.deps.state.street === "WAITING" ? "ACTIVE" : "ABANDONED";
     player.connected = true;
     player.disconnectDeadlineTs = 0;
     player.stackCents = buyInTableBalance;
-    player.sittingOutUntilNextHand = false;
+    player.sittingOutUntilNextHand = this.deps.state.street !== "WAITING";
 
     this.deps.state.playersById.set(userId, player);
     this.deps.state.seats[seat] = userId;
@@ -89,6 +90,9 @@ export class PlayerLifecycleService {
     if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
       plans.push({ kind: "START_HAND" });
     } else {
+      if (this.deps.state.street !== "WAITING") {
+        player.status = "ABANDONED";
+      }
       player.sittingOutUntilNextHand = true;
       plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     }
@@ -164,11 +168,11 @@ export class PlayerLifecycleService {
     player.kind = "BOT";
     player.name = name;
     player.seat = seat;
-    player.status = "ACTIVE";
+    player.status = this.deps.state.street === "WAITING" ? "ACTIVE" : "ABANDONED";
     player.connected = true;
     player.disconnectDeadlineTs = 0;
     player.stackCents = buyInCents;
-    player.sittingOutUntilNextHand = false;
+    player.sittingOutUntilNextHand = this.deps.state.street !== "WAITING";
 
     this.deps.state.playersById.set(botId, player);
     this.deps.state.seats[seat] = botId;
@@ -186,6 +190,9 @@ export class PlayerLifecycleService {
     if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
       plans.push({ kind: "START_HAND" });
     } else {
+      if (this.deps.state.street !== "WAITING") {
+        player.status = "ABANDONED";
+      }
       player.sittingOutUntilNextHand = true;
     }
     maybeAssertStateInvariants(this.deps.state);
@@ -211,6 +218,7 @@ export class PlayerLifecycleService {
     this.deps.state.seats[player.seat] = "";
     this.deps.state.playersById.delete(botId);
     this.deps.holeCardsByPlayerId.delete(botId);
+    this.syncBettingStateAfterRemoval();
     if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
       await this.deps.persistence.handHistory.removePlayer(botId);
     }
@@ -246,6 +254,7 @@ export class PlayerLifecycleService {
     this.deps.state.seats[player.seat] = "";
     this.deps.state.playersById.delete(userId);
     this.deps.holeCardsByPlayerId.delete(userId);
+    this.syncBettingStateAfterRemoval();
     if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
       await this.deps.persistence.handHistory.removePlayer(userId);
     }
@@ -280,7 +289,9 @@ export class PlayerLifecycleService {
     if (!player) return plans;
 
     player.connected = true;
-    if (player.status === "ABANDONED" && player.stackCents > 0) player.status = "ACTIVE";
+    if (player.status === "ABANDONED" && player.stackCents > 0 && this.deps.state.street === "WAITING") {
+      player.status = "ACTIVE";
+    }
     player.disconnectDeadlineTs = 0;
     this.deps.autoActionsByUserId.delete(userId);
     this.ensureToActHasNeedsActionIfNeeded(player.seat, userId);
@@ -383,5 +394,10 @@ export class PlayerLifecycleService {
     } catch (err: any) {
       logger.error({ userId, err }, "cash-out failed, funds may be locked in PlayerBalance");
     }
+  }
+
+  private syncBettingStateAfterRemoval(): void {
+    if (this.deps.state.street === "WAITING") return;
+    syncRoundCurrentBetCents(this.deps.state);
   }
 }

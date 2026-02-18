@@ -21,3 +21,11 @@ export function loginPathWithNext(next: string): string {
   const base = loginPath();
   return `${base}?next=${encodeURIComponent(next)}`;
 }
+
+export function historyPath(): string {
+  return screenRegistry.byKey.history.path;
+}
+
+export function leaderboardPath(): string {
+  return screenRegistry.byKey.leaderboard.path;
+}

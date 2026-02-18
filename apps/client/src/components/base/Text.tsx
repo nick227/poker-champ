@@ -1,7 +1,7 @@
 import { Text as RNText } from "react-native";
 import type { TextProps } from "react-native";
 
-type Variant = "body" | "h1" | "h2" | "label" | "muted" | "danger";
+type Variant = "body" | "h1" | "h2" | "label" | "muted" | "danger" | "caption";
 
 const classesByVariant: Record<Variant, string> = {
   body: "text-text text-base",
@@ -10,6 +10,7 @@ const classesByVariant: Record<Variant, string> = {
   label: "text-muted text-xs uppercase tracking-wide mb-4",
   muted: "text-muted text-sm",
   danger: "text-danger text-sm",
+  caption: "text-text text-xs",
 };
 
 type AppTextProps = TextProps & {

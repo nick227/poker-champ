@@ -7,10 +7,14 @@ import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HeroStatus } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
+import { HERO_ZONE_HEIGHT } from "./constants/heroZone.constants";
+
+export { HERO_ZONE_HEIGHT };
 
 type Card = { rank: string; suit: string } | null;
 
 const CARD_GAP = 10;
+const CALC_STRIP_HEIGHT = 40;
 
 function isInactive(status: HeroStatus): boolean {
   return status === "FOLDED" || status === "OUT" || status === "ABANDONED";
@@ -32,6 +36,8 @@ export function HeroZone({
   outs,
   isWinner = false,
   isDealer = false,
+  userName,
+  height: heightProp,
 }: {
   cards: Card[];
   stackCents: number;
@@ -42,26 +48,36 @@ export function HeroZone({
   outs?: number;
   isWinner?: boolean;
   isDealer?: boolean;
+  userName?: string;
+  /** Override when viewport is small (emergency fallback). */
+  height?: number;
 }) {
+  const zoneHeight = heightProp ?? HERO_ZONE_HEIGHT;
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
   const hasCalculations = typeof equity === "number" || typeof potOdds === "number" || typeof outs === "number";
   const content = (
-    <View className="border-t border-border-subtle ui-p-4 ui-stack-4">
-      <CalculationsStrip
-        equity={equity}
-        potOdds={potOdds}
-        outs={outs}
-        visible={hasCalculations && !folded}
-        muted={!isMyTurn}
-      />
-      <View className={`ui-row items-stretch ${inactive ? "opacity-55" : ""}`} style={{ gap: 20 }}>
+    <View
+      collapsable={false}
+      className="border-t border-border-subtle ui-p-4 ui-stack-4 flex-shrink-0 bg-panel/60"
+      style={{ height: zoneHeight, flexDirection: "column" }}
+    >
+      <View style={{ height: CALC_STRIP_HEIGHT }}>
+        <CalculationsStrip
+          equity={equity}
+          potOdds={potOdds}
+          outs={outs}
+          visible={hasCalculations && !folded}
+          muted={!isMyTurn}
+        />
+      </View>
+      <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={{ gap: 20, alignItems: "stretch" }}>
         <View className="ui-col ui-center rounded-lg border border-border-subtle bg-panel/80 px-3 py-2" style={{ gap: 8 }}>
           <View className="ui-row ui-center" style={{ gap: 6 }}>
-            <Text variant="label">Hole cards</Text>
+            <Text variant="label" allowFontScaling={false}>Hole cards</Text>
             {statusLabel ? (
-              <Text variant={folded ? "danger" : "muted"} className="text-xs">{statusLabel}</Text>
+              <Text variant={folded ? "danger" : "muted"} className="text-xs" allowFontScaling={false}>{statusLabel}</Text>
             ) : null}
           </View>
           <View className="ui-row ui-center" style={{ gap: CARD_GAP }}>
@@ -74,15 +90,16 @@ export function HeroZone({
             )}
           </View>
         </View>
-        <View className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]">
-          <Text variant="label">Stack</Text>
-          <Text variant="h2" className="text-2xl font-semibold">{formatCents(stackCents)}</Text>
+        <View className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]" style={{ gap: 4 }}>
+          {userName ? (
+            <Text variant="label" numberOfLines={1} className="text-center" allowFontScaling={false}>{userName}</Text>
+          ) : null}
+          <Text variant="label" allowFontScaling={false}>Stack</Text>
+          <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
         </View>
-        {isDealer && (
-          <View className="ui-col ui-center justify-center">
-            <DealerButton size="small" />
-          </View>
-        )}
+        <View style={{ width: 24, height: 24, justifyContent: "center", alignItems: "center" }}>
+          {isDealer ? <DealerButton size="small" /> : null}
+        </View>
       </View>
     </View>
   );

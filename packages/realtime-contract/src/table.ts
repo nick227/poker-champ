@@ -49,10 +49,24 @@ export const RemoveBotPayloadSchema = z.object({
   botId: z.string().min(1),
 });
 
+export const ChatPayloadSchema = z.object({
+  text: z.string().transform((s) => s.trim()).pipe(z.string().min(1).max(500)),
+});
+
+export const ChatMessagePayloadSchema = z.object({
+  id: z.string().min(1),
+  tableId: z.string().min(1),
+  senderUserId: z.string().min(1),
+  senderName: z.string().min(1),
+  text: z.string().min(1),
+  createdAtTs: z.number().int().nonnegative(),
+});
+
 export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ACTION"), payload: z.union([ActionPayloadSchema, ActionEnvelopePayloadSchema]) }),
   z.object({ type: z.literal("ADD_BOT"), payload: AddBotPayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
+  z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
 ]);
 
 export const HeroActionOptionsSchema = z.object({
@@ -214,6 +228,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
       details: z.unknown().optional(),
     }),
   }),
+  z.object({ type: z.literal("CHAT_MESSAGE"), payload: ChatMessagePayloadSchema }),
 ]);
 
 export type TableJoinOptions = z.infer<typeof TableJoinOptionsSchema>;
@@ -223,3 +238,4 @@ export type TableSnapshotPayload = z.infer<typeof TableSnapshotPayloadSchema>;
 export type TableLastAction = z.infer<typeof TableLastActionSchema>;
 export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;
 export type TableErrorCode = z.infer<typeof TableErrorCodeEnum>;
+export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;

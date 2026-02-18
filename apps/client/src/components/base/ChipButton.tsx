@@ -26,10 +26,10 @@ export function ChipButton({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => ({ opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
+      style={({ pressed }) => [{ opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 }, { minHeight: 44 }]}
       className={`ui-touch rounded-full px-3 py-2 min-w-[52px] items-center justify-center ${bg} ${className}`}
     >
-      <Text variant="body" className={selected ? "text-text" : "text-muted"}>{title}</Text>
+      <Text variant="body" className={selected ? "text-text" : "text-muted"} allowFontScaling={false}>{title}</Text>
     </Pressable>
   );
 }

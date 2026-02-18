@@ -1,18 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { ChipButton } from "@/components/base/ChipButton";
 import { Input } from "@/components/base/Input";
-import { FadeTransition } from "@/components/base/FadeTransition";
-import { DURATION } from "@/theme/animation";
 import { formatCents } from "@/lib/format";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { HeroStatus } from "./table.adapter";
-import { buildWagerActionPayload, resolvePrimaryWagerAction } from "./actionBar.logic";
+import { buildWagerActionPayload, getActionBarAvailability, resolvePrimaryWagerAction } from "./actionBar.logic";
+import {
+  ACTION_BAR_HEIGHT,
+  ACTION_BAR_PADDING,
+  ACTION_BAR_GAP,
+  STATUS_ROW_HEIGHT,
+  BUTTONS_ROW_HEIGHT,
+  BET_INPUT_ROW_HEIGHT,
+  CHIPS_ROW_HEIGHT,
+} from "./constants/actionBar.constants";
 
-// ActionBar is a pure renderer of server-authoritative HeroActionOptions.
-// No poker rules live here.
+export { ACTION_BAR_HEIGHT };
 
 const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
   ACTIVE: "Waiting for your turn",
@@ -55,8 +61,7 @@ export function ActionBar({
   const [betInput, setBetInput] = useState("0.00");
 
   const statusLabel = isMyTurn ? "Your turn" : HERO_STATUS_LABEL[heroStatus];
-  const actionsEnabled = isMyTurn && !!actionOptions && connectionStatus === "CONNECTED";
-  const showActions = actionsEnabled;
+  const { showActions, actionsEnabled } = getActionBarAvailability({ isMyTurn, actionOptions, connectionStatus });
 
   const primaryWagerAction = resolvePrimaryWagerAction(actionOptions);
   const canWager = !!primaryWagerAction;
@@ -166,14 +171,26 @@ export function ActionBar({
   const betRaiseLabel = `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`;
 
   return (
-    <View className="relative">
-      <FadeTransition visible={showActions} duration={DURATION.fast}>
-      <View className="ui-bottom-bar border-t border-border-subtle ui-p-4 ui-stack-3">
-        <View className="ui-center py-1">
-          <Text variant="label">{statusLabel}</Text>
+    <View
+      collapsable={false}
+      className="relative"
+      style={{ height: ACTION_BAR_HEIGHT, paddingHorizontal: 12 }}
+    >
+      <View
+        style={{
+          opacity: showActions ? 1 : 0.5,
+          pointerEvents: showActions ? "auto" : "none",
+          padding: ACTION_BAR_PADDING,
+          gap: ACTION_BAR_GAP,
+          flexDirection: "column",
+        }}
+        className="ui-bottom-bar"
+      >
+        <View style={{ height: STATUS_ROW_HEIGHT }} className="ui-center justify-center">
+          <Text variant="label" allowFontScaling={false}>{statusLabel}</Text>
         </View>
-        <View className="ui-stack-3">
-          <View className="ui-row ui-center" style={{ gap: 12 }}>
+        <View style={{ gap: ACTION_BAR_GAP }}>
+          <View className="ui-row ui-center" style={{ gap: 12, minHeight: BUTTONS_ROW_HEIGHT }}>
             <Button
               variant="danger"
               title={foldLabel}
@@ -196,8 +213,8 @@ export function ActionBar({
               disabled={!actionsEnabled || betRaiseDisabled}
             />
           </View>
-          {canShowBetInput && betMin != null && betMax != null ? (
-            <View className="py-1">
+          <View style={{ height: BET_INPUT_ROW_HEIGHT, justifyContent: "center" }}>
+            {canShowBetInput && betMin != null && betMax != null ? (
               <Input
                 iconLeft="$"
                 value={betInput}
@@ -208,25 +225,26 @@ export function ActionBar({
                 returnKeyType="done"
                 placeholder={formatInputFromCents(betMin)}
                 selectTextOnFocus
+                editable={actionsEnabled}
+                allowFontScaling={false}
               />
-            </View>
-          ) : null}
-          <View className="ui-row justify-center" style={{ gap: 8 }}>
-            <ChipButton title="MIN" onPress={handleMin} />
-            <ChipButton title="1/2" onPress={handleHalfPot} />
-            <ChipButton title="POT" onPress={handlePot} />
-            <ChipButton title="ALL IN" onPress={handleAllIn} />
+            ) : (
+              <View collapsable={false} style={{ height: BET_INPUT_ROW_HEIGHT, width: "100%" }} />
+            )}
+          </View>
+          <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
+            <ChipButton title="MIN" onPress={handleMin} disabled={!actionsEnabled} />
+            <ChipButton title="1/2" onPress={handleHalfPot} disabled={!actionsEnabled} />
+            <ChipButton title="POT" onPress={handlePot} disabled={!actionsEnabled} />
+            <ChipButton title="ALL IN" onPress={handleAllIn} disabled={!actionsEnabled || !actionOptions?.canAllIn} />
           </View>
         </View>
       </View>
-    </FadeTransition>
-    
-    {/* Connection Status Overlay */}
-    {connectionStatus === "RECONNECTING" && (
-      <View className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg">
-        <Text className="text-white text-center">Reconnecting...</Text>
-      </View>
-    )}
+      {connectionStatus === "RECONNECTING" && (
+        <View pointerEvents="auto" className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg">
+          <Text variant="body" className="text-white text-center" allowFontScaling={false}>Reconnecting...</Text>
+        </View>
+      )}
     </View>
   );
 }

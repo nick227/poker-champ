@@ -4,10 +4,11 @@ import { useTableStore } from '../table.store';
 
 describe('Table Store - Snapshot Sequence Validation', () => {
   beforeEach(() => {
-    // Reset store state before each test
     useTableStore.setState({
       snapshotsByTableId: {},
+      chatMessagesByTableId: {},
       lastSeqByTableId: {},
+      connectionStatusByTableId: {},
       statusByTableId: {},
       errorByTableId: {},
     });

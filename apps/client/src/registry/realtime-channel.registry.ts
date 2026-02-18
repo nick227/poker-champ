@@ -1,5 +1,6 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
-import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload } from "@poker-champ/realtime-contract";
+import { storeRegistry } from "@/registry/store.registry";
 
 export type RealtimeScope = "lobby" | "table";
 export type TransportState = "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
@@ -76,6 +77,12 @@ const realtimeChannelByScope: ScopeRegistryMap = {
     },
     RECONNECTING: (_payload, context) => {
       context.setStatus?.("RECONNECTING");
+    },
+    CHAT_MESSAGE: (payload, context) => {
+      const p = payload as ChatMessagePayload;
+      if (p?.tableId && p?.id) {
+        storeRegistry.table().appendChatMessage(p.tableId, p);
+      }
     },
   },
 };

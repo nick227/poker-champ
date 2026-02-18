@@ -16,7 +16,7 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
   const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
   const hasValidBuyIn = Number.isInteger(buyInCents) && Number(buyInCents) > 0;
   const debugLog = (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
+     
     console.log("[TABLE_RT]", ...args);
   };
   const joinOptions = useMemo(

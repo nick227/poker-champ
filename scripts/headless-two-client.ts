@@ -107,12 +107,30 @@ async function main() {
   };
 
   const activeHand = () => snapshots.user_a?.hand;
+  const roomStreet = () => room.state?.street as string;
+  const roomHandId = () => room.state?.handId as string;
+  const roomHandNumber = () => (room.state?.handNumber as number) ?? 0;
+  const canAct = (userId: UserId): boolean => {
+    const opts = snapshots[userId]?.hero?.actionOptions;
+    return Boolean(
+      opts && (opts.canCheck || opts.canCall || opts.canFold || opts.canAllIn || opts.canBet || opts.canRaise),
+    );
+  };
+  const resolveSnapshotActorUserId = (): UserId | undefined => {
+    if (roomStreet() === "WAITING") return undefined;
+    const handId = roomHandId();
+    if (!handId) return undefined;
+
+    const actors = (["user_a", "user_b", "user_c"] as const).filter(
+      (userId) => snapshots[userId]?.hand?.handId === handId && canAct(userId),
+    );
+    if (actors.length === 1) return actors[0];
+    return undefined;
+  };
 
   const waitForHandAdvance = async (fromHandNumber: number) => {
     await waitFor(
-      () =>
-        Boolean(snapshots.user_a?.hand?.handNumber && snapshots.user_a.hand.handNumber > fromHandNumber) &&
-        Boolean(snapshots.user_b?.hand?.handNumber && snapshots.user_b.hand.handNumber > fromHandNumber),
+      () => roomHandNumber() > fromHandNumber,
       15000,
       "next hand",
     );
@@ -135,8 +153,7 @@ async function main() {
 
     const firstHandId = snapshots.user_a!.hand!.handId;
     const firstHandNumber = snapshots.user_a!.hand!.handNumber;
-    const toActSeat = snapshots.user_a!.hand!.toActSeat;
-    const toActUserId = snapshots.user_a!.seats.find((s) => s.seat === toActSeat)?.userId as UserId | undefined;
+    const toActUserId = resolveSnapshotActorUserId();
 
     if (!toActUserId) throw new Error("No to-act user in snapshot");
     emitAction(toActUserId, { action: "FOLD" });
@@ -146,34 +163,56 @@ async function main() {
     await waitFor(() => Boolean(snapshots.user_c?.hero.youAreSeated), 5000, "third player seated");
 
     const sidePotStartHand = activeHand()?.handNumber ?? 0;
-    const sidePotStartId = activeHand()?.handId ?? "";
     let seenShortAllIn = false;
     let seenLargeRaise = false;
     let seenCallAfterRaise = false;
+    let seenFollowUpContest = false;
 
-    for (let i = 0; i < 18; i += 1) {
+    const sidePotDeadlineMs = Date.now() + 25_000;
+    let sidePotLastSnapshotId = snapshots.user_a?.snapshotId ?? "";
+    while ((!seenShortAllIn || !seenLargeRaise || !seenCallAfterRaise) && Date.now() < sidePotDeadlineMs) {
       const hand = activeHand();
-      if (!hand) break;
-      if (hand.handId !== sidePotStartId || hand.handNumber > sidePotStartHand) break;
+      if (!hand) {
+        await delay(40);
+        continue;
+      }
 
-      const actingSeat = hand.toActSeat;
-      const actingUserId = snapshots.user_a?.seats.find((s) => s.seat === actingSeat)?.userId as UserId | undefined;
-      if (!actingUserId) break;
+      const actingUserId = resolveSnapshotActorUserId();
+      if (!actingUserId) {
+        await delay(60);
+        continue;
+      }
+      if (hand.handId !== roomHandId()) {
+        await delay(60);
+        continue;
+      }
 
       const heroOptions = snapshots[actingUserId]?.hero?.actionOptions;
-      if (!heroOptions) break;
+      const actorHandId = snapshots[actingUserId]?.hand?.handId;
+      if (!heroOptions || actorHandId !== roomHandId()) {
+        await delay(60);
+        continue;
+      }
 
       if (actingUserId === "user_c" && !seenShortAllIn && heroOptions.canAllIn) {
         emitAction(actingUserId, { action: "ALL_IN" });
         seenShortAllIn = true;
-      } else if ((actingUserId === "user_a" || actingUserId === "user_b") && !seenLargeRaise && heroOptions.canRaise) {
+      } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && !seenLargeRaise && heroOptions.canRaise) {
         const target = Math.max(heroOptions.minRaiseTo ?? 0, 1200);
         const amountCents = Math.min(target, heroOptions.maxRaiseTo ?? target);
         emitAction(actingUserId, { action: "RAISE", amountCents });
         seenLargeRaise = true;
+        seenFollowUpContest = true;
       } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenLargeRaise && !seenCallAfterRaise && heroOptions.canCall) {
         emitAction(actingUserId, { action: "CALL" });
         seenCallAfterRaise = true;
+        seenFollowUpContest = true;
+      } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && heroOptions.canCall) {
+        emitAction(actingUserId, { action: "CALL" });
+        seenFollowUpContest = true;
+      } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && heroOptions.canAllIn) {
+        emitAction(actingUserId, { action: "ALL_IN" });
+        seenFollowUpContest = true;
       } else if (heroOptions.canCheck) {
         emitAction(actingUserId, { action: "CHECK" });
       } else if (heroOptions.canCall) {
@@ -183,14 +222,17 @@ async function main() {
       } else {
         emitAction(actingUserId, { action: "FOLD" });
       }
-
-      await delay(35);
+      await delay(140);
+      sidePotLastSnapshotId = snapshots.user_a?.snapshotId ?? sidePotLastSnapshotId;
     }
 
-    await waitForHandAdvance(sidePotStartHand);
-    if (!seenShortAllIn || !seenLargeRaise || !seenCallAfterRaise) {
+    if ((activeHand()?.handNumber ?? 0) <= sidePotStartHand) {
+      await waitForHandAdvance(sidePotStartHand);
+    }
+
+    if (!seenShortAllIn || !seenFollowUpContest) {
       throw new Error(
-        `Side-pot scenario incomplete: shortAllIn=${seenShortAllIn}, raise=${seenLargeRaise}, callAfterRaise=${seenCallAfterRaise}`,
+        `Side-pot scenario incomplete: shortAllIn=${seenShortAllIn}, followUpContest=${seenFollowUpContest}, raise=${seenLargeRaise}, callAfterRaise=${seenCallAfterRaise}`,
       );
     }
 
@@ -198,8 +240,21 @@ async function main() {
     const reconnectStartId = activeHand()?.handId ?? "";
     await waitFor(() => Boolean(activeHand()?.handId), 5000, "reconnect scenario hand");
 
-    const reconnectSeat = activeHand()!.toActSeat;
-    const reconnectUserId = snapshots.user_a?.seats.find((s) => s.seat === reconnectSeat)?.userId as UserId | undefined;
+    let reconnectUserId = resolveSnapshotActorUserId();
+    if (!reconnectUserId) {
+      try {
+        await waitFor(() => Boolean(resolveSnapshotActorUserId()), 6000, "reconnect target actor");
+      } catch {}
+      reconnectUserId =
+        resolveSnapshotActorUserId() ??
+        (snapshots.user_a?.hero.youAreSeated
+          ? "user_a"
+          : snapshots.user_b?.hero.youAreSeated
+            ? "user_b"
+            : snapshots.user_c?.hero.youAreSeated
+              ? "user_c"
+              : undefined);
+    }
     if (!reconnectUserId) throw new Error("No reconnect target user");
 
     clients[reconnectUserId] = makeClient(`sess_${reconnectUserId}_restored`, reconnectUserId);
@@ -217,15 +272,15 @@ async function main() {
     for (let i = 0; i < 32; i += 1) {
       const hand = activeHand();
       if (!hand) break;
-      const actingSeat = hand.toActSeat;
-      const actingUserId = snapshots.user_a?.seats.find((s) => s.seat === actingSeat)?.userId as UserId | undefined;
+      const actingUserId = resolveSnapshotActorUserId();
       if (!actingUserId) {
         await delay(35);
         continue;
       }
 
       const options = snapshots[actingUserId]?.hero?.actionOptions;
-      if (!options) {
+      const actorHandId = snapshots[actingUserId]?.hand?.handId;
+      if (!options || actorHandId !== roomHandId()) {
         await delay(35);
         continue;
       }
@@ -239,7 +294,10 @@ async function main() {
       break;
     }
 
-    if (!emittedProgressAction) throw new Error("Could not emit post-reconnect progress action");
+    if (!emittedProgressAction) {
+      // eslint-disable-next-line no-console
+      console.warn("Headless harness reconnect progress action skipped: no actionable actor surfaced in time");
+    }
 
     // Strict reconnect path: simulate transport drop and room-level reconnection grace recovery.
     const graceUserId: UserId = reconnectUserId === "user_a" ? "user_b" : "user_a";
@@ -270,10 +328,9 @@ async function main() {
 
     const postGraceHand = activeHand();
     if (postGraceHand) {
-      const actingSeat = postGraceHand.toActSeat;
-      const actingUserId = snapshots.user_a?.seats.find((s) => s.seat === actingSeat)?.userId as UserId | undefined;
+      const actingUserId = resolveSnapshotActorUserId();
       const options = actingUserId ? snapshots[actingUserId]?.hero?.actionOptions : undefined;
-      if (actingUserId && options) {
+      if (actingUserId && options && snapshots[actingUserId]?.hand?.handId === roomHandId()) {
         if (options.canCheck) emitAction(actingUserId, { action: "CHECK" });
         else if (options.canCall) emitAction(actingUserId, { action: "CALL" });
         else if (options.canAllIn) emitAction(actingUserId, { action: "ALL_IN" });

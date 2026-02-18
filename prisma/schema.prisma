@@ -247,8 +247,33 @@ model User {
   balances      PlayerBalance[]
   transactions  BalanceTransaction[]
   registrations TournamentRegistration[]
+  leaderboardSnapshots LeaderboardSnapshot[]
 
   @@index([usernameNormalized])
+}
+
+model LeaderboardSnapshot {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+
+  period          String
+  category        String
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userDisplayName String
+
+  value           String
+  valueNumerator  Int
+  valueDenominator Int?
+  handCount       Int      @default(0)
+  rank            Int
+  computedAt      DateTime
+
+  @@index([period, category, computedAt, rank])
+  @@index([period, category, computedAt])
+  @@index([userId, computedAt])
+  @@unique([period, category, computedAt, rank])
+  @@unique([period, category, computedAt, userId])
 }
 
 model Tournament {

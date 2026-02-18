@@ -141,11 +141,13 @@ export class LobbyRoom extends Room<LobbyState> {
 
     return rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
       const m = r.metadata ?? {};
+      const humanCount = typeof m.humanCount === "number" ? m.humanCount : undefined;
       const summary: LobbyTableSummary & { passwordHash?: string } = {
         tableId: (m.tableId as string) ?? r.roomId ?? "",
         roomId: r.roomId ?? "",
         name: (m.name as string) ?? "Hold'em",
-        players: r.clients ?? 0,
+        // Keep lobby occupancy aligned with delete rules ("no seated humans").
+        players: humanCount ?? r.clients ?? 0,
         maxSeats: (m.maxSeats as number) ?? r.maxClients ?? 9,
         smallBlindCents: (m.smallBlindCents as number) ?? 50,
         bigBlindCents: (m.bigBlindCents as number) ?? 100,
@@ -156,7 +158,7 @@ export class LobbyRoom extends Room<LobbyState> {
         runningSince: m.runningSince as number | undefined,
         createdAt: (m.createdAt as number) ?? Date.now(),
         creatorId: m.creatorId != null ? String(m.creatorId) : undefined,
-        humanCount: typeof m.humanCount === "number" ? m.humanCount : undefined,
+        humanCount,
       };
       if (includePrivateHash) summary.passwordHash = m.passwordHash as string | undefined;
       return summary;

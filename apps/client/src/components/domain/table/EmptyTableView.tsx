@@ -87,6 +87,7 @@ export function EmptyTableView({
         stackCents={heroStackCents}
         isMyTurn={false}
         heroStatus={heroStatus}
+        userName={snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name}
       />
       <View className="border-t border-border-subtle ui-p-4 ui-stack-3">
         {canShowAddBotCta ? (

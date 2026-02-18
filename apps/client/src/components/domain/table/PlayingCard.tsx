@@ -13,6 +13,19 @@ const isRedSuit = (suit: string) => suit === "h" || suit === "d";
 const CARD_WIDTH = 48;
 const CARD_HEIGHT = 68;
 
+const cardStyle = {
+  width: CARD_WIDTH,
+  height: CARD_HEIGHT,
+  borderWidth: 1,
+} as const;
+
+const cardLayout = {
+  ...cardStyle,
+  flexDirection: "column" as const,
+  justifyContent: "center" as const,
+  alignItems: "center" as const,
+};
+
 export function PlayingCard({
   rank,
   suit,
@@ -24,11 +37,14 @@ export function PlayingCard({
 }) {
   const normalizedSuit = suit?.toLowerCase();
   const normalizedRank = rank?.toUpperCase();
-  const size = { width: CARD_WIDTH, height: CARD_HEIGHT };
   if (faceDown) {
     return (
-      <View style={size} className="ui-center rounded-card border border-border-subtle bg-card-back">
-        <Text variant="muted" className="text-base">?</Text>
+      <View
+        renderToHardwareTextureAndroid
+        style={[cardStyle, { justifyContent: "center", alignItems: "center" }]}
+        className="rounded-card border border-border-subtle bg-card-back"
+      >
+        <Text variant="muted" className="text-base" allowFontScaling={false}>?</Text>
       </View>
     );
   }
@@ -37,9 +53,13 @@ export function PlayingCard({
   const red = normalizedSuit ? isRedSuit(normalizedSuit) : false;
   const textColor = red ? "#dc2626" : "#111827";
   return (
-    <View style={size} className="ui-col ui-center justify-center rounded-card border border-border-subtle bg-card-face gap-1">
-      <Text variant="h2" className="text-xl leading-tight font-extrabold" style={{ color: textColor }}>{r}</Text>
-      <Text variant="body" className="text-base leading-none font-bold" style={{ color: textColor }}>{s}</Text>
+    <View
+      renderToHardwareTextureAndroid
+      style={[cardLayout, { backfaceVisibility: "hidden" as const }]}
+      className="rounded-card border border-border-subtle bg-card-face gap-1"
+    >
+      <Text variant="h2" className="text-xl leading-tight font-extrabold" style={{ color: textColor }} allowFontScaling={false}>{r}</Text>
+      <Text variant="body" className="text-base leading-none font-bold" style={{ color: textColor }} allowFontScaling={false}>{s}</Text>
     </View>
   );
 }

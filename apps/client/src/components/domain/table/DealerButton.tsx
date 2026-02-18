@@ -1,20 +1,25 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 
-export function DealerButton({ size = "small" }: { size?: "small" | "large" }) {
+type DealerSize = "tiny" | "small" | "large";
+
+const SIZE_STYLES: Record<DealerSize, { size: number; textClass: string }> = {
+  tiny: { size: 16, textClass: "text-[10px]" },
+  small: { size: 24, textClass: "text-xs" },
+  large: { size: 32, textClass: "text-sm" },
+};
+
+export function DealerButton({ size = "small" }: { size?: DealerSize }) {
+  const { size: px, textClass } = SIZE_STYLES[size ?? "small"];
   return (
-    <View 
-      className={`rounded-full bg-blue-500 ui-center justify-center ${
-        size === "small" ? "w-6 h-6" : "w-8 h-8"
-      }`}
+    <View
+      collapsable={false}
+      style={{ width: px, height: px, borderRadius: px / 2, justifyContent: "center", alignItems: "center" }}
+      className="bg-blue-500"
       accessibilityLabel="Dealer button"
       accessibilityRole="button"
     >
-      <Text 
-        className={`text-white font-bold ${
-          size === "small" ? "text-xs" : "text-sm"
-        }`}
-      >
+      <Text className={`text-white font-bold ${textClass}`} allowFontScaling={false}>
         D
       </Text>
     </View>

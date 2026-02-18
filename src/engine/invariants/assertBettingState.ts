@@ -1,5 +1,5 @@
 import type { PokerState } from "../../state/PokerState.js";
-import { bettingRoundComplete, eligibleToAct, noFurtherBettingPossible } from "../rules/BettingRound.js";
+import { bettingRoundComplete, eligibleForShowdown, eligibleToAct, noFurtherBettingPossible } from "../rules/BettingRound.js";
 
 function fail(message: string): never {
   throw new Error(`BETTING_INVARIANT_VIOLATION: ${message}`);
@@ -8,7 +8,9 @@ function fail(message: string): never {
 function assertRoundCurrentBetMatchesMax(state: PokerState): void {
   let maxRoundBet = 0;
   for (const player of state.playersById.values()) {
-    maxRoundBet = Math.max(maxRoundBet, player.roundBetCents);
+    if (eligibleForShowdown(player)) {
+      maxRoundBet = Math.max(maxRoundBet, player.roundBetCents);
+    }
   }
   if (state.roundCurrentBetCents !== maxRoundBet) {
     fail(`roundCurrentBetCents (${state.roundCurrentBetCents}) must equal max roundBetCents (${maxRoundBet})`);
@@ -64,4 +66,3 @@ export function maybeAssertBettingState(state: PokerState): void {
   if (process.env.NODE_ENV === "production") return;
   assertBettingState(state);
 }
-

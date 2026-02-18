@@ -13,7 +13,9 @@ import {
   TableOutboundMessageSchema,
   AddBotPayloadSchema,
   RemoveBotPayloadSchema,
+  ChatPayloadSchema,
 } from "@poker-champ/realtime-contract";
+import { nanoid } from "nanoid";
 import { newBotId } from "../engine/bots/botIds.js";
 import { isPersistentSeatsEnabled, isTableSnapshotLogPersistenceEnabled } from "../config/features.js";
 import { getSeatHardDeleteHours, getSeatRetentionHours } from "../config/seats.js";
@@ -176,6 +178,33 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "REMOVE_BOT_FAILED", message: e?.message ?? String(err) });
       }
+    });
+
+    this.onMessage("CHAT", (client, message) => {
+      const parsed = ChatPayloadSchema.safeParse(message);
+      if (!parsed.success) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid chat message." });
+        return;
+      }
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) {
+        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be in the room to chat." });
+        return;
+      }
+      const player = this.getPlayerByUserId(userId);
+      if (!player || player.kind === "BOT") {
+        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to chat." });
+        return;
+      }
+      const payload = {
+        id: nanoid(),
+        tableId: this.state.tableId,
+        senderUserId: userId,
+        senderName: player.name || `player_${userId.slice(0, 6)}`,
+        text: parsed.data.text,
+        createdAtTs: Date.now(),
+      };
+      this.clients.forEach((c) => this.sendTableMessage(c, "CHAT_MESSAGE", payload));
     });
 
     this.onMessage("ACTION", async (client, message) => {
@@ -549,6 +578,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private findPlayerSeat(userId: string): number | null {
     for (const player of this.state.playersById.values()) {
       if (player.id === userId) return player.seat;
+    }
+    return null;
+  }
+
+  private getPlayerByUserId(userId: string): { id: string; kind: string; name: string } | null {
+    for (const player of this.state.playersById.values()) {
+      if (player.id === userId) return { id: player.id, kind: player.kind, name: player.name };
     }
     return null;
   }

@@ -108,20 +108,47 @@ async function checkBackendHealth(): Promise<CheckResult> {
 
 async function checkClientStartup(): Promise<CheckResult> {
   const started = nowMs();
+  const metroPort = String(18081 + Math.floor(Math.random() * 1000));
   const child = spawn("pnpm", ["dev:web"], {
     cwd: process.cwd(),
     shell: true,
     stdio: "pipe",
-    env: process.env,
+    env: {
+      ...process.env,
+      RCT_METRO_PORT: metroPort,
+    },
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (d) => {
+    stdout += String(d);
+  });
+  child.stderr?.on("data", (d) => {
+    stderr += String(d);
   });
 
   try {
     await new Promise((resolveWait) => setTimeout(resolveWait, 8000));
     const running = child.exitCode === null;
+    const output = `${stdout}\n${stderr}`;
+    const startedServing =
+      /Waiting on/i.test(output) ||
+      /Web is waiting on/i.test(output) ||
+      /Web is running at/i.test(output);
+    const knownStartupBlocker =
+      /Input is required, but 'npx expo' is in non-interactive mode/i.test(output) ||
+      /Skipping dev server/i.test(output);
+    const pass = running || (startedServing && !knownStartupBlocker);
+
     return {
       name: "client-startup",
-      pass: running,
-      details: running ? "dev:web process observed running" : `dev:web exited code=${child.exitCode}`,
+      pass,
+      details: pass
+        ? running
+          ? "dev:web process observed running"
+          : "dev:web emitted startup-ready web server logs"
+        : `dev:web exited code=${child.exitCode}\n${output}`.trim(),
       durationMs: nowMs() - started,
     };
   } finally {

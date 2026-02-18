@@ -14,9 +14,13 @@ import { economyRouter } from "./http/EconomyRouter.js";
 import { tournamentsRouter } from "./http/TournamentsRouter.js";
 import { lobbyRouter } from "./http/LobbyRouter.js";
 import { profileRouter } from "./http/ProfileRouter.js";
+import { handHistoryRouter } from "./http/HandHistoryRouter.js";
+import { leaderboardRouter } from "./http/LeaderboardRouter.js";
 import { openApiSpec } from "./http/openapi.js";
 import { RecoveryService } from "./engine/recovery/RecoveryService.js";
+import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
 import { loadEnv } from "./config/env.js";
+import { isLeaderboardEnabled } from "./config/features.js";
 import { disconnectPrisma } from "./db/prisma.js";
 import { securityHeaders } from "./http/middleware/security.js";
 import { createIpRateLimit } from "./http/middleware/rateLimit.js";
@@ -95,6 +99,10 @@ app.use("/api/economy", economyRouter);
 app.use("/api/tournaments", tournamentsRouter);
 app.use("/api/lobby", lobbyRouter);
 app.use("/api/profile", profileRouter);
+app.use("/api/history", handHistoryRouter);
+if (isLeaderboardEnabled()) {
+  app.use("/api/leaderboard", leaderboardRouter);
+}
 app.get("/openapi.json", (_req, res) => {
   res.json(openApiSpec);
 });
@@ -141,6 +149,7 @@ gameServer.define("lobby", LobbyRoom);
 gameServer.define("poker", PokerRoom);
 
 let recoveryInterval: NodeJS.Timeout | null = null;
+let leaderboardInterval: NodeJS.Timeout | null = null;
 let shuttingDown = false;
 
 async function shutdown(reason: string, exitCode: number = 0) {
@@ -151,6 +160,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (recoveryInterval) {
     clearInterval(recoveryInterval);
     recoveryInterval = null;
+  }
+  if (leaderboardInterval) {
+    clearInterval(leaderboardInterval);
+    leaderboardInterval = null;
   }
 
   try {
@@ -182,6 +195,13 @@ async function start() {
       logger.error({ err }, "Periodic recovery job failed");
     });
   }, 60 * 60 * 1000);
+
+  if (isLeaderboardEnabled()) {
+    void recomputeLeaderboardSafely();
+    leaderboardInterval = setInterval(() => {
+      void recomputeLeaderboardSafely();
+    }, 60 * 60 * 1000);
+  }
 }
 
 void start().catch((err) => {

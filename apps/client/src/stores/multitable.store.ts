@@ -17,6 +17,7 @@ type MultiTableState = {
   registerTableSender: (id: string, sender: RealtimeSender) => void;
   unregisterTableSender: (id: string) => void;
   dispatchTableAction: (input: { tableId: string; action: TableActionKey; amountCents?: number }) => boolean;
+  dispatchSendChat: (input: { tableId: string; text: string }) => boolean;
   dispatchAddBot: (input: { tableId: string; name?: string; buyInCents: number }) => boolean;
   dispatchRemoveBot: (input: { tableId: string; botId: string }) => boolean;
   closeAll: () => void;
@@ -88,6 +89,16 @@ export const useMultiTableStore = create<MultiTableState>((set, get) => ({
     const payload = toServerActionPayload({ action, amountCents });
     if (!isValidTableInbound("ACTION", payload)) return false;
     return sender("ACTION", payload);
+  },
+  dispatchSendChat: ({ tableId, text }): boolean => {
+    const sender = get().tableSenders[tableId];
+    if (!sender) return false;
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    if (trimmed.length > 500) return false;
+    const payload = { text: trimmed };
+    if (!isValidTableInbound("CHAT", payload)) return false;
+    return sender("CHAT", payload);
   },
   dispatchAddBot: ({ tableId, name = "Bot", buyInCents }): boolean => {
     const sender = get().tableSenders[tableId];

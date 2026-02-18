@@ -180,7 +180,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
   const debugLog = (...args: unknown[]) => {
-    // eslint-disable-next-line no-console
+     
     console.log("[COLYSEUS_RT]", ...args);
   };
 

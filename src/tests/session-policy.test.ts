@@ -92,6 +92,33 @@ describe("disconnect policy", () => {
     expect(state.playersById.has("u1")).toBe(false);
   });
 
+  it("reconnect during active hand keeps abandoned player out of current hand", async () => {
+    const state = new PokerState();
+    const dealer = new Dealer(state);
+
+    await dealer.addPlayer("u1", "A", 5000);
+    await dealer.addPlayer("u2", "B", 5000);
+
+    const u1 = state.playersById.get("u1")!;
+    const u2 = state.playersById.get("u2")!;
+    state.street = "TURN";
+    state.runoutMode = "NONE";
+    state.roundCurrentBetCents = 100;
+    u1.status = "ABANDONED";
+    u1.connected = false;
+    u1.needsAction = false;
+    u1.roundBetCents = 0;
+    u1.committedCents = 0;
+    u2.status = "ALL_IN";
+    u2.needsAction = false;
+    u2.roundBetCents = 100;
+    u2.committedCents = 100;
+
+    expect(() => dealer.markReconnected("u1")).not.toThrow();
+    expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
+    expect(state.playersById.get("u1")?.connected).toBe(true);
+  });
+
   it("ban propagation handler kicks active seated user", async () => {
     const room = new PokerRoom() as any;
     const client = { send: vi.fn(), leave: vi.fn() };
