@@ -26,6 +26,13 @@ export class HandHistoryService {
     }
   }
 
+  /** Frees (tableId, seat) so a new player can use that seat. Call when a player/bot leaves the table. */
+  async removePlayer(playerId: string): Promise<void> {
+    await this.prisma.pokerPlayer.deleteMany({
+      where: { id: playerId, tableId: this.tableId },
+    });
+  }
+
   async startHand(params: {
     tableId: string;
     handId: string;

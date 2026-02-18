@@ -12,6 +12,7 @@ export type TableConfig = {
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
+  creatorId?: string;
 };
 
 export type LobbyTableSummary = {
@@ -28,4 +29,6 @@ export type LobbyTableSummary = {
   speed: "normal" | "fast";
   runningSince?: number;
   createdAt: number;
+  creatorId?: string;
+  humanCount?: number;
 };

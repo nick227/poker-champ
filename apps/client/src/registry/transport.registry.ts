@@ -55,6 +55,7 @@ function resolveColyseusConfig(input: ResolveConfigInput): RealtimeTransportConf
       transport: "colyseus",
       url: process.env.EXPO_PUBLIC_COLYSEUS_URL,
       roomName: "lobby",
+      joinOptions: input.token ? { token: input.token } : undefined,
     };
   }
 

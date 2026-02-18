@@ -2,6 +2,7 @@ import { ArraySchema, MapSchema, Schema, type } from "@colyseus/schema";
 import { PlayerState } from "./PlayerState.js";
 
 export type Street = "WAITING" | "PREFLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN";
+export type RunoutMode = "NONE" | "STAGED";
 
 export class PokerState extends Schema {
   @type("string") tableId: string = "";
@@ -20,11 +21,15 @@ export class PokerState extends Schema {
 
   @type("string") handId: string = "";
   @type("number") handNumber: number = 0;
+  @type("number") handActionSeq: number = 0;
   @type("number") actionCount: number = 0;
   @type("number") nextHandAtTs: number = 0;
   @type("string") street: Street = "WAITING";
+  @type("string") runoutMode: RunoutMode = "NONE";
 
   @type("number") dealerSeat: number = 0;
+  @type("number") sbSeat: number = 0;
+  @type("number") bbSeat: number = 0;
   @type("number") toActSeat: number = 0;
 
   @type("number") smallBlindCents: number = 50;

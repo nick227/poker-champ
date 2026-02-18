@@ -24,6 +24,7 @@ import { postCreateTable } from "@/services/post/lobby.post";
 import { postEconomyDeposit } from "@/services/post/economy.post";
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
+import { confirmDeleteTable } from "@/lib/deleteTable";
 import { tablePath } from "@/lib/nav";
 
 type SortKey = "name" | "players" | "blinds";
@@ -95,6 +96,19 @@ export default function LobbyScreen() {
     }
   }, [refreshBankroll]);
 
+  const handleDeleteTable = useCallback(
+    (tableId: string) => {
+      confirmDeleteTable(tableId, {
+        onSuccess: () => {
+          refresh();
+          storeRegistry.tables().closeTable(tableId);
+          storeRegistry.table().clearTable(tableId);
+        },
+      });
+    },
+    [refresh]
+  );
+
   const activeTableRows = useMemo(() =>
     openTableIds.map((id) => ({ id, potCents: 1480, bankCents: 105950, betCents: 250, isYourTurn: false })),
     [openTableIds]
@@ -130,7 +144,9 @@ export default function LobbyScreen() {
             <GameTableRow
               key={t.id}
               table={t}
+              currentUserId={profile.userId}
               onJoin={() => setChooseTableModal({ id: t.id, minBuyInCents: t.minBuyInCents, maxBuyInCents: t.maxBuyInCents })}
+              onDelete={handleDeleteTable}
             />
           ))
         )}
@@ -152,10 +168,10 @@ export default function LobbyScreen() {
         onClose={() => setActiveTablesDropdownVisible(false)}
         tables={activeTableRows}
         onSelectTable={(id) => {
-        setActive(id);
-        router.push(tablePath(id));
-        setActiveTablesDropdownVisible(false);
-      }}
+          setActive(id);
+          router.push(tablePath(id));
+          setActiveTablesDropdownVisible(false);
+        }}
       />
       <BottomBar active="lobby" />
     </Screen>

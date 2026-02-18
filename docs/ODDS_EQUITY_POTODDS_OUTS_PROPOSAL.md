@@ -44,8 +44,8 @@ Do not introduce a separate `ODDS_UPDATE` event for MVP. Keep all odds in `TABLE
 
 ### Add personalized and global sections
 - `hero.calculations` (personalized, safe to expose):
-  - `equityPct?: number`
-  - `potOddsPct?: number`
+  - `equityPct?: number` (integer `0..100`, MVP rounding)
+  - `potOddsPct?: number` (integer `0..100`, MVP rounding)
   - `outs?: number`
   - `updatedAtTs?: number`
   - `stale?: boolean`
@@ -53,8 +53,10 @@ Do not introduce a separate `ODDS_UPDATE` event for MVP. Keep all odds in `TABLE
   - `computedAtTs?: number`
   - `street?: Street`
   - `playersConsidered?: number`
+  - `stateHash?: string`
 
 Do not include other players’ equities in hero-visible payloads yet.
+Do not include `stale: false`; include `stale` only when stale is true.
 
 ## Computation Semantics
 
@@ -70,7 +72,8 @@ Do not include other players’ equities in hero-visible payloads yet.
 ### Pot odds
 - Prefer server action options as source of truth:
   - `toCallCents = hero.actionOptions?.callAmount ?? 0`
-  - `potOddsPct = toCallCents <= 0 ? 0 : (toCallCents / (potCents + toCallCents)) * 100`
+  - if `toCallCents` is unavailable when hero turn context is expected, omit `potOddsPct` for that tick
+  - `potOddsPct = toCallCents <= 0 ? 0 : round((toCallCents / (potCents + toCallCents)) * 100)`
 - This avoids duplicating betting-round legality math in multiple places.
 
 ### Outs (MVP scope)
@@ -92,6 +95,7 @@ Pattern:
 3. Per-user snapshot read is O(1) lookup from cache.
 
 This is the primary performance control.
+Concrete placement: compute in `Dealer` after hand start, action accepted, and street transition; store in `this.currentHandCalcs`; snapshot builder reads only.
 
 ## Failure Policy
 - Odds must never block hand progression.
@@ -100,6 +104,9 @@ This is the primary performance control.
   - omit affected values or mark `stale: true`
   - continue gameplay normally
 - UI should render fallback (`--` or muted `0`) when stale/missing.
+- `stale: true` only when:
+  - values were carried from a previous `stateHash`, or
+  - current computation failed/timed out.
 
 ## Implementation Plan (Tightened)
 
@@ -108,6 +115,7 @@ This is the primary performance control.
 2. Dealer: implement compute pipeline and cache scaffold.
 3. Implement pot odds only first (cheap, deterministic).
 4. UI: bind `CalculationsStrip` to `snapshot.hero.calculations.potOddsPct`.
+5. Round percentage values to integer `0..100` for MVP consistency.
 
 ### Phase 2
 1. Add equity via `OddsCoordinator` with cache/in-flight dedup.
@@ -128,6 +136,15 @@ This is the primary performance control.
 - `apps/client/src/realtime/contract.guards.ts`
 - `src/tests/table-snapshot.contract.test.ts`
 - `src/tests/*` dealer odds integration tests
+
+## First Tests To Add
+- Contract validation: `TABLE_SNAPSHOT` with `hero.calculations` and `calculationsMeta.stateHash`.
+- Dealer integration: after action acceptance, `calculationsMeta.stateHash` changes and `potOddsPct` updates accordingly.
+- Non-blocking behavior: simulated calc failure still emits snapshot and marks stale/omits affected fields.
+
+## Risk Callout
+- Equity requires authoritative opponent hole cards.
+- Feed odds services from server-authoritative dealer state only, never from hero-visible projection payloads.
 
 ## Bottom Line
 - Today: not wired end-to-end; UI values are placeholder-level.

@@ -38,7 +38,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
   }, [options]);
 
   useEffect(() => {
-    const authToken = options.scope === "table" ? getAuthToken() : null;
+    const authToken = getAuthToken();
     if (!canStartRealtimeSession({ scope: options.scope, enabled: options.enabled, authHydrated: options.authHydrated, authToken })) {
       // Hard-stop: never attempt table realtime socket/join until auth is hydrated and token exists.
       sessionRef.current?.disconnect();

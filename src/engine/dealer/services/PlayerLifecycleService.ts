@@ -1,0 +1,387 @@
+import { nanoid } from "nanoid";
+import { logger } from "../../../lib/logger.js";
+import type { PokerState } from "../../../state/PokerState.js";
+import { PlayerState } from "../../../state/PlayerState.js";
+import { PokerError } from "../../errors.js";
+import type { PersistenceFacade } from "../../persistence/PersistenceFacade.js";
+import { CashierService } from "../../economy/CashierService.js";
+import {
+  bettingRoundComplete,
+  eligibleToAct,
+  noFurtherBettingPossible,
+} from "../../rules/BettingRound.js";
+import { countNonOutPlayers, countNotFoldedPlayers, findNextToActSeat, findOpenSeat } from "../utils/TableNavigator.js";
+import type { SnapshotReason } from "./SnapshotService.js";
+import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
+
+export type PlayerLifecyclePlan =
+  | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
+  | { kind: "MAYBE_AUTOMATE_TURN" }
+  | { kind: "START_HAND" }
+  | { kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL"; removedSeat: number }
+  | { kind: "RELEASE_PENDING_SEATS" }
+  | { kind: "FINISH_HAND_BY_LAST_STANDING" }
+  | { kind: "ADVANCE_STREET_OR_SHOWDOWN" };
+
+/** Called by Dealer to fold a player if they are in a hand and ACTIVE; applies turn advancement. */
+export type ForceFoldIfInHand = (userId: string) => Promise<void>;
+
+export class PlayerLifecycleService {
+  constructor(private readonly deps: {
+    state: PokerState;
+    persistence: PersistenceFacade;
+    pendingSeatReleaseUserIds: Set<string>;
+    autoActionsByUserId: Map<string, number>;
+    currentHandAutoActedUserIds: Set<string>;
+    holeCardsByPlayerId: Map<string, string[]>;
+    ensurePlayerPersistence: (player: PlayerState) => Promise<void>;
+    /** When set, used to force-fold before abandon/remove so hand history and pot math are consistent. */
+    forceFoldIfInHand?: ForceFoldIfInHand;
+  }) {}
+
+  async addPlayer(userId: string, name: string, buyInCents: number): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    if (this.deps.state.playersById.has(userId)) return plans;
+
+    const seat = findOpenSeat(this.deps.state);
+    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
+    this.assertValidBuyIn(buyInCents);
+
+    const externalRef = `buyin_${this.deps.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
+    let buyInTableBalance = buyInCents;
+    try {
+      const result = await CashierService.processCashGameBuyIn({
+        userId,
+        tableId: this.deps.state.tableId,
+        amountCents: buyInCents,
+        externalRef,
+      });
+      buyInTableBalance = result.newTableBalance;
+      logger.info({ userId, buyInCents, newTableBalance: result.newTableBalance }, "buy-in processed");
+    } catch (err: any) {
+      if (err.message === "INSUFFICIENT_BANKROLL") {
+        throw new PokerError("INSUFFICIENT_BANKROLL", "Insufficient bankroll for this buy-in.");
+      }
+      throw err;
+    }
+
+    const player = new PlayerState();
+    player.id = userId;
+    player.userId = userId;
+    player.kind = "HUMAN";
+    player.name = name;
+    player.seat = seat;
+    player.status = "ACTIVE";
+    player.connected = true;
+    player.disconnectDeadlineTs = 0;
+    player.stackCents = buyInTableBalance;
+    player.sittingOutUntilNextHand = false;
+
+    this.deps.state.playersById.set(userId, player);
+    this.deps.state.seats[seat] = userId;
+
+    this.ensureToActHasNeedsActionIfNeeded(seat, userId);
+
+    await this.deps.ensurePlayerPersistence(player);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    logger.info({ userId, seat }, "player joined");
+    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
+      plans.push({ kind: "START_HAND" });
+    } else {
+      player.sittingOutUntilNextHand = true;
+      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  async restorePlayerFromSession(
+    userId: string,
+    name: string,
+    seat: number,
+    stackCents: number,
+    options?: { connected?: boolean; sittingOut?: boolean },
+  ): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    if (this.deps.state.playersById.has(userId)) return plans;
+    if (seat < 0 || seat >= this.deps.state.seats.length) {
+      throw new PokerError("BAD_STATE", "Invalid seat from persisted session.");
+    }
+
+    const occupant = this.deps.state.seats[seat];
+    if (occupant && occupant !== userId) {
+      throw new PokerError("BAD_STATE", "Persisted seat is currently occupied.");
+    }
+
+    const player = new PlayerState();
+    player.id = userId;
+    player.userId = userId;
+    player.kind = "HUMAN";
+    player.name = name;
+    player.seat = seat;
+
+    const connected = options?.connected ?? true;
+    const sittingOut = options?.sittingOut ?? false;
+    player.status = stackCents > 0 ? (sittingOut ? "ABANDONED" : "ACTIVE") : "OUT";
+    player.connected = connected;
+    player.disconnectDeadlineTs = 0;
+    player.stackCents = Math.max(0, stackCents);
+    player.roundBetCents = 0;
+    player.committedCents = 0;
+    player.needsAction = false;
+
+    this.deps.state.playersById.set(userId, player);
+    this.deps.autoActionsByUserId.delete(userId);
+    this.deps.state.seats[seat] = userId;
+
+    this.ensureToActHasNeedsActionIfNeeded(seat, userId);
+
+    await this.deps.ensurePlayerPersistence(player);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "RECONNECT" });
+
+    logger.info({ userId, seat, stackCents: player.stackCents }, "player restored from persisted seat session");
+    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
+      plans.push({ kind: "START_HAND" });
+    } else {
+      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  async addBot(botId: string, name: string, buyInCents: number): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    if (this.deps.state.playersById.has(botId)) return plans;
+
+    const seat = findOpenSeat(this.deps.state);
+    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
+    this.assertValidBuyIn(buyInCents);
+
+    const player = new PlayerState();
+    player.id = botId;
+    player.userId = "";
+    player.kind = "BOT";
+    player.name = name;
+    player.seat = seat;
+    player.status = "ACTIVE";
+    player.connected = true;
+    player.disconnectDeadlineTs = 0;
+    player.stackCents = buyInCents;
+    player.sittingOutUntilNextHand = false;
+
+    this.deps.state.playersById.set(botId, player);
+    this.deps.state.seats[seat] = botId;
+
+    this.ensureToActHasNeedsActionIfNeeded(seat, botId);
+
+    if (this.deps.persistence.enabled && this.deps.persistence.handHistory) {
+      await this.deps.persistence.handHistory.ensureTableAndPlayers([{ id: player.id, name: player.name, seat: player.seat }]);
+    }
+
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+
+    logger.info({ botId, seat }, "bot joined");
+    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
+      plans.push({ kind: "START_HAND" });
+    } else {
+      player.sittingOutUntilNextHand = true;
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  async removeBot(botId: string): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    let player = this.deps.state.playersById.get(botId);
+    if (!player) return plans;
+
+    const seat = player.seat;
+    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
+      await this.deps.forceFoldIfInHand(botId);
+      player = this.deps.state.playersById.get(botId);
+      if (!player) return plans;
+    }
+
+    this.deps.pendingSeatReleaseUserIds.delete(botId);
+    this.deps.autoActionsByUserId.delete(botId);
+    this.deps.currentHandAutoActedUserIds.delete(botId);
+
+    this.deps.state.seats[player.seat] = "";
+    this.deps.state.playersById.delete(botId);
+    this.deps.holeCardsByPlayerId.delete(botId);
+    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
+      await this.deps.persistence.handHistory.removePlayer(botId);
+    }
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    logger.info({ botId }, "bot left");
+    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    let player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+
+    const seat = player.seat;
+    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
+      await this.deps.forceFoldIfInHand(userId);
+      player = this.deps.state.playersById.get(userId);
+      if (!player) return plans;
+    }
+
+    const remainingStack = player.stackCents;
+    if (!options?.cashOutAfterRemoval) {
+      await this.cashOutRemainingStack(userId, remainingStack);
+    }
+
+    this.deps.pendingSeatReleaseUserIds.delete(userId);
+    this.deps.autoActionsByUserId.delete(userId);
+    this.deps.currentHandAutoActedUserIds.delete(userId);
+
+    this.deps.state.seats[player.seat] = "";
+    this.deps.state.playersById.delete(userId);
+    this.deps.holeCardsByPlayerId.delete(userId);
+    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
+      await this.deps.persistence.handHistory.removePlayer(userId);
+    }
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    logger.info({ userId }, "player left");
+    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
+
+    if (options?.cashOutAfterRemoval) {
+      await this.cashOutRemainingStack(userId, remainingStack);
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  markDisconnected(userId: string, disconnectDeadlineTs: number): PlayerLifecyclePlan[] {
+    const plans: PlayerLifecyclePlan[] = [];
+    const player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+
+    player.connected = false;
+    player.disconnectDeadlineTs = disconnectDeadlineTs;
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  markReconnected(userId: string): PlayerLifecyclePlan[] {
+    const plans: PlayerLifecyclePlan[] = [];
+    const player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+
+    player.connected = true;
+    if (player.status === "ABANDONED" && player.stackCents > 0) player.status = "ACTIVE";
+    player.disconnectDeadlineTs = 0;
+    this.deps.autoActionsByUserId.delete(userId);
+    this.ensureToActHasNeedsActionIfNeeded(player.seat, userId);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "RECONNECT" });
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  async markAbandoned(userId: string): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    let player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+
+    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
+      await this.deps.forceFoldIfInHand(userId);
+      player = this.deps.state.playersById.get(userId);
+      if (!player) return plans;
+    }
+
+    player.connected = false;
+    player.disconnectDeadlineTs = 0;
+    player.status = "ABANDONED";
+    player.needsAction = false;
+    this.deps.pendingSeatReleaseUserIds.add(userId);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    if (this.deps.state.street === "WAITING") {
+      plans.push({ kind: "RELEASE_PENDING_SEATS" });
+      maybeAssertStateInvariants(this.deps.state);
+      return plans;
+    }
+
+    if (countNotFoldedPlayers(this.deps.state) <= 1) {
+      plans.push({ kind: "FINISH_HAND_BY_LAST_STANDING" });
+      maybeAssertStateInvariants(this.deps.state);
+      return plans;
+    }
+
+    if (this.deps.state.toActSeat === player.seat) {
+      if (bettingRoundComplete(this.deps.state) || noFurtherBettingPossible(this.deps.state)) {
+        plans.push({ kind: "ADVANCE_STREET_OR_SHOWDOWN" });
+      } else {
+        const nextSeat = findNextToActSeat(this.deps.state, player.seat);
+        if (nextSeat === -1) {
+          plans.push({ kind: "ADVANCE_STREET_OR_SHOWDOWN" });
+          maybeAssertStateInvariants(this.deps.state);
+          return plans;
+        }
+        this.deps.state.toActSeat = nextSeat;
+        plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+      }
+    } else {
+      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  /** True when player is in a hand and ACTIVE; force-fold must run before abandon/remove. */
+  private shouldForceFold(player: PlayerState): boolean {
+    return this.deps.state.street !== "WAITING" && player.status === "ACTIVE";
+  }
+
+  /** After restore/seat change: if hand in progress and this player is toAct, set needsAction so invariant holds. */
+  private ensureToActHasNeedsActionIfNeeded(seat: number, userId: string): void {
+    const { state } = this.deps;
+    if (state.street === "WAITING" || state.runoutMode === "STAGED") return;
+    if (state.seats[state.toActSeat] !== userId) return;
+    if (bettingRoundComplete(state) || noFurtherBettingPossible(state)) return;
+    const player = state.playersById.get(userId);
+    if (!player || !eligibleToAct(player)) return;
+    player.needsAction = true;
+  }
+
+  private assertValidBuyIn(buyInCents: number): void {
+    if (!Number.isInteger(buyInCents) || buyInCents <= 0) {
+      throw new PokerError("INVALID_BUYIN", "buyInCents must be a positive integer.");
+    }
+    if (buyInCents < this.deps.state.minBuyInCents) {
+      throw new PokerError("INVALID_BUYIN", `buyInCents must be >= ${this.deps.state.minBuyInCents}.`);
+    }
+    if (buyInCents > this.deps.state.maxBuyInCents) {
+      throw new PokerError("INVALID_BUYIN", `buyInCents must be <= ${this.deps.state.maxBuyInCents}.`);
+    }
+  }
+
+  private async cashOutRemainingStack(userId: string, remainingStack: number): Promise<void> {
+    if (remainingStack <= 0) return;
+
+    const externalRef = `cashout_${this.deps.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
+    try {
+      await CashierService.processCashGameCashOut({
+        userId,
+        tableId: this.deps.state.tableId,
+        amountCents: remainingStack,
+        externalRef,
+      });
+      logger.info({ userId, remainingStack }, "cash-out processed");
+    } catch (err: any) {
+      logger.error({ userId, err }, "cash-out failed, funds may be locked in PlayerBalance");
+    }
+  }
+}

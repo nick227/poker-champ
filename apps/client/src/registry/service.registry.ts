@@ -26,6 +26,7 @@ const serviceByKey = {
       visibility?: "PUBLIC" | "PRIVATE";
       password?: string;
     }) => withApiError(() => lobby.createTable(input as any)),
+    deleteTable: (tableId: string) => withApiError(() => lobby.deleteTable(tableId)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>
       withApiError(() => economy.buyIn(input)),
     economyDeposit: () =>
@@ -43,6 +44,7 @@ const serviceOrdered = [
   { key: "post.authLogin", call: serviceByKey.post.authLogin },
   { key: "post.authLogout", call: serviceByKey.post.authLogout },
   { key: "post.joinTable", call: serviceByKey.post.joinTable },
+  { key: "post.deleteTable", call: serviceByKey.post.deleteTable },
   { key: "post.buyIn", call: serviceByKey.post.buyIn },
   { key: "post.economyDeposit", call: serviceByKey.post.economyDeposit },
 ] as const;

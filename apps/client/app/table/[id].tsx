@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
@@ -6,19 +6,26 @@ import { BottomBar } from "@/components/containers/BottomBar";
 import { MultiTableTabs } from "@/components/domain/table/MultiTableTabs";
 import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
 import { TableLayout } from "@/components/domain/table/TableLayout";
+import { EmptyTableView } from "@/components/domain/table/EmptyTableView";
+import { ConnectingTableShell } from "@/components/domain/table/ConnectingTableShell";
+import { TableTopBar } from "@/components/domain/table/TableTopBar";
 import { PlayerHistoryPopup } from "@/components/domain/table/PlayerHistoryPopup";
 import { ChatOverlay } from "@/components/domain/table/ChatOverlay";
 import { mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { TableAction } from "@/components/domain/table/ActionBar";
+import { formatCents } from "@/lib/format";
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
 import { storeRegistry } from "@/registry/store.registry";
 import { useTableRealtime } from "@/realtime/useTableRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
+import { useProfile } from "@/hooks/useProfile";
 import { useToastStore } from "@/stores/toast.store";
 import { lobbyPath, loginPathWithNext, tablePath } from "@/lib/nav";
 import { normalizeTable } from "@/lib/lobbyTables";
+import { confirmDeleteTable } from "@/lib/deleteTable";
+import type { TableLastAction } from "@poker-champ/realtime-contract";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -28,6 +35,32 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   RAISE: "raise",
   ALL_IN: "allIn",
 };
+
+function buildActionMessage(action: TableLastAction, actorName: string): string {
+  const originSuffix =
+    action.origin === "AUTO"
+      ? " (auto)"
+      : action.origin === "FORCED"
+        ? " (forced)"
+        : "";
+
+  switch (action.action) {
+    case "FOLD":
+      return `${actorName} folds${originSuffix}`;
+    case "CHECK":
+      return `${actorName} checks${originSuffix}`;
+    case "CALL":
+      return `${actorName} calls ${formatCents(action.amountCents)}${originSuffix}`;
+    case "BET":
+      return `${actorName} bets ${formatCents(action.amountCents)}${originSuffix}`;
+    case "RAISE":
+      return action.raiseToCents != null
+        ? `${actorName} raises to ${formatCents(action.raiseToCents)}${originSuffix}`
+        : `${actorName} raises ${formatCents(action.amountCents)}${originSuffix}`;
+    case "ALL_IN":
+      return `${actorName} is all-in for ${formatCents(action.amountCents)}${originSuffix}`;
+  }
+}
 
 export default function TableScreen() {
   const { id, buyInCents: buyInCentsParam } = useLocalSearchParams<{ id: string; buyInCents?: string }>();
@@ -43,7 +76,7 @@ export default function TableScreen() {
   const joinState = storeRegistry.use.tables((s) => (id ? s.tableJoinById[String(id)] : undefined));
   const lobbyTables = storeRegistry.use.lobby((s) => s.tables);
   const snapshotsByTableId = storeRegistry.use.table((s) => s.snapshotsByTableId);
-  const tableStatusByTableId = storeRegistry.use.table((s) => s.statusByTableId);
+  const tableStatusByTableId = storeRegistry.use.table((s) => s.connectionStatusByTableId);
   const tableErrorByTableId = storeRegistry.use.table((s) => s.errorByTableId);
   const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
   const authToken = storeRegistry.use.auth((s) => s.token);
@@ -55,8 +88,29 @@ export default function TableScreen() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
   }, [buyInCentsParam]);
   const { cents: balanceCents } = useBankroll();
+  const profile = useProfile();
+  const lobbyTable = useMemo(
+    () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)).find((t) => t.id === tableId),
+    [lobbyTables, tableId],
+  );
+  const canDeleteTable =
+    Boolean(profile.userId && lobbyTable?.creatorId === profile.userId && (lobbyTable?.humanCount ?? 0) === 0);
+
+  const handleDeleteTable = useCallback(() => {
+    confirmDeleteTable(tableId, {
+      onSuccess: () => {
+        closeTable(tableId);
+        storeRegistry.table().clearTable(tableId);
+        storeRegistry.lobby().refresh();
+        router.replace(lobbyPath());
+      },
+    });
+  }, [tableId, closeTable, router]);
+
   const [playerPopup, setPlayerPopup] = useState<{ name: string; vpip?: number; pfr?: number; hands?: number; joinDate?: string; location?: string } | null>(null);
   const [lastShownHandResultId, setLastShownHandResultId] = useState<string | null>(null);
+  const [lastShownActionKey, setLastShownActionKey] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [handResultMessage, setHandResultMessage] = useState<{
     winnerName: string;
     amountCents: number;
@@ -65,11 +119,26 @@ export default function TableScreen() {
   const [chatVisible, setChatVisible] = useState(false);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [outOfChipsNoticeShownForHandId, setOutOfChipsNoticeShownForHandId] = useState<string | null>(null);
+  const [addBotPending, setAddBotPending] = useState(false);
+  const addBotTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const snapshot = snapshotsByTableId[tableId];
   const tableStatus = tableStatusByTableId[tableId] ?? "DISCONNECTED";
   const tableError = tableErrorByTableId[tableId];
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
+
+  useEffect(() => {
+    if (tableId && lobbyTables.length === 0) {
+      storeRegistry.lobby().refresh();
+    }
+  }, [tableId, lobbyTables.length]);
+
+  useEffect(() => {
+    setLastShownActionKey(null);
+    setActionMessage(null);
+    setLastShownHandResultId(null);
+    setHandResultMessage(null);
+  }, [tableId]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -187,6 +256,40 @@ export default function TableScreen() {
     [tableId, dispatchTableAction]
   );
 
+  const ADD_BOT_PENDING_MS = 2500;
+  const handleAddBot = useCallback(() => {
+    setAddBotPending(true);
+    if (addBotTimeoutRef.current) clearTimeout(addBotTimeoutRef.current);
+    dispatchAddBot({ tableId, buyInCents: buyInCents ?? 0 });
+    addBotTimeoutRef.current = setTimeout(() => {
+      addBotTimeoutRef.current = null;
+      setAddBotPending(false);
+    }, ADD_BOT_PENDING_MS);
+  }, [tableId, buyInCents, dispatchAddBot]);
+
+  const prevSeatCountRef = useRef(0);
+  const prevHadHandRef = useRef(false);
+  useEffect(() => {
+    if (!snapshot) return;
+    const seatCount = snapshot.seats?.length ?? 0;
+    const hasHand = Boolean(snapshot.hand);
+    const prevSeatCount = prevSeatCountRef.current;
+    const prevHadHand = prevHadHandRef.current;
+    prevSeatCountRef.current = seatCount;
+    prevHadHandRef.current = hasHand;
+    if (addBotPending && (seatCount > prevSeatCount || (hasHand && !prevHadHand))) {
+      if (addBotTimeoutRef.current) {
+        clearTimeout(addBotTimeoutRef.current);
+        addBotTimeoutRef.current = null;
+      }
+      setAddBotPending(false);
+    }
+  }, [addBotPending, snapshot]);
+
+  useEffect(() => () => {
+    if (addBotTimeoutRef.current) clearTimeout(addBotTimeoutRef.current);
+  }, []);
+
   useEffect(() => {
     const result = snapshot?.lastHandResult;
     if (!result || !snapshot) return;
@@ -207,6 +310,23 @@ export default function TableScreen() {
     const t = setTimeout(() => setHandResultMessage(null), 3000);
     return () => clearTimeout(t);
   }, [snapshot?.lastHandResult, snapshot, lastShownHandResultId]);
+
+  useEffect(() => {
+    const hand = snapshot?.hand;
+    const action = snapshot?.lastAction;
+    if (!hand || !action) {
+      if (!hand) setActionMessage(null);
+      return;
+    }
+
+    const key = `${action.handId}:${action.seq}`;
+    if (key === lastShownActionKey) return;
+    setLastShownActionKey(key);
+
+    const actorName = snapshot.seats.find((s) => s.userId === action.actorUserId)?.name
+      ?? (action.actorKind === "BOT" ? "Bot" : "Player");
+    setActionMessage(buildActionMessage(action, actorName));
+  }, [snapshot?.hand, snapshot?.lastAction, snapshot?.seats, lastShownActionKey]);
 
   useEffect(() => {
     const activeHandId = snapshot?.hand?.handId;
@@ -255,29 +375,48 @@ export default function TableScreen() {
           <Button title="Session required. Redirecting to login..." onPress={() => router.replace(loginPathWithNext(tableNextPath))} />
         </View>
       ) : !hasSnapshot ? (
-        <View className="flex-1 ui-center ui-stack-4">
-          {!hasValidBuyIn ? (
-            <Button title="Missing buy-in data. Return to lobby." onPress={() => router.replace(lobbyPath())} />
-          ) : tableError ? (
-            <Button title={`${tableError}. Return to lobby.`} onPress={() => router.replace(lobbyPath())} />
-          ) : (
-            <Button title={`Waiting for table snapshot (${tableStatus}).`} onPress={() => router.replace(lobbyPath())} />
-          )}
+        <View className="flex-1">
+          <TableTopBar
+            balanceCents={balanceCents}
+            left={<Button variant="ghost" title="<" onPress={() => router.back()} />}
+            right={
+              <View className="ui-row ui-inline-1">
+                {canDeleteTable ? (
+                  <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
+                ) : null}
+                <Button
+                  variant="ghost"
+                  title="X"
+                  onPress={() => {
+                    if (id) {
+                      closeTable(String(id));
+                      storeRegistry.table().clearTable(String(id));
+                    }
+                    router.replace(lobbyPath());
+                  }}
+                />
+              </View>
+            }
+          />
+          <ConnectingTableShell
+            message={
+              !hasValidBuyIn
+                ? "Missing buy-in data."
+                : tableError
+                  ? tableError
+                  : tableStatus === "DISCONNECTED"
+                    ? "Connection lost. Attempting to reconnect..."
+                    : tableStatus === "RECONNECTING"
+                      ? "Reconnecting to table..."
+                      : `Connecting to table (${tableStatus})...`
+            }
+            action={
+              <Button variant="ghost" title="Return to lobby" onPress={() => router.replace(lobbyPath())} />
+            }
+          />
         </View>
       ) : !hasActiveHand ? (
-        <View className="flex-1 ui-center ui-stack-4">
-          <Button title={`Connected. Waiting for another active player to start a hand (${tableStatus}).`} onPress={() => {}} />
-          {snapshot?.hero.youAreSeated && buyInCents ? (
-            <Button
-              variant="ghost"
-              title="+ Add Bot To Start Hand"
-              onPress={() => dispatchAddBot({ tableId, buyInCents })}
-            />
-          ) : null}
-          <Button variant="ghost" title="Return to lobby" onPress={() => router.replace(lobbyPath())} />
-        </View>
-      ) : (
-        <TableLayout
+        <EmptyTableView
           snapshot={snapshot!}
           opponents={opponents}
           balanceCents={balanceCents}
@@ -286,11 +425,63 @@ export default function TableScreen() {
           topBarLeft={<Button variant="ghost" title="<" onPress={() => router.back()} />}
           topBarRight={
             <View className="ui-row ui-inline-1">
+              {canDeleteTable ? (
+                <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
+              ) : null}
               {snapshot?.hero.youAreSeated && buyInCents ? (
                 <Button
                   variant="ghost"
                   title="+ Bot"
-                  onPress={() => dispatchAddBot({ tableId, buyInCents })}
+                  onPress={handleAddBot}
+                  loading={addBotPending}
+                />
+              ) : null}
+              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} />
+              <Button
+                variant="ghost"
+                title="X"
+                onPress={() => {
+                  if (id) {
+                    closeTable(String(id));
+                    storeRegistry.table().clearTable(String(id));
+                  }
+                  router.replace(lobbyPath());
+                }}
+              />
+            </View>
+          }
+          onPlayerPress={(o) => {
+            if (o.isBot) {
+              dispatchRemoveBot({ tableId, botId: o.id });
+            } else {
+              setPlayerPopup({ name: o.name, vpip: 42, pfr: 18, hands: 150, joinDate: "2024-01-15", location: "US" });
+            }
+          }}
+          onAddBot={snapshot?.hero.youAreSeated && buyInCents ? handleAddBot : undefined}
+          onReturnToLobby={() => router.replace(lobbyPath())}
+          addBotPending={addBotPending}
+        />
+      ) : (
+        <TableLayout
+          snapshot={snapshot!}
+          opponents={opponents}
+          balanceCents={balanceCents}
+          tableStatus={tableStatus}
+          connectionStatus={tableStatus}
+          actionMessage={actionMessage ?? undefined}
+          handResultMessage={handResultMessage ?? undefined}
+          topBarLeft={<Button variant="ghost" title="<" onPress={() => router.back()} />}
+          topBarRight={
+            <View className="ui-row ui-inline-1">
+              {canDeleteTable ? (
+                <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
+              ) : null}
+              {snapshot?.hero.youAreSeated && buyInCents ? (
+                <Button
+                  variant="ghost"
+                  title="+ Bot"
+                  onPress={handleAddBot}
+                  loading={addBotPending}
                 />
               ) : null}
               <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} />

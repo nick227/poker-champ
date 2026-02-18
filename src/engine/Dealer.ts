@@ -1,44 +1,33 @@
 import { Client } from "@colyseus/core";
-import { createHash } from "node:crypto";
-import pokersolver from "pokersolver";
-import { newId } from "../lib/ids.js";
 import { logger } from "../lib/logger.js";
 import type { ActionPayload } from "../messages/schemas.js";
-import { PokerState, type Street } from "../state/PokerState.js";
+import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
-import { DeckService } from "./cards/DeckService.js";
 import {
-  beginRound,
   bettingRoundComplete,
-  clearPlayerNeedsAction,
-  eligibleForShowdown,
   eligibleToAct,
   noFurtherBettingPossible,
-  onNewBetLevel,
-  resetBettingRound
 } from "./rules/BettingRound.js";
-import { buildSidePots, splitPotCents } from "./rules/SidePotManager.js";
 import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
-import { CashierService } from "./economy/CashierService.js";
 import { nanoid } from "nanoid";
-import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { newBotId } from "./bots/botIds.js";
+import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { RandomBotBrain } from "./bots/BotBrain.js";
 import type { BotBrain } from "./bots/BotBrain.js";
-import { getAutoActionHandCap } from "../config/seats.js";
-
-type SnapshotReason = TableSnapshotPayload["reason"];
-
-const BOT_ACTION_DELAY_MS = 800;
-
-const { Hand } = pokersolver as {
-  Hand: {
-    solve(cards: string[]): any;
-    winners(hands: any[]): any[];
-  };
-};
-
+import { SnapshotService, type SnapshotReason } from "./dealer/services/SnapshotService.js";
+import { ActionService, type ActionResult, type ActionServiceLastAction } from "./dealer/services/ActionService.js";
+import { SettlementService } from "./dealer/services/SettlementService.js";
+import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
+import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
+import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
+import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
+import {
+  countNonOutPlayers,
+  countNotFoldedPlayers,
+  findNextToActSeat,
+} from "./dealer/utils/TableNavigator.js";
+import { NEXT_HAND_DELAY_MS } from "./dealer/timing.js";
+import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
 /**
  * v3.0 Dealer (final milestone):
  * - Side pots + showdown payout
@@ -52,28 +41,24 @@ export class Dealer {
   private readonly clientsByUserId: Map<string, Client> = new Map();
 
   private holeCardsByPlayerId: Map<string, string[]> = new Map();
-  private deck: DeckService | null = null;
   private pendingSeatReleaseUserIds: Set<string> = new Set();
   private lastHandResult: TableSnapshotPayload["lastHandResult"] | undefined = undefined;
+  private lastAction: TableSnapshotPayload["lastAction"] | undefined = undefined;
   private readonly botBrain: BotBrain = new RandomBotBrain();
   private readonly autoActionsByUserId: Map<string, number> = new Map();
   private readonly currentHandAutoActedUserIds: Set<string> = new Set();
   private readonly onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
-  private readonly onTableSnapshotEmitted?: (args: {
-    tableId: string;
-    handId?: string;
-    snapshotId: string;
-    reason: SnapshotReason;
-    street: string;
-    payloadJson: TableSnapshotPayload;
-    stateHash: string;
-    schemaVersion: number;
-  }) => Promise<void> | void;
+  private readonly snapshotService: SnapshotService;
+  private readonly actionService = new ActionService();
+  private readonly settlementService: SettlementService;
+  private readonly handLifecycleService: HandLifecycleService;
+  private readonly turnAutomationService: TurnAutomationService;
+  private readonly playerLifecycleService: PlayerLifecycleService;
+  private readonly actionOptionsService = new ActionOptionsService();
 
   private actionQueue: Promise<void> = Promise.resolve();
-  private currentHandActionIndex = 0;
-  private currentHandPayoutIndex = 0;
-  private currentHandIncludesBotParticipants = false;
+  private readonly processedActionIds: Set<string> = new Set();
+  private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     state: PokerState,
@@ -95,7 +80,50 @@ export class Dealer {
     this.state = state;
     this.persistence = persistence ?? new PersistenceFacade(this.state.tableId || "table_poc");
     this.onAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
-    this.onTableSnapshotEmitted = options?.onTableSnapshotEmitted;
+    this.settlementService = new SettlementService({
+      state: this.state,
+      persistence: this.persistence,
+    });
+    this.handLifecycleService = new HandLifecycleService({
+      state: this.state,
+      persistence: this.persistence,
+      settlementService: this.settlementService,
+      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
+      processedActionIds: this.processedActionIds,
+      applyDisconnectedAutoActionCapForHand: () => this.applyDisconnectedAutoActionCapForHand(),
+      setLastHandResult: (value) => { this.lastHandResult = value; },
+      setLastAction: (value) => { this.lastAction = value; },
+    });
+    this.turnAutomationService = new TurnAutomationService({
+      state: this.state,
+      botBrain: this.botBrain,
+      autoActionsByUserId: this.autoActionsByUserId,
+      currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
+      getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
+      enqueueAction: (userId, payload, delayMs) => this.enqueueInternalAction(userId, payload, delayMs),
+      onAutoSitOutReachedCap: this.onAutoSitOutReachedCap,
+    });
+    this.playerLifecycleService = new PlayerLifecycleService({
+      state: this.state,
+      persistence: this.persistence,
+      pendingSeatReleaseUserIds: this.pendingSeatReleaseUserIds,
+      autoActionsByUserId: this.autoActionsByUserId,
+      currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
+      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      ensurePlayerPersistence: (player) => this.ensurePlayerPersistence(player),
+      forceFoldIfInHand: (userId) => this.forceFoldForLeave(userId),
+    });
+    this.snapshotService = new SnapshotService({
+      state: this.state,
+      clientsByUserId: this.clientsByUserId,
+      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
+      getLastHandResult: () => this.lastHandResult,
+      getLastAction: () => this.lastAction,
+      onTableSnapshotEmitted: options?.onTableSnapshotEmitted,
+    });
+    this.startDisconnectSweep();
     if (this.state.seats.length === 0) {
       for (let i = 0; i < (this.state.maxSeats || 9); i++) this.state.seats.push("");
     }
@@ -106,61 +134,15 @@ export class Dealer {
   getClient(userId: string) { return this.clientsByUserId.get(userId); }
   hasPlayer(userId: string) { return this.state.playersById.has(userId); }
   emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string) {
-    this.sendTableSnapshotToUser(userId, reason, actionId);
+    this.snapshotService.emitToUser(userId, reason, actionId);
   }
   emitSnapshotsToAll(reason: SnapshotReason, actionId?: string) {
-    this.sendTableSnapshotToAll(reason, actionId);
+    this.snapshotService.emitToAll(reason, actionId);
   }
 
   async addPlayer(userId: string, name: string, buyInCents: number) {
-    if (this.state.playersById.has(userId)) return;
-    const seat = this.findOpenSeat();
-    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
-    this.assertValidBuyIn(buyInCents);
-
-    // Process buy-in via CashierService (atomic bankroll -> table balance).
-    // Use a per-join externalRef so repeat sessions are not treated as prior idempotent operations.
-    const externalRef = `buyin_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
-    let buyInTableBalance = buyInCents;
-    try {
-      const result = await CashierService.processCashGameBuyIn({
-        userId,
-        tableId: this.state.tableId,
-        amountCents: buyInCents,
-        externalRef,
-      });
-      buyInTableBalance = result.newTableBalance;
-      logger.info({ userId, buyInCents, newTableBalance: result.newTableBalance }, "buy-in processed");
-    } catch (err: any) {
-      if (err.message === "INSUFFICIENT_BANKROLL") {
-        throw new PokerError("INSUFFICIENT_BANKROLL", "Insufficient bankroll for this buy-in.");
-      }
-      throw err;
-    }
-
-    const p = new PlayerState();
-    p.id = userId;
-    p.userId = userId;
-    p.kind = "HUMAN";
-    p.name = name;
-    p.seat = seat;
-    p.status = "ACTIVE";
-    p.connected = true;
-    p.disconnectDeadlineTs = 0;
-    p.stackCents = buyInTableBalance;
-
-    this.state.playersById.set(userId, p);
-    this.state.seats[seat] = userId;
-
-    await this.ensurePlayerPersistence(p);
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-
-    logger.info({ userId, seat }, "player joined");
-    if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
-      await this.startHand();
-    } else {
-      this.maybeActForBot();
-    }
+    const plans = await this.playerLifecycleService.addPlayer(userId, name, buyInCents);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
   async restorePlayerFromSession(
@@ -170,182 +152,43 @@ export class Dealer {
     stackCents: number,
     options?: { connected?: boolean; sittingOut?: boolean },
   ) {
-    if (this.state.playersById.has(userId)) return;
-    if (seat < 0 || seat >= this.state.seats.length) {
-      throw new PokerError("BAD_STATE", "Invalid seat from persisted session.");
-    }
-    const occupant = this.state.seats[seat];
-    if (occupant && occupant !== userId) {
-      throw new PokerError("BAD_STATE", "Persisted seat is currently occupied.");
-    }
-
-    const p = new PlayerState();
-    p.id = userId;
-    p.userId = userId;
-    p.kind = "HUMAN";
-    p.name = name;
-    p.seat = seat;
-    const connected = options?.connected ?? true;
-    const sittingOut = options?.sittingOut ?? false;
-    p.status = stackCents > 0 ? (sittingOut ? "ABANDONED" : "ACTIVE") : "OUT";
-    p.connected = connected;
-    p.disconnectDeadlineTs = 0;
-    p.stackCents = Math.max(0, stackCents);
-    p.roundBetCents = 0;
-    p.committedCents = 0;
-    p.needsAction = false;
-
-    this.state.playersById.set(userId, p);
-    this.autoActionsByUserId.delete(userId);
-    this.state.seats[seat] = userId;
-    await this.ensurePlayerPersistence(p);
-    this.sendTableSnapshotToAll("RECONNECT");
-
-    logger.info({ userId, seat, stackCents: p.stackCents }, "player restored from persisted seat session");
-    if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
-      await this.startHand();
-    } else {
-      this.maybeActForBot();
-    }
+    const plans = await this.playerLifecycleService.restorePlayerFromSession(userId, name, seat, stackCents, options);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
   async addBot(botId: string, name: string, buyInCents: number) {
-    if (this.state.playersById.has(botId)) return;
-    const seat = this.findOpenSeat();
-    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
-    this.assertValidBuyIn(buyInCents);
-
-    const p = new PlayerState();
-    p.id = botId;
-    p.userId = "";
-    p.kind = "BOT";
-    p.name = name;
-    p.seat = seat;
-    p.status = "ACTIVE";
-    p.connected = true;
-    p.disconnectDeadlineTs = 0;
-    p.stackCents = buyInCents;
-
-    this.state.playersById.set(botId, p);
-    this.state.seats[seat] = botId;
-
-    if (this.persistence.enabled && this.persistence.handHistory) {
-      await this.persistence.handHistory.ensureTableAndPlayers([{ id: p.id, name: p.name, seat: p.seat }]);
-    }
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-    this.maybeActForBot();
-
-    logger.info({ botId, seat }, "bot joined");
-    if (this.countNonOutPlayers() >= 2 && this.state.street === "WAITING") {
-      await this.startHand();
-    }
+    const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
   async removeBot(botId: string) {
-    const p = this.state.playersById.get(botId);
-    if (!p) return;
-
-    this.pendingSeatReleaseUserIds.delete(botId);
-    this.autoActionsByUserId.delete(botId);
-    this.currentHandAutoActedUserIds.delete(botId);
-    this.state.seats[p.seat] = "";
-    this.state.playersById.delete(botId);
-    this.holeCardsByPlayerId.delete(botId);
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-
-    logger.info({ botId }, "bot left");
-    await this.ensureHandAdvancingAfterPlayerRemoval(p.seat);
+    const plans = await this.playerLifecycleService.removeBot(botId);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
-  async removePlayer(userId: string) {
-    const p = this.state.playersById.get(userId);
-    if (!p) return;
+  async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }) {
+    const plans = await this.playerLifecycleService.removePlayer(userId, options);
+    await this.executePlayerLifecyclePlans(plans);
+  }
 
-    // Cash out remaining stack via CashierService (atomic table balance -> bankroll)
-    const remainingStack = p.stackCents;
-    if (remainingStack > 0) {
-      // Use a per-leave externalRef so repeated leave/join cycles cash out correctly.
-      const externalRef = `cashout_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
-      try {
-        await CashierService.processCashGameCashOut({
-          userId,
-          tableId: this.state.tableId,
-          amountCents: remainingStack,
-          externalRef,
-        });
-        logger.info({ userId, remainingStack }, "cash-out processed");
-      } catch (err: any) {
-        logger.error({ userId, err }, "cash-out failed, funds may be locked in PlayerBalance");
-        // Continue with player removal even if cash-out fails
-        // The PlayerBalance record will remain and can be recovered later
-      }
-    }
-
-    this.pendingSeatReleaseUserIds.delete(userId);
-    this.autoActionsByUserId.delete(userId);
-    this.currentHandAutoActedUserIds.delete(userId);
-
-    this.state.seats[p.seat] = "";
-    this.state.playersById.delete(userId);
-    this.holeCardsByPlayerId.delete(userId);
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-
-    logger.info({ userId }, "player left");
-
-    await this.ensureHandAdvancingAfterPlayerRemoval(p.seat);
+  async handleConsentedLeave(userId: string) {
+    await this.forceFoldForLeave(userId);
+    await this.removePlayer(userId, { cashOutAfterRemoval: true });
   }
 
   markDisconnected(userId: string, disconnectDeadlineTs: number) {
-    const p = this.state.playersById.get(userId);
-    if (!p) return;
-    p.connected = false;
-    p.disconnectDeadlineTs = disconnectDeadlineTs;
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-    this.maybeActForBot();
+    const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
+    this.runPlayerLifecyclePlansFireAndForget(plans);
   }
 
   markReconnected(userId: string) {
-    const p = this.state.playersById.get(userId);
-    if (!p) return;
-    p.connected = true;
-    if (p.status === "ABANDONED" && p.stackCents > 0) p.status = "ACTIVE";
-    p.disconnectDeadlineTs = 0;
-    this.autoActionsByUserId.delete(userId);
-    this.sendTableSnapshotToAll("RECONNECT");
-    this.maybeActForBot();
+    const plans = this.playerLifecycleService.markReconnected(userId);
+    this.runPlayerLifecyclePlansFireAndForget(plans);
   }
 
   async markAbandoned(userId: string) {
-    const p = this.state.playersById.get(userId);
-    if (!p) return;
-
-    p.connected = false;
-    p.disconnectDeadlineTs = 0;
-    p.status = "ABANDONED";
-    p.needsAction = false;
-    this.pendingSeatReleaseUserIds.add(userId);
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
-
-    if (this.state.street === "WAITING") {
-      await this.releasePendingSeats();
-      return;
-    }
-
-    if (this.countNotFoldedPlayers() <= 1) {
-      await this.finishHandByLastStanding();
-      return;
-    }
-
-    if (this.state.toActSeat === p.seat) {
-      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown();
-      } else {
-        this.state.toActSeat = this.findNextToActSeat(p.seat);
-        this.maybeActForBot();
-      }
-    } else {
-      this.maybeActForBot();
-    }
+    const plans = await this.playerLifecycleService.markAbandoned(userId);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
   async kickUser(userId: string, reason: string) {
@@ -357,11 +200,18 @@ export class Dealer {
     }
     await this.markAbandoned(userId);
   }
-  async handleAction(userId: string, msg: ActionPayload) {
+  async handleAction(userId: string, msg: ActionPayload, actionId?: string) {
     // Action serialization queue (mutex)
     return this.actionQueue = this.actionQueue.then(async () => {
+      if (actionId && this.processedActionIds.has(actionId)) {
+        return;
+      }
+      const handIdBefore = this.state.handId;
       try {
-        await this._handleAction(userId, msg);
+        await this._handleAction(userId, msg, "PLAYER");
+        if (actionId && handIdBefore && this.state.handId === handIdBefore) {
+          this.processedActionIds.add(actionId);
+        }
       } catch (err) {
         logger.error({ err, userId, action: msg.action }, "Action failed");
         throw err;
@@ -369,164 +219,34 @@ export class Dealer {
     });
   }
 
-  private async _handleAction(userId: string, msg: ActionPayload) {
-    const p = this.state.playersById.get(userId);
-    if (!p) throw new PokerError("BAD_STATE", "Unknown player.");
-    if (this.state.street === "WAITING") throw new PokerError("HAND_NOT_STARTED", "Hand not started.");
-    if (!eligibleToAct(p)) throw new PokerError("NOT_ELIGIBLE", "Player not eligible to act.");
-    if (p.seat !== this.state.toActSeat) throw new PokerError("NOT_YOUR_TURN", "Not your turn.");
+  private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
+    const execution = await this.actionService.execute({
+      state: this.state,
+      userId,
+      msg,
+      origin,
+      applyActionDebit: (p, amountCents, action, meta) => this.settlementService.applyActionDebit(p, amountCents, action, meta),
+      recordAcceptedAction: (args) => this.settlementService.recordAcceptedAction(args),
+      assertCanAfford: (p, amountCents) => this.settlementService.assertCanAfford(p, amountCents),
+    });
 
-    const callAmount = Math.max(0, this.state.roundCurrentBetCents - p.roundBetCents);
-    const potBefore = this.state.potCents;
+    this.setLastActionFromExecution(execution.lastAction);
 
-    switch (msg.action) {
-      case "FOLD":
-        await this.recordAcceptedAction({
-          player: p,
-          action: "FOLD",
-          amountCents: 0,
-          potBeforeCents: potBefore,
-          potAfterCents: potBefore,
-        });
-        p.status = "FOLDED";
-        clearPlayerNeedsAction(p);
-        break;
+    await this.applyActionResult(execution.result, {
+      turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
+        ? "BOT_ACTION"
+        : "ACTION_ACCEPTED",
+    });
+  }
 
-      case "CHECK":
-        if (callAmount !== 0) throw new PokerError("INVALID_ACTION", "Cannot check; must call/fold/raise.");
-        await this.recordAcceptedAction({
-          player: p,
-          action: "CHECK",
-          amountCents: 0,
-          potBeforeCents: potBefore,
-          potAfterCents: potBefore,
-        });
-        clearPlayerNeedsAction(p);
-        break;
-
-      case "CALL":
-        if (callAmount > 0) {
-          this.assertCanAfford(p, callAmount);
-          const next = await this.persistDebitForAction(p, callAmount, "CALL");
-          await this.recordAcceptedAction({
-            player: p,
-            action: "CALL",
-            amountCents: callAmount,
-            potBeforeCents: potBefore,
-            potAfterCents: potBefore + callAmount,
-          });
-          this.applyDebitToRuntimeState(p, callAmount, next);
-        } else {
-          await this.recordAcceptedAction({
-            player: p,
-            action: "CALL",
-            amountCents: 0,
-            potBeforeCents: potBefore,
-            potAfterCents: potBefore,
-          });
-        }
-        clearPlayerNeedsAction(p);
-        break;
-
-      case "BET": {
-        if (this.state.roundCurrentBetCents !== 0) throw new PokerError("INVALID_ACTION", "Cannot BET; use RAISE.");
-        const requested = msg.amountCents ?? 0;
-        const amt = Math.min(requested, p.stackCents);
-        if (amt <= 0) throw new PokerError("INVALID_ACTION", "BET requires amountCents > 0.");
-        const minOpenBet = Math.min(this.state.bigBlindCents, p.stackCents);
-        if (amt < minOpenBet && p.stackCents > amt) {
-          throw new PokerError("INVALID_ACTION", "BET below minimum.");
-        }
-        const next = await this.persistDebitForAction(p, amt, "BET");
-        await this.recordAcceptedAction({
-          player: p,
-          action: "BET",
-          amountCents: amt,
-          potBeforeCents: potBefore,
-          potAfterCents: potBefore + amt,
-        });
-        this.applyDebitToRuntimeState(p, amt, next);
-
-        this.state.roundCurrentBetCents = p.roundBetCents;
-        this.state.minRaiseCents = Math.max(this.state.bigBlindCents, amt);
-        onNewBetLevel(this.state, p.id);
-        break;
-      }
-
-      case "RAISE": {
-        if (this.state.roundCurrentBetCents === 0) throw new PokerError("INVALID_ACTION", "Cannot RAISE; use BET.");
-        const raiseToRequested = msg.amountCents ?? 0;
-        if (raiseToRequested <= this.state.roundCurrentBetCents) throw new PokerError("INVALID_ACTION", "RAISE must be > current bet.");
-
-        const neededRequested = Math.max(0, raiseToRequested - p.roundBetCents);
-        const needed = Math.min(neededRequested, p.stackCents);
-        const raiseTo = p.roundBetCents + needed;
-        const delta = raiseTo - this.state.roundCurrentBetCents;
-        if (delta < this.state.minRaiseCents && p.stackCents > (raiseTo - p.roundBetCents)) {
-          throw new PokerError("INVALID_ACTION", "RAISE below minRaise.");
-        }
-
-        if (needed <= 0) throw new PokerError("INVALID_ACTION", "RAISE requires chips.");
-        const next = await this.persistDebitForAction(p, needed, "RAISE", { raiseTo });
-        await this.recordAcceptedAction({
-          player: p,
-          action: "RAISE",
-          amountCents: needed,
-          potBeforeCents: potBefore,
-          potAfterCents: potBefore + needed,
-          meta: { raiseTo },
-        });
-        this.applyDebitToRuntimeState(p, needed, next);
-
-        const newLevel = p.roundBetCents;
-        this.state.minRaiseCents = Math.max(this.state.minRaiseCents, newLevel - this.state.roundCurrentBetCents);
-        this.state.roundCurrentBetCents = Math.max(this.state.roundCurrentBetCents, newLevel);
-
-        onNewBetLevel(this.state, p.id);
-        break;
-      }
-
-      case "ALL_IN": {
-        const pay = p.stackCents;
-        if (pay <= 0) throw new PokerError("INVALID_ACTION", "No chips to go all-in.");
-        const next = await this.persistDebitForAction(p, pay, "ALL_IN");
-        await this.recordAcceptedAction({
-          player: p,
-          action: "ALL_IN",
-          amountCents: pay,
-          potBeforeCents: potBefore,
-          potAfterCents: potBefore + pay,
-        });
-        this.applyDebitToRuntimeState(p, pay, next);
-
-        if (p.roundBetCents > this.state.roundCurrentBetCents) {
-          const delta = p.roundBetCents - this.state.roundCurrentBetCents;
-          this.state.minRaiseCents = Math.max(this.state.minRaiseCents, delta);
-          this.state.roundCurrentBetCents = p.roundBetCents;
-          onNewBetLevel(this.state, p.id);
-        } else {
-          clearPlayerNeedsAction(p);
-        }
-
-        p.status = "ALL_IN";
-        break;
-      }
-    }
-
-    if (this.countNotFoldedPlayers() <= 1) {
-      await this.finishHandByLastStanding();
-      return;
-    }
-
-    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-      await this.advanceStreetOrShowdown();
-      return;
-    }
-
-    this.state.toActSeat = this.findNextToActSeat(this.state.toActSeat);
-    const reason: SnapshotReason = p.kind === "BOT" ? "BOT_ACTION" : "ACTION_ACCEPTED";
-    this.sendTableSnapshotToAll(reason, `act_${this.state.handId}_${nanoid(8)}`);
-    this.maybeActForBot();
+  private setLastActionFromExecution(lastAction: ActionServiceLastAction | undefined): void {
+    if (!lastAction) return;
+    const nextSeq = this.state.handActionSeq + 1;
+    this.state.handActionSeq = nextSeq;
+    this.lastAction = {
+      ...lastAction,
+      seq: nextSeq,
+    };
   }
 
   // -------------------------
@@ -534,319 +254,94 @@ export class Dealer {
   // -------------------------
 
   private async startHand() {
-    if (this.countActiveHumanPlayers() === 0) return;
-    this.state.runningSinceTs = Date.now();
-
-    this.state.dealerSeat = this.findNextActiveSeat(this.state.dealerSeat) ?? 0;
-
-    this.state.handId = newId("hand");
-    this.state.handNumber += 1;
-    this.currentHandAutoActedUserIds.clear();
-    // Reset deterministic per-hand persistence ordering counters.
-    this.currentHandActionIndex = 0;
-    this.currentHandPayoutIndex = 0;
-    this.state.street = "PREFLOP";
-    this.state.board.clear();
-    this.state.potCents = 0;
-    this.state.actionCount = 0;
-    this.state.nextHandAtTs = 0;
-    this.lastHandResult = undefined;
-
-    resetBettingRound(this.state);
-
-    for (const p of this.state.playersById.values()) {
-      p.roundBetCents = 0;
-      p.committedCents = 0;
-      p.needsAction = false;
-      if (p.status !== "OUT" && p.status !== "ABANDONED") {
-        p.status = p.stackCents > 0 ? "ACTIVE" : "OUT";
-      }
-    }
-
-    const activeCount = [...this.state.playersById.values()].filter((p) => p.status === "ACTIVE").length;
-    if (activeCount < 2) {
-      this.state.street = "WAITING";
-      this.sendTableSnapshotToAll("AUTO_TRANSITION");
-      return;
-    }
-
-    this.deck = new DeckService();
-    this.deck.shuffle();
-
-    const activePlayers = [...this.iterPlayersInSeatOrder()].filter((p) => p.status === "ACTIVE");
-    this.currentHandIncludesBotParticipants = activePlayers.some((p) => p.kind === "BOT");
-    const startingStacksByUserId = new Map<string, number>();
-    for (const p of activePlayers) {
-      startingStacksByUserId.set(p.id, p.stackCents);
-    }
-
-    this.holeCardsByPlayerId.clear();
-    for (const p of activePlayers) {
-      const cards = [this.drawCard(), this.drawCard()];
-      this.holeCardsByPlayerId.set(p.id, cards);
-    }
-
-    if (this.persistence.enabled && this.persistence.handHistory) {
-      await this.persistence.handHistory.startHand({
-        tableId: this.state.tableId,
-        handId: this.state.handId,
-        dealerSeat: this.state.dealerSeat,
-        smallBlindCents: this.state.smallBlindCents,
-        bigBlindCents: this.state.bigBlindCents,
-        players: activePlayers.map((p) => ({
-          id: p.id,
-          seat: p.seat,
-          startingStackCents: startingStacksByUserId.get(p.id) ?? p.stackCents,
-          holeCards: this.holeCardsByPlayerId.get(p.id) ?? [],
-        })),
-      });
-    }
-
-    const sbSeat = this.findNextActiveSeat(this.state.dealerSeat) ?? this.state.dealerSeat;
-    const bbSeat = this.findNextActiveSeat(sbSeat) ?? sbSeat;
-
-    const sbId = this.state.seats[sbSeat];
-    const bbId = this.state.seats[bbSeat];
-
-    if (sbId) {
-      const sb = this.state.playersById.get(sbId);
-      if (!sb) throw new PokerError("BAD_STATE", "Small blind player missing.");
-      this.assertCanAfford(sb, this.state.smallBlindCents);
-      const next = await this.persistence.postBlind({
-        userId: sb.id,
-        handId: this.state.handId,
-        blindType: "SB",
-        amountCents: this.state.smallBlindCents,
-        currentBalance: sb.stackCents,
-        player: sb,
-      });
-      sb.stackCents = next;
-      sb.roundBetCents += this.state.smallBlindCents;
-      sb.committedCents += this.state.smallBlindCents;
-      this.state.potCents += this.state.smallBlindCents;
-    }
-    if (bbId) {
-      const bb = this.state.playersById.get(bbId);
-      if (!bb) throw new PokerError("BAD_STATE", "Big blind player missing.");
-      this.assertCanAfford(bb, this.state.bigBlindCents);
-      const next = await this.persistence.postBlind({
-        userId: bb.id,
-        handId: this.state.handId,
-        blindType: "BB",
-        amountCents: this.state.bigBlindCents,
-        currentBalance: bb.stackCents,
-        player: bb,
-      });
-      bb.stackCents = next;
-      bb.roundBetCents += this.state.bigBlindCents;
-      bb.committedCents += this.state.bigBlindCents;
-      this.state.potCents += this.state.bigBlindCents;
-    }
-
-    this.state.roundCurrentBetCents = this.state.bigBlindCents;
-    this.state.minRaiseCents = this.state.bigBlindCents;
-
-    this.state.toActSeat = this.findNextToActSeat(bbSeat);
-    beginRound(this.state);
-
-    if (bbId) {
-      const bb = this.state.playersById.get(bbId);
-      if (bb) bb.needsAction = false;
-    }
-
-    logger.info({ handId: this.state.handId }, "hand started");
-    this.sendTableSnapshotToAll("HAND_START");
-    this.maybeActForBot();
+    const plans = await this.handLifecycleService.startHand();
+    await this.executeHandLifecyclePlans(plans);
   }
 
   private async advanceStreetOrShowdown() {
-    if (noFurtherBettingPossible(this.state)) {
-      this.runoutToRiver();
-      this.state.street = "SHOWDOWN";
-      await this.finishHandShowdownWithSidePots();
-      return;
-    }
-
-    const next = this.nextStreet(this.state.street);
-    if (next === "SHOWDOWN") {
-      this.state.street = "SHOWDOWN";
-      await this.finishHandShowdownWithSidePots();
-      return;
-    }
-
-    this.state.street = next;
-    this.dealCommunityForStreet(next);
-
-    resetBettingRound(this.state);
-    beginRound(this.state);
-
-    this.state.toActSeat = this.findNextToActSeat(this.state.dealerSeat);
-
-    this.sendTableSnapshotToAll("AUTO_TRANSITION");
-    this.maybeActForBot();
-  }
-
-  private runoutToRiver() {
-    while (this.state.street !== "RIVER") {
-      const next = this.nextStreet(this.state.street);
-      if (next === "SHOWDOWN") break;
-      this.state.street = next;
-      this.dealCommunityForStreet(next);
-    }
+    const plans = await this.handLifecycleService.advanceStreetOrShowdown();
+    await this.executeHandLifecyclePlans(plans);
   }
 
   private async finishHandByLastStanding() {
-    const winner = [...this.state.playersById.values()].find(p => p.status !== "FOLDED" && p.status !== "OUT");
-    if (!winner) { this.state.street = "WAITING"; return; }
-
-    await this.recordAcceptedPayout(winner.id, this.state.potCents);
-    const next = await this.persistence.creditPayout({
-      userId: winner.id,
-      handId: this.state.handId,
-      amountCents: this.state.potCents,
-      currentBalance: winner.stackCents,
-      player: winner,
-    });
-    winner.stackCents = next;
-    await this.applyDisconnectedAutoActionCapForHand();
-
-    this.lastHandResult = {
-      handId: this.state.handId,
-      reason: "LAST_PLAYER",
-      potCents: this.state.potCents,
-      winnerId: winner.id,
-      payoutsByUserId: { [winner.id]: this.state.potCents },
-      board: [...this.state.board],
-    };
-    this.sendTableSnapshotToAll("HAND_END");
-
-    await this.finalizePersistedHand("ALL_FOLDED");
-    this.state.street = "WAITING";
-    await this.releasePendingSeats();
-    this.scheduleNextHand("HAND_END");
-    if (!this.currentHandIncludesBotParticipants) {
-      await this.persistence.assertHandBalanced(this.state.handId);
-    }
+    const plans = await this.handLifecycleService.finishHandByLastStanding();
+    await this.executeHandLifecyclePlans(plans);
   }
 
   private async finishHandShowdownWithSidePots() {
-    if (this.state.street !== "SHOWDOWN") this.runoutToRiver();
+    const plans = await this.handLifecycleService.finishHandShowdownWithSidePots();
+    await this.executeHandLifecyclePlans(plans);
+  }
 
-    const playersAll = [...this.state.playersById.values()].filter(p => p.status !== "OUT");
-    const eligible = playersAll.filter(eligibleForShowdown);
-
-    if (eligible.length <= 1) {
-      await this.finishHandByLastStanding();
-      return;
-    }
-
-    const pots = buildSidePots(playersAll, eligible);
-
-    const board = [...this.state.board];
-    const solved = new Map<string, any>();
-    for (const p of eligible) {
-      const cards = this.holeCardsByPlayerId.get(p.id) ?? [];
-      solved.set(p.id, Hand.solve([...cards, ...board]));
-    }
-
-    const seatOrder = this.seatOrderLeftOfDealer();
-    const payouts = new Map<string, number>();
-
-    for (const pot of pots) {
-      const contenders = pot.eligiblePlayerIds;
-      if (contenders.length === 0) continue;
-
-      const hands = contenders.map(id => solved.get(id)).filter(Boolean);
-      const winners = Hand.winners(hands);
-
-      const winnerIds: string[] = [];
-      for (const id of contenders) {
-        const h = solved.get(id);
-        if (h && winners.includes(h)) winnerIds.push(id);
-      }
-
-      const split = splitPotCents(pot.amountCents, winnerIds, seatOrder);
-      for (const [id, amt] of split.entries()) payouts.set(id, (payouts.get(id) ?? 0) + amt);
-    }
-
-    const totalPaidBeforeReconcile = [...payouts.values()].reduce((sum, amt) => sum + amt, 0);
-    if (totalPaidBeforeReconcile < this.state.potCents && eligible.length > 0) {
-      const remainder = this.state.potCents - totalPaidBeforeReconcile;
-      const seatOrderIndex = new Map<string, number>();
-      seatOrder.forEach((id, idx) => seatOrderIndex.set(id, idx));
-
-      const fallbackRecipient = [...eligible].sort((a, b) => {
-        if (b.committedCents !== a.committedCents) return b.committedCents - a.committedCents;
-        const ai = seatOrderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER;
-        const bi = seatOrderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER;
-        return ai - bi;
-      })[0];
-
-      if (fallbackRecipient) {
-        payouts.set(fallbackRecipient.id, (payouts.get(fallbackRecipient.id) ?? 0) + remainder);
-        logger.warn(
-          {
-            handId: this.state.handId,
-            potCents: this.state.potCents,
-            paidCents: totalPaidBeforeReconcile,
-            remainderCents: remainder,
-            fallbackRecipientUserId: fallbackRecipient.id,
-          },
-          "showdown payout remainder reconciled; investigate uncalled/side-pot edge",
-        );
+  private async executeHandLifecyclePlans(plans: HandLifecyclePlan[]): Promise<void> {
+    for (const plan of plans) {
+      switch (plan.kind) {
+        case "EMIT_SNAPSHOT":
+          this.sendTableSnapshotToAll(plan.reason, plan.actionId);
+          break;
+        case "DELAY":
+          await new Promise((resolve) => setTimeout(resolve, plan.ms));
+          break;
+        case "MAYBE_AUTOMATE_TURN":
+          this.maybeActForBot();
+          break;
+        case "TRANSITION_TO_WAITING":
+          this.state.street = "WAITING";
+          this.state.runoutMode = "NONE";
+          this.processedActionIds.clear();
+          break;
+        case "RELEASE_PENDING_SEATS":
+          await this.releasePendingSeats();
+          break;
+        case "SCHEDULE_NEXT_HAND":
+          this.scheduleNextHand(plan.reason, plan.delayMs ?? 0);
+          break;
       }
     }
+  }
 
-    for (const [id, amt] of payouts.entries()) {
-      const p = this.state.playersById.get(id);
-      if (p) {
-        await this.recordAcceptedPayout(id, amt);
-        const next = await this.persistence.creditPayout({
-          userId: id,
-          handId: this.state.handId,
-          amountCents: amt,
-          currentBalance: p.stackCents,
-          player: p,
-        });
-        p.stackCents = next;
+  private async executePlayerLifecyclePlans(plans: PlayerLifecyclePlan[]): Promise<void> {
+    for (const plan of plans) {
+      switch (plan.kind) {
+        case "EMIT_SNAPSHOT":
+          this.sendTableSnapshotToAll(plan.reason, plan.actionId);
+          break;
+        case "MAYBE_AUTOMATE_TURN":
+          this.maybeActForBot();
+          break;
+        case "START_HAND":
+          await this.startHand();
+          break;
+        case "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL":
+          await this.ensureHandAdvancingAfterPlayerRemoval(plan.removedSeat);
+          break;
+        case "RELEASE_PENDING_SEATS":
+          await this.releasePendingSeats();
+          break;
+        case "FINISH_HAND_BY_LAST_STANDING":
+          await this.finishHandByLastStanding();
+          break;
+        case "ADVANCE_STREET_OR_SHOWDOWN":
+          await this.advanceStreetOrShowdown();
+          break;
       }
     }
+  }
 
-    const payoutsEntries = [...payouts.entries()];
-    const primaryWinnerId = payoutsEntries[0]?.[0];
-    const primaryWinnerCards = primaryWinnerId ? this.holeCardsByPlayerId.get(primaryWinnerId) : undefined;
-    const primarySolved = primaryWinnerId ? solved.get(primaryWinnerId) : undefined;
-    const winningDescr = primarySolved?.descr ?? primarySolved?.name;
-
-    this.lastHandResult = {
-      handId: this.state.handId,
-      reason: "SHOWDOWN",
-      potCents: this.state.potCents,
-      winnerId: payoutsEntries.length === 1 ? primaryWinnerId : undefined,
-      payoutsByUserId: Object.fromEntries(payoutsEntries),
-      board,
-      winnerHoleCards: primaryWinnerCards?.length === 2 ? primaryWinnerCards : undefined,
-      winningHandDescr: typeof winningDescr === "string" ? winningDescr : undefined,
-    };
-    await this.applyDisconnectedAutoActionCapForHand();
-    this.sendTableSnapshotToAll("HAND_END");
-
-    await this.finalizePersistedHand("SHOWDOWN");
-    this.state.street = "WAITING";
-    await this.releasePendingSeats();
-    this.scheduleNextHand("HAND_END");
-    if (!this.currentHandIncludesBotParticipants) {
-      await this.persistence.assertHandBalanced(this.state.handId);
-    }
+  private runPlayerLifecyclePlansFireAndForget(plans: PlayerLifecyclePlan[]): void {
+    void this.executePlayerLifecyclePlans(plans).catch((err) => {
+      logger.error({ err }, "Player lifecycle plan execution failed");
+    });
   }
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
     if (this.state.street === "WAITING") {
-      if (this.countNonOutPlayers() >= 2) await this.startHand();
+      if (countNonOutPlayers(this.state) >= 2) await this.startHand();
       return;
     }
+    if (this.state.runoutMode === "STAGED") return;
 
-    if (this.countNotFoldedPlayers() <= 1) {
+    if (countNotFoldedPlayers(this.state) <= 1) {
       await this.finishHandByLastStanding();
       return;
     }
@@ -857,7 +352,12 @@ export class Dealer {
       if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
         await this.advanceStreetOrShowdown();
       } else {
-        this.state.toActSeat = this.findNextToActSeat(removedSeat);
+        const nextSeat = findNextToActSeat(this.state, removedSeat);
+        if (nextSeat === -1) {
+          await this.advanceStreetOrShowdown();
+          return;
+        }
+        this.state.toActSeat = nextSeat;
         this.maybeActForBot();
       }
     } else {
@@ -870,31 +370,33 @@ export class Dealer {
 // -------------------------
 private nextHandScheduled = false;
 
-  private scheduleNextHand(reason: string) {
+  private scheduleNextHand(reason: string, delayMs = 0) {
     if (this.nextHandScheduled) return;
     this.nextHandScheduled = true;
-
-    this.state.nextHandAtTs = Date.now() + 3000;
-    
-    // Emit snapshot so clients see the countdown
-    this.sendTableSnapshotToAll("AUTO_TRANSITION");
+    const countdownMs = NEXT_HAND_DELAY_MS;
 
     setTimeout(() => {
-      this.nextHandScheduled = false;
-      this.state.nextHandAtTs = 0;
+      this.state.nextHandAtTs = Date.now() + countdownMs;
+      // Emit snapshot so clients see the countdown after result-hold window.
+      this.sendTableSnapshotToAll("AUTO_TRANSITION");
 
-      const seated = [...this.state.playersById.values()]
-        .filter(p => p.seat >= 0 && p.status !== "OUT");
+      setTimeout(() => {
+        this.nextHandScheduled = false;
+        this.state.nextHandAtTs = 0;
 
-      if (this.state.street === "WAITING" && seated.length >= 2) {
-        this.startHand().catch((err) => {
-          logger.error({ err, reason }, "Failed to auto-start next hand");
-        });
-      } else {
-        // If we still cannot start (e.g. players left), ensure clients know we are WAITING
-        this.sendTableSnapshotToAll("AUTO_TRANSITION");
-      }
-    }, 3000);
+        const seated = [...this.state.playersById.values()]
+          .filter(p => p.seat >= 0 && p.status !== "OUT");
+
+        if (this.state.street === "WAITING" && seated.length >= 2) {
+          this.startHand().catch((err) => {
+            logger.error({ err, reason }, "Failed to auto-start next hand");
+          });
+        } else {
+          // If we still cannot start (e.g. players left), ensure clients know we are WAITING
+          this.sendTableSnapshotToAll("AUTO_TRANSITION");
+        }
+      }, countdownMs);
+    }, delayMs);
   }
 
   private async releasePendingSeats() {
@@ -905,132 +407,41 @@ private nextHandScheduled = false;
     }
   }
 
-  // -------------------------
-  // Chip accounting
-  // -------------------------
-
-  private async persistDebitForAction(
-    p: PlayerState,
-    amountCents: number,
-    action: any, // Action type like "CALL", "BET", etc.
-    meta?: any,
-  ): Promise<number> {
-    if (amountCents <= 0) return p.stackCents;
-
-    const next = await this.persistence.debitBet({
-      userId: p.id,
-      handId: this.state.handId,
-      street: this.state.street,
-      action: action === "POST_SB" || action === "POST_BB" ? "BET" : action,
-      amountCents,
-      sequenceNum: this.state.actionCount + 1,
-      currentBalance: p.stackCents,
-      player: p,
+  private async forceFoldForLeave(userId: string): Promise<void> {
+    const execution = await this.actionService.executeForcedFold({
+      state: this.state,
+      userId,
+      origin: "FORCED",
+      recordAcceptedAction: (args) => this.settlementService.recordAcceptedAction(args),
     });
-
-    return next;
+    this.setLastActionFromExecution(execution.lastAction);
+    await this.applyActionResult(execution.result, { turnAdvancedReason: "ACTION_ACCEPTED" });
   }
 
-  private applyDebitToRuntimeState(
-    p: PlayerState,
-    amountCents: number,
-    nextStackCents: number,
-  ) {
-    if (amountCents <= 0) return;
-
-    this.state.actionCount++;
-    p.stackCents = nextStackCents;
-    p.roundBetCents += amountCents;
-    p.committedCents += amountCents;
-    this.state.potCents += amountCents;
-
-    if (p.stackCents === 0) {
-      p.status = "ALL_IN";
-      p.needsAction = false;
-    }
-  }
-
-  private async recordAcceptedAction(params: {
-    player: PlayerState;
-    action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
-    amountCents: number;
-    potBeforeCents: number;
-    potAfterCents: number;
-    meta?: Record<string, unknown>;
-  }) {
-    if (!this.persistence.enabled || !this.persistence.handHistory) return;
-    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot persist action without active handId.");
-    const nextActionIndex = this.currentHandActionIndex + 1;
-    await this.persistence.handHistory.recordAction({
-      tableId: this.state.tableId,
-      handId: this.state.handId,
-      playerId: params.player.id,
-      seat: params.player.seat,
-      actionIndex: nextActionIndex,
-      street: this.state.street,
-      action: params.action,
-      amountCents: params.amountCents,
-      potBeforeCents: params.potBeforeCents,
-      potAfterCents: params.potAfterCents,
-      meta: params.meta,
-    });
-    this.currentHandActionIndex = nextActionIndex;
-  }
-
-  private async recordAcceptedPayout(playerId: string, amountCents: number) {
-    if (!this.persistence.enabled || !this.persistence.handHistory) return;
-    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot persist payout without active handId.");
-    const nextPayoutIndex = this.currentHandPayoutIndex + 1;
-    await this.persistence.handHistory.recordPayout({
-      tableId: this.state.tableId,
-      handId: this.state.handId,
-      playerId,
-      payoutIndex: nextPayoutIndex,
-      amountCents,
-    });
-    this.currentHandPayoutIndex = nextPayoutIndex;
-  }
-
-  private async finalizePersistedHand(reason: "SHOWDOWN" | "ALL_FOLDED") {
-    if (!this.persistence.enabled || !this.persistence.handHistory) return;
-    if (!this.state.handId) throw new PokerError("BAD_STATE", "Cannot finalize hand without handId.");
-    await this.persistence.handHistory.endHand({
-      tableId: this.state.tableId,
-      handId: this.state.handId,
-      reason,
-      board: [...this.state.board],
-      endingStacks: [...this.state.playersById.values()].map((p) => ({
-        playerId: p.id,
-        endingStackCents: p.stackCents,
-      })),
-    });
-  }
-
-  private async debitAndPayExact(
-    p: PlayerState,
-    amountCents: number,
-    action: any,
-    meta?: any,
-  ) {
-    const next = await this.persistDebitForAction(p, amountCents, action, meta);
-    this.applyDebitToRuntimeState(p, amountCents, next);
-  }
-
-  private assertCanAfford(p: PlayerState, amountCents: number) {
-    if (amountCents > p.stackCents) {
-      throw new PokerError("INSUFFICIENT_STACK", "Insufficient stack for this action.");
-    }
-  }
-
-  private assertValidBuyIn(buyInCents: number) {
-    if (!Number.isInteger(buyInCents) || buyInCents <= 0) {
-      throw new PokerError("INVALID_BUYIN", "buyInCents must be a positive integer.");
-    }
-    if (buyInCents < this.state.minBuyInCents) {
-      throw new PokerError("INVALID_BUYIN", `buyInCents must be >= ${this.state.minBuyInCents}.`);
-    }
-    if (buyInCents > this.state.maxBuyInCents) {
-      throw new PokerError("INVALID_BUYIN", `buyInCents must be <= ${this.state.maxBuyInCents}.`);
+  private async applyActionResult(
+    result: ActionResult,
+    options?: { turnAdvancedReason?: SnapshotReason },
+  ): Promise<void> {
+    switch (result.kind) {
+      case "NO_OP":
+        return;
+      case "WAITING_FOR_PLAYERS":
+        this.sendTableSnapshotToAll("AUTO_TRANSITION");
+        maybeAssertBettingState(this.state);
+        return;
+      case "HAND_FINISHED":
+        await this.finishHandByLastStanding();
+        maybeAssertBettingState(this.state);
+        return;
+      case "STREET_COMPLETE":
+        await this.advanceStreetOrShowdown();
+        maybeAssertBettingState(this.state);
+        return;
+      case "TURN_ADVANCED":
+        this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${nanoid(8)}`);
+        maybeAssertBettingState(this.state);
+        this.maybeActForBot();
+        return;
     }
   }
 
@@ -1048,153 +459,13 @@ private nextHandScheduled = false;
   // Helpers
   // -------------------------
 
-  private drawCard(): string {
-    if (!this.deck) throw new PokerError("DECK_ERROR", "Deck not initialized.");
-    return this.deck.draw();
-  }
-
-  private nextStreet(street: Street): Street {
-    if (street === "PREFLOP") return "FLOP";
-    if (street === "FLOP") return "TURN";
-    if (street === "TURN") return "RIVER";
-    if (street === "RIVER") return "SHOWDOWN";
-    return "WAITING";
-  }
-
-  private dealCommunityForStreet(street: Street) {
-    if (street === "FLOP") this.state.board.push(this.drawCard(), this.drawCard(), this.drawCard());
-    else if (street === "TURN" || street === "RIVER") this.state.board.push(this.drawCard());
-  }
-
-  private findOpenSeat(): number {
-    for (let i = 0; i < this.state.seats.length; i++) if (!this.state.seats[i]) return i;
-    return -1;
-  }
-
-  private findNextOccupiedSeat(fromSeat: number): number | null {
-    const n = this.state.seats.length;
-    for (let i = 1; i <= n; i++) {
-      const seat = (fromSeat + i) % n;
-      if (this.state.seats[seat]) return seat;
-    }
-    return null;
-  }
-
-  private findNextActiveSeat(fromSeat: number): number | null {
-    const n = this.state.seats.length;
-    for (let i = 1; i <= n; i++) {
-      const seat = (fromSeat + i) % n;
-      const id = this.state.seats[seat];
-      if (!id) continue;
-      const p = this.state.playersById.get(id);
-      if (!p) continue;
-      if (p.status === "ACTIVE" && p.stackCents > 0) return seat;
-    }
-    return null;
-  }
-
-  private findNextToActSeat(fromSeat: number): number {
-    const n = this.state.seats.length;
-    for (let i = 1; i <= n; i++) {
-      const seat = (fromSeat + i) % n;
-      const id = this.state.seats[seat];
-      if (!id) continue;
-      const p = this.state.playersById.get(id);
-      if (!p) continue;
-      if (eligibleToAct(p) && p.needsAction) return seat;
-    }
-    for (let i = 0; i < n; i++) {
-      const id = this.state.seats[i];
-      if (!id) continue;
-      const p = this.state.playersById.get(id);
-      if (p && eligibleToAct(p)) return i;
-    }
-    return fromSeat;
-  }
-
-  private *iterPlayersInSeatOrder(): Generator<PlayerState> {
-    for (let i = 0; i < this.state.seats.length; i++) {
-      const id = this.state.seats[i];
-      if (!id) continue;
-      const p = this.state.playersById.get(id);
-      if (p) yield p;
-    }
-  }
-
-  private seatOrderLeftOfDealer(): string[] {
-    const order: string[] = [];
-    const n = this.state.seats.length;
-    for (let i = 1; i <= n; i++) {
-      const seat = (this.state.dealerSeat + i) % n;
-      const id = this.state.seats[seat];
-      if (!id) continue;
-      const p = this.state.playersById.get(id);
-      if (p && p.status !== "OUT") order.push(id);
-    }
-    return order;
-  }
-
-  private countNonOutPlayers(): number {
-    let c = 0;
-    for (const p of this.state.playersById.values()) if (p.status !== "OUT") c++;
-    return c;
-  }
-
-  private countHumanPlayers(): number {
-    let c = 0;
-    for (const p of this.state.playersById.values()) if (p.kind === "HUMAN" && p.status !== "OUT") c++;
-    return c;
-  }
-
-  /** Humans who will be dealt in (ACTIVE, not sitting out, have chips). Prevents bot-only hands. */
-  private countActiveHumanPlayers(): number {
-    let c = 0;
-    for (const p of this.state.playersById.values()) {
-      if (p.kind !== "HUMAN") continue;
-      if (p.status === "OUT" || p.status === "ABANDONED") continue;
-      if (p.stackCents <= 0) continue;
-      c++;
-    }
-    return c;
-  }
-
   /**
    * Automation hook for non-human turn blocking:
    * - bots take a delayed action via BotBrain
    * - disconnected humans auto-check when legal, otherwise auto-fold
    */
   private maybeActForBot(): void {
-    if (this.state.street === "WAITING") return;
-    const toActId = this.state.seats[this.state.toActSeat] ?? "";
-    const p = this.state.playersById.get(toActId);
-    if (!toActId || !p) return;
-    if (!eligibleToAct(p) || !p.needsAction) return;
-
-    const options = this.buildHeroActionOptions(toActId);
-    if (!options) return;
-
-    if (p.kind !== "BOT" && p.connected) return;
-
-    if (p.kind !== "BOT" && !p.connected) {
-      const payload: ActionPayload = options.canCheck ? { action: "CHECK" } : { action: "FOLD" };
-      this.currentHandAutoActedUserIds.add(toActId);
-      this.enqueueInternalAction(toActId, payload);
-      return;
-    }
-
-    const ctx = {
-      heroActionOptions: options,
-      handSnapshot: {
-        street: this.state.street,
-        potCents: this.state.potCents,
-        roundCurrentBetCents: this.state.roundCurrentBetCents,
-        board: [...this.state.board],
-      },
-      seatSnapshot: { stackCents: p.stackCents, roundBetCents: p.roundBetCents, seat: p.seat },
-    };
-    const payload = this.botBrain.pickAction(ctx);
-
-    this.enqueueInternalAction(toActId, payload, BOT_ACTION_DELAY_MS);
+    this.turnAutomationService.maybeActForBot();
   }
 
   private enqueueInternalAction(userId: string, payload: ActionPayload, delayMs = 0): void {
@@ -1210,7 +481,7 @@ private nextHandScheduled = false;
         return;
       }
 
-      await this._handleAction(userId, payload);
+      await this._handleAction(userId, payload, "AUTO");
     }).catch((err) => {
       if (this.isSkippableQueuedActionError(err)) {
         logger.warn(
@@ -1229,210 +500,48 @@ private nextHandScheduled = false;
   }
 
   private async applyDisconnectedAutoActionCapForHand() {
-    const cap = getAutoActionHandCap();
-    if (cap <= 0) return;
+    await this.turnAutomationService.applyDisconnectedAutoActionCapForHand();
+  }
 
-    for (const p of this.state.playersById.values()) {
-      if (p.kind !== "HUMAN") continue;
-      const autoActed = this.currentHandAutoActedUserIds.has(p.id);
-      if (autoActed && !p.connected) {
-        const nextCount = (this.autoActionsByUserId.get(p.id) ?? 0) + 1;
-        this.autoActionsByUserId.set(p.id, nextCount);
-        if (nextCount >= cap) {
-          // In-memory ABANDONED is the gameplay sit-out marker. Persisted seat state uses SEATED_SITTING_OUT.
-          p.status = "ABANDONED";
-          p.needsAction = false;
-          if (this.onAutoSitOutReachedCap) {
-            await this.onAutoSitOutReachedCap({ userId: p.id, stackCents: p.stackCents });
-          }
-          logger.info({ userId: p.id, autoActionHands: nextCount, cap }, "AUTO_ACTION_CAP_REACHED_SIT_OUT");
-        }
-        continue;
-      }
+  private static readonly DISCONNECT_SWEEP_MS = 10_000;
 
-      if (p.connected) {
-        this.autoActionsByUserId.delete(p.id);
-      }
+  private startDisconnectSweep(): void {
+    if (this.disconnectSweepIntervalId != null) return;
+    this.disconnectSweepIntervalId = setInterval(() => {
+      void this.sweepDisconnectDeadlines();
+    }, Dealer.DISCONNECT_SWEEP_MS);
+  }
+
+  stopDisconnectSweep(): void {
+    if (this.disconnectSweepIntervalId != null) {
+      clearInterval(this.disconnectSweepIntervalId);
+      this.disconnectSweepIntervalId = null;
     }
   }
 
-  private countNotFoldedPlayers(): number {
-    let c = 0;
-    for (const p of this.state.playersById.values()) {
-      if (p.status !== "FOLDED" && p.status !== "OUT") c++;
+  private async sweepDisconnectDeadlines(): Promise<void> {
+    const now = Date.now();
+    const toAbandon: string[] = [];
+    for (const [userId, player] of this.state.playersById.entries()) {
+      if (player.disconnectDeadlineTs > 0 && now > player.disconnectDeadlineTs) {
+        toAbandon.push(userId);
+      }
     }
-    return c;
+    for (const userId of toAbandon) {
+      try {
+        await this.markAbandoned(userId);
+      } catch (err) {
+        logger.warn({ err, userId }, "disconnect sweep markAbandoned failed");
+      }
+    }
   }
 
   private sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string) {
-    for (const [userId, client] of this.clientsByUserId.entries()) {
-      const payload = this.buildTableSnapshot(userId, reason, actionId);
-      const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload });
-      if (!parsed.success) {
-        logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
-        continue;
-      }
-      client.send("TABLE_SNAPSHOT", payload);
-      if (this.onTableSnapshotEmitted) {
-        void Promise.resolve(this.onTableSnapshotEmitted({
-          tableId: this.state.tableId,
-          handId: this.state.handId || undefined,
-          snapshotId: payload.snapshotId,
-          reason,
-          street: payload.hand?.street ?? "WAITING",
-          payloadJson: payload,
-          stateHash: payload.stateHash,
-          schemaVersion: payload.version,
-        })).catch((err) => {
-          logger.warn({ err, tableId: this.state.tableId, snapshotId: payload.snapshotId }, "TABLE_SNAPSHOT_LOG_WRITE_FAILED");
-        });
-      }
-      logger.debug({
-        snapshotVersion: payload.version,
-        handId: payload.hand?.handId ?? "",
-        actionId: payload.actionId ?? "",
-        reason,
-        userId,
-      }, "TABLE_SNAPSHOT emitted");
-    }
+    this.snapshotService.emitToAll(reason, actionId);
   }
 
   private sendTableSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string) {
-    const client = this.clientsByUserId.get(userId);
-    if (!client) return;
-
-    const payload = this.buildTableSnapshot(userId, reason, actionId);
-    const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload });
-    if (!parsed.success) {
-      logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
-      return;
-    }
-
-    client.send("TABLE_SNAPSHOT", payload);
-    if (this.onTableSnapshotEmitted) {
-      void Promise.resolve(this.onTableSnapshotEmitted({
-        tableId: this.state.tableId,
-        handId: this.state.handId || undefined,
-        snapshotId: payload.snapshotId,
-        reason,
-        street: payload.hand?.street ?? "WAITING",
-        payloadJson: payload,
-        stateHash: payload.stateHash,
-        schemaVersion: payload.version,
-      })).catch((err) => {
-        logger.warn({ err, tableId: this.state.tableId, snapshotId: payload.snapshotId }, "TABLE_SNAPSHOT_LOG_WRITE_FAILED");
-      });
-    }
-    logger.debug({
-      snapshotVersion: payload.version,
-      handId: payload.hand?.handId ?? "",
-      actionId: payload.actionId ?? "",
-      reason,
-      userId,
-    }, "TABLE_SNAPSHOT emitted (single user)");
+    this.snapshotService.emitToUser(userId, reason, actionId);
   }
 
-  private buildTableSnapshot(userId: string, reason: SnapshotReason, actionId?: string): TableSnapshotPayload {
-    const nowTs = Date.now();
-    const hero = this.state.playersById.get(userId);
-    const seats = this.state.seats.map((occupantUserId, seat) => {
-      const p = occupantUserId ? this.state.playersById.get(occupantUserId) : undefined;
-      return {
-        seat,
-        occupied: Boolean(p),
-        userId: p?.id,
-        isBot: p?.kind === "BOT",
-        name: p?.name || "Empty",
-        status: p?.status ?? "OUT",
-        stackCents: p?.stackCents ?? 0,
-        roundBetCents: p?.roundBetCents ?? 0,
-        committedCents: p?.committedCents ?? 0,
-        connected: p?.connected ?? false,
-        isDealer: this.state.dealerSeat === seat,
-        isToAct: this.state.toActSeat === seat,
-      };
-    });
-
-    const hand = this.state.street === "WAITING"
-      ? undefined
-      : {
-          handId: this.state.handId,
-          handNumber: this.state.handNumber,
-          street: this.state.street,
-          dealerSeat: this.state.dealerSeat,
-          toActSeat: this.state.toActSeat,
-          actionCount: this.state.actionCount,
-          roundCurrentBetCents: this.state.roundCurrentBetCents,
-          minRaiseCents: this.state.minRaiseCents,
-          potCents: this.state.potCents,
-          board: [...this.state.board],
-        };
-
-    const payloadWithoutHash = {
-      version: 1 as const,
-      snapshotId: `snap_${this.state.tableId}_${nanoid(10)}`,
-      emittedAtTs: nowTs,
-      serverTimeTs: nowTs,
-      reason,
-      actionId,
-      nextHandAtTs: this.state.nextHandAtTs || undefined,
-      table: {
-        tableId: this.state.tableId,
-        tableName: this.state.tableName,
-        visibility: this.state.visibility,
-        maxSeats: this.state.maxSeats,
-        smallBlindCents: this.state.smallBlindCents,
-        bigBlindCents: this.state.bigBlindCents,
-        minBuyInCents: this.state.minBuyInCents,
-        maxBuyInCents: this.state.maxBuyInCents,
-      },
-      hand,
-      seats,
-      hero: {
-        userId,
-        youAreSeated: Boolean(hero),
-        seat: hero?.seat,
-        holeCards: hero ? this.holeCardsByPlayerId.get(userId) : undefined,
-        actionOptions: this.buildHeroActionOptions(userId),
-      },
-      lastHandResult: this.lastHandResult,
-    };
-
-    const stateHash = createHash("sha1").update(JSON.stringify(payloadWithoutHash)).digest("hex");
-    return {
-      ...payloadWithoutHash,
-      stateHash,
-    };
-  }
-
-  private buildHeroActionOptions(userId: string): HeroActionOptions | undefined {
-    const p = this.state.playersById.get(userId);
-    if (!p || this.state.street === "WAITING") return undefined;
-
-    const isHeroTurn = p.seat === this.state.toActSeat && eligibleToAct(p);
-    const callAmount = Math.max(0, this.state.roundCurrentBetCents - p.roundBetCents);
-    const minRaiseTo = this.state.roundCurrentBetCents + this.state.minRaiseCents;
-    const maxRaiseTo = p.roundBetCents + p.stackCents;
-
-    const canCheck = isHeroTurn && callAmount === 0;
-    const canCall = isHeroTurn && callAmount > 0 && p.stackCents >= callAmount;
-    const canBet = isHeroTurn && this.state.roundCurrentBetCents === 0 && p.stackCents > 0;
-    const canRaise = isHeroTurn && this.state.roundCurrentBetCents > 0 && maxRaiseTo >= minRaiseTo && p.stackCents > callAmount;
-    const canAllIn = isHeroTurn && p.stackCents > 0;
-    const canFold = isHeroTurn;
-    const minOpenBetTo = Math.min(this.state.bigBlindCents, maxRaiseTo);
-    const minActionTo = canRaise ? minRaiseTo : canBet ? minOpenBetTo : undefined;
-
-    return {
-      canFold,
-      canCheck,
-      canCall,
-      canBet,
-      canRaise,
-      canAllIn,
-      callAmount,
-      minRaiseTo: minActionTo,
-      maxRaiseTo: maxRaiseTo > 0 ? maxRaiseTo : undefined,
-    };
-  }
 }

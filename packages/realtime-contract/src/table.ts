@@ -3,9 +3,11 @@ import { ActionPayloadSchema } from "./action";
 
 const SchemaVersion = z.literal(1).default(1);
 const StreetEnum = z.enum(["WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"]);
+const LastActionStreetEnum = z.enum(["PREFLOP", "FLOP", "TURN", "RIVER"]);
 const PlayerStatusEnum = z.enum(["WAITING", "ACTIVE", "FOLDED", "ALL_IN", "ABANDONED", "OUT"]);
 const VisibilityEnum = z.enum(["PUBLIC", "PRIVATE"]);
 const JoinModeEnum = z.enum(["NEW", "RESTORE"]);
+const LastActionOriginEnum = z.enum(["PLAYER", "AUTO", "FORCED"]);
 export const TableErrorCodeEnum = z.enum([
   "NOT_YOUR_TURN",
   "INVALID_ACTION",
@@ -20,6 +22,7 @@ const SnapshotReasonEnum = z.enum([
   "RECONNECT",
   "ACTION_ACCEPTED",
   "BOT_ACTION",
+  "RUNOUT_STAGE",
   "AUTO_TRANSITION",
   "HAND_START",
   "HAND_END",
@@ -33,6 +36,11 @@ export const TableJoinOptionsSchema = z.object({
   password: z.string().min(1).max(64).optional(),
 });
 
+export const ActionEnvelopePayloadSchema = z.object({
+  actionId: z.string().uuid().optional(),
+  payload: ActionPayloadSchema,
+});
+
 export const AddBotPayloadSchema = z.object({
   name: z.string().min(1).max(80).default("Bot"),
   buyInCents: z.number().int().positive(),
@@ -42,7 +50,7 @@ export const RemoveBotPayloadSchema = z.object({
 });
 
 export const TableInboundMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ACTION"), payload: ActionPayloadSchema }),
+  z.object({ type: z.literal("ACTION"), payload: z.union([ActionPayloadSchema, ActionEnvelopePayloadSchema]) }),
   z.object({ type: z.literal("ADD_BOT"), payload: AddBotPayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
 ]);
@@ -54,9 +62,26 @@ export const HeroActionOptionsSchema = z.object({
   canBet: z.boolean(),
   canRaise: z.boolean(),
   canAllIn: z.boolean(),
+  primaryWagerAction: z.enum(["NONE", "BET", "RAISE"]).default("NONE"),
   callAmount: z.number().int().nonnegative().default(0),
   minRaiseTo: z.number().int().positive().optional(),
   maxRaiseTo: z.number().int().positive().optional(),
+});
+
+export const HeroCalculationsSchema = z.object({
+  mode: z.enum(["LIVE_ADVISORY", "SHOWDOWN_ANALYSIS"]).default("SHOWDOWN_ANALYSIS"),
+  stale: z.boolean().default(false),
+  equityPct: z.number().int().min(0).max(100).optional(),
+  potOddsPct: z.number().int().min(0).max(100).optional(),
+  outs: z.number().int().nonnegative().optional(),
+  updatedAtTs: z.number().int().nonnegative().optional(),
+});
+
+export const CalculationsMetaSchema = z.object({
+  computedAtTs: z.number().int().nonnegative().optional(),
+  street: StreetEnum.optional(),
+  playersConsidered: z.number().int().nonnegative().optional(),
+  stateHash: z.string().min(1).optional(),
 });
 
 export const TableSeatSnapshotSchema = z.object({
@@ -74,9 +99,24 @@ export const TableSeatSnapshotSchema = z.object({
   isToAct: z.boolean().default(false),
 });
 
+export const TableLastActionSchema = z.object({
+  handId: z.string().min(1),
+  seq: z.number().int().positive(),
+  street: LastActionStreetEnum,
+  actorUserId: z.string().min(1),
+  actorKind: z.enum(["HUMAN", "BOT"]),
+  action: z.enum(["FOLD", "CHECK", "CALL", "BET", "RAISE", "ALL_IN"]),
+  amountCents: z.number().int().nonnegative(),
+  raiseToCents: z.number().int().positive().optional(),
+  potAfterCents: z.number().int().nonnegative(),
+  origin: LastActionOriginEnum,
+  createdAtTs: z.number().int().nonnegative(),
+});
+
 export const TableSnapshotPayloadSchema = z.object({
   version: SchemaVersion,
   snapshotId: z.string().min(1),
+  snapshotSeq: z.number().int().positive(),
   emittedAtTs: z.number().int().nonnegative(),
   serverTimeTs: z.number().int().nonnegative(),
   stateHash: z.string().min(1),
@@ -100,6 +140,8 @@ export const TableSnapshotPayloadSchema = z.object({
     handNumber: z.number().int().nonnegative(),
     street: StreetEnum,
     dealerSeat: z.number().int().min(0),
+    sbSeat: z.number().int().min(0),
+    bbSeat: z.number().int().min(0),
     toActSeat: z.number().int().min(0),
     actionCount: z.number().int().nonnegative(),
     roundCurrentBetCents: z.number().int().nonnegative(),
@@ -116,7 +158,11 @@ export const TableSnapshotPayloadSchema = z.object({
     seat: z.number().int().min(0).optional(),
     holeCards: z.array(z.string().min(2).max(2)).length(2).optional(),
     actionOptions: HeroActionOptionsSchema.optional(),
+    calculations: HeroCalculationsSchema.optional(),
   }),
+
+  calculationsMeta: CalculationsMetaSchema.optional(),
+  lastAction: TableLastActionSchema.optional(),
 
   lastHandResult: z
     .object({
@@ -126,6 +172,9 @@ export const TableSnapshotPayloadSchema = z.object({
       winnerId: z.string().min(1).optional(),
       payoutsByUserId: z.record(z.string(), z.number().int().nonnegative()).default({}),
       board: z.array(z.string().min(2).max(2)).max(5).optional(),
+      showdownHoleCardsByUserId: z
+        .record(z.string(), z.tuple([z.string().min(2).max(2), z.string().min(2).max(2)]))
+        .optional(),
       winnerHoleCards: z.array(z.string().min(2).max(2)).length(2).optional(),
       winningHandDescr: z.string().optional(),
     })
@@ -171,5 +220,6 @@ export type TableJoinOptions = z.infer<typeof TableJoinOptionsSchema>;
 export type TableInboundMessage = z.infer<typeof TableInboundMessageSchema>;
 export type TableOutboundMessage = z.infer<typeof TableOutboundMessageSchema>;
 export type TableSnapshotPayload = z.infer<typeof TableSnapshotPayloadSchema>;
+export type TableLastAction = z.infer<typeof TableLastActionSchema>;
 export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;
 export type TableErrorCode = z.infer<typeof TableErrorCodeEnum>;

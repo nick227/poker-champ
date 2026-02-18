@@ -52,6 +52,8 @@ export const lobby = {
   listTables: () => request<SuccessPayload<Operation<"/api/lobby/tables", "get">>>("GET", "/api/lobby/tables"),
   createTable: (input: JsonRequestBody<Operation<"/api/lobby/tables", "post">>) =>
     request<SuccessPayload<Operation<"/api/lobby/tables", "post">>>("POST", "/api/lobby/tables", input),
+  deleteTable: (tableId: string) =>
+    request<void>("DELETE", `/api/lobby/tables/${encodeURIComponent(tableId)}`),
 };
 
 export const economy = {

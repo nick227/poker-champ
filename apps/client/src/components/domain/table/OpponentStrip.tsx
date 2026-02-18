@@ -1,8 +1,12 @@
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
+import { DealerButton } from "./DealerButton";
+import { PlayingCard } from "./PlayingCard";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import { PotWinRing } from "./PotWinEffect";
+
+type OpponentCardFace = { rank: string; suit: string };
 
 export type Opponent = {
   id: string;
@@ -12,8 +16,14 @@ export type Opponent = {
   isActive?: boolean;
   isBot?: boolean;
   status?: "folded" | "allIn" | "active" | "sittingOut";
-  /** e.g. "Check", "Bet $5.00", "Raise $10" – shown under bank */
+  /** e.g. "Check", "Bet $5.00", "Raise $10" shown under bank */
   actionLabel?: string;
+  cards?: {
+    left?: OpponentCardFace | null;
+    right?: OpponentCardFace | null;
+    faceDown: boolean;
+    visible: boolean;
+  };
 };
 
 function getStatusLabel(status: Opponent["status"]): string | null {
@@ -21,6 +31,30 @@ function getStatusLabel(status: Opponent["status"]): string | null {
   if (status === "sittingOut") return TABLE.sittingOut;
   if (status === "allIn") return "All in";
   return null;
+}
+
+function OpponentCards({ opponent }: { opponent: Opponent }) {
+  if (!opponent.cards?.visible) return null;
+
+  const { cards } = opponent;
+  const left = cards.faceDown
+    ? <PlayingCard faceDown />
+    : cards.left
+      ? <PlayingCard rank={cards.left.rank} suit={cards.left.suit} />
+      : <PlayingCard faceDown />;
+
+  const right = cards.faceDown
+    ? <PlayingCard faceDown />
+    : cards.right
+      ? <PlayingCard rank={cards.right.rank} suit={cards.right.suit} />
+      : <PlayingCard faceDown />;
+
+  return (
+    <View className="ui-row ui-center" style={{ gap: 4 }}>
+      <View style={{ transform: [{ scale: 0.62 }] }}>{left}</View>
+      <View style={{ transform: [{ scale: 0.62 }] }}>{right}</View>
+    </View>
+  );
 }
 
 export function OpponentStrip({
@@ -40,7 +74,7 @@ export function OpponentStrip({
         const sittingOut = o.status === "sittingOut";
         const inactive = folded || sittingOut;
         const statusLabel = getStatusLabel(o.status);
-        const actionText = o.actionLabel ?? statusLabel ?? "—";
+        const actionText = o.actionLabel ?? statusLabel ?? "-";
         const isWinner = winnerName === o.name;
         const content = (
           <View
@@ -54,13 +88,14 @@ export function OpponentStrip({
                 <Text variant="label" className="text-sm">{o.name.slice(0, 1).toUpperCase()}</Text>
               </View>
               {o.isDealer ? (
-                <View className="absolute -right-0.5 -top-0.5 h-4 w-4 ui-center rounded-full bg-gold">
-                  <Text variant="label" className="text-[10px]">D</Text>
+                <View className="absolute -right-0.5 -top-0.5">
+                  <DealerButton size="small" />
                 </View>
               ) : null}
             </View>
+            <OpponentCards opponent={o} />
             <Text variant="label" numberOfLines={1} className="text-xs">
-              {o.name}{o.isBot ? " 🤖" : ""}
+              {o.name}{o.isBot ? " [BOT]" : ""}
             </Text>
             <Text variant="h2" className="text-base font-semibold">{formatCents(o.stackCents)}</Text>
             <Text

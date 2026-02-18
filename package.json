@@ -15,9 +15,11 @@
     "build:ios": "pnpm -C apps/client build:ios",
     "build:desktop": "pnpm -C apps/client build:desktop",
     "test:client": "pnpm -C apps/client test:run",
+    "test:client:money-safety": "pnpm --prefix apps/client exec vitest run src/tests/table.adapter.money.test.ts",
     "test:server:join": "vitest run src/tests/table-join.guard.test.ts",
     "test:server:broadcast": "vitest run src/tests/table-action-broadcast.test.ts",
-    "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast",
+    "test:server:money-safety": "vitest run src/tests/settlement-service.money-safety.test.ts src/tests/fold-path-equivalence.test.ts",
+    "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast && pnpm test:server:money-safety",
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",
     "server:typecheck": "tsc -p tsconfig.json --noEmit",
@@ -31,7 +33,7 @@
     "sdk:gen": "pnpm openapi:export && node scripts/sync-sdk-version.mjs && npx openapi-typescript openapi.json -o packages/sdk/src/types.gen.ts",
     "sdk:check": "pnpm sdk:gen && pnpm -C packages/sdk typecheck",
     "ui:no-fetch": "node scripts/check-no-ui-fetch.mjs",
-    "verify": "pnpm sdk:check && pnpm test:client && pnpm test:server:core && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch"
+    "verify": "pnpm sdk:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch"
   },
   "dependencies": {
     "@colyseus/core": "^0.17.36",
@@ -51,12 +53,15 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "eslint": "^9.18.0",
     "openapi-typescript": "^7.13.0",
     "prisma": "5.22.0",
     "tsx": "^4.21.0",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.56.0",
     "vitest": "^2.1.9"
   }
 }

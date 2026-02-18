@@ -20,6 +20,7 @@ import {
   getHeroCards,
   getHeroStackCents,
   getPotCents,
+  getIsDealer,
 } from "./table.adapter";
 
 export type { Opponent };
@@ -31,14 +32,13 @@ export type TableLayoutProps = {
   opponents: Opponent[];
   balanceCents: number;
   tableStatus?: string;
+  connectionStatus?: "CONNECTED" | "RECONNECTING" | "DISCONNECTED";
+  actionMessage?: string;
   handResultMessage?: HandResultMessage;
   topBarLeft?: ReactNode;
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
   onPlayerPress?: (opponent: Opponent) => void;
-  equity?: number;
-  potOdds?: number;
-  outs?: number;
 };
 
 export function TableLayout({
@@ -46,14 +46,13 @@ export function TableLayout({
   opponents,
   balanceCents,
   tableStatus,
+  connectionStatus,
+  actionMessage,
   handResultMessage,
   topBarLeft,
   topBarRight,
   onAction,
   onPlayerPress,
-  equity,
-  potOdds,
-  outs,
 }: TableLayoutProps) {
   const [themePickerVisible, setThemePickerVisible] = useState(false);
   const { hand } = snapshot;
@@ -64,6 +63,7 @@ export function TableLayout({
   const heroCards = getHeroCards(snapshot);
   const heroStackCents = getHeroStackCents(snapshot);
   const heroActionOptions = snapshot.hero.actionOptions;
+  const heroCalculations = snapshot.hero.calculations;
   const { 
     feltColor, 
     cardFaceColor, 
@@ -75,6 +75,7 @@ export function TableLayout({
 
   const heroName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
+  const isHeroDealer = getIsDealer(snapshot);
 
   return (
     <View
@@ -111,9 +112,11 @@ export function TableLayout({
       <Spacer />
       <DealerAnnounceBar
         hand={hand ? { street: hand.street, potCents: hand.potCents } : undefined}
+        actionMessage={actionMessage}
         handResultMessage={handResultMessage}
         tableStatus={tableStatus}
         nextHandAtTs={snapshot.nextHandAtTs}
+        blinds={snapshot.table ? { smallBlindCents: snapshot.table.smallBlindCents, bigBlindCents: snapshot.table.bigBlindCents } : undefined}
       />
       <CommunityBoard cards={communityCards} potCents={potCents} />
       <Spacer />
@@ -122,16 +125,18 @@ export function TableLayout({
         stackCents={heroStackCents}
         isMyTurn={isMyTurn}
         heroStatus={heroStatus}
-        equity={equity ?? 0}
-        potOdds={potOdds ?? 0}
-        outs={outs ?? 0}
+        equity={heroCalculations?.equityPct}
+        potOdds={heroCalculations?.potOddsPct}
+        outs={heroCalculations?.outs}
         isWinner={isHeroWinner}
+        isDealer={isHeroDealer}
       />
       <ActionBar
         isMyTurn={isMyTurn}
         heroStatus={heroStatus}
         actionOptions={heroActionOptions}
         potCents={potCents}
+        connectionStatus={connectionStatus}
         onAction={onAction}
       />
       <ThemePickerSheet visible={themePickerVisible} onClose={() => setThemePickerVisible(false)} />

@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { PlayingCard } from "./PlayingCard";
 import { CalculationsStrip } from "./CalculationsStrip";
+import { DealerButton } from "./DealerButton";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HeroStatus } from "./table.adapter";
@@ -26,10 +27,11 @@ export function HeroZone({
   stackCents,
   isMyTurn,
   heroStatus,
-  equity = 0,
-  potOdds = 0,
-  outs = 0,
+  equity,
+  potOdds,
+  outs,
   isWinner = false,
+  isDealer = false,
 }: {
   cards: Card[];
   stackCents: number;
@@ -39,17 +41,19 @@ export function HeroZone({
   potOdds?: number;
   outs?: number;
   isWinner?: boolean;
+  isDealer?: boolean;
 }) {
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
+  const hasCalculations = typeof equity === "number" || typeof potOdds === "number" || typeof outs === "number";
   const content = (
     <View className="border-t border-border-subtle ui-p-4 ui-stack-4">
       <CalculationsStrip
         equity={equity}
         potOdds={potOdds}
         outs={outs}
-        visible={!folded}
+        visible={hasCalculations && !folded}
         muted={!isMyTurn}
       />
       <View className={`ui-row items-stretch ${inactive ? "opacity-55" : ""}`} style={{ gap: 20 }}>
@@ -74,6 +78,11 @@ export function HeroZone({
           <Text variant="label">Stack</Text>
           <Text variant="h2" className="text-2xl font-semibold">{formatCents(stackCents)}</Text>
         </View>
+        {isDealer && (
+          <View className="ui-col ui-center justify-center">
+            <DealerButton size="small" />
+          </View>
+        )}
       </View>
     </View>
   );

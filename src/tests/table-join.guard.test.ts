@@ -70,6 +70,27 @@ describe("table join guardrails", () => {
     return { room, dealer };
   }
 
+  it("sets blinds on room from tableConfig when creating table", () => {
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_blinds";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_blinds",
+        name: "Blinds Check",
+        maxSeats: 6,
+        smallBlindCents: 75,
+        bigBlindCents: 150,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+    expect(room.state.smallBlindCents).toBe(75);
+    expect(room.state.bigBlindCents).toBe(150);
+  });
+
   it("joins table when buyInCents is provided", async () => {
     const client = makeClient("join_ok");
     const { room, dealer } = buildRoomWithDealerStub();

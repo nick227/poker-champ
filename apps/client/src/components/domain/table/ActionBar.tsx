@@ -9,6 +9,10 @@ import { DURATION } from "@/theme/animation";
 import { formatCents } from "@/lib/format";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { HeroStatus } from "./table.adapter";
+import { buildWagerActionPayload, resolvePrimaryWagerAction } from "./actionBar.logic";
+
+// ActionBar is a pure renderer of server-authoritative HeroActionOptions.
+// No poker rules live here.
 
 const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
   ACTIVE: "Waiting for your turn",
@@ -38,19 +42,24 @@ export function ActionBar({
   heroStatus,
   actionOptions,
   potCents = 0,
+  connectionStatus,
   onAction,
 }: {
   isMyTurn: boolean;
   heroStatus: HeroStatus;
   actionOptions?: HeroActionOptions;
   potCents?: number;
+  connectionStatus?: "CONNECTED" | "RECONNECTING" | "DISCONNECTED";
   onAction: ActionBarOnAction;
 }) {
-  const [betValue, setBetValue] = useState(0);
   const [betInput, setBetInput] = useState("0.00");
 
   const statusLabel = isMyTurn ? "Your turn" : HERO_STATUS_LABEL[heroStatus];
-  const showActions = isMyTurn && !!actionOptions;
+  const actionsEnabled = isMyTurn && !!actionOptions && connectionStatus === "CONNECTED";
+  const showActions = actionsEnabled;
+
+  const primaryWagerAction = resolvePrimaryWagerAction(actionOptions);
+  const canWager = !!primaryWagerAction;
 
   const foldLabel = "Fold";
   const checkCallLabel = actionOptions?.canCheck
@@ -68,7 +77,7 @@ export function ActionBar({
     showActions &&
     typeof betMin === "number" &&
     typeof betMax === "number" &&
-    (actionOptions?.canBet || actionOptions?.canRaise);
+    canWager;
 
   const submitWager = useCallback(
     (rawAmount: number) => {
@@ -79,12 +88,8 @@ export function ActionBar({
 
       // Clamp to server-authoritative bounds to avoid INVALID_ACTION / INSUFFICIENT_STACK noise.
       const clamped = Math.max(min, Math.min(rawAmount, max));
-      if (clamped >= max && actionOptions.canAllIn) {
-        onAction({ type: "ALL_IN" });
-        return;
-      }
-      if (actionOptions.canRaise) onAction({ type: "RAISE", amount: clamped });
-      else if (actionOptions.canBet) onAction({ type: "BET", amount: clamped });
+      const payload = buildWagerActionPayload(actionOptions, clamped);
+      if (payload) onAction(payload);
     },
     [actionOptions, onAction],
   );
@@ -97,27 +102,18 @@ export function ActionBar({
     [betMax, betMin],
   );
 
-  useEffect(() => {
-    if (betMin == null || betMax == null || betMax < betMin) return;
-    setBetValue((currentValue) => {
-      const next = Math.max(betMin, Math.min(currentValue || betMin, betMax));
-      setBetInput(formatInputFromCents(next));
-      return next;
-    });
-  }, [betMin, betMax]);
+  const parsedBetCents = parseInputToCents(betInput);
+  const clampedBetCents = clampToBounds(parsedBetCents);
 
   const normalizeBetInput = useCallback(() => {
-    const parsed = parseInputToCents(betInput);
-    const clamped = clampToBounds(parsed);
-    setBetValue(clamped);
+    const clamped = clampedBetCents;
     setBetInput(formatInputFromCents(clamped));
     return clamped;
-  }, [betInput, clampToBounds]);
+  }, [clampedBetCents]);
 
   const handleBetInputChange = useCallback((text: string) => {
     const sanitized = text.replace(/[^0-9.]/g, "");
     setBetInput(sanitized);
-    setBetValue(parseInputToCents(sanitized));
   }, []);
 
   const handleCheckCall = useCallback(() => {
@@ -132,7 +128,6 @@ export function ActionBar({
 
   const handleMin = useCallback(() => {
     if (betMin != null) {
-      setBetValue(betMin);
       setBetInput(formatInputFromCents(betMin));
     }
   }, [betMin]);
@@ -140,35 +135,39 @@ export function ActionBar({
   const handleHalfPot = useCallback(() => {
     const amount = Math.max(0, Math.floor(potCents / 2 / 100) * 100);
     const next = clampToBounds(amount);
-    setBetValue(next);
     setBetInput(formatInputFromCents(next));
   }, [clampToBounds, potCents]);
 
   const handlePot = useCallback(() => {
     const amount = Math.max(0, Math.floor(potCents / 100) * 100);
     const next = clampToBounds(amount);
-    setBetValue(next);
     setBetInput(formatInputFromCents(next));
   }, [clampToBounds, potCents]);
 
   const handleMax = useCallback(() => {
     if (betMax != null) {
-      setBetValue(betMax);
       setBetInput(formatInputFromCents(betMax));
     }
   }, [betMax]);
 
-  const enteredBelowMin = betMin != null && betValue < betMin;
-  const betRaiseDisabled = !(actionOptions?.canBet || actionOptions?.canRaise) || enteredBelowMin;
+  const handleAllIn = useCallback(() => {
+    if (actionOptions?.canAllIn) {
+      onAction({ type: "ALL_IN" });
+    }
+  }, [actionOptions, onAction]);
+
+  const enteredBelowMin = betMin != null && clampedBetCents < betMin;
+  const betRaiseDisabled = !canWager || enteredBelowMin;
   const hasBetBounds = betMin != null && betMax != null;
   const selectedWagerCents = hasBetBounds
-    ? clampToBounds(betValue > 0 ? betValue : betMin)
-    : Math.max(0, betValue);
-  const betRaiseVerb = actionOptions?.canRaise ? "Raise" : actionOptions?.canBet ? "Bet" : "Bet/Raise";
+    ? (clampedBetCents > 0 ? clampedBetCents : betMin)
+    : Math.max(0, clampedBetCents);
+  const betRaiseVerb = primaryWagerAction === "RAISE" ? "Raise" : primaryWagerAction === "BET" ? "Bet" : "Bet/Raise";
   const betRaiseLabel = `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`;
 
   return (
-    <FadeTransition visible={showActions} duration={DURATION.fast}>
+    <View className="relative">
+      <FadeTransition visible={showActions} duration={DURATION.fast}>
       <View className="ui-bottom-bar border-t border-border-subtle ui-p-4 ui-stack-3">
         <View className="ui-center py-1">
           <Text variant="label">{statusLabel}</Text>
@@ -180,21 +179,21 @@ export function ActionBar({
               title={foldLabel}
               onPress={() => onAction({ type: "FOLD" })}
               className="flex-1 min-w-0"
-              disabled={foldDisabled}
+              disabled={!actionsEnabled || foldDisabled}
             />
             <Button
               variant="ghost"
               title={checkCallLabel}
               onPress={handleCheckCall}
               className="flex-1 min-w-0"
-              disabled={checkCallDisabled}
+              disabled={!actionsEnabled || checkCallDisabled}
             />
             <Button
               variant="primary"
               title={betRaiseLabel}
               onPress={handleBetRaise}
               className="flex-1 min-w-0"
-              disabled={betRaiseDisabled}
+              disabled={!actionsEnabled || betRaiseDisabled}
             />
           </View>
           {canShowBetInput && betMin != null && betMax != null ? (
@@ -216,10 +215,18 @@ export function ActionBar({
             <ChipButton title="MIN" onPress={handleMin} />
             <ChipButton title="1/2" onPress={handleHalfPot} />
             <ChipButton title="POT" onPress={handlePot} />
-            <ChipButton title="ALL IN" onPress={handleMax} />
+            <ChipButton title="ALL IN" onPress={handleAllIn} />
           </View>
         </View>
       </View>
     </FadeTransition>
+    
+    {/* Connection Status Overlay */}
+    {connectionStatus === "RECONNECTING" && (
+      <View className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg">
+        <Text className="text-white text-center">Reconnecting...</Text>
+      </View>
+    )}
+    </View>
   );
 }

@@ -29,4 +29,7 @@ export class PlayerState extends Schema {
 
   /** Epoch millis deadline for reconnect grace. 0 means none. */
   @type("number") disconnectDeadlineTs: number = 0;
+
+  /** True when player joined mid-hand; cleared on next startHand so they are dealt in next hand only. */
+  @type("boolean") sittingOutUntilNextHand: boolean = false;
 }

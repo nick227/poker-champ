@@ -8,8 +8,8 @@ export type EquityResult = {
 export function makeEquityCacheKey(handId: string, street: string, board: string[], players: { id: string; cards: string[] }[]): string {
   // Order by id for determinism
   const ordered = [...players].sort((a, b) => a.id.localeCompare(b.id));
-  const holes = ordered.map(p => `${p.id}:${p.cards.join("")}`).join("|");
-  return `${handId}::${street}::${board.join("")}::${holes}`;
+  const holes = ordered.map(p => `${p.id}:${p.cards.join(",")}`).join("|");
+  return [street, board.join(","), holes].join("::");
 }
 
 /**

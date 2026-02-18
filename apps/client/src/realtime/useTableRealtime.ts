@@ -39,9 +39,22 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
     joinOptions,
     onMessage: ({ type, payload }) => {
       if (type === "TABLE_SNAPSHOT") {
-        const snap = payload as { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number } | undefined;
-        debugLog("INBOUND", { tableId, type, reason: snap?.reason, handId: snap?.hand?.handId, street: snap?.hand?.street, actionId: snap?.actionId, version: snap?.version });
-      } else if (type === "ERROR" || type === "WELCOME" || type === "SESSION_RESTORED" || type === "RECONNECTING" || type === "DISCONNECTED" || type === "CONNECTED") {
+        const snap = payload as { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number; snapshotSeq?: number } | undefined;
+        debugLog("INBOUND", { tableId, type, reason: snap?.reason, handId: snap?.hand?.handId, street: snap?.hand?.street, actionId: snap?.actionId, version: snap?.version, snapshotSeq: snap?.snapshotSeq });
+        
+        // Log actionId correlation for diagnostics
+        if (snap?.actionId) {
+          console.log(`[TABLE_RT] Action completed: ${snap.actionId} for table ${tableId}`);
+        }
+      } else if (type === "ERROR") {
+        const error = payload as any;
+        debugLog("INBOUND", { tableId, type, code: error?.code, message: error?.message, actionId: error?.actionId });
+        
+        // Log actionId error correlation for diagnostics
+        if (error?.actionId) {
+          console.error(`[TABLE_RT] Action failed: ${error.actionId} for table ${tableId}`, error.message || error.code);
+        }
+      } else if (type === "WELCOME" || type === "SESSION_RESTORED" || type === "RECONNECTING" || type === "DISCONNECTED" || type === "CONNECTED") {
         debugLog("INBOUND", { tableId, type, payload });
       }
       dispatchRealtimeChannelMessage("table", type, payload, {
@@ -50,7 +63,7 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
           storeRegistry.table().setSnapshot(targetTableId, snapshot);
         },
         setStatus: (status) => {
-          storeRegistry.table().setStatus(tableId, status);
+          storeRegistry.table().setConnectionStatus(tableId, status as "CONNECTED" | "RECONNECTING" | "DISCONNECTED");
           debugLog("STATUS", { tableId, status });
         },
         onError: (message) => {

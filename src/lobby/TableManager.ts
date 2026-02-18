@@ -24,6 +24,7 @@ export async function buildTableConfig(input: {
   visibility: "PUBLIC" | "PRIVATE";
   password?: string;
   speed: "normal" | "fast";
+  creatorId?: string;
 }): Promise<TableConfig> {
   const tableId = makeTableId();
   const createdAt = Date.now();
@@ -44,5 +45,6 @@ export async function buildTableConfig(input: {
     speed: input.speed,
     passwordHash,
     createdAt,
+    creatorId: input.creatorId,
   };
 }

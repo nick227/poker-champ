@@ -33,6 +33,18 @@ export function onNewBetLevel(state: PokerState, actorId: string) {
 }
 
 /**
+ * After a fold (or any change that removes an ACTIVE/ALL_IN), set roundCurrentBetCents to the
+ * max roundBetCents over remaining ACTIVE and ALL_IN so the state invariant holds.
+ */
+export function syncRoundCurrentBetCents(state: PokerState): void {
+  let max = 0;
+  for (const p of state.playersById.values()) {
+    if (eligibleForShowdown(p)) max = Math.max(max, p.roundBetCents);
+  }
+  state.roundCurrentBetCents = max;
+}
+
+/**
  * Round begins: players who can act must act at least once, except those who are already all-in/folded/out.
  */
 export function beginRound(state: PokerState) {
@@ -67,6 +79,28 @@ export function noFurtherBettingPossible(state: PokerState): boolean {
   const live = [...state.playersById.values()].filter(p => p.status !== "OUT");
   const contenders = live.filter(p => p.status !== "FOLDED" && p.status !== "ABANDONED");
   const active = contenders.filter(p => p.status === "ACTIVE");
-  // If nobody is ACTIVE, then everyone left is ALL_IN => no further actions.
-  return active.length === 0 && contenders.length >= 1;
+  const allIn = contenders.filter(p => p.status === "ALL_IN");
+  // If nobody is ACTIVE, everyone left is all-in/final.
+  if (active.length === 0 && contenders.length >= 1) return true;
+  // If exactly one player can still act and at least one contender is all-in,
+  // no further betting is possible only once the active player has no pending action
+  // and has matched the current level.
+  if (active.length === 1 && allIn.length >= 1) {
+    const onlyActive = active[0]!;
+    const hasPendingDecision = onlyActive.needsAction || onlyActive.roundBetCents < state.roundCurrentBetCents;
+    if (!hasPendingDecision) return true;
+  }
+  return false;
+}
+
+/**
+ * True when every remaining contender is all-in (or no longer able to bet).
+ * This is the canonical "board runout only" trigger.
+ */
+export function allRemainingPlayersAllInOrFolded(state: PokerState): boolean {
+  const contenders = [...state.playersById.values()].filter(
+    (p) => p.status !== "OUT" && p.status !== "FOLDED" && p.status !== "ABANDONED",
+  );
+  if (contenders.length < 2) return false;
+  return contenders.every((p) => p.status === "ALL_IN");
 }

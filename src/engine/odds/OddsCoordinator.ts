@@ -75,4 +75,27 @@ export class OddsCoordinator {
       this.inFlight.delete(key);
     }
   }
+
+  /**
+   * Synchronous variant used by snapshot-time compute paths.
+   * Keeps the same cache keying and cache reuse behavior.
+   */
+  getEquitySync(params: {
+    handId: string;
+    street: string;
+    board: string[];
+    players: { id: string; cards: string[] }[];
+  }): { key: string; equity: Equity } {
+    const { handId, street, board, players } = params;
+    const key = makeEquityCacheKey(handId, street, board, players);
+
+    const cached = this.cache.get(key);
+    if (cached) return { key, equity: cached };
+
+    const hands = players.map((p) => p.cards);
+    const equity = calcMultiwayEquity(hands, board);
+    this.cache.set(key, equity);
+    this.lastComputedAt.set(key, Date.now());
+    return { key, equity };
+  }
 }
