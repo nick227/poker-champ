@@ -36,6 +36,7 @@ type TableConfig = {
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
+  creatorId?: string;
 };
 
 type PokerRoomMetadata = {
@@ -51,6 +52,8 @@ type PokerRoomMetadata = {
   speed: "normal" | "fast";
   createdAt: number;
   runningSince?: number;
+  creatorId?: string;
+  humanCount?: number;
 };
 
 export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMetadata }> {
@@ -115,6 +118,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     });
 
     // Lobby metadata
+    const humanCount = this.computeHumanCount();
     void this.setMetadata({
       tableId: this.state.tableId,
       name: this.state.tableName,
@@ -128,6 +132,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       speed: cfg?.speed ?? "normal",
       createdAt: this.state.createdAtTs,
       runningSince: undefined,
+      creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
+      humanCount,
     });
 
     this.onMessage("ADD_BOT", async (client, message) => {
@@ -145,6 +151,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         const botId = newBotId();
         await this.dealer.addBot(botId, parsed.data.name, parsed.data.buyInCents);
+        this.updateHumanCountMetadata();
       } catch (err: unknown) {
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "ADD_BOT_FAILED", message: e?.message ?? String(err) });
@@ -164,6 +171,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
       try {
         await this.dealer.removeBot(parsed.data.botId);
+        this.updateHumanCountMetadata();
       } catch (err: unknown) {
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "REMOVE_BOT_FAILED", message: e?.message ?? String(err) });
@@ -177,7 +185,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return;
       }
 
-      const parsed = ActionPayloadSchema.safeParse(envelope.data.payload);
+      const normalized = this.normalizeActionPayload(envelope.data.payload);
+      if (!normalized) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid ACTION message format." });
+        return;
+      }
+
+      const parsed = ActionPayloadSchema.safeParse(normalized.payload);
       if (!parsed.success) {
         this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
         return;
@@ -196,7 +210,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           },
           "POKER_ACTION_ATTEMPT",
         );
-        await this.dealer.handleAction(userId, parsed.data);
+        if (normalized.actionId) {
+          await this.dealer.handleAction(userId, parsed.data, normalized.actionId);
+        } else {
+          await this.dealer.handleAction(userId, parsed.data);
+        }
         logger.info(
           {
             roomId: this.roomId,
@@ -262,8 +280,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
 
     const runningSince = state.runningSinceTs || undefined;
-    if (this.metadata?.runningSince !== runningSince) {
-      void this.setMetadata({ ...this.metadata, runningSince });
+    const current = this.getMetadataSafe();
+    if (current.runningSince !== runningSince) {
+      void this.setMetadata({ ...current, runningSince });
     }
   }
 
@@ -316,6 +335,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         if (persisted) {
           try {
             await this.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
+            this.updateHumanCountMetadata();
             this.dealer.bindClient(userId, client);
             this.userIdBySessionId.set(client.sessionId, userId);
             this.dealer.markReconnected(userId);
@@ -383,6 +403,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.dealer.bindClient(userId, client);
         this.userIdBySessionId.set(client.sessionId, userId);
         await this.dealer.addPlayer(userId, name, buyInCents);
+        this.updateHumanCountMetadata();
         if (this.persistentSeatsEnabled) {
           const seat = this.findPlayerSeat(userId);
           const stackCents = this.getPlayerStackCents(userId);
@@ -433,16 +454,16 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     const consented = code === CloseCode.CONSENTED;
     if (consented) {
+      await this.dealer.handleConsentedLeave(userId);
+      this.updateHumanCountMetadata();
       if (this.persistentSeatsEnabled) {
-        const stackCents = this.getPlayerStackCents(userId);
         await TableSeatSessionService.markLeft({
           tableId: this.state.tableId,
           userId,
-          stackCentsSnapshot: stackCents,
+          stackCentsSnapshot: 0,
           handIdSnapshot: this.state.handId || undefined,
         });
       }
-      await this.dealer.removePlayer(userId);
       return;
     }
 
@@ -506,6 +527,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       },
       "POKER_ROOM_DISPOSED",
     );
+    this.dealer.stopDisconnectSweep();
     this.unbindSessionEvent?.();
   }
 
@@ -536,6 +558,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       if (player.id === userId) return player.stackCents;
     }
     return 0;
+  }
+
+  private normalizeActionPayload(payload: unknown): { payload: unknown; actionId?: string } | null {
+    if (!payload || typeof payload !== "object") {
+      return { payload };
+    }
+    const candidate = payload as Record<string, unknown>;
+    if (candidate.payload !== undefined) {
+      return {
+        payload: candidate.payload,
+        actionId: typeof candidate.actionId === "string" ? candidate.actionId : undefined,
+      };
+    }
+    return { payload };
   }
 
   private async withJoinLock(key: string, fn: () => Promise<void>): Promise<void> {
@@ -576,6 +612,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         }
         try {
           await this.dealer.removePlayer(userId);
+          this.updateHumanCountMetadata();
         } catch (err: any) {
           logger.warn(
             {
@@ -633,6 +670,34 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return false;
   }
 
+  private computeHumanCount(): number {
+    let n = 0;
+    for (const p of this.state.playersById.values()) {
+      if (p.kind !== "BOT") n++;
+    }
+    return n;
+  }
+
+  private getMetadataSafe(): Partial<PokerRoomMetadata> {
+    try {
+      return this.metadata ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  private updateHumanCountMetadata(): void {
+    const humanCount = this.computeHumanCount();
+    const current = this.getMetadataSafe();
+    if (current.humanCount !== humanCount) {
+      void this.setMetadata({ ...current, humanCount });
+    }
+  }
+
+  requestDisconnect(): void {
+    this.disconnect();
+  }
+
   private async bootstrapPersistentSeatRecovery(): Promise<void> {
     if (!this.persistentSeatsEnabled) return;
     const retentionHours = getSeatRetentionHours();
@@ -679,6 +744,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           session.stackCentsSnapshot,
           { connected: false, sittingOut: true },
         );
+        this.updateHumanCountMetadata();
       } catch (err: any) {
         logger.warn(
           {
@@ -701,6 +767,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       case "BOT_ACTION":
         return "ACTION_ACCEPTED";
       case "AUTO_TRANSITION":
+      case "RUNOUT_STAGE":
         return "STREET_TRANSITION";
       case "SHOWDOWN":
         return "SHOWDOWN";

@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.get("/tables", async (_req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
-  const tables = rooms.map((r: any) => {
+  const tables = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
     const metadata = r.metadata ?? {};
     return {
       tableId: metadata.tableId ?? r.roomId,
@@ -25,6 +25,8 @@ router.get("/tables", async (_req, res) => {
       speed: metadata.speed ?? "normal",
       runningSince: metadata.runningSince ?? null,
       createdAt: metadata.createdAt ?? Date.now(),
+      creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
+      humanCount: typeof metadata.humanCount === "number" ? metadata.humanCount : undefined,
     };
   });
   res.json({ tables });
@@ -37,7 +39,9 @@ router.post("/tables", requireAuth, async (req, res) => {
     return;
   }
 
-  const config = await buildTableConfig(parsed.data);
+  const { user } = req;
+  const creatorId = user?.id != null ? String(user.id) : undefined;
+  const config = await buildTableConfig({ ...parsed.data, creatorId });
   const created = await matchMaker.createRoom("poker", { tableConfig: config });
   const roomId =
     typeof created === "string"
@@ -49,14 +53,13 @@ router.post("/tables", requireAuth, async (req, res) => {
     return;
   }
 
-  // Push latest table list to all active lobby rooms so other users see new tables immediately.
   try {
     const lobbyRooms = await matchMaker.query({ name: "lobby" });
     await Promise.allSettled(
-      lobbyRooms.map(async (room) => {
-        const lobbyRoomId = (room as any)?.roomId;
+      lobbyRooms.map(async (r: { roomId?: string }) => {
+        const lobbyRoomId = r.roomId;
         if (!lobbyRoomId) return;
-        await matchMaker.remoteRoomCall<any>(lobbyRoomId, "pushTableListUpdate" as any, [], 5000);
+        await matchMaker.remoteRoomCall(lobbyRoomId, "pushTableListUpdate" as never, [], 5000);
       }),
     );
   } catch (err) {
@@ -64,6 +67,61 @@ router.post("/tables", requireAuth, async (req, res) => {
   }
 
   res.status(201).json({ tableId: config.tableId, roomId });
+});
+
+router.delete("/tables/:tableId", requireAuth, async (req, res) => {
+  const { params: { tableId }, user } = req;
+  const userId = user?.id;
+  if (!tableId || !userId) {
+    res.status(400).json({ error: "Missing tableId or auth" });
+    return;
+  }
+
+  type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string; creatorId?: string; humanCount?: number } };
+  const rooms = await matchMaker.query({ name: "poker" }) as PokerRoomRef[];
+  const room = rooms.find(
+    (r) => (r.metadata?.tableId ?? r.roomId) === tableId
+  );
+
+  if (!room?.roomId) {
+    res.status(404).json({ error: "Table not found or already closed" });
+    return;
+  }
+
+  const creatorId = room.metadata?.creatorId;
+  if (!creatorId || String(creatorId) !== String(userId)) {
+    res.status(403).json({ error: "Only the table creator can delete this table" });
+    return;
+  }
+
+  const humanCount = room.metadata?.humanCount ?? 0;
+  if (humanCount !== 0) {
+    res.status(409).json({ error: "Table can only be deleted when no human players are seated" });
+    return;
+  }
+
+  try {
+    await matchMaker.remoteRoomCall(room.roomId, "requestDisconnect", [], 5000);
+  } catch (err) {
+    logger.warn({ err, tableId, roomId: room.roomId }, "requestDisconnect failed");
+    res.status(500).json({ error: "Failed to close table" });
+    return;
+  }
+
+  try {
+    const lobbyRooms = await matchMaker.query({ name: "lobby" });
+    await Promise.allSettled(
+      lobbyRooms.map(async (r: { roomId?: string }) => {
+        const lobbyRoomId = r.roomId;
+        if (!lobbyRoomId) return;
+        await matchMaker.remoteRoomCall(lobbyRoomId, "pushTableListUpdate" as never, [], 5000);
+      }),
+    );
+  } catch (e) {
+    logger.warn({ err: e, tableId }, "Failed to push lobby table list update after table delete");
+  }
+
+  res.status(204).send();
 });
 
 export const lobbyRouter = router;

@@ -8,6 +8,8 @@ export type LobbyTableRow = {
   seats: number;
   minBuyInCents: number;
   maxBuyInCents: number;
+  creatorId?: string;
+  humanCount?: number;
 };
 
 const DEFAULT_MIN = 2000;
@@ -22,6 +24,7 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
   const sb = t.smallBlindCents as number | undefined;
   const bb = t.bigBlindCents as number | undefined;
   const blinds = sb != null && bb != null ? `${sb}/${bb}` : undefined;
+  const humanCount = typeof t.humanCount === "number" ? t.humanCount : undefined;
   return {
     id,
     tableId,
@@ -32,5 +35,12 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
     seats,
     minBuyInCents: Number(t.minBuyInCents) || DEFAULT_MIN,
     maxBuyInCents: Number(t.maxBuyInCents) || DEFAULT_MAX,
+    creatorId:
+      typeof t.creatorId === "string" && t.creatorId.length > 0
+        ? t.creatorId
+        : typeof t.creatorId === "number"
+          ? String(t.creatorId)
+          : undefined,
+    humanCount,
   };
 }
