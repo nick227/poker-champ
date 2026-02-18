@@ -7,7 +7,7 @@ const classesByVariant: Record<Variant, string> = {
   body: "text-text text-base",
   h1: "text-text text-3xl font-bold",
   h2: "text-text text-xl font-semibold",
-  label: "text-muted text-xs uppercase tracking-wide mb-4",
+  label: "text-muted text-xs uppercase tracking-wide",
   muted: "text-muted text-sm",
   danger: "text-danger text-sm",
   caption: "text-text text-xs",

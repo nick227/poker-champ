@@ -114,7 +114,7 @@ export function OpponentStrip({
         const statusLabel = getStatusLabel(o.status);
         const actionText = o.actionLabel ?? statusLabel ?? "-";
         const isWinner = winnerName === o.name;
-        const content = (
+        const tile = (
           <View
             collapsable={false}
             className={`overflow-hidden border border-border-subtle ${o.isActive ? "bg-brand-soft/15" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
@@ -176,11 +176,6 @@ export function OpponentStrip({
               </View>
               <View style={{ flex: 1, minWidth: 0, flexDirection: "column", justifyContent: "space-between", paddingVertical: 6, gap: 4 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  {o.isDealer ? (
-                    <View style={{ width: 16, height: 16, overflow: "hidden", justifyContent: "center", alignItems: "center" }}>
-                      <DealerButton size="tiny" />
-                    </View>
-                  ) : null}
                   <Text
                     numberOfLines={1}
                     ellipsizeMode="tail"
@@ -221,6 +216,25 @@ export function OpponentStrip({
                 </View>
               </View>
             </View>
+          </View>
+        );
+
+        const content = (
+          <View style={{ position: "relative" }} collapsable={false}>
+            {tile}
+            {o.isDealer ? (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: -12,
+                  left: "50%",
+                  marginLeft: -12,
+                  zIndex: 1,
+                }}
+              >
+                <DealerButton size="small" />
+              </View>
+            ) : null}
           </View>
         );
 
