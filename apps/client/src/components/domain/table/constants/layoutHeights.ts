@@ -6,7 +6,8 @@
 
 export const LAYOUT_TITLE_HEIGHT = 80;
 export const LAYOUT_TOP_BAR_HEIGHT = 52;
-export const GAME_AREA_HEIGHT = 210;
+/** Includes felt (community + pot); +20 for bottom spacing so pot value is not cut off. */
+export const GAME_AREA_HEIGHT = 230;
 
 export {
   OPPONENT_STRIP_HEIGHT,

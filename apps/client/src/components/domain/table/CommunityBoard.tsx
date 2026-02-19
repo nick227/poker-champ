@@ -5,9 +5,10 @@ import { PotChipStack } from "./PotChipStack";
 type Card = { rank: string; suit: string } | null;
 
 const CARD_GAP = 10;
-
 const CARD_ROW_HEIGHT = 68;
 const POT_ROW_MIN_HEIGHT = 44;
+/** Extra bottom padding so pot value is not cut off by felt edge. */
+const FELT_BOTTOM_PADDING = 20;
 
 export function CommunityBoard({ cards, potCents }: { cards: Card[]; potCents: number }) {
   return (
@@ -16,7 +17,11 @@ export function CommunityBoard({ cards, potCents }: { cards: Card[]; potCents: n
       className="bg-felt mx-3 my-2 rounded-table border border-black/20"
       style={{ flexDirection: "column" }}
     >
-      <View collapsable={false} className="px-4 py-5 ui-stack-4" style={{ flexDirection: "column" }}>
+      <View
+        collapsable={false}
+        className="px-4 py-5 ui-stack-4"
+        style={{ flexDirection: "column", paddingBottom: FELT_BOTTOM_PADDING }}
+      >
         <View
           collapsable={false}
           className="ui-row ui-center"

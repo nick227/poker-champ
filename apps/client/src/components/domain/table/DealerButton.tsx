@@ -15,7 +15,7 @@ export function DealerButton({ size = "small" }: { size?: DealerSize }) {
     <View
       collapsable={false}
       style={{ width: px, height: px, borderRadius: '50%', justifyContent: "center", alignItems: "center" }}
-      className="bg-blue-500"
+      className="dealer-button bg-blue-500"
       accessibilityLabel="Dealer button"
       accessibilityRole="button"
     >

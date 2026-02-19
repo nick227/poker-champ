@@ -135,4 +135,8 @@ body {
 
 #root .bg-red-500 {
   background-color: #ef4444 !important;
+}
+
+#root .dealer-button {
+  min-height: 0px !important;
 }`;
