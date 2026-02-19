@@ -123,8 +123,6 @@ body {
   color: hsl(var(--c-text));
   border: none;
   border-radius: var(--r-full);
-  min-height: 48px;
-  padding: 0 var(--s-4);
   font-weight: 500;
 }
 

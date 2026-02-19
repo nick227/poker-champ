@@ -58,7 +58,7 @@ const realtimeChannelByScope: ScopeRegistryMap = {
       context.setStatus?.("CONNECTED");
     },
     SESSION_RESTORED: (_payload, context) => {
-      context.setStatus?.("RESTORED");
+      context.setStatus?.("CONNECTED");
     },
     TABLE_SNAPSHOT: (payload, context) => {
       if (!context.tableId) return;

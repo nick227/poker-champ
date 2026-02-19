@@ -150,6 +150,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to add a bot." });
         return;
       }
+      if (!this.isActiveBoundClient(userId, client)) return;
       try {
         const botId = newBotId();
         await this.dealer.addBot(botId, parsed.data.name, parsed.data.buyInCents);
@@ -171,6 +172,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to remove a bot." });
         return;
       }
+      if (!this.isActiveBoundClient(userId, client)) return;
       try {
         await this.dealer.removeBot(parsed.data.botId);
         this.updateHumanCountMetadata();
@@ -191,6 +193,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be in the room to chat." });
         return;
       }
+      if (!this.isActiveBoundClient(userId, client)) return;
       const player = this.getPlayerByUserId(userId);
       if (!player || player.kind === "BOT") {
         this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to chat." });
@@ -229,6 +232,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         const userId = this.userIdBySessionId.get(client.sessionId);
         if (!userId) throw new PokerError("BAD_STATE", "Session is not bound to a seated user.");
+        if (!this.isActiveBoundClient(userId, client)) return;
         logger.info(
           {
             roomId: this.roomId,
@@ -339,8 +343,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
       // Server-authoritative rebind: if seat already exists for this user, restore session.
       if (this.dealer.hasPlayer(userId)) {
-        this.dealer.bindClient(userId, client);
-        this.userIdBySessionId.set(client.sessionId, userId);
+        this.rebindClientExclusive(userId, client);
         this.dealer.markReconnected(userId);
         if (this.persistentSeatsEnabled) {
           const stackCents = this.getPlayerStackCents(userId);
@@ -365,8 +368,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           try {
             await this.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
             this.updateHumanCountMetadata();
-            this.dealer.bindClient(userId, client);
-            this.userIdBySessionId.set(client.sessionId, userId);
+            this.rebindClientExclusive(userId, client);
             this.dealer.markReconnected(userId);
             await TableSeatSessionService.touchConnected({
               tableId: this.state.tableId,
@@ -429,8 +431,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           throw new PokerError("BAD_STATE", "User already seated at this table.");
         }
 
-        this.dealer.bindClient(userId, client);
-        this.userIdBySessionId.set(client.sessionId, userId);
+        this.rebindClientExclusive(userId, client);
         await this.dealer.addPlayer(userId, name, buyInCents);
         this.updateHumanCountMetadata();
         if (this.persistentSeatsEnabled) {
@@ -479,6 +480,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     if (!userId) return;
 
+    const boundClient = this.getBoundClient(userId);
+    if (boundClient && boundClient.sessionId !== client.sessionId) {
+      logger.info(
+        { roomId: this.roomId, tableId: this.state.tableId, userId, sessionId: client.sessionId },
+        "POKER_LEAVE_STALE_SESSION_IGNORED",
+      );
+      return;
+    }
+
     this.dealer.unbindClient(userId);
 
     const consented = code === CloseCode.CONSENTED;
@@ -510,8 +520,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     try {
       const reconnected = await this.allowReconnection(client, 60);
-      this.userIdBySessionId.set(reconnected.sessionId, userId);
-      this.dealer.bindClient(userId, reconnected);
+      this.rebindClientExclusive(userId, reconnected);
       this.dealer.markReconnected(userId);
       if (this.persistentSeatsEnabled) {
         const stackCents = this.getPlayerStackCents(userId);
@@ -534,7 +543,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   async kickUserByAdmin(userId: string, reason: string = "BANNED") {
-    const client = this.dealer.getClient(userId);
+    const client = this.getBoundClient(userId);
     if (client) {
       try {
         this.sendTableMessage(client, "ERROR", { code: "KICKED", message: reason });
@@ -594,6 +603,31 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       if (player.id === userId) return player.stackCents;
     }
     return 0;
+  }
+
+  private rebindClientExclusive(userId: string, client: Client): void {
+    const oldClient = this.getBoundClient(userId);
+    if (oldClient && oldClient.sessionId !== client.sessionId) {
+      try {
+        this.sendTableMessage(oldClient, "ERROR", { code: "SESSION_REPLACED", message: "Session replaced by a newer connection." });
+      } catch {}
+      try {
+        oldClient.leave(4000);
+      } catch {}
+    }
+    this.dealer.bindClient(userId, client);
+    this.userIdBySessionId.set(client.sessionId, userId);
+  }
+
+  private getBoundClient(userId: string): Client | undefined {
+    const dealerAny = this.dealer as unknown as { getClient?: (id: string) => Client | undefined };
+    if (typeof dealerAny.getClient !== "function") return undefined;
+    return dealerAny.getClient(userId);
+  }
+
+  private isActiveBoundClient(userId: string, client: Client): boolean {
+    const boundClient = this.getBoundClient(userId);
+    return !boundClient || boundClient.sessionId === client.sessionId;
   }
 
   private normalizeActionPayload(payload: unknown): { payload: unknown; actionId?: string } | null {

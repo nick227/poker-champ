@@ -21,13 +21,11 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
   };
   const joinOptions = useMemo(
     () =>
-      hasValidBuyIn
-        ? ({
-            tableId,
-            buyInCents: Number(buyInCents),
-            ...(password ? { password } : {}),
-          } as const)
-        : undefined,
+      ({
+        tableId,
+        ...(hasValidBuyIn ? { buyInCents: Number(buyInCents) } : {}),
+        ...(password ? { password } : {}),
+      }) as const,
     [tableId, buyInCents, hasValidBuyIn, password],
   );
 
@@ -38,6 +36,12 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
     authHydrated,
     joinOptions,
     onMessage: ({ type, payload }) => {
+      if (type === "WELCOME") {
+        const p = payload as { roomId?: string } | undefined;
+        if (typeof p?.roomId === "string" && p.roomId.length > 0) {
+          storeRegistry.tables().setRoomForTable(tableId, p.roomId);
+        }
+      }
       if (type === "TABLE_SNAPSHOT") {
         const snap = payload as { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number; snapshotSeq?: number } | undefined;
         debugLog("INBOUND", { tableId, type, reason: snap?.reason, handId: snap?.hand?.handId, street: snap?.hand?.street, actionId: snap?.actionId, version: snap?.version, snapshotSeq: snap?.snapshotSeq });
@@ -82,6 +86,9 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
   });
 
   useEffect(() => {
+    if (roomId && roomId.length > 0) {
+      storeRegistry.tables().setRoomForTable(tableId, roomId);
+    }
     debugLog("CONNECT_CONFIG", {
       tableId,
       roomId: roomId ?? tableId,

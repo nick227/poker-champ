@@ -70,6 +70,8 @@ export default function TableScreen() {
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const closeTable = storeRegistry.use.tables((s) => s.closeTable);
   const setActive = storeRegistry.use.tables((s) => s.setActive);
+  const persistedRoomId = storeRegistry.use.tables((s) => (id ? s.roomIdByTableId[String(id)] : undefined));
+  const persistedBuyInCents = storeRegistry.use.tables((s) => (id ? s.lastBuyInCentsByTableId[String(id)] : undefined));
   const dispatchTableAction = storeRegistry.use.tables((s) => s.dispatchTableAction);
   const dispatchSendChat = storeRegistry.use.tables((s) => s.dispatchSendChat);
   const dispatchAddBot = storeRegistry.use.tables((s) => s.dispatchAddBot);
@@ -219,23 +221,24 @@ export default function TableScreen() {
     if (routeBuyInCents) return routeBuyInCents;
     const persisted = joinState?.buyInCents;
     if (Number.isInteger(persisted) && Number(persisted) > 0) return Number(persisted);
+    if (Number.isInteger(persistedBuyInCents) && Number(persistedBuyInCents) > 0) return Number(persistedBuyInCents);
     const table = lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)).find((t) => t.id === tableId);
     const min = table?.minBuyInCents;
     return min && min > 0 ? min : undefined;
-  }, [routeBuyInCents, joinState?.buyInCents, lobbyTables, tableId]);
+  }, [routeBuyInCents, joinState?.buyInCents, persistedBuyInCents, lobbyTables, tableId]);
 
   const realtimeRoomId = useMemo(() => {
+    if (persistedRoomId && persistedRoomId.length > 0) return persistedRoomId;
     const byRoomId = lobbyTables.find((t) => String((t as any)?.roomId ?? "") === tableId);
     if (byRoomId) return tableId;
     const byTableId = lobbyTables.find((t) => String((t as any)?.tableId ?? "") === tableId);
     const mappedRoomId = (byTableId as any)?.roomId;
     if (typeof mappedRoomId === "string" && mappedRoomId.length > 0) return mappedRoomId;
     return tableId;
-  }, [lobbyTables, tableId]);
+  }, [persistedRoomId, lobbyTables, tableId]);
 
   const hasValidBuyIn = Number.isInteger(buyInCents) && Number(buyInCents) > 0;
-  const shouldConnectRealtime = Boolean(snapshot) || hasValidBuyIn;
-  const canConnectWithAuth = authHydrated && Boolean(authToken);
+  const shouldConnectRealtime = authHydrated && Boolean(authToken) && Boolean(tableId);
   const tableNextPath = useMemo(
     () => tablePath(tableId, routeBuyInCents ? { buyInCents: routeBuyInCents } : undefined),
     [tableId, routeBuyInCents],
@@ -269,7 +272,7 @@ export default function TableScreen() {
     tableId,
     roomId: realtimeRoomId,
     buyInCents,
-    enabled: shouldConnectRealtime && canConnectWithAuth,
+    enabled: shouldConnectRealtime,
     onError: (message) => {
       console.log("TABLE_REALTIME_ERROR", message);
     },
