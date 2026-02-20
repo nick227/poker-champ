@@ -41,8 +41,12 @@ export class PlayerLifecycleService {
   }) {}
 
   async addPlayer(userId: string, name: string, buyInCents: number): Promise<PlayerLifecyclePlan[]> {
+    logger.info({ userId, buyInCents }, 'addPlayer called');
     const plans: PlayerLifecyclePlan[] = [];
-    if (this.deps.state.playersById.has(userId)) return plans;
+    if (this.deps.state.playersById.has(userId)) {
+      logger.info({ userId }, 'addPlayer early return - player already exists');
+      return plans;
+    }
 
     const seat = findOpenSeat(this.deps.state);
     if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
@@ -97,6 +101,28 @@ export class PlayerLifecycleService {
       plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     }
     maybeAssertStateInvariants(this.deps.state);
+    return plans;
+  }
+
+  /**
+   * Add chips to an already-seated player (rebuy). Caller must have already run
+   * CashierService.processCashGameBuyIn so ledger is updated; this only mutates in-memory state.
+   */
+  async addChipsToSeatedPlayer(userId: string, amountCents: number): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    const player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+    this.assertValidBuyIn(amountCents);
+    player.stackCents += amountCents;
+    if (player.status === "OUT" || player.status === "ABANDONED") {
+      player.sittingOutUntilNextHand = false;
+      if (this.deps.state.street === "WAITING") {
+        player.status = "ACTIVE";
+      }
+    }
+    await this.deps.ensurePlayerPersistence(player);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    logger.info({ userId, amountCents, newStackCents: player.stackCents }, "rebuy applied");
     return plans;
   }
 
@@ -180,7 +206,15 @@ export class PlayerLifecycleService {
     this.ensureToActHasNeedsActionIfNeeded(seat, botId);
 
     if (this.deps.persistence.enabled && this.deps.persistence.handHistory) {
-      await this.deps.persistence.handHistory.ensureTableAndPlayers([{ id: player.id, name: player.name, seat: player.seat }]);
+      const roster = [...this.deps.state.playersById.values()]
+        .filter((pl) => pl.seat >= 0)
+        .map((pl) => ({
+          id: pl.id,
+          name: pl.name,
+          seat: pl.seat,
+          userId: pl.kind === "HUMAN" ? pl.userId || pl.id : null,
+        }));
+      await this.deps.persistence.handHistory.ensureTableAndPlayers(roster);
     }
 
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
@@ -397,7 +431,15 @@ export class PlayerLifecycleService {
   }
 
   private syncBettingStateAfterRemoval(): void {
-    if (this.deps.state.street === "WAITING") return;
+    if (this.deps.state.street === "WAITING") {
+      // In WAITING we only need monotonic safety: roundCurrentBet must never exceed any seat roundBet.
+      let maxRoundBet = 0;
+      for (const p of this.deps.state.playersById.values()) {
+        maxRoundBet = Math.max(maxRoundBet, p.roundBetCents);
+      }
+      this.deps.state.roundCurrentBetCents = maxRoundBet;
+      return;
+    }
     syncRoundCurrentBetCents(this.deps.state);
   }
 }

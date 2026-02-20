@@ -2,22 +2,121 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { getPrisma } from "../db/prisma.js";
+import { ReplayFrameService } from "../engine/persistence/ReplayFrameService.js";
+import { logger } from "../lib/logger.js";
 
 const router = express.Router();
 
 const HandsQuerySchema = z.object({
   cursor: z.string().optional(),
-  limit: z.string().transform(Number).pipe(z.number().min(1).max(100)).default("50"),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 const HandIdSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1).max(191),
 });
 
 // Feature flag for learning reveal mode
 const ENABLE_LEARNING_REVEAL = process.env.ENABLE_LEARNING_REVEAL === "true";
+const HISTORY_CURSOR_SEPARATOR = "::";
 
 router.use(requireAuth);
+
+function encodeHistoryCursor(hand: { createdAt: Date; id: string }): string {
+  return `${hand.createdAt.toISOString()}${HISTORY_CURSOR_SEPARATOR}${hand.id}`;
+}
+
+async function decodeHistoryCursor(
+  cursor: string | undefined,
+): Promise<{ createdAt: Date; id: string } | null> {
+  if (!cursor) return null;
+
+  if (cursor.includes(HISTORY_CURSOR_SEPARATOR)) {
+    const [createdAtIso, id] = cursor.split(HISTORY_CURSOR_SEPARATOR);
+    if (!createdAtIso || !id) return null;
+    const createdAt = new Date(createdAtIso);
+    if (Number.isNaN(createdAt.getTime())) return null;
+    return { createdAt, id };
+  }
+
+  // Backward compatibility for legacy id-only cursors.
+  const prisma = getPrisma();
+  const row = await prisma.hand.findUnique({
+    where: { id: cursor },
+    select: { id: true, createdAt: true },
+  });
+  if (!row) return null;
+  return { id: row.id, createdAt: row.createdAt };
+}
+
+// GET /api/history/overview
+router.get("/overview", async (req, res) => {
+  try {
+    const prisma = getPrisma();
+    const userId = req.user!.id;
+
+    const hands = await prisma.hand.findMany({
+      where: {
+        endedAt: { not: null },
+        players: {
+          some: {
+            player: { userId },
+          },
+        },
+      },
+      select: {
+        players: {
+          where: { player: { userId } },
+          select: {
+            startingStackCents: true,
+            endingStackCents: true,
+          },
+          take: 1,
+        },
+        payouts: {
+          where: { player: { userId } },
+          select: {
+            amountCents: true,
+          },
+        },
+      },
+    });
+
+    const totalHands = hands.length;
+    let totalProfitCents = 0;
+    let winningHands = 0;
+    let totalPotCents = 0;
+    let biggestPotCents = 0;
+
+    for (const hand of hands) {
+      const hero = hand.players[0];
+      if (!hero) continue;
+      const endingStack = hero.endingStackCents ?? hero.startingStackCents;
+      const netResult = endingStack - hero.startingStackCents;
+      const potCents = hand.payouts.reduce((sum, payout) => sum + payout.amountCents, 0);
+
+      totalProfitCents += netResult;
+      if (netResult > 0) winningHands += 1;
+      totalPotCents += potCents;
+      if (potCents > biggestPotCents) biggestPotCents = potCents;
+    }
+
+    const winRate = totalHands > 0 ? (winningHands / totalHands) * 100 : 0;
+    const avgPotCents = totalHands > 0 ? totalPotCents / totalHands : 0;
+
+    res.json({
+      totalHands,
+      totalProfitCents,
+      winningHands,
+      winRate,
+      avgPotCents,
+      biggestPotCents,
+    });
+  } catch (error) {
+    console.error("Error fetching history overview:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // GET /api/history/hands?cursor=&limit=
 router.get("/hands", async (req, res) => {
@@ -29,22 +128,31 @@ router.get("/hands", async (req, res) => {
     }
 
     const { cursor, limit } = parsed.data;
+    const decodedCursor = await decodeHistoryCursor(cursor);
     const prisma = getPrisma();
     const userId = req.user!.id;
+
+    logger.info({ userId, cursor, limit }, '/hands query starting');
 
     // Core security: Only return hands involving the authenticated user
     const hands = await prisma.hand.findMany({
       where: {
+        endedAt: { not: null },
         // Security guardrail: Only hands where user participated
         players: {
           some: {
-            player: {
-              userId: userId,
-            },
+            player: { userId },
           },
         },
         // Cursor-based pagination
-        ...(cursor && { id: { lt: cursor } }),
+        ...(decodedCursor && {
+          OR: [
+            { createdAt: { lt: decodedCursor.createdAt } },
+            {
+              AND: [{ createdAt: decodedCursor.createdAt }, { id: { lt: decodedCursor.id } }],
+            },
+          ],
+        }),
       },
       select: {
         id: true,
@@ -56,65 +164,51 @@ router.get("/hands", async (req, res) => {
         },
         bigBlindCents: true,
         players: {
-          where: {
-            player: {
-              userId: userId,
-            },
-          },
           select: {
             startingStackCents: true,
             endingStackCents: true,
+            player: { select: { userId: true } },
           },
         },
         payouts: {
-          where: {
-            player: {
-              userId: userId,
-            },
-          },
           select: {
             amountCents: true,
+            player: { select: { userId: true } },
           },
         },
         actions: {
-          where: {
-            player: {
-              userId: userId,
-            },
-          },
-          orderBy: {
-            actionIndex: "desc",
-          },
-          take: 1,
           select: {
             action: true,
             street: true,
             amountCents: true,
+            actionIndex: true,
+            player: { select: { userId: true } },
           },
+          orderBy: { actionIndex: "desc" },
         },
       },
-      orderBy: {
-        id: "desc",
-      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
     });
 
-    // Transform data to match interface
+    logger.info({ userId, handsFound: hands.length }, '/hands query result');
+
+    // Transform data to match interface (pick hero by userId; Prisma nested where can miss when multiple relations are filtered)
     const handListItems = hands.map(hand => {
-      const heroPlayer = hand.players.find((p: any) => p.player.userId === userId);
+      const heroPlayer = hand.players.find((hp) => hp.player?.userId === userId);
       if (!heroPlayer) {
-        // Skip hands where user data is corrupted
+        logger.warn({ handId: hand.id, userId }, "hands list: no hero player for hand, skipping");
         return null;
       }
-      
-      const heroPayout = hand.payouts.reduce((sum: number, payout: any) => sum + payout.amountCents, 0);
-      const netResult = (heroPlayer?.endingStackCents || 0) - (heroPlayer?.startingStackCents || 0);
-      
-      // Calculate actual pot size from total payouts
-      const potCents = hand.payouts.reduce((sum: number, payout: any) => sum + payout.amountCents, 0);
-      
-      // Generate hero action summary
-      const heroActions = hand.actions.filter((action: any) => action.player.userId === userId);
+
+      const heroPayouts = hand.payouts.filter((p) => p.player?.userId === userId);
+      const heroPayout = heroPayouts[0]?.amountCents ?? 0;
+      const endingStack = heroPlayer.endingStackCents ?? heroPlayer.startingStackCents;
+      const netResult = endingStack - heroPlayer.startingStackCents;
+
+      const potCents = hand.payouts.reduce((sum, payout) => sum + payout.amountCents, 0);
+
+      const heroActions = hand.actions.filter((a) => a.player?.userId === userId);
       const lastHeroAction = heroActions[0];
       let heroActionSummary = "";
       if (lastHeroAction) {
@@ -125,7 +219,7 @@ router.get("/hands", async (req, res) => {
         } else if (lastHeroAction.action === "BET" || lastHeroAction.action === "RAISE") {
           heroActionSummary = `${lastHeroAction.action} ${lastHeroAction.street.toLowerCase()}`;
         } else if (lastHeroAction.action === "ALL_IN") {
-          heroActionSummary = `Lost all-in on ${lastHeroAction.street.toLowerCase()}`;
+          heroActionSummary = `All-in on ${lastHeroAction.street.toLowerCase()}`;
         }
       } else if (heroPayout > 0) {
         heroActionSummary = "Won at showdown";
@@ -137,13 +231,13 @@ router.get("/hands", async (req, res) => {
         tableName: hand.table.name,
         netResultCents: netResult,
         bigBlindCents: hand.bigBlindCents,
-        potCents: potCents,
+        heroWonCents: potCents,
         heroActionSummary: heroActionSummary || undefined,
       };
     }).filter(Boolean); // Filter out null entries
 
-    // Return cursor for next page (last hand ID)
-    const nextCursor = hands.length === limit ? hands[hands.length - 1].id : null;
+    // Return cursor for next page (last hand createdAt + id)
+    const nextCursor = hands.length === limit ? encodeHistoryCursor(hands[hands.length - 1]) : null;
 
     res.json({
       hands: handListItems,
@@ -171,12 +265,11 @@ router.get("/hands/:id", async (req, res) => {
     const hand = await prisma.hand.findFirst({
       where: {
         id,
+        endedAt: { not: null },
         // Security: Only if user participated in this hand
         players: {
           some: {
-            player: {
-              userId: userId,
-            },
+            player: { userId },
           },
         },
       },
@@ -187,6 +280,7 @@ router.get("/hands/:id", async (req, res) => {
         reason: true,
         players: {
           select: {
+            playerId: true,
             player: {
               select: {
                 userId: true,
@@ -238,7 +332,7 @@ router.get("/hands/:id", async (req, res) => {
     const boardCards = hand.boardJson as string[] || [];
 
     // Process players with hole card privacy rules
-    const players = hand.players.map((player: any) => {
+    const players = hand.players.map((player) => {
       let holeCards: string[] | undefined;
       
       if (player.player.userId === userId) {
@@ -253,16 +347,16 @@ router.get("/hands/:id", async (req, res) => {
       }
 
       return {
-        userId: player.player.userId,
+        userId: player.player.userId ?? player.playerId,
         displayName: player.player.displayName,
         seat: player.seat,
         holeCards,
-        finalStack: player.endingStackCents || player.startingStackCents,
+        finalStack: player.endingStackCents ?? player.startingStackCents,
       };
     });
 
     // Process actions
-    const actions = hand.actions.map((action: any) => ({
+    const actions = hand.actions.map((action) => ({
       street: action.street,
       actorUserId: action.player.userId,
       actorDisplayName: action.player.displayName,
@@ -271,14 +365,17 @@ router.get("/hands/:id", async (req, res) => {
     }));
 
     // Process payouts
-    const payouts = hand.payouts.map((payout: any) => ({
+    const payouts = hand.payouts.map((payout) => ({
       userId: payout.player.userId,
       displayName: payout.player.displayName,
       amountCents: payout.amountCents,
     }));
 
+    const snapshots = await ReplayFrameService.getFramesForHand(hand.id);
+
     res.json({
       id: hand.id,
+      snapshots,
       boardCards,
       bigBlindCents: hand.bigBlindCents,
       reason: hand.reason,

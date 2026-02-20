@@ -15,12 +15,13 @@ import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/re
 import { RandomBotBrain } from "./bots/BotBrain.js";
 import type { BotBrain } from "./bots/BotBrain.js";
 import { SnapshotService, type SnapshotReason } from "./dealer/services/SnapshotService.js";
-import { ActionService, type ActionResult, type ActionServiceLastAction } from "./dealer/services/ActionService.js";
+import { ActionService, type ActionResult, type ActionServiceLastAction, type ActionDebitKind } from "./dealer/services/ActionService.js";
 import { SettlementService } from "./dealer/services/SettlementService.js";
 import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
 import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
 import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
 import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
+import type { FrameReason } from "./replay/FrameReason.js";
 import {
   countNonOutPlayers,
   countNotFoldedPlayers,
@@ -70,6 +71,7 @@ export class Dealer {
         handId?: string;
         snapshotId: string;
         reason: SnapshotReason;
+        frameReason?: FrameReason;
         street: string;
         payloadJson: TableSnapshotPayload;
         stateHash: string;
@@ -121,7 +123,7 @@ export class Dealer {
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       getLastHandResult: () => this.lastHandResult,
       getLastAction: () => this.lastAction,
-      onTableSnapshotEmitted: options?.onTableSnapshotEmitted,
+      emitHook: options?.onTableSnapshotEmitted,
     });
     this.startDisconnectSweep();
     if (this.state.seats.length === 0) {
@@ -171,6 +173,14 @@ export class Dealer {
     await this.executePlayerLifecyclePlans(plans);
   }
 
+  /** Add chips to seated player (rebuy). Ledger must already be updated via economy buy-in. */
+  async applyRebuy(userId: string, amountCents: number): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = await this.playerLifecycleService.addChipsToSeatedPlayer(userId, amountCents);
+      await this.executePlayerLifecyclePlans(plans);
+    });
+  }
+
   async handleConsentedLeave(userId: string) {
     await this.forceFoldForLeave(userId);
     await this.removePlayer(userId, { cashOutAfterRemoval: true });
@@ -189,6 +199,27 @@ export class Dealer {
   async markAbandoned(userId: string) {
     const plans = await this.playerLifecycleService.markAbandoned(userId);
     await this.executePlayerLifecyclePlans(plans);
+  }
+
+  async markDisconnectedSerialized(userId: string, disconnectDeadlineTs: number): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
+      await this.executePlayerLifecyclePlans(plans);
+    });
+  }
+
+  async markReconnectedSerialized(userId: string): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = this.playerLifecycleService.markReconnected(userId);
+      await this.executePlayerLifecyclePlans(plans);
+    });
+  }
+
+  async markAbandonedSerialized(userId: string): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = await this.playerLifecycleService.markAbandoned(userId);
+      await this.executePlayerLifecyclePlans(plans);
+    });
   }
 
   async kickUser(userId: string, reason: string) {
@@ -225,13 +256,14 @@ export class Dealer {
       userId,
       msg,
       origin,
-      applyActionDebit: (p, amountCents, action, meta) => this.settlementService.applyActionDebit(p, amountCents, action, meta),
       recordAcceptedAction: (args) => this.settlementService.recordAcceptedAction(args),
-      assertCanAfford: (p, amountCents) => this.settlementService.assertCanAfford(p, amountCents),
+      assertCanAfford: (player, amountCents) => this.settlementService.assertCanAfford(player, amountCents),
+      applyActionDebit: async (p: PlayerState, amountCents: number, action: ActionDebitKind) => {
+        await this.settlementService.applyActionDebit(p, amountCents, action);
+      },
     });
 
     this.setLastActionFromExecution(execution.lastAction);
-
     await this.applyActionResult(execution.result, {
       turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
         ? "BOT_ACTION"
@@ -259,15 +291,16 @@ export class Dealer {
   }
 
   private async advanceStreetOrShowdown() {
+    
     const plans = await this.handLifecycleService.advanceStreetOrShowdown();
     await this.executeHandLifecyclePlans(plans);
   }
 
   private async finishHandByLastStanding() {
+    
     const plans = await this.handLifecycleService.finishHandByLastStanding();
     await this.executeHandLifecyclePlans(plans);
   }
-
   private async finishHandShowdownWithSidePots() {
     const plans = await this.handLifecycleService.finishHandShowdownWithSidePots();
     await this.executeHandLifecyclePlans(plans);
@@ -448,11 +481,24 @@ private nextHandScheduled = false;
   private async ensurePlayerPersistence(p: PlayerState) {
     if (!this.persistence.enabled || !this.persistence.handHistory || !this.persistence.ledger) return;
     try {
-      await this.persistence.handHistory.ensureTableAndPlayers([{ id: p.id, name: p.name, seat: p.seat }]);
+      const roster = this.buildHandHistoryRoster();
+      await this.persistence.handHistory.ensureTableAndPlayers(roster);
       await this.persistence.ledger.ensureBalances([p.id], { [p.id]: 0 });
     } catch (err) {
       logger.warn({ err, userId: p.id }, "player persistence ensure failed; continuing in-memory");
     }
+  }
+
+  /** Full table roster for HandHistoryService (must include all seated players so resolvePlayerId works). */
+  private buildHandHistoryRoster(): { id: string; name: string; seat: number; userId: string | null }[] {
+    return [...this.state.playersById.values()]
+      .filter((pl) => pl.seat >= 0)
+      .map((pl) => ({
+        id: pl.id,
+        name: pl.name,
+        seat: pl.seat,
+        userId: pl.kind === "HUMAN" ? pl.userId || pl.id : null,
+      }));
   }
 
   // -------------------------
@@ -501,6 +547,16 @@ private nextHandScheduled = false;
 
   private async applyDisconnectedAutoActionCapForHand() {
     await this.turnAutomationService.applyDisconnectedAutoActionCapForHand();
+  }
+
+  private enqueueSerializedStateMutation(work: () => Promise<void>): Promise<void> {
+    const queued = this.actionQueue
+      .catch((err) => {
+        logger.warn({ err }, "Recovering dealer queue after prior failure");
+      })
+      .then(work);
+    this.actionQueue = queued;
+    return queued;
   }
 
   private static readonly DISCONNECT_SWEEP_MS = 10_000;

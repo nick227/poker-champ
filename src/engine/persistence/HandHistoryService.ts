@@ -2,6 +2,9 @@ import type { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 
 export class HandHistoryService {
+  /** externalId (userId / bot_*) -> PokerPlayer.id (cuid) */
+  private playerIdMap = new Map<string, string>();
+
   constructor(private prisma: PrismaClient, private tableId: string) {}
 
   private assertTableId(tableId: string) {
@@ -10,27 +13,54 @@ export class HandHistoryService {
     }
   }
 
-  async ensureTableAndPlayers(players: { id: string; name: string; seat: number }[]) {
+  private resolvePlayerId(externalId: string): string {
+    const id = this.playerIdMap.get(externalId);
+    if (!id) {
+      const known = [...this.playerIdMap.keys()].join(", ");
+      throw new Error(`Unknown player ${externalId}. Known: ${known}`);
+    }
+    return id;
+  }
+
+  async ensureTableAndPlayers(players: { id: string; name: string; seat: number; userId?: string | null }[]) {
+    if (players.length === 0) {
+      throw new Error("ensureTableAndPlayers called with empty roster");
+    }
     await this.prisma.pokerTable.upsert({
       where: { id: this.tableId },
       create: { id: this.tableId },
       update: {},
     });
 
+    this.playerIdMap.clear();
     for (const pl of players) {
-      await this.prisma.pokerPlayer.upsert({
-        where: { id: pl.id },
-        create: { id: pl.id, tableId: this.tableId, displayName: pl.name, seat: pl.seat },
-        update: { tableId: this.tableId, displayName: pl.name, seat: pl.seat },
+      const row = await this.prisma.pokerPlayer.upsert({
+        where: {
+          tableId_externalId: { tableId: this.tableId, externalId: pl.id },
+        },
+        create: {
+          tableId: this.tableId,
+          externalId: pl.id,
+          displayName: pl.name,
+          seat: pl.seat,
+          userId: pl.userId ?? null,
+        },
+        update: {
+          displayName: pl.name,
+          seat: pl.seat,
+          userId: pl.userId ?? null,
+        },
       });
+      this.playerIdMap.set(pl.id, row.id);
     }
   }
 
-  /** Frees (tableId, seat) so a new player can use that seat. Call when a player/bot leaves the table. */
+  /** Frees (tableId, externalId) so a new player can use that seat. Call when a player/bot leaves the table. */
   async removePlayer(playerId: string): Promise<void> {
     await this.prisma.pokerPlayer.deleteMany({
-      where: { id: playerId, tableId: this.tableId },
+      where: { tableId: this.tableId, externalId: playerId },
     });
+    this.playerIdMap.delete(playerId);
   }
 
   async startHand(params: {
@@ -51,9 +81,9 @@ export class HandHistoryService {
         bigBlindCents: params.bigBlindCents,
         players: {
           createMany: {
-            data: params.players.map(p => ({
+            data: params.players.map((p) => ({
               id: nanoid(),
-              playerId: p.id,
+              playerId: this.resolvePlayerId(p.id),
               seat: p.seat,
               startingStackCents: p.startingStackCents,
               holeCardsJson: p.holeCards,
@@ -75,14 +105,14 @@ export class HandHistoryService {
     amountCents: number;
     potBeforeCents: number;
     potAfterCents: number;
-    meta?: any;
+    meta?: Record<string, unknown>;
   }) {
     this.assertTableId(params.tableId);
     await this.prisma.handAction.create({
       data: {
         id: nanoid(),
         handId: params.handId,
-        playerId: params.playerId,
+        playerId: this.resolvePlayerId(params.playerId),
         seat: params.seat,
         actionIndex: params.actionIndex,
         street: params.street,
@@ -107,7 +137,7 @@ export class HandHistoryService {
       data: {
         id: nanoid(),
         handId: params.handId,
-        playerId: params.playerId,
+        playerId: this.resolvePlayerId(params.playerId),
         payoutIndex: params.payoutIndex,
         amountCents: params.amountCents,
       },
@@ -134,9 +164,10 @@ export class HandHistoryService {
     // update ending stacks on HandPlayer rows (best-effort)
     for (const e of params.endingStacks) {
       await this.prisma.handPlayer.updateMany({
-        where: { handId: params.handId, playerId: e.playerId },
+        where: { handId: params.handId, playerId: this.resolvePlayerId(e.playerId) },
         data: { endingStackCents: e.endingStackCents },
       });
     }
   }
+
 }

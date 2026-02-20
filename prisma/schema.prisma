@@ -23,26 +23,27 @@ model PokerTable {
 }
 
 model PokerPlayer {
-  id        String   @id
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  tableId   String
-  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  externalId  String   // userId or bot_*
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  displayName String @default("Player")
+  tableId     String
+  table       PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  displayName String   @default("Player")
   seat        Int
 
-
-  actions    HandAction[]
-  payouts    HandPayout[]
+  actions     HandAction[]
+  payouts     HandPayout[]
   handsPlayed HandPlayer[]
 
-
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@unique([tableId, seat])
+  @@unique([tableId, externalId])
+  @@index([tableId])
+  @@index([userId])
 }
 
 model PlayerBalance {
@@ -101,7 +102,7 @@ model Hand {
   id        String   @id
   createdAt DateTime @default(now())
   endedAt   DateTime?
-
+  players   HandPlayer[]
   tableId   String
   table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
@@ -112,7 +113,6 @@ model Hand {
   reason    String?   // LAST_PLAYER | SHOWDOWN
   boardJson Json?     // ["Ah","Kd","2c",...]
 
-  players   HandPlayer[]
   actions   HandAction[]
   payouts   HandPayout[]
   snapshotLogs TableSnapshotLog[]
