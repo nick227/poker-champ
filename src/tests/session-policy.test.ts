@@ -4,6 +4,7 @@ import { AuthService } from "../engine/auth/AuthService.js";
 import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
 import { CashierService } from "../engine/economy/CashierService.js";
+import { assertStateInvariants } from "../engine/invariants/assertState.js";
 
 describe("session auth policy", () => {
   afterEach(() => {
@@ -117,6 +118,30 @@ describe("disconnect policy", () => {
     expect(() => dealer.markReconnected("u1")).not.toThrow();
     expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
     expect(state.playersById.get("u1")?.connected).toBe(true);
+  });
+
+  it("reload-style disconnect/reconnect during active hand does not deadlock progression", async () => {
+    const state = new PokerState();
+    const dealer = new Dealer(state);
+
+    await dealer.addPlayer("u1", "A", 5000);
+    await dealer.addPlayer("u2", "B", 5000);
+
+    expect(state.street).not.toBe("WAITING");
+    const toActSeat = state.toActSeat;
+    const toActUserId = state.seats[toActSeat];
+    expect(typeof toActUserId).toBe("string");
+    expect(toActUserId && toActUserId.length > 0).toBe(true);
+
+    const actor = String(toActUserId);
+    await dealer.markDisconnectedSerialized(actor, Date.now() + 60_000);
+    await dealer.markReconnectedSerialized(actor);
+
+    const maybeError = await dealer.handleAction(actor, { action: "FOLD" }).catch((err) => err as Error & { code?: string });
+    if (maybeError) {
+      expect(["HAND_NOT_STARTED", "NOT_YOUR_TURN", "NOT_ELIGIBLE"]).toContain(maybeError.code);
+    }
+    expect(() => assertStateInvariants(state)).not.toThrow();
   });
 
   it("ban propagation handler kicks active seated user", async () => {

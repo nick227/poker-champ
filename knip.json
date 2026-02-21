@@ -1,0 +1,49 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": [
+        "src/index.ts",
+        "scripts/*.ts",
+        "src/engine/seats/TableSeatSessionService.ts",
+        "src/**/*.test.ts",
+        "src/**/*.spec.ts"
+      ],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+    },
+    "apps/client": {
+      "entry": [
+        "app/**/*.{ts,tsx}",
+        "app/**/+*.{ts,tsx}",
+        "src/**/*.test.ts",
+        "src/**/*.spec.ts",
+        "e2e/**/*.spec.ts"
+      ],
+      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "e2e/**/*.ts"]
+    },
+    "packages/sdk": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/realtime-contract": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  },
+  "ignoreUnresolved": [
+    "expo-router/entry",
+    "nativewind/preset",
+    "expo/metro-config",
+    "nativewind/metro",
+    "babel-preset-expo"
+  ],
+  "ignoreBinaries": ["eas", "tauri"],
+  "ignoreDependencies": [
+    "@vitest/coverage-v8",
+    "expo-updates",
+    "expo-system-ui",
+    "@babel/runtime",
+    "react-native-css-interop"
+  ],
+  "ignoreExportsUsedInFile": true
+}

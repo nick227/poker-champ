@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Dealer } from "../engine/Dealer.js";
+import { CashierService } from "../engine/economy/CashierService.js";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 
@@ -536,5 +537,89 @@ describe("table snapshot contract emission", () => {
     expect(after.hero.calculations).toBeDefined();
     expect(after.hero.calculations!.stale).toBe(true);
     expect(after.calculationsMeta).toBeDefined();
+  });
+
+  it("includes hero.playerStats after hand ends (session VPIP/PFR)", async () => {
+    const buyInSpy = CashierService.processCashGameBuyIn;
+    const cashOutSpy = CashierService.processCashGameCashOut;
+    (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
+    (CashierService as any).processCashGameCashOut = async () => ({ success: true });
+    try {
+      const state = new PokerState();
+      state.tableId = "table_stats";
+      state.tableName = "Stats Table";
+      state.maxSeats = 6;
+      state.smallBlindCents = 50;
+      state.bigBlindCents = 100;
+      state.minBuyInCents = 2000;
+      state.maxBuyInCents = 20000;
+
+      const dealer = new Dealer(state);
+      await dealer.addPlayer("u1", "Alice", 5000);
+      await dealer.addPlayer("u2", "Bob", 5000);
+
+      const clientU1 = makeClient();
+      dealer.bindClient("u1", clientU1 as any);
+
+      const toActId = state.seats[state.toActSeat];
+      await dealer.handleAction(toActId!, { action: "FOLD" });
+
+      const calls = clientU1.send.mock.calls;
+      const handEndSnapshot = calls.find((c: [string, any]) => c[0] === "TABLE_SNAPSHOT" && c[1]?.reason === "HAND_END")?.[1];
+      expect(handEndSnapshot).toBeDefined();
+      expect(handEndSnapshot.hero.playerStats).toEqual({ hands: 1, vpipPct: 0, pfrPct: 0 });
+    } finally {
+      (CashierService as any).processCashGameBuyIn = buyInSpy;
+      (CashierService as any).processCashGameCashOut = cashOutSpy;
+    }
+  });
+
+  it("VPIP/PFR: limp → VPIP only; open raise → VPIP+PFR; blind fold → both false", async () => {
+    const buyInSpy = CashierService.processCashGameBuyIn;
+    const cashOutSpy = CashierService.processCashGameCashOut;
+    (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
+    (CashierService as any).processCashGameCashOut = async () => ({ success: true });
+    try {
+      const scenarios: { name: string; actions: Array<{ action: "FOLD" | "CALL" | "RAISE"; amountCents?: number }>; vpipPct: number; pfrPct: number; heroIsFirstToAct?: boolean }[] = [
+        { name: "blind fold", actions: [{ action: "FOLD" }], vpipPct: 0, pfrPct: 0, heroIsFirstToAct: true },
+        { name: "limp then villain folds", actions: [{ action: "CALL" }, { action: "FOLD" }], vpipPct: 100, pfrPct: 0, heroIsFirstToAct: true },
+        { name: "open raise then villain folds", actions: [{ action: "RAISE", amountCents: 200 }, { action: "FOLD" }], vpipPct: 100, pfrPct: 100, heroIsFirstToAct: true },
+      ];
+      for (const scenario of scenarios) {
+        const state = new PokerState();
+        state.tableId = "table_vpip_pfr";
+        state.tableName = "VPIP PFR";
+        state.maxSeats = 6;
+        state.smallBlindCents = 50;
+        state.bigBlindCents = 100;
+        state.minBuyInCents = 2000;
+        state.maxBuyInCents = 20000;
+        const dealer = new Dealer(state);
+        await dealer.addPlayer("u1", "Hero", 5000);
+        await dealer.addPlayer("u2", "Villain", 5000);
+        const firstToActId = state.seats[state.toActSeat];
+        const heroId = scenario.heroIsFirstToAct ? firstToActId : state.seats.find((id, i) => id && i !== state.toActSeat);
+        expect(heroId, scenario.name).toBeTruthy();
+        const client = makeClient();
+        dealer.bindClient(heroId!, client as any);
+        for (const { action, amountCents } of scenario.actions) {
+          const toActId = state.seats[state.toActSeat];
+          if (!toActId) break;
+          await dealer.handleAction(toActId, amountCents !== undefined ? { action, amountCents } : { action });
+          if (state.street === "WAITING") break;
+        }
+        const calls = client.send.mock.calls;
+        const handEndSnapshot = calls.find((c: [string, any]) => c[0] === "TABLE_SNAPSHOT" && c[1]?.reason === "HAND_END")?.[1];
+        expect(handEndSnapshot, scenario.name).toBeDefined();
+        expect(handEndSnapshot!.hero.playerStats, scenario.name).toEqual({
+          hands: 1,
+          vpipPct: scenario.vpipPct,
+          pfrPct: scenario.pfrPct,
+        });
+      }
+    } finally {
+      (CashierService as any).processCashGameBuyIn = buyInSpy;
+      (CashierService as any).processCashGameCashOut = cashOutSpy;
+    }
   });
 });

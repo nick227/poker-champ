@@ -1,14 +1,21 @@
 import { View, Pressable } from "react-native";
-import { useRouter } from "expo-router";
-import { storeRegistry } from "@/registry/store.registry";
 import { Text } from "@/components/base/Text";
-import { tablePath } from "@/lib/nav";
 
 const MAX_VISIBLE_TABS = 4;
 
-export function MultiTableTabs({ onOpenMoreTables }: { onOpenMoreTables?: () => void }) {
-  const router = useRouter();
-  const { openTableIds, activeTableId, setActive } = storeRegistry.use.tables();
+type MultiTableTabsProps = {
+  openTableIds: string[];
+  activeTableId?: string | null;
+  onSelectTable: (tableId: string) => void;
+  onOpenMoreTables?: () => void;
+};
+
+export function MultiTableTabs({
+  openTableIds,
+  activeTableId,
+  onSelectTable,
+  onOpenMoreTables,
+}: MultiTableTabsProps) {
 
   if (!openTableIds.length) return null;
 
@@ -22,10 +29,7 @@ export function MultiTableTabs({ onOpenMoreTables }: { onOpenMoreTables?: () => 
         return (
           <Pressable
             key={id}
-            onPress={() => {
-              setActive(id);
-              router.push(tablePath(id));
-            }}
+            onPress={() => onSelectTable(id)}
             className={active ? "rounded-md bg-brand px-3 py-2" : "ui-surface px-3 py-2"}
           >
             <Text variant={active ? "body" : "muted"}>{id.slice(0, 6)}</Text>

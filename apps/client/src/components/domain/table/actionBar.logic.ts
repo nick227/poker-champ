@@ -1,6 +1,19 @@
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
+import type { ConnectionStatus } from "./table.types";
 
-export type ActionBarConnectionStatus = "CONNECTED" | "RECONNECTING" | "DISCONNECTED" | undefined;
+export type ActionBarConnectionStatus = ConnectionStatus | undefined;
+
+export type ActionContext = {
+  showActions: boolean;
+  showReconnectingOverlay: boolean;
+  allowedActions: {
+    FOLD: boolean;
+    CHECK: boolean;
+    CALL: boolean;
+    ALL_IN: boolean;
+    WAGER: boolean;
+  };
+};
 
 export function resolvePrimaryWagerAction(o?: HeroActionOptions): "BET" | "RAISE" | undefined {
   if (!o) return undefined;
@@ -8,18 +21,29 @@ export function resolvePrimaryWagerAction(o?: HeroActionOptions): "BET" | "RAISE
   return undefined;
 }
 
-export function getActionBarAvailability(params: {
+function isConnectionBlockingActions(status?: ActionBarConnectionStatus): boolean {
+  return status === "RECONNECTING" || status === "DISCONNECTED";
+}
+
+export function getActionContext(params: {
   isMyTurn: boolean;
   actionOptions?: HeroActionOptions;
   connectionStatus?: ActionBarConnectionStatus;
-}): { showActions: boolean; actionsEnabled: boolean } {
+}): ActionContext {
   const canActFromServer = params.isMyTurn && !!params.actionOptions;
-  const isConnectionBlockingActions =
-    params.connectionStatus === "RECONNECTING" || params.connectionStatus === "DISCONNECTED";
+  const blocked = isConnectionBlockingActions(params.connectionStatus);
+  const o = params.actionOptions;
 
   return {
     showActions: canActFromServer,
-    actionsEnabled: canActFromServer && !isConnectionBlockingActions,
+    showReconnectingOverlay: params.connectionStatus === "RECONNECTING",
+    allowedActions: {
+      FOLD: canActFromServer && !blocked && !!o?.canFold,
+      CHECK: canActFromServer && !blocked && !!o?.canCheck,
+      CALL: canActFromServer && !blocked && !!o?.canCall,
+      ALL_IN: canActFromServer && !blocked && !!o?.canAllIn,
+      WAGER: canActFromServer && !blocked && !!resolvePrimaryWagerAction(o),
+    },
   };
 }
 

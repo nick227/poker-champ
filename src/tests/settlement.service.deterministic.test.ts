@@ -53,6 +53,12 @@ function makeSettlementService() {
   return { service, state, persistence, recordPayout };
 }
 
+function trackPlayers(state: PokerState, players: PlayerState[]): void {
+  for (const player of players) {
+    state.playersById.set(player.id, player);
+  }
+}
+
 describe("SettlementService - End-to-End Money Safety", () => {
   it("single winner, single pot - maintains chip conservation", async () => {
     const { service, state } = makeSettlementService();
@@ -61,6 +67,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     const A = makePlayer({ id: "A", seat: 1, stackCents: 1000, committedCents: 200 });
     const B = makePlayer({ id: "B", seat: 2, stackCents: 800, committedCents: 200 });
     const C = makePlayer({ id: "C", seat: 3, stackCents: 1200, committedCents: 200 });
+    trackPlayers(state, [A, B, C]);
     
     state.potCents = 600; // 200 * 3
     
@@ -85,6 +92,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     // Setup: 2 players tie, pot 800 (even split)
     const A = makePlayer({ id: "A", seat: 1, stackCents: 1000 });
     const B = makePlayer({ id: "B", seat: 2, stackCents: 800 });
+    trackPlayers(state, [A, B]);
     
     state.potCents = 800;
     const preTotal = A.stackCents + B.stackCents + state.potCents;
@@ -108,6 +116,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     const A = makePlayer({ id: "A", seat: 1, stackCents: 1000 });
     const B = makePlayer({ id: "B", seat: 2, stackCents: 800 });
     const C = makePlayer({ id: "C", seat: 3, stackCents: 1200 });
+    trackPlayers(state, [A, B, C]);
     
     state.dealerSeat = 0; // Dealer at seat 0, so seat 1 gets odd chip first
     state.potCents = 801;
@@ -146,6 +155,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     const A = makePlayer({ id: "A", seat: 1, stackCents: 500, committedCents: 100 });  // Short stack
     const B = makePlayer({ id: "B", seat: 2, stackCents: 1000, committedCents: 300 }); // Medium stack  
     const C = makePlayer({ id: "C", seat: 3, stackCents: 1500, committedCents: 500 }); // Deep stack
+    trackPlayers(state, [A, B, C]);
     
     const allPlayers = [A, B, C];
     const eligiblePlayers = [A, B, C]; // All at showdown
@@ -184,6 +194,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     const A = makePlayer({ id: "A", seat: 1, stackCents: 1000, committedCents: 200, status: "FOLDED" });
     const B = makePlayer({ id: "B", seat: 2, stackCents: 800, committedCents: 200 });
     const C = makePlayer({ id: "C", seat: 3, stackCents: 1200, committedCents: 200 });
+    trackPlayers(state, [A, B, C]);
     
     const allPlayers = [A, B, C];
     const eligiblePlayers = [B, C]; // A folded, not eligible
@@ -215,6 +226,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
     const A = makePlayer({ id: "A", seat: 1, stackCents: 0, committedCents: 100, status: "ALL_IN" });
     const B = makePlayer({ id: "B", seat: 2, stackCents: 1000, committedCents: 500 });
     const C = makePlayer({ id: "C", seat: 3, stackCents: 1500, committedCents: 500 });
+    trackPlayers(state, [A, B, C]);
     
     const allPlayers = [A, B, C];
     const eligiblePlayers = [A, B, C];
@@ -256,6 +268,7 @@ describe("SettlementService - End-to-End Money Safety", () => {
       makePlayer({ id: "P3", seat: 3, stackCents: 1500, committedCents: 600 }),
       makePlayer({ id: "P4", seat: 4, stackCents: 900, committedCents: 300 }),
     ];
+    trackPlayers(state, players);
     
     const allPlayers = players;
     const eligiblePlayers = players.filter(p => p.status !== "FOLDED");

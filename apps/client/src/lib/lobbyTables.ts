@@ -4,12 +4,14 @@ export type LobbyTableRow = {
   roomId: string;
   name: string;
   blinds?: string;
+  smallBlindCents: number;
+  bigBlindCents: number;
   players: number;
   seats: number;
   minBuyInCents: number;
   maxBuyInCents: number;
   creatorId?: string;
-  humanCount?: number;
+  connectedHumanCount?: number;
 };
 
 const DEFAULT_MIN = 2000;
@@ -23,14 +25,18 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
   const seats = (t.maxSeats as number) ?? (t.seats as number) ?? 9;
   const sb = t.smallBlindCents as number | undefined;
   const bb = t.bigBlindCents as number | undefined;
+  const smallBlindCents = sb != null ? sb : 100;
+  const bigBlindCents = bb != null ? bb : 200;
   const blinds = sb != null && bb != null ? `${sb}/${bb}` : undefined;
-  const humanCount = typeof t.humanCount === "number" ? t.humanCount : undefined;
+  const connectedHumanCount = typeof t.connectedHumanCount === "number" ? t.connectedHumanCount : undefined;
   return {
     id,
     tableId,
     roomId,
     name: (t.name as string) ?? "Hold'em",
     blinds,
+    smallBlindCents,
+    bigBlindCents,
     players,
     seats,
     minBuyInCents: Number(t.minBuyInCents) || DEFAULT_MIN,
@@ -41,6 +47,6 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
         : typeof t.creatorId === "number"
           ? String(t.creatorId)
           : undefined,
-    humanCount,
+    connectedHumanCount,
   };
 }

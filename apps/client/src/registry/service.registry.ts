@@ -9,6 +9,34 @@ const serviceByKey = {
     economyTransactions: (limit?: number) => withApiError(() => economy.transactions(limit ? { limit } : undefined)),
     tournaments: (status?: string) => withApiError(() => tournaments.list(status ? { status } : undefined)),
     me: () => withApiError(() => auth.me()),
+    adminUsers: (page: number = 1, limit: number = 10) =>
+      withApiError(() =>
+        request<{
+          users: Array<{
+            id: string;
+            email: string;
+            displayName: string;
+            username?: string | null;
+            role: string;
+            isBanned: boolean;
+            deletedAt?: string | null;
+            stats?: {
+              lastOnlineAt?: string | null;
+              totalOnlineHours?: number;
+              totalSpendCents?: number;
+              totalLostCents?: number;
+              totalBuyInCents?: number;
+              totalCashOutCents?: number;
+              totalTournamentEntryCents?: number;
+              totalTournamentPayoutCents?: number;
+            };
+          }>;
+          total: number;
+        }>(
+          "GET",
+          `/api/admin/users?page=${page}&limit=${limit}`,
+        ),
+      ),
   },
   post: {
     authRegister: (input: { email: string; password: string; displayName?: string; username?: string }) =>
@@ -31,6 +59,12 @@ const serviceByKey = {
       withApiError(() => economy.buyIn(input)),
     economyDeposit: () =>
       withApiError(() => request<{ bankrollCents: number }>("POST", "/api/economy/deposit")),
+    adminPromoteUser: (userId: string) =>
+      withApiError(() => request("PATCH", `/api/admin/users/${userId}/promote`)),
+    adminSuspendUser: (userId: string) =>
+      withApiError(() => request("POST", `/api/admin/users/${userId}/ban`)),
+    adminDeleteUser: (userId: string) =>
+      withApiError(() => request("POST", `/api/admin/users/${userId}/delete`)),
   },
 } as const;
 
@@ -40,6 +74,7 @@ const serviceOrdered = [
   { key: "get.economyTransactions", call: serviceByKey.get.economyTransactions },
   { key: "get.tournaments", call: serviceByKey.get.tournaments },
   { key: "get.me", call: serviceByKey.get.me },
+  { key: "get.adminUsers", call: serviceByKey.get.adminUsers },
   { key: "post.authRegister", call: serviceByKey.post.authRegister },
   { key: "post.authLogin", call: serviceByKey.post.authLogin },
   { key: "post.authLogout", call: serviceByKey.post.authLogout },
@@ -47,6 +82,9 @@ const serviceOrdered = [
   { key: "post.deleteTable", call: serviceByKey.post.deleteTable },
   { key: "post.buyIn", call: serviceByKey.post.buyIn },
   { key: "post.economyDeposit", call: serviceByKey.post.economyDeposit },
+  { key: "post.adminPromoteUser", call: serviceByKey.post.adminPromoteUser },
+  { key: "post.adminSuspendUser", call: serviceByKey.post.adminSuspendUser },
+  { key: "post.adminDeleteUser", call: serviceByKey.post.adminDeleteUser },
 ] as const;
 
 export const serviceRegistry = {

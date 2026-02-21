@@ -118,4 +118,18 @@ describe('Table Store - Snapshot Sequence Validation', () => {
     expect(useTableStore.getState().snapshotsByTableId['table1']).toBeUndefined();
     expect(useTableStore.getState().lastSeqByTableId['table1']).toBeUndefined();
   });
+
+  it('should accept seq=1 when stream restarts after higher sequence', () => {
+    const store = useTableStore.getState();
+    const snapshot2 = createMockSnapshot(2);
+    const snapshot3 = createMockSnapshot(3);
+    const restartedSnapshot1 = createMockSnapshot(1);
+
+    store.setSnapshot('table1', snapshot2);
+    store.setSnapshot('table1', snapshot3);
+    store.setSnapshot('table1', restartedSnapshot1);
+
+    expect(useTableStore.getState().snapshotsByTableId['table1']).toEqual(restartedSnapshot1);
+    expect(useTableStore.getState().lastSeqByTableId['table1']).toBe(1);
+  });
 });

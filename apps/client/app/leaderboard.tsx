@@ -15,12 +15,12 @@ import {
 } from "@/services/leaderboard.service";
 
 const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
-  { key: "biggest_winner", label: "Biggest Winner" },
+  { key: "biggest_winner", label: "Winners" },
   //{ key: "biggest_donor", label: "Biggest Donor" },
-  { key: "showdown_sniper", label: "Showdown Wins" },
+  { key: "showdown_sniper", label: "Showdowns" },
   { key: "all_in_maniac", label: "All-Ins" },
   //{ key: "ice_cold", label: "Losses Streak" },
-  { key: "heater", label: "Winning Streak" },
+  { key: "heater", label: "Streak" },
   //{ key: "tight_rock", label: "Tightest" },
   //{ key: "action_junkie", label: "Loosest" },
 ];
@@ -110,11 +110,10 @@ export default function LeaderboardScreen() {
       <Masthead />
       <ProfileStrip username={profile.username ?? "Player"} location={profile.location} />
 
-      <View className="flex-1 ui-stack-3">
+      <View className="flex-1 ui-stack-3 m-4">
         <View className="ui-stack-1 ">
           <Text variant="h2">Leaderboard</Text>
-          <Text variant="muted">Weekly snapshot rankings. Updated hourly.</Text>
-          <Text variant="muted">Updated: {formatComputedAt(computedAt)}</Text>
+          <Text variant="muted">{formatComputedAt(computedAt)}</Text>
         </View>
 
           <View className="ui-row items-start gap-2 py-1 pr-2 h-[60]">
@@ -147,7 +146,11 @@ export default function LeaderboardScreen() {
             </View>
           ) : entries.length === 0 ? (
             <View className="ui-surface-card rounded-xl px-4 py-5">
-              <Text variant="muted">No leaderboard data available yet.</Text>
+              <Text variant="muted">
+                {computedAt
+                  ? "No qualifying players in this period yet. Play some hands to climb the ranks."
+                  : "No leaderboard data available yet."}
+              </Text>
             </View>
           ) : (
             <View className={`ui-stack-2 pb-4 ${isRefreshing ? "opacity-50" : ""}`}>

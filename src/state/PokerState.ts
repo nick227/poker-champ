@@ -23,6 +23,7 @@ export class PokerState extends Schema {
   @type("number") handNumber: number = 0;
   @type("number") handActionSeq: number = 0;
   @type("number") actionCount: number = 0;
+  @type("number") initialChipMassCents: number = 0;
   @type("number") nextHandAtTs: number = 0;
   @type("string") street: Street = "WAITING";
   @type("string") runoutMode: RunoutMode = "NONE";
@@ -37,7 +38,11 @@ export class PokerState extends Schema {
   @type("number") minBuyInCents: number = 2000;
   @type("number") maxBuyInCents: number = 20000;
 
-  /** Total pot size for the hand. */
+  /**
+   * Total contributed pot size for the hand (Pattern B).
+   * This is not decremented during payout/refund; SettlementService tracks
+   * disbursed credits separately for conservation checks.
+   */
   @type("number") potCents: number = 0;
 
   /** Highest `roundBetCents` among eligible players this betting round. */

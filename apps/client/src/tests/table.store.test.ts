@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { TableSnapshotPayload } from '@poker-champ/realtime-contract';
 import { useTableStore } from '@/stores/table.store';
+import { getHeroStackCents } from '@/components/domain/table/table.adapter';
 
 describe('Table Store - Snapshot Sequence Validation', () => {
   beforeEach(() => {
@@ -31,7 +32,23 @@ describe('Table Store - Snapshot Sequence Validation', () => {
       minBuyInCents: 1000,
       maxBuyInCents: 10000,
     },
-    seats: [],
+    seats: [
+      {
+        seat: 0,
+        occupied: true,
+        userId: 'user1',
+        name: 'Hero',
+        stackCents: 2500,
+        roundBetCents: 0,
+        committedCents: 0,
+        connected: true,
+        disconnectDeadlineTs: 0,
+        isDealer: false,
+        status: 'ACTIVE',
+        isToAct: false,
+        isBot: false,
+      },
+    ],
     hero: {
       userId: 'user1',
       youAreSeated: true,
@@ -116,5 +133,69 @@ describe('Table Store - Snapshot Sequence Validation', () => {
     store.clearTable('table1');
     expect(useTableStore.getState().snapshotsByTableId['table1']).toBeUndefined();
     expect(useTableStore.getState().lastSeqByTableId['table1']).toBeUndefined();
+  });
+
+  it('should accept seq=1 when stream restarts after higher sequence', () => {
+    const store = useTableStore.getState();
+    const snapshot2 = createMockSnapshot(2);
+    const snapshot3 = createMockSnapshot(3);
+    const restartedSnapshot1 = createMockSnapshot(1);
+
+    store.setSnapshot('table1', snapshot2);
+    store.setSnapshot('table1', snapshot3);
+    store.setSnapshot('table1', restartedSnapshot1);
+
+    expect(useTableStore.getState().snapshotsByTableId['table1']).toEqual(restartedSnapshot1);
+    expect(useTableStore.getState().lastSeqByTableId['table1']).toBe(1);
+  });
+
+  it('should accept seq=1 after explicit stream reset (WELCOME NEW behavior)', () => {
+    const store = useTableStore.getState();
+    const snapshot5 = createMockSnapshot(5);
+    const restartedSnapshot1 = createMockSnapshot(1);
+
+    store.setSnapshot('table1', snapshot5);
+    store.resetSnapshotStream('table1');
+    store.setSnapshot('table1', restartedSnapshot1);
+
+    expect(useTableStore.getState().snapshotsByTableId['table1']).toEqual(restartedSnapshot1);
+    expect(useTableStore.getState().lastSeqByTableId['table1']).toBe(1);
+  });
+
+  it('should recover from stale cursor on WELCOME NEW flow', () => {
+    const store = useTableStore.getState();
+    const staleSeq5 = createMockSnapshot(5);
+    const freshSeq1 = createMockSnapshot(1);
+
+    store.setSnapshot('table1', staleSeq5);
+    expect(useTableStore.getState().lastSeqByTableId['table1']).toBe(5);
+
+    // Simulates useTableRealtime handling WELCOME { joinMode: "NEW" }.
+    store.resetSnapshotStream('table1');
+    store.setSnapshot('table1', freshSeq1);
+
+    expect(useTableStore.getState().lastSeqByTableId['table1']).toBe(1);
+    expect(useTableStore.getState().snapshotsByTableId['table1']).toEqual(freshSeq1);
+  });
+
+  it('should keep hero stack non-zero across stream restart with missing hero.seat', () => {
+    const store = useTableStore.getState();
+    const staleSeq5 = createMockSnapshot(5);
+    const freshSeq1: TableSnapshotPayload = {
+      ...createMockSnapshot(1),
+      hero: {
+        userId: 'user1',
+        youAreSeated: true,
+        seat: undefined,
+      },
+    };
+
+    store.setSnapshot('table1', staleSeq5);
+    store.resetSnapshotStream('table1');
+    store.setSnapshot('table1', freshSeq1);
+
+    const latest = useTableStore.getState().snapshotsByTableId['table1'];
+    expect(latest).toEqual(freshSeq1);
+    expect(getHeroStackCents(latest!)).toBe(2500);
   });
 });

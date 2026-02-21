@@ -4,6 +4,7 @@ import { zustandStorage } from "@/lib/storage";
 
 type PreferencesState = {
   soundEnabled: boolean;
+  masterVolume: number;
   notificationsEnabled: boolean;
   feltColor: string; // HSL components
   cardFaceColor: string; // HSL components
@@ -12,6 +13,7 @@ type PreferencesState = {
   backgroundColor: string; // HSL components
   tableRadius: string; // css value
   setSoundEnabled: (v: boolean) => void;
+  setMasterVolume: (v: number) => void;
   setNotificationsEnabled: (v: boolean) => void;
   setFeltColor: (v: string) => void;
   setCardFaceColor: (v: string) => void;
@@ -26,6 +28,7 @@ export const usePreferencesStore = create<PreferencesState>()(
   persist(
     (set) => ({
       soundEnabled: true,
+      masterVolume: 1,
       notificationsEnabled: true,
       feltColor: "158 30% 14%",
       cardFaceColor: "0 0% 98%",
@@ -34,6 +37,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       backgroundColor: "0 0% 5%",
       tableRadius: "28px",
       setSoundEnabled: (v) => set({ soundEnabled: v }),
+      setMasterVolume: (v) => set({ masterVolume: Math.max(0, Math.min(1, v)) }),
       setNotificationsEnabled: (v) => set({ notificationsEnabled: v }),
       setFeltColor: (v) => set({ feltColor: v }),
       setCardFaceColor: (v) => set({ cardFaceColor: v }),

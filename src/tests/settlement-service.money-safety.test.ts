@@ -65,6 +65,7 @@ describe("SettlementService money safety", () => {
       roundBetCents: 100,
       committedCents: 100,
     });
+    state.playersById.set(player.id, player);
     state.potCents = 400;
 
     const preTotal = player.stackCents + state.potCents;
@@ -84,6 +85,7 @@ describe("SettlementService money safety", () => {
   it("marks player ALL_IN and clears needsAction when debit reaches zero", async () => {
     const { service, state } = makeService();
     const player = makePlayer({ id: "u1", seat: 0, stackCents: 300, needsAction: true });
+    state.playersById.set(player.id, player);
     state.potCents = 100;
 
     await service.applyActionDebit(player, 300, "ALL_IN");
@@ -101,10 +103,39 @@ describe("SettlementService money safety", () => {
     expect(() => service.assertCanAfford(player, 100)).toThrow("Insufficient stack");
   });
 
+  it("fails closed when persistence returns a mismatched debit balance", async () => {
+    const { service, state, persistence } = makeService();
+    const player = makePlayer({ id: "u1", seat: 0, stackCents: 500, needsAction: true });
+    state.playersById.set(player.id, player);
+    state.potCents = 0;
+
+    persistence.debitBet.mockResolvedValueOnce(499);
+
+    await expect(service.applyActionDebit(player, 200, "BET")).rejects.toThrow("LEDGER_BALANCE_MISMATCH");
+    expect(player.stackCents).toBe(300);
+    expect(player.roundBetCents).toBe(200);
+    expect(state.potCents).toBe(200);
+  });
+
+  it("fails closed when persistence returns a mismatched blind balance", async () => {
+    const { service, state, persistence } = makeService();
+    const player = makePlayer({ id: "u1", seat: 0, stackCents: 500, needsAction: true });
+    state.playersById.set(player.id, player);
+
+    persistence.postBlind.mockResolvedValueOnce(450);
+
+    await expect(service.postBlind(player, "SB", 100)).rejects.toThrow("LEDGER_BALANCE_MISMATCH");
+    expect(player.stackCents).toBe(400);
+    expect(player.roundBetCents).toBe(100);
+    expect(state.potCents).toBe(100);
+  });
+
   it("credits payouts exactly as distributed with no phantom payout chips", async () => {
-    const { service, persistence, recordPayout } = makeService();
+    const { service, state, persistence, recordPayout } = makeService();
     const a = makePlayer({ id: "A", seat: 0, stackCents: 1200 });
     const b = makePlayer({ id: "B", seat: 1, stackCents: 800 });
+    state.playersById.set(a.id, a);
+    state.playersById.set(b.id, b);
 
     const payouts = new Map<string, number>([
       ["A", 350],

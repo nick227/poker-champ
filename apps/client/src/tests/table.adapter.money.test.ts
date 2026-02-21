@@ -31,6 +31,7 @@ function makeSnapshot(): TableSnapshotPayload {
         roundBetCents: 0,
         committedCents: 0,
         connected: true,
+        disconnectDeadlineTs: 0,
         isDealer: false,
         status: "ACTIVE",
         isToAct: false,
@@ -45,6 +46,7 @@ function makeSnapshot(): TableSnapshotPayload {
         roundBetCents: 0,
         committedCents: 0,
         connected: true,
+        disconnectDeadlineTs: 0,
         isDealer: true,
         status: "ACTIVE",
         isToAct: true,
@@ -90,6 +92,49 @@ describe("table adapter money mapping", () => {
   it("maps hero stack from snapshot seat data exactly", () => {
     const snapshot = makeSnapshot();
     expect(getHeroStackCents(snapshot)).toBe(2200);
+  });
+
+  it("falls back to hero userId seat when hero.seat is missing", () => {
+    const snapshot = makeSnapshot();
+    const inconsistentSnapshot: TableSnapshotPayload = {
+      ...snapshot,
+      hero: {
+        ...snapshot.hero,
+        seat: undefined,
+        youAreSeated: true,
+      },
+      hand: {
+        ...snapshot.hand!,
+        toActSeat: 0,
+        dealerSeat: 0,
+      },
+    };
+
+    expect(getHeroStackCents(inconsistentSnapshot)).toBe(2200);
+  });
+
+  it("keeps hero stack stable on hand-start style payloads with zero pot", () => {
+    const snapshot = makeSnapshot();
+    const handStartSnapshot: TableSnapshotPayload = {
+      ...snapshot,
+      snapshotSeq: 2,
+      reason: "HAND_START",
+      hand: {
+        ...snapshot.hand!,
+        handId: "h2",
+        street: "PREFLOP",
+        board: [],
+        potCents: 0,
+        actionCount: 0,
+      },
+      seats: snapshot.seats.map((seat) => ({
+        ...seat,
+        roundBetCents: 0,
+        committedCents: 0,
+      })),
+    };
+
+    expect(getHeroStackCents(handStartSnapshot)).toBe(2200);
   });
 
   it("maps pot from active hand first, then falls back to last hand result", () => {
@@ -157,6 +202,7 @@ describe("table adapter money mapping", () => {
           roundBetCents: 0,
           committedCents: 0,
           connected: true,
+          disconnectDeadlineTs: 0,
           isDealer: false,
           status: "OUT",
           isToAct: false,

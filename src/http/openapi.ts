@@ -3,7 +3,7 @@ export const openApiSpec = {
   info: {
     title: "Poker API",
     version: process.env.API_VERSION ?? "0.1.0",
-    description: "Contract-first HTTP API for auth, economy, tournaments, lobby, profile, and admin.",
+    description: "Contract-first HTTP API for auth, economy, tournaments, lobby, profile, history, and admin.",
   },
   servers: [{ url: "/" }],
   tags: [
@@ -11,6 +11,7 @@ export const openApiSpec = {
     { name: "meta" },
     { name: "auth" },
     { name: "profile" },
+    { name: "history" },
     { name: "leaderboard" },
     { name: "economy" },
     { name: "tournaments" },
@@ -308,6 +309,258 @@ export const openApiSpec = {
           },
           "400": {
             description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/history/overview": {
+      get: {
+        tags: ["history"],
+        operationId: "historyOverviewGet",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Aggregated history overview for the authenticated user",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    totalHands: { type: "integer" },
+                    totalProfitCents: { type: "integer" },
+                    winningHands: { type: "integer" },
+                    losingHands: { type: "integer" },
+                    breakEvenHands: { type: "integer" },
+                    winRate: { type: "number" },
+                    avgProfitPerHandCents: { type: "number" },
+                    bbPer100: { type: "number" },
+                    avgPotCents: { type: "number" },
+                    biggestPotCents: { type: "integer" },
+                    biggestWinCents: { type: "integer" },
+                    biggestLossCents: { type: "integer" },
+                    showdownHands: { type: "integer" },
+                    showdownRate: { type: "number" },
+                    vpipHands: { type: "integer" },
+                    vpipPct: { type: "number" },
+                    pfrHands: { type: "integer" },
+                    pfrPct: { type: "number" },
+                    threeBetHands: { type: "integer" },
+                    threeBetOpportunities: { type: "integer" },
+                    threeBetPct: { type: "number" },
+                    foldToThreeBetHands: { type: "integer" },
+                    foldToThreeBetOpportunities: { type: "integer" },
+                    foldToThreeBetPct: { type: "number" },
+                    stealAttempts: { type: "integer" },
+                    stealOpportunities: { type: "integer" },
+                    stealAttemptPct: { type: "number" },
+                    foldBbToStealHands: { type: "integer" },
+                    foldBbToStealOpportunities: { type: "integer" },
+                    foldBbToStealPct: { type: "number" },
+                    grossWonCents: { type: "integer" },
+                    grossLostCents: { type: "integer" },
+                    profitFactor: { type: "number", nullable: true },
+                  },
+                  required: [
+                    "totalHands",
+                    "totalProfitCents",
+                    "winningHands",
+                    "losingHands",
+                    "breakEvenHands",
+                    "winRate",
+                    "avgProfitPerHandCents",
+                    "bbPer100",
+                    "avgPotCents",
+                    "biggestPotCents",
+                    "biggestWinCents",
+                    "biggestLossCents",
+                    "showdownHands",
+                    "showdownRate",
+                    "vpipHands",
+                    "vpipPct",
+                    "pfrHands",
+                    "pfrPct",
+                    "threeBetHands",
+                    "threeBetOpportunities",
+                    "threeBetPct",
+                    "foldToThreeBetHands",
+                    "foldToThreeBetOpportunities",
+                    "foldToThreeBetPct",
+                    "stealAttempts",
+                    "stealOpportunities",
+                    "stealAttemptPct",
+                    "foldBbToStealHands",
+                    "foldBbToStealOpportunities",
+                    "foldBbToStealPct",
+                    "grossWonCents",
+                    "grossLostCents",
+                    "profitFactor",
+                  ],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/history/hands": {
+      get: {
+        tags: ["history"],
+        operationId: "historyHandsList",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "cursor",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated completed hands for authenticated user",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    hands: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          playedAt: { type: "string", format: "date-time" },
+                          tableName: { type: "string" },
+                          netResultCents: { type: "integer" },
+                          bigBlindCents: { type: "integer" },
+                          heroWonCents: { type: "integer" },
+                          heroActionSummary: { type: "string", nullable: true },
+                          hasReplay: { type: "boolean" },
+                        },
+                        required: [
+                          "id",
+                          "playedAt",
+                          "tableName",
+                          "netResultCents",
+                          "bigBlindCents",
+                          "heroWonCents",
+                        ],
+                      },
+                    },
+                    nextCursor: { type: "string", nullable: true },
+                  },
+                  required: ["hands", "nextCursor"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid query parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/history/hands/{id}": {
+      get: {
+        tags: ["history"],
+        operationId: "historyHandDetailGet",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Completed hand detail for authenticated user",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    snapshots: {
+                      type: "array",
+                      items: { type: "object", additionalProperties: true },
+                    },
+                    boardCards: { type: "array", items: { type: "string" } },
+                    bigBlindCents: { type: "integer" },
+                    reason: { type: "string", nullable: true },
+                    players: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          userId: { type: "string" },
+                          displayName: { type: "string", nullable: true },
+                          seat: { type: "integer" },
+                          holeCards: { type: "array", items: { type: "string" }, nullable: true },
+                          finalStack: { type: "integer" },
+                        },
+                        required: ["userId", "seat", "finalStack"],
+                      },
+                    },
+                    actions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          street: { type: "string" },
+                          actorUserId: { type: "string", nullable: true },
+                          actorDisplayName: { type: "string", nullable: true },
+                          action: { type: "string" },
+                          amountCents: { type: "integer" },
+                        },
+                        required: ["street", "action", "amountCents"],
+                      },
+                    },
+                    payouts: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          userId: { type: "string", nullable: true },
+                          displayName: { type: "string", nullable: true },
+                          amountCents: { type: "integer" },
+                        },
+                        required: ["amountCents"],
+                      },
+                    },
+                  },
+                  required: ["id", "snapshots", "boardCards", "bigBlindCents", "reason", "players", "actions", "payouts"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid hand id",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Hand not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },
@@ -768,6 +1021,60 @@ export const openApiSpec = {
           },
           "403": {
             description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+      post: {
+        tags: ["admin"],
+        operationId: "adminCreateUser",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 6 },
+                  displayName: { type: "string", minLength: 1, maxLength: 80 },
+                  username: { type: "string", minLength: 3, maxLength: 24 },
+                },
+                required: ["email", "password"],
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Created admin user",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/User" } } },
+          },
+          "400": {
+            description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/users/{id}/promote": {
+      patch: {
+        tags: ["admin"],
+        operationId: "adminPromoteUser",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Promoted user",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/User" } } },
+          },
+          "404": {
+            description: "Not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

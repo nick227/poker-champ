@@ -6,14 +6,15 @@ import { BottomBar } from "@/components/containers/BottomBar";
 import { MultiTableTabs } from "@/components/domain/table/MultiTableTabs";
 import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
 import { TableLayout } from "@/components/domain/table/TableLayout";
+import type { Opponent } from "@/components/domain/table/TableLayout";
 import { EmptyTableView } from "@/components/domain/table/EmptyTableView";
+import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
 import { ConnectingTableShell } from "@/components/domain/table/ConnectingTableShell";
 import { TableTopBar } from "@/components/domain/table/TableTopBar";
 import { PlayerHistoryPopup } from "@/components/domain/table/PlayerHistoryPopup";
 import { ChatOverlay } from "@/components/domain/table/ChatOverlay";
-import { mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
+import { getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { TableAction } from "@/components/domain/table/ActionBar";
-import { formatCents } from "@/lib/format";
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
@@ -25,7 +26,20 @@ import { useToastStore } from "@/stores/toast.store";
 import { lobbyPath, loginPathWithNext, tablePath } from "@/lib/nav";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
-import type { TableLastAction } from "@poker-champ/realtime-contract";
+import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceStorage";
+import { playSound } from "@/lib/sound";
+import { MODAL, TABLE } from "@/constants/copy";
+import { useResolvedBuyIn } from "@/components/domain/table/hooks/useResolvedBuyIn";
+import { useTableScene } from "@/components/domain/table/hooks/useTableScene";
+import { ThemePickerSheet } from "@/components/domain/table/ThemePickerSheet";
+import { useActionMessages } from "@/components/domain/table/hooks/useActionMessages";
+import { useChatOverlay } from "@/components/domain/table/hooks/useChatOverlay";
+import { useRebuySheet } from "@/components/domain/table/hooks/useRebuySheet";
+import { useAddBot } from "@/components/domain/table/hooks/useAddBot";
+import { useTableScreenStores } from "@/hooks/useTableScreenStores";
+import type { LobbyTableRow } from "@/lib/lobbyTables";
+import { createVoiceController } from "@/voice/client/create-voice-controller";
+import { ColyseusVoiceAdapter } from "@/voice/adapters/ColyseusVoiceAdapter";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -36,76 +50,51 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   ALL_IN: "allIn",
 };
 
-function buildActionMessage(action: TableLastAction, actorName: string): string {
-  const originSuffix =
-    action.origin === "AUTO"
-      ? " (auto)"
-      : action.origin === "FORCED"
-        ? " (forced)"
-        : "";
-
-  switch (action.action) {
-    case "FOLD":
-      return `${actorName} folds${originSuffix}`;
-    case "CHECK":
-      return `${actorName} checks${originSuffix}`;
-    case "CALL":
-      return `${actorName} calls ${formatCents(action.amountCents)}${originSuffix}`;
-    case "BET":
-      return `${actorName} bets ${formatCents(action.amountCents)}${originSuffix}`;
-    case "RAISE":
-      return action.raiseToCents != null
-        ? `${actorName} raises to ${formatCents(action.raiseToCents)}${originSuffix}`
-        : `${actorName} raises ${formatCents(action.amountCents)}${originSuffix}`;
-    case "ALL_IN":
-      return `${actorName} is all-in for ${formatCents(action.amountCents)}${originSuffix}`;
-  }
-}
-
 export default function TableScreen() {
   const { id, buyInCents: buyInCentsParam } = useLocalSearchParams<{ id: string; buyInCents?: string }>();
   const router = useRouter();
-  const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
-  const activeTableId = storeRegistry.use.tables((s) => s.activeTableId);
-  const openTable = storeRegistry.use.tables((s) => s.openTable);
-  const closeTable = storeRegistry.use.tables((s) => s.closeTable);
-  const setActive = storeRegistry.use.tables((s) => s.setActive);
-  const persistedRoomId = storeRegistry.use.tables((s) => (id ? s.roomIdByTableId[String(id)] : undefined));
-  const persistedBuyInCents = storeRegistry.use.tables((s) => (id ? s.lastBuyInCentsByTableId[String(id)] : undefined));
-  const dispatchTableAction = storeRegistry.use.tables((s) => s.dispatchTableAction);
-  const dispatchSendChat = storeRegistry.use.tables((s) => s.dispatchSendChat);
-  const dispatchAddBot = storeRegistry.use.tables((s) => s.dispatchAddBot);
-  const dispatchRemoveBot = storeRegistry.use.tables((s) => s.dispatchRemoveBot);
-  const joinState = storeRegistry.use.tables((s) => (id ? s.tableJoinById[String(id)] : undefined));
-  const lobbyTables = storeRegistry.use.lobby((s) => s.tables);
-  const snapshotsByTableId = storeRegistry.use.table((s) => s.snapshotsByTableId);
-  const chatMessagesByTableId = storeRegistry.use.table((s) => s.chatMessagesByTableId);
-  const tableStatusByTableId = storeRegistry.use.table((s) => s.connectionStatusByTableId);
-  const tableErrorByTableId = storeRegistry.use.table((s) => s.errorByTableId);
-  const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
-  const authToken = storeRegistry.use.auth((s) => s.token);
-
   const tableId = id ? String(id) : "demo";
-  const routeBuyInCents = useMemo(() => {
-    const raw = Array.isArray(buyInCentsParam) ? buyInCentsParam[0] : buyInCentsParam;
-    let parsed = Number(raw);
-    if (Number.isInteger(parsed) && parsed > 0) return parsed;
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlBuyIn = params.get("buyInCents");
-      parsed = Number(urlBuyIn ?? "");
-      if (Number.isInteger(parsed) && parsed > 0) return parsed;
-    }
-    return undefined;
-  }, [buyInCentsParam]);
-  const { cents: balanceCents } = useBankroll();
+
+  const {
+    openTableIds,
+    activeTableId,
+    openTable,
+    closeTable,
+    setActive,
+    persistedRoomId,
+    persistedBuyInCents,
+    dispatchTableAction,
+    dispatchSendChat,
+    dispatchAddBot,
+    dispatchRemoveBot,
+    joinState,
+    lobbyTables,
+    snapshotsByTableId,
+    chatMessagesByTableId,
+    connectionStatusByTableId: tableStatusByTableId,
+    errorByTableId: tableErrorByTableId,
+    hydrated: authHydrated,
+    token: authToken,
+  } = useTableScreenStores(tableId);
+  const normalizedLobbyTables = useMemo(
+    () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)) as LobbyTableRow[],
+    [lobbyTables],
+  );
+  const { buyInCents, routeBuyInCents } = useResolvedBuyIn({
+    tableId,
+    buyInCentsParam,
+    joinStateBuyInCents: joinState?.buyInCents,
+    persistedBuyInCents,
+    lobbyTables,
+  });
+  const { cents: balanceCents, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const lobbyTable = useMemo(
-    () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)).find((t) => t.id === tableId),
-    [lobbyTables, tableId],
+    () => normalizedLobbyTables.find((t) => t.id === tableId),
+    [normalizedLobbyTables, tableId],
   );
   const canDeleteTable =
-    Boolean(profile.userId && lobbyTable?.creatorId === profile.userId && (lobbyTable?.humanCount ?? 0) === 0);
+    Boolean(profile.userId && lobbyTable?.creatorId === profile.userId && (lobbyTable?.connectedHumanCount ?? 0) === 0);
 
   const handleDeleteTable = useCallback(() => {
     confirmDeleteTable(tableId, {
@@ -118,23 +107,28 @@ export default function TableScreen() {
     });
   }, [tableId, closeTable, router]);
 
-  const [playerPopup, setPlayerPopup] = useState<{ name: string; vpip?: number; pfr?: number; hands?: number; joinDate?: string; location?: string } | null>(null);
-  const [lastShownHandResultId, setLastShownHandResultId] = useState<string | null>(null);
-  const [lastShownActionKey, setLastShownActionKey] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [handResultMessage, setHandResultMessage] = useState<{
-    winnerName: string;
-    amountCents: number;
-    winningHandDescr?: string;
-  } | null>(null);
-  const [chatVisible, setChatVisible] = useState(false);
-  const [lastSeenChatCountByTableId, setLastSeenChatCountByTableId] = useState<Record<string, number>>({});
+  const handleCloseTableAndReturn = useCallback(() => {
+    if (id) {
+      closeTable(String(id));
+      storeRegistry.table().clearTable(String(id));
+    }
+    router.replace(lobbyPath());
+  }, [id, closeTable, router]);
+
+  const [playerPopup, setPlayerPopup] = useState<{ name: string } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
-  const [outOfChipsNoticeShownForHandId, setOutOfChipsNoticeShownForHandId] = useState<string | null>(null);
-  const [addBotPending, setAddBotPending] = useState(false);
-  const addBotTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [themePickerVisible, setThemePickerVisible] = useState(false);
+  const [voiceRoom, setVoiceRoom] = useState<any | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const [voicePrefReady, setVoicePrefReady] = useState(false);
+  const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
+  const chatOverlayRef = useRef<{ setVisible: (v: boolean) => void } | null>(null);
+  const voiceControllerRef = useRef<ReturnType<typeof createVoiceController> | null>(null);
+  const autoJoinAttemptedRef = useRef(false);
 
   const snapshot = snapshotsByTableId[tableId];
+  const snapshotSeats = snapshot?.seats;
   const tableStatus = tableStatusByTableId[tableId] ?? "DISCONNECTED";
   const tableError = tableErrorByTableId[tableId];
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
@@ -149,31 +143,64 @@ export default function TableScreen() {
     }));
   }, [chatMessagesByTableId, tableId, heroUserId]);
 
-  const unseenChatCount =
-    (lastSeenChatCountByTableId[tableId] ?? 0) < chatMessagesForOverlay.length
-      ? chatMessagesForOverlay.length - (lastSeenChatCountByTableId[tableId] ?? 0)
-      : 0;
+  const handleSendChat = useCallback(
+    (text: string) => dispatchSendChat({ tableId, text }),
+    [tableId, dispatchSendChat]
+  );
+  const chatOverlay = useChatOverlay(tableId, chatMessagesForOverlay, { onSend: handleSendChat });
+  chatOverlayRef.current = chatOverlay;
+
+  const { actionMessage, handResultMessage } = useActionMessages(tableId, snapshot);
+
+  const { sceneMode, tableTopBarFlags } = useTableScene({
+    authHydrated,
+    hasAuthToken: Boolean(authToken),
+    hasSnapshot: Boolean(snapshot),
+    hasActiveHand: Boolean(snapshot?.hand),
+    canDeleteTable,
+    canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents),
+  });
+
+  const {
+    rebuySheetVisible,
+    setRebuySheetVisible,
+    canRebuy,
+    handleRebuyApply,
+  } = useRebuySheet(tableId, snapshot, refreshBankroll);
+
+  const { addBotPending, handleAddBot } = useAddBot({
+    tableId,
+    buyInCents,
+    dispatchAddBot,
+    snapshot,
+  });
 
   useEffect(() => {
-    if (chatVisible) {
-      setLastSeenChatCountByTableId((prev) => ({ ...prev, [tableId]: chatMessagesForOverlay.length }));
-    } else if (lastSeenChatCountByTableId[tableId] === undefined) {
-      setLastSeenChatCountByTableId((prev) => ({ ...prev, [tableId]: chatMessagesForOverlay.length }));
-    }
-  }, [chatVisible, tableId, chatMessagesForOverlay.length, lastSeenChatCountByTableId[tableId]]);
+    let active = true;
+    void loadVoicePreference()
+      .then((pref) => {
+        if (!active) return;
+        setVoiceEnabled(pref.enabled);
+        setVoiceMuted(pref.muted);
+      })
+      .finally(() => {
+        if (active) setVoicePrefReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!voicePrefReady) return;
+    void saveVoicePreference({ enabled: voiceEnabled, muted: voiceMuted });
+  }, [voiceEnabled, voiceMuted, voicePrefReady]);
 
   useEffect(() => {
     if (tableId && lobbyTables.length === 0) {
       storeRegistry.lobby().refresh();
     }
   }, [tableId, lobbyTables.length]);
-
-  useEffect(() => {
-    setLastShownActionKey(null);
-    setActionMessage(null);
-    setLastShownHandResultId(null);
-    setHandResultMessage(null);
-  }, [tableId]);
 
   useEffect(() => {
     if (!tableId) return;
@@ -208,6 +235,7 @@ export default function TableScreen() {
     [openTableIds, snapshotsByTableId]
   );
 
+  // Dropdown: switch table and close the dropdown.
   const handleSelectTable = useCallback(
     (targetId: string) => {
       setActive(targetId);
@@ -217,25 +245,21 @@ export default function TableScreen() {
     [setActive, router]
   );
 
-  const buyInCents = useMemo(() => {
-    if (routeBuyInCents) return routeBuyInCents;
-    const persisted = joinState?.buyInCents;
-    if (Number.isInteger(persisted) && Number(persisted) > 0) return Number(persisted);
-    if (Number.isInteger(persistedBuyInCents) && Number(persistedBuyInCents) > 0) return Number(persistedBuyInCents);
-    const table = lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)).find((t) => t.id === tableId);
-    const min = table?.minBuyInCents;
-    return min && min > 0 ? min : undefined;
-  }, [routeBuyInCents, joinState?.buyInCents, persistedBuyInCents, lobbyTables, tableId]);
+  // Tabs: switch table only; dropdown is not open.
+  const handleSelectTab = useCallback(
+    (targetId: string) => {
+      setActive(targetId);
+      router.push(tablePath(targetId));
+    },
+    [setActive, router]
+  );
 
   const realtimeRoomId = useMemo(() => {
     if (persistedRoomId && persistedRoomId.length > 0) return persistedRoomId;
-    const byRoomId = lobbyTables.find((t) => String((t as any)?.roomId ?? "") === tableId);
-    if (byRoomId) return tableId;
-    const byTableId = lobbyTables.find((t) => String((t as any)?.tableId ?? "") === tableId);
-    const mappedRoomId = (byTableId as any)?.roomId;
-    if (typeof mappedRoomId === "string" && mappedRoomId.length > 0) return mappedRoomId;
+    const byTableId = normalizedLobbyTables.find((t) => t.tableId === tableId || t.id === tableId);
+    if (byTableId?.roomId && byTableId.roomId.length > 0) return byTableId.roomId;
     return tableId;
-  }, [persistedRoomId, lobbyTables, tableId]);
+  }, [persistedRoomId, normalizedLobbyTables, tableId]);
 
   const hasValidBuyIn = Number.isInteger(buyInCents) && Number(buyInCents) > 0;
   const shouldConnectRealtime = authHydrated && Boolean(authToken) && Boolean(tableId);
@@ -250,140 +274,226 @@ export default function TableScreen() {
     router.replace(loginPathWithNext(tableNextPath));
   }, [authHydrated, authToken, router, tableNextPath]);
 
-  useEffect(() => {
-     
-    console.log("[TABLE_SCREEN]", {
-      tableId,
-      routeBuyInCents,
-      storedBuyInCents: joinState?.buyInCents,
-      resolvedBuyInCents: buyInCents,
-      hasValidBuyIn,
-      shouldConnectRealtime,
-      authHydrated,
-      hasAuthToken: Boolean(authToken),
-      realtimeRoomId,
-      status: tableStatus,
-      hasSnapshot: Boolean(snapshot),
-      tableError,
-    });
-  }, [tableId, routeBuyInCents, joinState?.buyInCents, buyInCents, hasValidBuyIn, shouldConnectRealtime, authHydrated, authToken, realtimeRoomId, tableStatus, snapshot, tableError]);
+  const handleRealtimeError = useCallback((message: string) => {
+    console.log("TABLE_REALTIME_ERROR", message);
+  }, []);
+
+  const handleTableGone = useCallback(() => {
+    useToastStore.getState().show(TABLE.tableGone, "danger");
+    closeTable(tableId);
+    storeRegistry.table().clearTable(tableId);
+    router.replace(lobbyPath());
+  }, [tableId, closeTable, router]);
 
   useTableRealtime({
     tableId,
     roomId: realtimeRoomId,
     buyInCents,
     enabled: shouldConnectRealtime,
-    onError: (message) => {
-      console.log("TABLE_REALTIME_ERROR", message);
-    },
+    onError: handleRealtimeError,
+    onTableGone: handleTableGone,
+    onReadyRoom: setVoiceRoom,
   });
+
+  useEffect(() => {
+    if (!voiceRoom || !heroUserId) return;
+    const adapter = new ColyseusVoiceAdapter(voiceRoom);
+    const controller = createVoiceController({
+      adapter,
+      selfId: heroUserId,
+      channelId: tableId,
+    });
+    voiceControllerRef.current = controller;
+    autoJoinAttemptedRef.current = false;
+
+    return () => {
+      const current = voiceControllerRef.current;
+      voiceControllerRef.current = null;
+      autoJoinAttemptedRef.current = false;
+      if (current) void current.leave();
+    };
+  }, [voiceRoom, heroUserId, tableId]);
+
+  useEffect(() => {
+    if (!snapshotSeats || !heroUserId || !voiceControllerRef.current) return;
+    const peerIds = snapshotSeats
+      .filter((seat) => seat.occupied && !seat.isBot && seat.connected && seat.userId && seat.userId !== heroUserId)
+      .map((seat) => String(seat.userId))
+      .sort();
+    voiceControllerRef.current.setPeers(peerIds);
+  }, [snapshotSeats, heroUserId]);
+
+  const showVoiceError = useCallback((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err ?? "");
+    const looksPermissionDenied =
+      message.includes("MIC_PERMISSION_DENIED") ||
+      message.includes("NotAllowedError") ||
+      /notallowederror|permission denied|permission/i.test(message.toLowerCase());
+
+    if (looksPermissionDenied) {
+      useToastStore.getState().show("Microphone permission denied", "danger");
+      return;
+    }
+    useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
+  }, []);
+
+  const heroSeat = snapshot?.hero?.seat != null ? snapshot.seats?.find((s) => s.seat === snapshot.hero.seat) : undefined;
+  const heroStackCents = heroSeat?.stackCents ?? -1;
+  const heroStatus = heroSeat?.status ?? "";
+  const heroDisplayStatus = useMemo(
+    () => (snapshot ? getHeroDisplayStatus(snapshot) : "SITTING_OUT"),
+    [snapshot],
+  );
+  const heroIsSittingOut = heroDisplayStatus === "SITTING_OUT";
+
+  useEffect(() => {
+    const controller = voiceControllerRef.current;
+    if (!voiceEnabled || !voicePrefReady) {
+      autoJoinAttemptedRef.current = false;
+      return;
+    }
+    if (heroIsSittingOut) return;
+    if (!controller) return;
+    if (controller.isEnabled()) {
+      controller.setMuted(voiceMuted);
+      return;
+    }
+    if (autoJoinAttemptedRef.current) return;
+
+    autoJoinAttemptedRef.current = true;
+    void controller
+      .join()
+      .then(() => {
+        controller.setMuted(voiceMuted);
+      })
+      .catch((err) => {
+        console.log("VOICE_AUTOJOIN_ERROR", err);
+        setVoiceEnabled(false);
+        showVoiceError(err);
+      });
+  }, [voiceEnabled, voiceMuted, voicePrefReady, voiceRoom, heroUserId, heroIsSittingOut, showVoiceError]);
+
+  useEffect(() => {
+    if (!heroIsSittingOut) return;
+    const controller = voiceControllerRef.current;
+    if (!controller || !controller.isEnabled()) return;
+    void controller.leave().finally(() => {
+      setVoiceEnabled(false);
+      setVoiceMuted(false);
+      autoJoinAttemptedRef.current = false;
+    });
+  }, [heroIsSittingOut]);
+
+  const handleToggleVoice = useCallback(() => {
+    const controller = voiceControllerRef.current;
+    if (!controller) return;
+    void controller
+      .toggleEnabled()
+      .then((enabled) => {
+        setVoiceEnabled(enabled);
+        if (enabled) {
+          controller.setMuted(voiceMuted);
+        } else {
+          autoJoinAttemptedRef.current = false;
+        }
+      })
+      .catch((err) => {
+        console.log("VOICE_TOGGLE_ERROR", err);
+        showVoiceError(err);
+      });
+  }, [voiceMuted, showVoiceError]);
+
+  const handleToggleMute = useCallback(() => {
+    const controller = voiceControllerRef.current;
+    if (!controller || !voiceEnabled) return;
+    const muted = controller.toggleMute();
+    setVoiceMuted(muted);
+  }, [voiceEnabled]);
 
   const sendAction = useCallback(
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
-       
-      console.log("[TABLE_ACTION_SEND]", { tableId, action, amountCents: payload.amount });
       const ok = dispatchTableAction({ tableId, action, amountCents: payload.amount });
-      if (!ok) {
-         
+      if (ok) {
+        playSound(action);
+      } else {
+
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
       }
     },
     [tableId, dispatchTableAction]
   );
 
-  const ADD_BOT_PENDING_MS = 2500;
-  const handleAddBot = useCallback(() => {
-    setAddBotPending(true);
-    if (addBotTimeoutRef.current) clearTimeout(addBotTimeoutRef.current);
-    dispatchAddBot({ tableId, buyInCents: buyInCents ?? 0 });
-    addBotTimeoutRef.current = setTimeout(() => {
-      addBotTimeoutRef.current = null;
-      setAddBotPending(false);
-    }, ADD_BOT_PENDING_MS);
-  }, [tableId, buyInCents, dispatchAddBot]);
-
-  const prevSeatCountRef = useRef(0);
-  const prevHadHandRef = useRef(false);
-  useEffect(() => {
-    if (!snapshot) return;
-    const seatCount = snapshot.seats?.length ?? 0;
-    const hasHand = Boolean(snapshot.hand);
-    const prevSeatCount = prevSeatCountRef.current;
-    const prevHadHand = prevHadHandRef.current;
-    prevSeatCountRef.current = seatCount;
-    prevHadHandRef.current = hasHand;
-    if (addBotPending && (seatCount > prevSeatCount || (hasHand && !prevHadHand))) {
-      if (addBotTimeoutRef.current) {
-        clearTimeout(addBotTimeoutRef.current);
-        addBotTimeoutRef.current = null;
+  const handlePlayerPress = useCallback(
+    (o: Opponent) => {
+      if (o.isBot) {
+        dispatchRemoveBot({ tableId, botId: o.id });
+      } else {
+        setPlayerPopup({ name: o.name });
       }
-      setAddBotPending(false);
-    }
-  }, [addBotPending, snapshot]);
+    },
+    [dispatchRemoveBot, tableId],
+  );
 
-  useEffect(() => () => {
-    if (addBotTimeoutRef.current) clearTimeout(addBotTimeoutRef.current);
-  }, []);
+  const setChatVisibleTrue = useCallback(() => chatOverlayRef.current?.setVisible(true), []);
 
+  const tableTopBarRight = useMemo(
+    () => (
+      <View className="ui-row ui-inline-1">
+        {tableTopBarFlags.showAddBot ? (
+          <Button minWidth={160} variant="link" title="+ Bot" onPress={handleAddBot} loading={addBotPending} />
+        ) : null}
+        <IconButton
+          variant="link"
+          icon={<Icon name="theme" size={20} />}
+          onPress={() => setThemePickerVisible(true)}
+        />
+        <IconButton variant="link" icon={<Icon name="chat" />} onPress={setChatVisibleTrue} badge={chatOverlay.unseenCount || undefined} />
+        <Button variant="link" title={voiceEnabled ? "Stop Voice" : "Join Voice"} onPress={handleToggleVoice} />
+        <View style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            alignSelf: "center",
+            borderWidth: 1,
+            borderColor: "#22c55e",
+            backgroundColor: voiceEnabled ? "#22c55e" : "transparent",
+          }}
+        />
+        <>
+          <Button variant="link" title={voiceMuted ? "🔇" : "🔈"} onPress={handleToggleMute} />
+          <Button variant="link" title="X" onPress={handleCloseTableAndReturn} />
+        </>
+      </View>
+    ),
+    [
+      tableTopBarFlags.showDelete,
+      tableTopBarFlags.showAddBot,
+      handleDeleteTable,
+      handleAddBot,
+      addBotPending,
+      setChatVisibleTrue,
+      chatOverlay.unseenCount,
+      voiceEnabled,
+      voiceMuted,
+      handleToggleVoice,
+      handleToggleMute,
+      handleCloseTableAndReturn,
+    ]
+  );
+
+  const activeOrLastHandId = snapshot?.hand?.handId ?? snapshot?.lastHandResult?.handId ?? null;
+  const outOfChipsHandId = useMemo(() => {
+    if (!snapshot?.hero.youAreSeated || activeOrLastHandId == null) return null;
+    if (heroStackCents > 0 || (heroStatus !== "OUT" && heroStatus !== "ABANDONED")) return null;
+    return activeOrLastHandId;
+  }, [snapshot?.hero.youAreSeated, heroStackCents, heroStatus, activeOrLastHandId]);
   useEffect(() => {
-    const result = snapshot?.lastHandResult;
-    if (!result || !snapshot) return;
-    if (result.handId === lastShownHandResultId) return;
-    setLastShownHandResultId(result.handId);
-    const winnerId = result.winnerId ?? Object.keys(result.payoutsByUserId ?? {})[0];
-    const winnerName =
-      winnerId ? snapshot.seats.find((s) => s.userId === winnerId)?.name || "Winner" : "Split pot";
-    const amountCents =
-      winnerId && result.payoutsByUserId
-        ? result.payoutsByUserId[winnerId] ?? result.potCents
-        : result.potCents;
-    setHandResultMessage({
-      winnerName,
-      amountCents,
-      winningHandDescr: result.winningHandDescr,
-    });
-    const t = setTimeout(() => setHandResultMessage(null), 3000);
-    return () => clearTimeout(t);
-  }, [snapshot?.lastHandResult, snapshot, lastShownHandResultId]);
-
-  useEffect(() => {
-    const hand = snapshot?.hand;
-    const action = snapshot?.lastAction;
-    if (!hand || !action) {
-      if (!hand) setActionMessage(null);
-      return;
-    }
-
-    const key = `${action.handId}:${action.seq}`;
-    if (key === lastShownActionKey) return;
-    setLastShownActionKey(key);
-
-    const actorName = snapshot.seats.find((s) => s.userId === action.actorUserId)?.name
-      ?? (action.actorKind === "BOT" ? "Bot" : "Player");
-    setActionMessage(buildActionMessage(action, actorName));
-  }, [snapshot?.hand, snapshot?.lastAction, snapshot?.seats, lastShownActionKey]);
-
-  useEffect(() => {
-    const activeHandId = snapshot?.hand?.handId;
-    const resultHandId = snapshot?.lastHandResult?.handId;
-    if (!activeHandId || !handResultMessage) return;
-    if (activeHandId !== resultHandId) {
-      setHandResultMessage(null);
-    }
-  }, [snapshot?.hand?.handId, snapshot?.lastHandResult?.handId, handResultMessage]);
-
-  useEffect(() => {
-    if (!snapshot?.hero.youAreSeated || snapshot.hero.seat == null) return;
-    const heroSeat = snapshot.seats.find((seat) => seat.seat === snapshot.hero.seat);
-    if (!heroSeat) return;
-    const activeOrLastHandId = snapshot.hand?.handId ?? snapshot.lastHandResult?.handId ?? "no-hand";
-    const shouldNotify = heroSeat.stackCents <= 0 && (heroSeat.status === "OUT" || heroSeat.status === "ABANDONED");
-    if (!shouldNotify) return;
-    if (outOfChipsNoticeShownForHandId === activeOrLastHandId) return;
-    setOutOfChipsNoticeShownForHandId(activeOrLastHandId);
+    if (outOfChipsHandId == null) return;
+    if (outOfChipsNoticeShownForHandIdRef.current === outOfChipsHandId) return;
+    outOfChipsNoticeShownForHandIdRef.current = outOfChipsHandId;
     useToastStore.getState().show("You are out of chips and sitting out. Add chips to continue.", "danger");
-  }, [snapshot, outOfChipsNoticeShownForHandId]);
+  }, [outOfChipsHandId]);
 
   useEffect(() => {
     if (!tableError) return;
@@ -391,46 +501,40 @@ export default function TableScreen() {
       useToastStore.getState().show("Insufficient bankroll for this table. Deposit or choose a lower buy-in.", "danger");
       return;
     }
+    if (/SESSION_REPLACED|Session replaced by a newer connection/i.test(tableError)) {
+      return;
+    }
     useToastStore.getState().show(tableError, "danger");
   }, [tableError]);
 
-  const hasSnapshot = Boolean(snapshot);
-  const hasActiveHand = Boolean(snapshot?.hand);
-
   return (
     <Screen>
-      <View className="ui-p-stack-2">
-        <MultiTableTabs onOpenMoreTables={() => setActiveTablesDropdownVisible(true)} />
-      </View>
-      {!authHydrated ? (
-        <View className="flex-1 ui-center ui-stack-4">
-          <Button title="Restoring session..." onPress={() => {}} />
+      {(openTableIds?.length ?? 0) > 1 && (
+        <View className="ui-p-stack-2">
+          <MultiTableTabs
+            openTableIds={openTableIds}
+            activeTableId={activeTableId}
+            onSelectTable={handleSelectTab}
+            onOpenMoreTables={() => setActiveTablesDropdownVisible(true)}
+          />
         </View>
-      ) : !authToken ? (
+      )}
+      {sceneMode === "auth_loading" ? (
+        <View className="flex-1 ui-center ui-stack-4">
+          <Button title="Restoring session..." onPress={() => { }} />
+        </View>
+      ) : sceneMode === "auth_required" ? (
         <View className="flex-1 ui-center ui-stack-4">
           <Button title="Session required. Redirecting to login..." onPress={() => router.replace(loginPathWithNext(tableNextPath))} />
         </View>
-      ) : !hasSnapshot ? (
+      ) : sceneMode === "connecting" ? (
         <View className="flex-1">
           <TableTopBar
+            userName={profile.username}
             balanceCents={balanceCents}
-            left={<Button variant="ghost" title="<" onPress={() => router.back()} />}
             right={
               <View className="ui-row ui-inline-1">
-                {canDeleteTable ? (
-                  <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
-                ) : null}
-                <Button
-                  variant="ghost"
-                  title="X"
-                  onPress={() => {
-                    if (id) {
-                      closeTable(String(id));
-                      storeRegistry.table().clearTable(String(id));
-                    }
-                    router.replace(lobbyPath());
-                  }}
-                />
+                <Button variant="link" title="X" onPress={handleCloseTableAndReturn} />
               </View>
             }
           />
@@ -441,63 +545,29 @@ export default function TableScreen() {
                 : tableError
                   ? tableError
                   : tableStatus === "DISCONNECTED"
-                    ? "Connection lost. Attempting to reconnect..."
+                    ? "Connecting..."
                     : tableStatus === "RECONNECTING"
                       ? "Reconnecting to table..."
                       : `Connecting to table (${tableStatus})...`
             }
             action={
-              <Button variant="ghost" title="Return to lobby" onPress={() => router.replace(lobbyPath())} />
+              <Button variant="link" title="Return to lobby" onPress={() => router.replace(lobbyPath())} />
             }
           />
         </View>
-      ) : !hasActiveHand ? (
+      ) : sceneMode === "idle" ? (
         <EmptyTableView
           snapshot={snapshot!}
           opponents={opponents}
           balanceCents={balanceCents}
           tableStatus={tableStatus}
           handResultMessage={handResultMessage ?? undefined}
-          topBarLeft={<Button variant="ghost" title="<" onPress={() => router.back()} />}
-          topBarRight={
-            <View className="ui-row ui-inline-1">
-              {canDeleteTable ? (
-                <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
-              ) : null}
-              {snapshot?.hero.youAreSeated && buyInCents ? (
-                <Button
-                  variant="ghost"
-                  title="+ Bot"
-                  onPress={handleAddBot}
-                  loading={addBotPending}
-                />
-              ) : null}
-              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} badge={unseenChatCount || undefined} />
-              <Button
-                variant="ghost"
-                title="X"
-                onPress={() => {
-                  if (id) {
-                    closeTable(String(id));
-                    storeRegistry.table().clearTable(String(id));
-                  }
-                  router.replace(lobbyPath());
-                }}
-              />
-            </View>
-          }
-          onPlayerPress={(o) => {
-            if (o.isBot) {
-              dispatchRemoveBot({ tableId, botId: o.id });
-            } else {
-              setPlayerPopup({ name: o.name, vpip: 42, pfr: 18, hands: 150, joinDate: "2024-01-15", location: "US" });
-            }
-          }}
-          onAddBot={snapshot?.hero.youAreSeated && buyInCents ? handleAddBot : undefined}
-          onReturnToLobby={() => router.replace(lobbyPath())}
-          addBotPending={addBotPending}
+          topBarRight={tableTopBarRight}
+          onPlayerPress={handlePlayerPress}
+          canRebuy={canRebuy}
+          onPressRebuy={() => setRebuySheetVisible(true)}
         />
-      ) : (
+      ) : sceneMode === "active" ? (
         <TableLayout
           snapshot={snapshot!}
           opponents={opponents}
@@ -506,68 +576,49 @@ export default function TableScreen() {
           connectionStatus={tableStatus}
           actionMessage={actionMessage ?? undefined}
           handResultMessage={handResultMessage ?? undefined}
-          topBarLeft={<Button variant="ghost" title="<" onPress={() => router.back()} />}
-          topBarRight={
-            <View className="ui-row ui-inline-1">
-              {canDeleteTable ? (
-                <Button variant="ghost" title="Delete table" onPress={handleDeleteTable} />
-              ) : null}
-              {snapshot?.hero.youAreSeated && buyInCents ? (
-                <Button
-                  variant="ghost"
-                  title="+ Bot"
-                  onPress={handleAddBot}
-                  loading={addBotPending}
-                />
-              ) : null}
-              <IconButton icon={<Icon name="chat" />} onPress={() => setChatVisible(true)} badge={unseenChatCount || undefined} />
-              <Button
-                variant="ghost"
-                title="X"
-                onPress={() => {
-                  if (id) {
-                    closeTable(String(id));
-                    storeRegistry.table().clearTable(String(id));
-                  }
-                  router.replace(lobbyPath());
-                }}
-              />
-            </View>
-          }
+          topBarRight={tableTopBarRight}
           onAction={sendAction}
-          onPlayerPress={(o) => {
-            if (o.isBot) {
-              dispatchRemoveBot({ tableId, botId: o.id });
-            } else {
-              setPlayerPopup({ name: o.name, vpip: 42, pfr: 18, hands: 150, joinDate: "2024-01-15", location: "US" });
-            }
-          }}
+          onPlayerPress={handlePlayerPress}
+          canRebuy={canRebuy}
+          onPressRebuy={() => setRebuySheetVisible(true)}
         />
-      )}
+      ) : null}
       <ChatOverlay
-        visible={chatVisible}
-        onClose={() => setChatVisible(false)}
-        messages={chatMessagesForOverlay}
-        onSend={(text) => dispatchSendChat({ tableId, text })}
+        visible={chatOverlay.visible}
+        onClose={chatOverlay.onClose}
+        messages={chatOverlay.messages}
+        onSend={chatOverlay.onSend}
       />
       {playerPopup && (
         <PlayerHistoryPopup
           visible
           onClose={() => setPlayerPopup(null)}
           name={playerPopup.name}
-          vpip={playerPopup.vpip}
-          pfr={playerPopup.pfr}
-          hands={playerPopup.hands}
-          joinDate={playerPopup.joinDate}
-          location={playerPopup.location}
         />
       )}
+      {rebuySheetVisible &&
+        snapshot?.table?.minBuyInCents != null &&
+        snapshot?.table?.maxBuyInCents != null ? (
+        <ChooseTableModal
+          visible
+          onClose={() => setRebuySheetVisible(false)}
+          title={MODAL.rebuy}
+          balanceCents={balanceCents}
+          minBuyInCents={snapshot.table.minBuyInCents}
+          maxBuyInCents={Math.min(snapshot.table.maxBuyInCents, balanceCents)}
+          onApply={(opts) => {
+            void handleRebuyApply(opts.buyInCents);
+            setRebuySheetVisible(false);
+          }}
+        />
+      ) : null}
       <ActiveTablesDropdown
         visible={activeTablesDropdownVisible}
         onClose={() => setActiveTablesDropdownVisible(false)}
         tables={activeTableRows}
         onSelectTable={handleSelectTable}
       />
+      <ThemePickerSheet visible={themePickerVisible} onClose={() => setThemePickerVisible(false)} />
       <BottomBar active="table" />
     </Screen>
   );

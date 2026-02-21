@@ -15,12 +15,13 @@ export class ActionOptionsService {
     const canRaiseOverCall = state.roundCurrentBetCents > 0 && maxRaiseTo >= minRaiseTo && player.stackCents > rawCallAmount;
 
     const canCheck = isHeroTurn && rawCallAmount === 0;
-    const canCall = isHeroTurn && rawCallAmount > 0 && player.stackCents >= rawCallAmount;
+    // Allow call when there is a bet and hero has chips; facing overbet (e.g. all-in) hero can call with full stack.
+    const canCall = isHeroTurn && rawCallAmount > 0 && player.stackCents > 0;
     const canBet = isHeroTurn && canOpenBet;
     const canRaise = isHeroTurn && canRaiseOverCall;
     const canAllIn = isHeroTurn && player.stackCents > 0;
     const canFold = isHeroTurn;
-    const callAmount = isHeroTurn ? rawCallAmount : 0;
+    const callAmount = isHeroTurn ? Math.min(rawCallAmount, player.stackCents) : 0;
     const minOpenBetTo = canBet ? Math.min(state.bigBlindCents, maxRaiseTo) : undefined;
     const minActionTo = canRaise ? minRaiseTo : minOpenBetTo;
     const maxActionTo = canBet || canRaise ? maxRaiseTo : undefined;

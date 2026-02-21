@@ -10,8 +10,8 @@ const RANKS: Record<string, string> = {
 const isRedSuit = (suit: string) => suit === "h" || suit === "d";
 
 /** Fixed size so cards align consistently in community and hero areas. */
-const CARD_WIDTH = 48;
-const CARD_HEIGHT = 68;
+const CARD_WIDTH = 60;
+const CARD_HEIGHT = 80;
 
 const cardStyle = {
   width: CARD_WIDTH,

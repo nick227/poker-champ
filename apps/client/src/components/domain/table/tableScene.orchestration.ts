@@ -1,0 +1,35 @@
+export type TableSceneMode = "auth_loading" | "auth_required" | "connecting" | "idle" | "active";
+
+export function resolveTableSceneMode(params: {
+  authHydrated: boolean;
+  hasAuthToken: boolean;
+  hasSnapshot: boolean;
+  hasActiveHand: boolean;
+}): TableSceneMode {
+  if (!params.authHydrated) return "auth_loading";
+  if (!params.hasAuthToken) return "auth_required";
+  if (!params.hasSnapshot) return "connecting";
+  if (!params.hasActiveHand) return "idle";
+  return "active";
+}
+
+export function getTableTopBarFlags(params: {
+  canDeleteTable: boolean;
+  canAddBot: boolean;
+}) {
+  return {
+    showDelete: params.canDeleteTable,
+    showAddBot: params.canAddBot,
+    showChat: true,
+    showClose: true,
+  };
+}
+
+export function shouldKeepOverlaysMountedAcrossModeChange(
+  previousMode: TableSceneMode,
+  nextMode: TableSceneMode,
+): boolean {
+  const interactive = new Set<TableSceneMode>(["idle", "active"]);
+  return interactive.has(previousMode) && interactive.has(nextMode);
+}
+

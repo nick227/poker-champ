@@ -132,6 +132,54 @@ export interface paths {
         patch: operations["profileUpdate"];
         trace?: never;
     };
+    "/api/history/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["historyOverviewGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history/hands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["historyHandsList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history/hands/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["historyHandDetailGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/leaderboard": {
         parameters: {
             query?: never;
@@ -301,11 +349,27 @@ export interface paths {
         };
         get: operations["adminListUsers"];
         put?: never;
-        post?: never;
+        post: operations["adminCreateUser"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["adminPromoteUser"];
         trace?: never;
     };
     "/api/admin/users/{id}/ban": {
@@ -702,6 +766,199 @@ export interface operations {
             };
             /** @description Bad request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    historyOverviewGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregated history overview for the authenticated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        totalHands: number;
+                        totalProfitCents: number;
+                        winningHands: number;
+                        losingHands: number;
+                        breakEvenHands: number;
+                        winRate: number;
+                        avgProfitPerHandCents: number;
+                        bbPer100: number;
+                        avgPotCents: number;
+                        biggestPotCents: number;
+                        biggestWinCents: number;
+                        biggestLossCents: number;
+                        showdownHands: number;
+                        showdownRate: number;
+                        vpipHands: number;
+                        vpipPct: number;
+                        pfrHands: number;
+                        pfrPct: number;
+                        threeBetHands: number;
+                        threeBetOpportunities: number;
+                        threeBetPct: number;
+                        foldToThreeBetHands: number;
+                        foldToThreeBetOpportunities: number;
+                        foldToThreeBetPct: number;
+                        stealAttempts: number;
+                        stealOpportunities: number;
+                        stealAttemptPct: number;
+                        foldBbToStealHands: number;
+                        foldBbToStealOpportunities: number;
+                        foldBbToStealPct: number;
+                        grossWonCents: number;
+                        grossLostCents: number;
+                        profitFactor: number | null;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    historyHandsList: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated completed hands for authenticated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        hands: {
+                            id: string;
+                            /** Format: date-time */
+                            playedAt: string;
+                            tableName: string;
+                            netResultCents: number;
+                            bigBlindCents: number;
+                            heroWonCents: number;
+                            heroActionSummary?: string | null;
+                            hasReplay?: boolean;
+                        }[];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            /** @description Invalid query parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    historyHandDetailGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Completed hand detail for authenticated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        snapshots: {
+                            [key: string]: unknown;
+                        }[];
+                        boardCards: string[];
+                        bigBlindCents: number;
+                        reason: string | null;
+                        players: {
+                            userId: string;
+                            displayName?: string | null;
+                            seat: number;
+                            holeCards?: string[] | null;
+                            finalStack: number;
+                        }[];
+                        actions: {
+                            street: string;
+                            actorUserId?: string | null;
+                            actorDisplayName?: string | null;
+                            action: string;
+                            amountCents: number;
+                        }[];
+                        payouts: {
+                            userId?: string | null;
+                            displayName?: string | null;
+                            amountCents: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Invalid hand id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Hand not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1144,6 +1401,85 @@ export interface operations {
             };
             /** @description Admin required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    password: string;
+                    displayName?: string;
+                    username?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created admin user */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adminPromoteUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Promoted user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

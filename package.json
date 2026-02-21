@@ -15,6 +15,7 @@
     "build:ios": "pnpm -C apps/client build:ios",
     "build:desktop": "pnpm -C apps/client build:desktop",
     "test:client": "pnpm -C apps/client test:run",
+    "test:voice": "pnpm -C apps/client test:voice",
     "test:client:money-safety": "pnpm --prefix apps/client exec vitest run src/tests/table.adapter.money.test.ts",
     "test:client:e2e:stack": "pnpm -C apps/client e2e:stack",
     "test:client:e2e:stack:ci": "pnpm -C apps/client e2e:stack:ci",
@@ -40,7 +41,9 @@
     "sdk:gen": "pnpm openapi:export && node scripts/sync-sdk-version.mjs && npx openapi-typescript openapi.json -o packages/sdk/src/types.gen.ts",
     "sdk:check": "pnpm sdk:gen && pnpm -C packages/sdk typecheck",
     "ui:no-fetch": "node scripts/check-no-ui-fetch.mjs",
-    "verify": "pnpm sdk:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm test:server:soak && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch",
+    "knip": "knip",
+    "madge": "madge --circular --extensions ts,tsx src apps/client/src packages/sdk/src packages/realtime-contract/src",
+    "verify": "pnpm sdk:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm test:server:soak && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch && pnpm knip && pnpm madge",
     "verify:ci": "pnpm verify && pnpm test:client:e2e:stack:ci"
   },
   "dependencies": {
@@ -65,6 +68,8 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "eslint": "^9.18.0",
+    "knip": "^5.84.1",
+    "madge": "^8.0.0",
     "openapi-typescript": "^7.13.0",
     "prisma": "5.22.0",
     "tsx": "^4.21.0",

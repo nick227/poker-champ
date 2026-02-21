@@ -23,11 +23,10 @@ build
 !**/.env.example
 
 # Prisma
-prisma/migrations
-!prisma/migrations/
 prisma/migrations/*
-!prisma/migrations/20260218_migration_c_leaderboard_snapshot/
-!prisma/migrations/20260218_migration_c_leaderboard_snapshot/migration.sql
+!prisma/migrations/**/
+!prisma/migrations/**/migration.sql
+!prisma/migrations/migration_lock.toml
 
 # Logs & debug
 *.log

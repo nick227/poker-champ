@@ -4,6 +4,7 @@ import { Text } from "@/components/base/Text";
 import { Toast } from "@/components/base/Toast";
 import { getRealtimeTransportMode } from "@/registry/transport.registry";
 import { useToastStore } from "@/stores/toast.store";
+import { useE2EConnectionCountStore } from "@/stores/e2eConnectionCount.store";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const transport = getRealtimeTransportMode();
@@ -11,10 +12,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const toastMessage = useToastStore((s) => s.message);
   const toastVariant = useToastStore((s) => s.variant);
   const toastDismiss = useToastStore((s) => s.dismiss);
+  const tableConnectionCount = useE2EConnectionCountStore((s) => s.tableConnectionCount);
 
   return (
     <View className="flex-1 bg-bg min-h-full">
       {children}
+      {process.env.NODE_ENV !== "production" ? (
+        <View
+          aria-hidden
+          style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
+          data-e2e-connection-count={String(tableConnectionCount)}
+        />
+      ) : null}
       {toastMessage ? (
         <Toast message={toastMessage} variant={toastVariant} onDismiss={toastDismiss} />
       ) : null}

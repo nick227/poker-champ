@@ -12,12 +12,12 @@ router.get("/tables", async (_req, res) => {
   const tables = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
     const metadata = r.metadata ?? {};
     const humanCount = typeof metadata.humanCount === "number" ? metadata.humanCount : undefined;
+    const connectedHumanCount = typeof metadata.connectedHumanCount === "number" ? metadata.connectedHumanCount : undefined;
     return {
       tableId: metadata.tableId ?? r.roomId,
       roomId: r.roomId,
       name: metadata.name ?? "Hold'em",
-      // Keep lobby occupancy aligned with delete rules ("no seated humans").
-      players: humanCount ?? r.clients ?? 0,
+      players: connectedHumanCount ?? humanCount ?? r.clients ?? 0,
       maxSeats: metadata.maxSeats ?? r.maxClients ?? 9,
       smallBlindCents: metadata.smallBlindCents ?? 50,
       bigBlindCents: metadata.bigBlindCents ?? 100,
@@ -29,6 +29,7 @@ router.get("/tables", async (_req, res) => {
       createdAt: metadata.createdAt ?? Date.now(),
       creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
       humanCount,
+      connectedHumanCount,
     };
   });
   res.json({ tables });
@@ -72,21 +73,21 @@ router.post("/tables", requireAuth, async (req, res) => {
 });
 
 router.delete("/tables/:tableId", requireAuth, async (req, res) => {
-  const { params: { tableId }, user } = req;
-  const userId = user?.id;
+  const tableId = typeof req.params.tableId === "string" ? req.params.tableId : req.params.tableId?.[0];
+  const userId = req.user?.id;
   if (!tableId || !userId) {
     res.status(400).json({ error: "Missing tableId or auth" });
     return;
   }
 
-  type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string; creatorId?: string; humanCount?: number } };
+  type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string; creatorId?: string; humanCount?: number; connectedHumanCount?: number } };
   const rooms = await matchMaker.query({ name: "poker" }) as PokerRoomRef[];
   const room = rooms.find(
     (r) => (r.metadata?.tableId ?? r.roomId) === tableId
   );
 
   if (!room?.roomId) {
-    res.status(404).json({ error: "Table not found or already closed" });
+    res.status(204).send();
     return;
   }
 
@@ -96,13 +97,16 @@ router.delete("/tables/:tableId", requireAuth, async (req, res) => {
     return;
   }
 
-  const humanCount = room.metadata?.humanCount ?? 0;
-  if (humanCount !== 0) {
-    res.status(409).json({ error: "Table can only be deleted when no human players are seated" });
+  const connectedHumanCount = room.metadata?.connectedHumanCount ?? 0;
+  if (connectedHumanCount !== 0) {
+    res.status(409).json({ error: "Table can only be deleted when no human players are connected" });
     return;
   }
 
+  const resolvedTableId = (room.metadata?.tableId as string) ?? room.roomId ?? tableId;
+  const { TableSeatSessionService } = await import("../engine/seats/TableSeatSessionService.js");
   try {
+    await TableSeatSessionService.markAllLeftForTable({ tableId: resolvedTableId });
     await matchMaker.remoteRoomCall(room.roomId, "requestDisconnect", [], 5000);
   } catch (err) {
     logger.warn({ err, tableId, roomId: room.roomId }, "requestDisconnect failed");

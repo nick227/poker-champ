@@ -24,13 +24,15 @@ const CARD_PRESETS = [
   { name: "Plastic", value: "217 10% 90%" },
 ];
 
+export type ThemePickerSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+};
+
 export function ThemePickerSheet({
   visible,
   onClose,
-}: {
-  visible: boolean;
-  onClose: () => void;
-}) {
+}: ThemePickerSheetProps) {
   const { 
     feltColor, setFeltColor, 
     cardFaceColor, setCardFaceColor,

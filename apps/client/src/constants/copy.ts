@@ -14,6 +14,7 @@ export const MODAL = {
   chat: "Chat",
   createGame: "Create Game",
   chooseTable: "Choose Table",
+  rebuy: "Rebuy",
   activeTables: "Active Tables",
 } as const;
 
@@ -31,6 +32,12 @@ export const TABLE = {
   bankroll: "Bankroll",
   sort: "Sort",
   createGame: "Create Game",
+  defaultTableName: "Table",
+  nextDeal: "Next deal:",
+  reconnecting: "Reconnecting…",
+  tableGone: "Table no longer exists",
+  waitingForHand: "Thinking...",
+  waitingForHandStatus: "Add bot or invite player to start game | Status: ",
 } as const;
 
 export const PASSWORD_INPUT = {

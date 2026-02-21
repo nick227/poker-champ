@@ -21,6 +21,7 @@ import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/
 import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
 import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
 import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
+import { SessionPlayerStatsTracker } from "./dealer/services/SessionPlayerStatsTracker.js";
 import type { FrameReason } from "./replay/FrameReason.js";
 import {
   countNonOutPlayers,
@@ -56,6 +57,9 @@ export class Dealer {
   private readonly turnAutomationService: TurnAutomationService;
   private readonly playerLifecycleService: PlayerLifecycleService;
   private readonly actionOptionsService = new ActionOptionsService();
+  private readonly sessionStatsTracker = new SessionPlayerStatsTracker();
+  /** One hand. Inited at HAND_START for dealt-in players; cleared after flush. */
+  private preflopFlagsByUserId = new Map<string, { vpip: boolean; pfr: boolean }>();
 
   private actionQueue: Promise<void> = Promise.resolve();
   private readonly processedActionIds: Set<string> = new Set();
@@ -123,6 +127,7 @@ export class Dealer {
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       getLastHandResult: () => this.lastHandResult,
       getLastAction: () => this.lastAction,
+      getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
       emitHook: options?.onTableSnapshotEmitted,
     });
     this.startDisconnectSweep();
@@ -135,6 +140,11 @@ export class Dealer {
   unbindClient(userId: string) { this.clientsByUserId.delete(userId); }
   getClient(userId: string) { return this.clientsByUserId.get(userId); }
   hasPlayer(userId: string) { return this.state.playersById.has(userId); }
+
+  /** Session-scoped stats: clear on room dispose to avoid long-lived accumulation. */
+  resetSessionStats(): void {
+    this.sessionStatsTracker.resetAll();
+  }
   emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string) {
     this.snapshotService.emitToUser(userId, reason, actionId);
   }
@@ -158,9 +168,12 @@ export class Dealer {
     await this.executePlayerLifecyclePlans(plans);
   }
 
+  /** Serialized with applyRebuy so add-bot-after-rebuy sees updated state/ledger. */
   async addBot(botId: string, name: string, buyInCents: number) {
-    const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents);
+      await this.executePlayerLifecyclePlans(plans);
+    });
   }
 
   async removeBot(botId: string) {
@@ -251,6 +264,7 @@ export class Dealer {
   }
 
   private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
+    const roundBetBefore = this.state.street === "PREFLOP" ? this.state.roundCurrentBetCents : 0;
     const execution = await this.actionService.execute({
       state: this.state,
       userId,
@@ -264,6 +278,9 @@ export class Dealer {
     });
 
     this.setLastActionFromExecution(execution.lastAction);
+    if (this.state.street === "PREFLOP" && execution.lastAction) {
+      this.updatePreflopFlagsAfterAction(userId, execution.lastAction, roundBetBefore);
+    }
     await this.applyActionResult(execution.result, {
       turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
         ? "BOT_ACTION"
@@ -281,12 +298,62 @@ export class Dealer {
     };
   }
 
+  /** Call at HAND_START so walked hands and first-action edge cases have flags. */
+  private initPreflopFlagsForHand(): void {
+    this.preflopFlagsByUserId = new Map();
+    for (const userId of this.holeCardsByPlayerId.keys()) {
+      this.preflopFlagsByUserId.set(userId, { vpip: false, pfr: false });
+    }
+  }
+
+  /** Apply-time only: isRaise = nextBetTo > currentBetTo; no snapshot-time inference. */
+  private updatePreflopFlagsAfterAction(
+    userId: string,
+    lastAction: ActionServiceLastAction,
+    roundBetBefore: number,
+  ): void {
+    const flags = this.preflopFlagsByUserId.get(userId);
+    if (!flags) return;
+    const { action, amountCents, raiseToCents } = lastAction;
+    const voluntary =
+      (action === "CALL" || action === "BET" || action === "RAISE" || action === "ALL_IN") &&
+      amountCents > 0;
+    if (voluntary) flags.vpip = true;
+    const player = this.state.playersById.get(userId);
+    const newRoundBet = player?.roundBetCents ?? 0;
+    const isRaise =
+      action === "RAISE" ||
+      (action === "ALL_IN" && newRoundBet > roundBetBefore) ||
+      (raiseToCents !== undefined && raiseToCents > roundBetBefore);
+    if (isRaise) flags.pfr = true;
+  }
+
+  /** Call before emitting HAND_END snapshot so payload includes updated stats. */
+  private flushSessionStatsOnly(): void {
+    for (const userId of this.holeCardsByPlayerId.keys()) {
+      const flags = this.preflopFlagsByUserId.get(userId) ?? { vpip: false, pfr: false };
+      this.sessionStatsTracker.recordHandForUser(userId, {
+        dealtIn: true,
+        vpip: flags.vpip,
+        pfr: flags.pfr,
+      });
+    }
+    this.preflopFlagsByUserId.clear();
+  }
+
+  private flushSessionStatsThenTransitionToWaiting(): void {
+    this.state.street = "WAITING";
+    this.state.runoutMode = "NONE";
+    this.processedActionIds.clear();
+  }
+
   // -------------------------
   // Hand lifecycle
   // -------------------------
 
   private async startHand() {
     const plans = await this.handLifecycleService.startHand();
+    this.initPreflopFlagsForHand();
     await this.executeHandLifecyclePlans(plans);
   }
 
@@ -310,6 +377,8 @@ export class Dealer {
     for (const plan of plans) {
       switch (plan.kind) {
         case "EMIT_SNAPSHOT":
+          // IMPORTANT: flush stats BEFORE emitting HAND_END snapshot so payload includes updated hero.playerStats.
+          if (plan.reason === "HAND_END") this.flushSessionStatsOnly();
           this.sendTableSnapshotToAll(plan.reason, plan.actionId);
           break;
         case "DELAY":
@@ -319,9 +388,7 @@ export class Dealer {
           this.maybeActForBot();
           break;
         case "TRANSITION_TO_WAITING":
-          this.state.street = "WAITING";
-          this.state.runoutMode = "NONE";
-          this.processedActionIds.clear();
+          this.flushSessionStatsThenTransitionToWaiting();
           break;
         case "RELEASE_PENDING_SEATS":
           await this.releasePendingSeats();

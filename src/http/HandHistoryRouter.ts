@@ -19,8 +19,192 @@ const HandIdSchema = z.object({
 // Feature flag for learning reveal mode
 const ENABLE_LEARNING_REVEAL = process.env.ENABLE_LEARNING_REVEAL === "true";
 const HISTORY_CURSOR_SEPARATOR = "::";
+const PREFLOP_VOLUNTARY_ACTIONS = new Set(["CALL", "BET", "RAISE", "ALL_IN"]);
+const PREFLOP_AGGRESSIVE_ACTIONS = new Set(["BET", "RAISE", "ALL_IN"]);
 
 router.use(requireAuth);
+
+type OverviewPreflopAction = {
+  action: string;
+  actionIndex: number;
+  amountCents: number;
+  seat: number;
+  player: { userId: string | null };
+};
+
+function nextOccupiedSeat(fromSeat: number, occupiedSet: Set<number>, maxSeats: number): number | null {
+  for (let step = 1; step <= maxSeats; step += 1) {
+    const seat = (fromSeat + step) % maxSeats;
+    if (occupiedSet.has(seat)) return seat;
+  }
+  return null;
+}
+
+function previousOccupiedSeat(fromSeat: number, occupiedSet: Set<number>, maxSeats: number): number | null {
+  for (let step = 1; step <= maxSeats; step += 1) {
+    const seat = (fromSeat - step + maxSeats) % maxSeats;
+    if (occupiedSet.has(seat)) return seat;
+  }
+  return null;
+}
+
+function resolvePositionalSeats(
+  occupiedSeats: number[],
+  dealerSeat: number,
+  maxSeats: number,
+): { buttonSeat: number; sbSeat: number; bbSeat: number; coSeat: number | null } | null {
+  if (occupiedSeats.length < 2 || maxSeats < 2) return null;
+
+  const occupiedSet = new Set(occupiedSeats);
+  const buttonSeat = occupiedSet.has(dealerSeat) ? dealerSeat : occupiedSeats[0]!;
+  const isHeadsUp = occupiedSeats.length === 2;
+  const sbSeat = isHeadsUp ? buttonSeat : nextOccupiedSeat(buttonSeat, occupiedSet, maxSeats);
+  if (sbSeat == null) return null;
+  const bbSeat = isHeadsUp ? nextOccupiedSeat(buttonSeat, occupiedSet, maxSeats) : nextOccupiedSeat(sbSeat, occupiedSet, maxSeats);
+  if (bbSeat == null) return null;
+
+  let coSeat: number | null = null;
+  if (occupiedSeats.length >= 4) {
+    const maybeCo = previousOccupiedSeat(buttonSeat, occupiedSet, maxSeats);
+    if (maybeCo != null && maybeCo !== sbSeat && maybeCo !== bbSeat) {
+      coSeat = maybeCo;
+    }
+  }
+
+  return { buttonSeat, sbSeat, bbSeat, coSeat };
+}
+
+function getPreflopHeroActionStats(params: {
+  actions: OverviewPreflopAction[];
+  userId: string;
+  heroSeat: number;
+  occupiedSeats: number[];
+  dealerSeat: number;
+  maxSeats: number;
+}): {
+  vpip: boolean;
+  pfr: boolean;
+  threeBetOpportunity: boolean;
+  threeBet: boolean;
+  foldToThreeBetOpportunity: boolean;
+  foldToThreeBet: boolean;
+  stealOpportunity: boolean;
+  stealAttempt: boolean;
+  foldBbToStealOpportunity: boolean;
+  foldBbToSteal: boolean;
+} {
+  const { actions, userId, heroSeat, occupiedSeats, dealerSeat, maxSeats } = params;
+  const preflopActions = [...actions].sort((a, b) => a.actionIndex - b.actionIndex);
+  const normalizedMaxSeats = Number.isInteger(maxSeats) && maxSeats > 1
+    ? maxSeats
+    : Math.max(2, ...occupiedSeats.map((s) => s + 1));
+  const positions = resolvePositionalSeats(occupiedSeats, dealerSeat, normalizedMaxSeats);
+
+  const preflopVoluntaryActions = preflopActions.filter(
+    (a) => PREFLOP_VOLUNTARY_ACTIONS.has(a.action) && a.amountCents > 0
+  );
+
+  const heroActions = preflopActions.filter(
+    (a) => a.player?.userId === userId
+  );
+
+  const heroVoluntaryActions = heroActions.filter(
+    (a) => PREFLOP_VOLUNTARY_ACTIONS.has(a.action) && a.amountCents > 0
+  );
+
+  const heroAggressiveActions = heroActions.filter((a) => PREFLOP_AGGRESSIVE_ACTIONS.has(a.action));
+
+  const aggressiveActions = preflopActions.filter(
+    (a) => PREFLOP_AGGRESSIVE_ACTIONS.has(a.action) && a.amountCents > 0
+  );
+
+  const heroFirstRaise = heroAggressiveActions[0];
+  const firstOpponentRaiseBeforeHero = aggressiveActions.find(
+    (a) =>
+      a.player?.userId !== userId &&
+      (heroFirstRaise == null || a.actionIndex < heroFirstRaise.actionIndex)
+  );
+
+  let threeBetOpportunity = false;
+  let threeBet = false;
+  if (firstOpponentRaiseBeforeHero) {
+    const heroResponse = heroActions.find((a) => a.actionIndex > firstOpponentRaiseBeforeHero.actionIndex);
+    if (heroResponse) {
+      threeBetOpportunity = true;
+      threeBet = PREFLOP_AGGRESSIVE_ACTIONS.has(heroResponse.action);
+    }
+  }
+
+  let foldToThreeBetOpportunity = false;
+  let foldToThreeBet = false;
+  if (heroFirstRaise) {
+    const opponentReraise = aggressiveActions.find(
+      (a) => a.player?.userId !== userId && a.actionIndex > heroFirstRaise.actionIndex
+    );
+    if (opponentReraise) {
+      const heroResponse = heroActions.find((a) => a.actionIndex > opponentReraise.actionIndex);
+      if (heroResponse) {
+        foldToThreeBetOpportunity = true;
+        foldToThreeBet = heroResponse.action === "FOLD";
+      }
+    }
+  }
+
+  let stealOpportunity = false;
+  let stealAttempt = false;
+  let foldBbToStealOpportunity = false;
+  let foldBbToSteal = false;
+
+  const heroFirstAction = heroActions[0];
+  const stealSeatSet = new Set<number>();
+  if (positions) {
+    stealSeatSet.add(positions.buttonSeat);
+    stealSeatSet.add(positions.sbSeat);
+    if (positions.coSeat != null) stealSeatSet.add(positions.coSeat);
+  }
+
+  if (positions && heroFirstAction && stealSeatSet.has(heroSeat)) {
+    const hadPriorVoluntaryAction = preflopVoluntaryActions.some(
+      (a) => a.player?.userId !== userId && a.actionIndex < heroFirstAction.actionIndex
+    );
+    if (!hadPriorVoluntaryAction) {
+      stealOpportunity = true;
+      stealAttempt = PREFLOP_AGGRESSIVE_ACTIONS.has(heroFirstAction.action);
+    }
+  }
+
+  if (positions && heroSeat === positions.bbSeat) {
+    const firstAggressiveAction = aggressiveActions[0];
+    const hadPriorVoluntaryActionBeforeOpen = firstAggressiveAction
+      ? preflopVoluntaryActions.some((a) => a.actionIndex < firstAggressiveAction.actionIndex)
+      : false;
+    if (
+      firstAggressiveAction &&
+      !hadPriorVoluntaryActionBeforeOpen &&
+      firstAggressiveAction.player?.userId !== userId &&
+      stealSeatSet.has(firstAggressiveAction.seat)
+    ) {
+      const heroResponse = heroActions.find((a) => a.actionIndex > firstAggressiveAction.actionIndex);
+      if (heroResponse) {
+        foldBbToStealOpportunity = true;
+        foldBbToSteal = heroResponse.action === "FOLD";
+      }
+    }
+  }
+
+  return {
+    vpip: heroVoluntaryActions.length > 0,
+    pfr: heroVoluntaryActions.some((a) => a.action === "RAISE" || a.action === "ALL_IN"),
+    threeBetOpportunity,
+    threeBet,
+    foldToThreeBetOpportunity,
+    foldToThreeBet,
+    stealOpportunity,
+    stealAttempt,
+    foldBbToStealOpportunity,
+    foldBbToSteal,
+  };
+}
 
 function encodeHistoryCursor(hand: { createdAt: Date; id: string }): string {
   return `${hand.createdAt.toISOString()}${HISTORY_CURSOR_SEPARATOR}${hand.id}`;
@@ -54,6 +238,7 @@ router.get("/overview", async (req, res) => {
   try {
     const prisma = getPrisma();
     const userId = req.user!.id;
+    logger.info({ authedUserId: userId }, "/overview authed user");
 
     const hands = await prisma.hand.findMany({
       where: {
@@ -65,52 +250,169 @@ router.get("/overview", async (req, res) => {
         },
       },
       select: {
-        players: {
-          where: { player: { userId } },
+        reason: true,
+        bigBlindCents: true,
+        dealerSeat: true,
+        table: {
           select: {
+            maxSeats: true,
+          },
+        },
+        players: {
+          select: {
+            seat: true,
             startingStackCents: true,
             endingStackCents: true,
+            player: { select: { userId: true } },
           },
-          take: 1,
         },
         payouts: {
-          where: { player: { userId } },
           select: {
             amountCents: true,
+            player: { select: { userId: true } },
+          },
+        },
+        actions: {
+          where: {
+            street: "PREFLOP",
+          },
+          select: {
+            action: true,
+            actionIndex: true,
+            amountCents: true,
+            seat: true,
+            player: { select: { userId: true } },
           },
         },
       },
     });
 
-    const totalHands = hands.length;
+    logger.info({ authedUserId: userId, overviewRawCount: hands.length }, "/overview query result");
+
+    let totalHands = 0;
     let totalProfitCents = 0;
+    let totalProfitBb = 0;
     let winningHands = 0;
+    let losingHands = 0;
+    let breakEvenHands = 0;
     let totalPotCents = 0;
     let biggestPotCents = 0;
+    let biggestWinCents = 0;
+    let biggestLossCents = 0;
+    let grossWonCents = 0;
+    let grossLostCents = 0;
+    let showdownHands = 0;
+    let vpipHands = 0;
+    let pfrHands = 0;
+    let threeBetOpportunities = 0;
+    let threeBetHands = 0;
+    let foldToThreeBetOpportunities = 0;
+    let foldToThreeBetHands = 0;
+    let stealOpportunities = 0;
+    let stealAttempts = 0;
+    let foldBbToStealOpportunities = 0;
+    let foldBbToStealHands = 0;
 
     for (const hand of hands) {
-      const hero = hand.players[0];
+      const hero = hand.players.find((hp) => hp.player?.userId === userId);
       if (!hero) continue;
+      totalHands += 1;
       const endingStack = hero.endingStackCents ?? hero.startingStackCents;
       const netResult = endingStack - hero.startingStackCents;
       const potCents = hand.payouts.reduce((sum, payout) => sum + payout.amountCents, 0);
 
       totalProfitCents += netResult;
-      if (netResult > 0) winningHands += 1;
+      if (netResult > 0) {
+        winningHands += 1;
+        grossWonCents += netResult;
+      } else if (netResult < 0) {
+        losingHands += 1;
+        grossLostCents += Math.abs(netResult);
+      } else {
+        breakEvenHands += 1;
+      }
+
       totalPotCents += potCents;
       if (potCents > biggestPotCents) biggestPotCents = potCents;
+      if (netResult > biggestWinCents) biggestWinCents = netResult;
+      if (netResult < biggestLossCents) biggestLossCents = netResult;
+
+      if (hand.reason === "SHOWDOWN") showdownHands += 1;
+
+      const bb = hand.bigBlindCents > 0 ? hand.bigBlindCents : 0;
+      if (bb > 0) {
+        totalProfitBb += netResult / bb;
+      }
+
+      const preflopHeroStats = getPreflopHeroActionStats({
+        actions: hand.actions,
+        userId,
+        heroSeat: hero.seat,
+        occupiedSeats: hand.players.map((p) => p.seat),
+        dealerSeat: hand.dealerSeat,
+        maxSeats: hand.table.maxSeats,
+      });
+      if (preflopHeroStats.vpip) vpipHands += 1;
+      if (preflopHeroStats.pfr) pfrHands += 1;
+      if (preflopHeroStats.threeBetOpportunity) threeBetOpportunities += 1;
+      if (preflopHeroStats.threeBet) threeBetHands += 1;
+      if (preflopHeroStats.foldToThreeBetOpportunity) foldToThreeBetOpportunities += 1;
+      if (preflopHeroStats.foldToThreeBet) foldToThreeBetHands += 1;
+      if (preflopHeroStats.stealOpportunity) stealOpportunities += 1;
+      if (preflopHeroStats.stealAttempt) stealAttempts += 1;
+      if (preflopHeroStats.foldBbToStealOpportunity) foldBbToStealOpportunities += 1;
+      if (preflopHeroStats.foldBbToSteal) foldBbToStealHands += 1;
     }
 
     const winRate = totalHands > 0 ? (winningHands / totalHands) * 100 : 0;
     const avgPotCents = totalHands > 0 ? totalPotCents / totalHands : 0;
+    const avgProfitPerHandCents = totalHands > 0 ? totalProfitCents / totalHands : 0;
+    const bbPer100 = totalHands > 0 ? (totalProfitBb / totalHands) * 100 : 0;
+    const showdownRate = totalHands > 0 ? (showdownHands / totalHands) * 100 : 0;
+    const vpipPct = totalHands > 0 ? (vpipHands / totalHands) * 100 : 0;
+    const pfrPct = totalHands > 0 ? (pfrHands / totalHands) * 100 : 0;
+    const threeBetPct = threeBetOpportunities > 0 ? (threeBetHands / threeBetOpportunities) * 100 : 0;
+    const foldToThreeBetPct =
+      foldToThreeBetOpportunities > 0 ? (foldToThreeBetHands / foldToThreeBetOpportunities) * 100 : 0;
+    const stealAttemptPct = stealOpportunities > 0 ? (stealAttempts / stealOpportunities) * 100 : 0;
+    const foldBbToStealPct =
+      foldBbToStealOpportunities > 0 ? (foldBbToStealHands / foldBbToStealOpportunities) * 100 : 0;
+    const profitFactor = grossLostCents > 0 ? grossWonCents / grossLostCents : null;
 
     res.json({
       totalHands,
       totalProfitCents,
       winningHands,
+      losingHands,
+      breakEvenHands,
       winRate,
+      avgProfitPerHandCents,
+      bbPer100,
       avgPotCents,
       biggestPotCents,
+      biggestWinCents,
+      biggestLossCents,
+      showdownHands,
+      showdownRate,
+      vpipHands,
+      vpipPct,
+      pfrHands,
+      pfrPct,
+      threeBetHands,
+      threeBetOpportunities,
+      threeBetPct,
+      foldToThreeBetHands,
+      foldToThreeBetOpportunities,
+      foldToThreeBetPct,
+      stealAttempts,
+      stealOpportunities,
+      stealAttemptPct,
+      foldBbToStealHands,
+      foldBbToStealOpportunities,
+      foldBbToStealPct,
+      grossWonCents,
+      grossLostCents,
+      profitFactor,
     });
   } catch (error) {
     console.error("Error fetching history overview:", error);
@@ -131,28 +433,29 @@ router.get("/hands", async (req, res) => {
     const decodedCursor = await decodeHistoryCursor(cursor);
     const prisma = getPrisma();
     const userId = req.user!.id;
+    logger.info({ authedUserId: userId, cursor, limit }, "/hands authed user and query");
 
-    logger.info({ userId, cursor, limit }, '/hands query starting');
+    const skipCursorForTesting = process.env.SKIP_HISTORY_CURSOR === "true";
 
-    // Core security: Only return hands involving the authenticated user
+    // Core security: Only return hands involving the authenticated user (same where as /overview)
     const hands = await prisma.hand.findMany({
       where: {
         endedAt: { not: null },
-        // Security guardrail: Only hands where user participated
         players: {
           some: {
             player: { userId },
           },
         },
-        // Cursor-based pagination
-        ...(decodedCursor && {
-          OR: [
-            { createdAt: { lt: decodedCursor.createdAt } },
-            {
-              AND: [{ createdAt: decodedCursor.createdAt }, { id: { lt: decodedCursor.id } }],
-            },
-          ],
-        }),
+        ...(skipCursorForTesting || !decodedCursor
+          ? {}
+          : {
+              OR: [
+                { createdAt: { lt: decodedCursor.createdAt } },
+                {
+                  AND: [{ createdAt: decodedCursor.createdAt }, { id: { lt: decodedCursor.id } }],
+                },
+              ],
+            }),
       },
       select: {
         id: true,
@@ -191,9 +494,25 @@ router.get("/hands", async (req, res) => {
       take: limit,
     });
 
-    logger.info({ userId, handsFound: hands.length }, '/hands query result');
+    logger.info({ handsFoundDb: hands.length }, "/hands db result");
 
-    // Transform data to match interface (pick hero by userId; Prisma nested where can miss when multiple relations are filtered)
+    const handIds = hands.map((h) => h.id);
+    let handIdsWithReplay = new Set<string>();
+    try {
+      const replayRows = await prisma.tableSnapshotLog.findMany({
+        where: {
+          handId: { in: handIds },
+          payloadJson: { path: "$.hero.userId", equals: "SYSTEM" },
+        },
+        select: { handId: true },
+      });
+      handIdsWithReplay = new Set(
+        replayRows.map((r) => r.handId).filter((id): id is string => id != null)
+      );
+    } catch (err) {
+      logger.warn({ err, handCount: handIds.length }, "/hands hasReplay query failed; defaulting to empty set");
+    }
+
     const handListItems = hands.map(hand => {
       const heroPlayer = hand.players.find((hp) => hp.player?.userId === userId);
       if (!heroPlayer) {
@@ -233,16 +552,21 @@ router.get("/hands", async (req, res) => {
         bigBlindCents: hand.bigBlindCents,
         heroWonCents: potCents,
         heroActionSummary: heroActionSummary || undefined,
+        hasReplay: handIdsWithReplay.has(hand.id),
       };
     }).filter(Boolean); // Filter out null entries
 
-    // Return cursor for next page (last hand createdAt + id)
-    const nextCursor = hands.length === limit ? encodeHistoryCursor(hands[hands.length - 1]) : null;
+    if (hands.length > 0 && handListItems.length === 0) {
+      logger.warn(
+        { handsFromDb: hands.length, userId, sampleHandIds: hands.slice(0, 3).map((h) => h.id) },
+        "/hands post-filter: all hands dropped (no hero player match)"
+      );
+    }
+    logger.info({ handsReturned: handListItems.length }, "/hands response count");
 
-    res.json({
-      hands: handListItems,
-      nextCursor,
-    });
+    const nextCursor = hands.length === limit ? encodeHistoryCursor(hands[hands.length - 1]) : null;
+    const payload = { hands: handListItems, nextCursor };
+    res.json(payload);
   } catch (error) {
     console.error("Error fetching hand history:", error);
     res.status(500).json({ error: "Internal server error" });

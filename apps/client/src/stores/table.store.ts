@@ -11,8 +11,10 @@ type TableStoreState = {
   statusByTableId: Record<string, string | undefined>;
   errorByTableId: Record<string, string | undefined>;
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
+  resetSnapshotStream: (tableId: string) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
+  clearConnectionStatus: (tableId: string) => void;
   setStatus: (tableId: string, status: string) => void;
   setError: (tableId: string, error: string) => void;
   clearTable: (tableId: string) => void;
@@ -35,7 +37,30 @@ export const useTableStore = create<TableStoreState>((set) => ({
   setSnapshot: (tableId, snapshot) =>
     set((s) => {
       const lastSeq = s.lastSeqByTableId[tableId] || 0;
+      const isStreamRestart = snapshot.snapshotSeq === 1 && lastSeq > 1;
+      if (isStreamRestart) {
+        console.warn(
+          `[TableStore] Detected snapshot stream restart for table ${tableId}: incoming seq 1 after last ${lastSeq}. Resetting cursor.`,
+        );
+      }
+
       if (snapshot.snapshotSeq <= lastSeq) {
+        if (isStreamRestart) {
+          return {
+            snapshotsByTableId: {
+              ...s.snapshotsByTableId,
+              [tableId]: snapshot,
+            },
+            lastSeqByTableId: {
+              ...s.lastSeqByTableId,
+              [tableId]: snapshot.snapshotSeq,
+            },
+            errorByTableId: {
+              ...s.errorByTableId,
+              [tableId]: undefined,
+            },
+          };
+        }
         // Drop outdated snapshot
         console.warn(`[TableStore] Dropping outdated snapshot for table ${tableId}: seq ${snapshot.snapshotSeq} <= last ${lastSeq}`);
         return s;
@@ -56,6 +81,13 @@ export const useTableStore = create<TableStoreState>((set) => ({
         },
       };
     }),
+  resetSnapshotStream: (tableId) =>
+    set((s) => {
+      const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
+      const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
+      const { [tableId]: _error, ...errorByTableId } = s.errorByTableId;
+      return { snapshotsByTableId, lastSeqByTableId, errorByTableId };
+    }),
   setStatus: (tableId, status) =>
     set((s) => ({
       statusByTableId: {
@@ -70,6 +102,11 @@ export const useTableStore = create<TableStoreState>((set) => ({
         [tableId]: status,
       },
     })),
+  clearConnectionStatus: (tableId) =>
+    set((s) => {
+      const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
+      return { connectionStatusByTableId };
+    }),
   setError: (tableId, error) =>
     set((s) => ({
       errorByTableId: {
@@ -88,4 +125,3 @@ export const useTableStore = create<TableStoreState>((set) => ({
       return { snapshotsByTableId, chatMessagesByTableId, statusByTableId, errorByTableId, lastSeqByTableId, connectionStatusByTableId };
     }),
 }));
-

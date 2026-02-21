@@ -35,9 +35,12 @@ const CATEGORIES: LeaderboardCategory[] = [
   "action_junkie",
 ];
 
-const SHOWDOWN_MIN_SAMPLES = 20;
+/** Minimum showdown hands per user to appear in Showdown Wins. Kept low so leaderboard populates with typical play. */
+const SHOWDOWN_MIN_SAMPLES = 5;
 const VPIP_MIN_HANDS = 100;
 const SNAPSHOT_WRITE_CHUNK_SIZE = 500;
+/** Placeholder value for empty snapshots so we can store computedAt; excluded when reading. */
+const EMPTY_SNAPSHOT_SENTINEL_VALUE = "__empty__";
 
 type UserMetadata = {
   displayName: string;
@@ -80,7 +83,30 @@ export class LeaderboardAggregationService {
         },
       });
 
-      if (entries.length === 0) return;
+      if (entries.length === 0) {
+        const firstUser = await tx.user.findFirst({
+          orderBy: { createdAt: "asc" },
+          select: { id: true, displayName: true },
+        });
+        if (firstUser) {
+          await tx.leaderboardSnapshot.create({
+            data: {
+              id: nanoid(),
+              period,
+              category,
+              userId: firstUser.id,
+              userDisplayName: firstUser.displayName ?? "",
+              value: EMPTY_SNAPSHOT_SENTINEL_VALUE,
+              valueNumerator: 0,
+              valueDenominator: null,
+              handCount: 0,
+              rank: 0,
+              computedAt,
+            },
+          });
+        }
+        return;
+      }
 
       const rows = entries.map((entry) => ({
         id: nanoid(),
@@ -123,24 +149,24 @@ export class LeaderboardAggregationService {
       return { computedAt: null, entries: [], totalEntries: 0 };
     }
 
-    const [rows, totalEntries] = await Promise.all([
+    const where = {
+      period: input.period,
+      category: input.category,
+      computedAt,
+    };
+    const [allRows, totalEntries] = await Promise.all([
       prisma.leaderboardSnapshot.findMany({
-        where: {
-          period: input.period,
-          category: input.category,
-          computedAt,
-        },
+        where,
         orderBy: { rank: "asc" },
-        take: input.limit,
       }),
       prisma.leaderboardSnapshot.count({
-        where: {
-          period: input.period,
-          category: input.category,
-          computedAt,
-        },
+        where: { ...where, value: { not: EMPTY_SNAPSHOT_SENTINEL_VALUE } },
       }),
     ]);
+
+    const rows = allRows
+      .filter((row) => row.value !== EMPTY_SNAPSHOT_SENTINEL_VALUE)
+      .slice(0, input.limit);
 
     return {
       computedAt: computedAt.toISOString(),
@@ -208,6 +234,11 @@ function withRanks(rows: Omit<LeaderboardSnapshotEntry, "rank">[]): LeaderboardS
   return rows.map((row, index) => ({ rank: index + 1, ...row }));
 }
 
+/**
+ * Leaderboard can be empty when: (1) no snapshot has been recomputed yet,
+ * (2) no Hand rows with endedAt in the period (or no BalanceTransaction with handId for biggest_winner),
+ * (3) for showdown_sniper, no user has >= SHOWDOWN_MIN_SAMPLES hands in the period.
+ */
 async function computeCategory(
   category: LeaderboardCategory,
   period: LeaderboardPeriod,

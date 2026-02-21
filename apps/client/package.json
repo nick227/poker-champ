@@ -11,6 +11,12 @@
     "build:web": "node scripts/sync-tokens-web.cjs && expo export --platform web",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:voice": "vitest run src/tests/voice.webrtc-stun.test.ts",
+    "e2e": "node node_modules/@playwright/test/cli.js test",
+    "e2e:stack": "node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
+    "e2e:stack:ci": "set CI=1&& node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
+    "e2e:ui": "node node_modules/@playwright/test/cli.js test --ui",
+    "e2e:install": "node node_modules/@playwright/test/cli.js install chromium",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "build:android": "eas build --platform android --profile preview",
@@ -57,6 +63,7 @@
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "@playwright/test": "^1.58.2"
   }
 }

@@ -43,7 +43,7 @@ export default function LobbyScreen() {
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setActive = storeRegistry.use.tables((s) => s.setActive);
-  const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
+  const { cents: bankroll, refresh: refreshBankroll, error: bankrollError, loading: bankrollLoading } = useBankroll();
   const profile = useProfile();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -116,7 +116,6 @@ export default function LobbyScreen() {
 
   return (
     <Screen>
-      <View className="flex-1 ui-col gap-4">
         <Masthead />
         <ProfileStrip username={profile.username ?? "Player"} location={profile.location} />
         <View className="ui-row ui-inline-2 ui-section-tight">
@@ -127,7 +126,7 @@ export default function LobbyScreen() {
         <BankrollDisplay amountCents={bankroll} />
         <View className="ui-section-tight ui-stack-1">
           <Text variant="label">Status</Text>
-          <Text variant="muted">{busy ? "Loading..." : error ?? "Active"}</Text>
+          <Text variant="muted">{busy || bankrollLoading ? "Loading..." : bankrollError ?? error ?? "Active"}</Text>
         </View>
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <View className="flex-1 ui-col gap-3">
@@ -144,6 +143,7 @@ export default function LobbyScreen() {
             <GameTableRow
               key={t.id}
               table={t}
+              balanceCents={bankroll}
               currentUserId={profile.userId}
               onJoin={() => setChooseTableModal({ id: t.id, minBuyInCents: t.minBuyInCents, maxBuyInCents: t.maxBuyInCents })}
               onDelete={handleDeleteTable}
@@ -151,7 +151,6 @@ export default function LobbyScreen() {
           ))
         )}
         </View>
-      </View>
       <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
       {chooseTableModal && (
         <ChooseTableModal

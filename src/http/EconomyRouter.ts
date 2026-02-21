@@ -1,9 +1,11 @@
 import express from "express";
+import { matchMaker } from "@colyseus/core";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { getPrisma } from "../db/prisma.js";
 import { CashierService } from "../engine/economy/CashierService.js";
+import { logger } from "../lib/logger.js";
 
 const router = express.Router();
 
@@ -82,6 +84,17 @@ router.post("/buy-in", async (req, res) => {
       amountCents: parsed.data.amountCents,
       externalRef: parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}`,
     });
+    const userId = req.user!.id;
+    const { tableId, amountCents } = parsed.data;
+    try {
+      const rooms = (await matchMaker.query({ name: "poker" })) as { roomId?: string; metadata?: { tableId?: string } }[];
+      const room = rooms.find((r) => (r.metadata?.tableId ?? r.roomId) === tableId);
+      if (room?.roomId) {
+        await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents]);
+      }
+    } catch (roomErr) {
+      logger.warn({ err: roomErr, tableId, userId }, "applyRebuy to room failed after buy-in");
+    }
     res.json(result);
   } catch (err: any) {
     if (err?.message === "INSUFFICIENT_BANKROLL") {

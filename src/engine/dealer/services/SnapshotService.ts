@@ -5,6 +5,7 @@ import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotP
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { HandCalculationsCoordinator } from "../../odds/HandCalculationsCoordinator.js";
+import { toFrameReason, type FrameReason } from "../../replay/FrameReason.js";
 
 export type SnapshotReason = TableSnapshotPayload["reason"];
 
@@ -13,6 +14,7 @@ type SnapshotEmitHook = (args: {
   handId?: string;
   snapshotId: string;
   reason: SnapshotReason;
+  frameReason?: FrameReason;
   street: string;
   payloadJson: TableSnapshotPayload;
   stateHash: string;
@@ -30,12 +32,15 @@ export class SnapshotService {
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
     getLastHandResult: () => TableSnapshotPayload["lastHandResult"] | undefined;
     getLastAction: () => TableSnapshotPayload["lastAction"] | undefined;
-    onTableSnapshotEmitted?: SnapshotEmitHook;
+    getHeroSessionStats?: (userId: string) => TableSnapshotPayload["hero"]["playerStats"];
+    emitHook?: SnapshotEmitHook;
   }) {}
 
   emitToAll(reason: SnapshotReason, actionId?: string): void {
     this.updateCurrentHandCalculations();
     const snapshotSeq = this.nextSnapshotSeq();
+    const canonicalPayload = this.plainPayload(this.buildTableSnapshot("SYSTEM", reason, actionId, snapshotSeq));
+    this.emitSnapshotHook(canonicalPayload, reason);
     for (const [userId, client] of this.deps.clientsByUserId.entries()) {
       const raw = this.buildTableSnapshot(userId, reason, actionId, snapshotSeq);
       const payload = this.plainPayload(raw);
@@ -50,7 +55,6 @@ export class SnapshotService {
       if (parsed.data.type !== "TABLE_SNAPSHOT") continue;
 
       client.send("TABLE_SNAPSHOT", parsed.data.payload);
-      this.emitSnapshotHook(parsed.data.payload, reason);
       logger.debug({
         snapshotVersion: parsed.data.payload.version,
         handId: parsed.data.payload.hand?.handId ?? "",
@@ -71,7 +75,7 @@ export class SnapshotService {
     if (!client) return;
 
     this.updateCurrentHandCalculations();
-    const raw = this.buildTableSnapshot(userId, reason, actionId, this.nextSnapshotSeq());
+    const raw = this.buildTableSnapshot(userId, reason, actionId, this.currentSnapshotSeq());
     const payload = this.plainPayload(raw);
     const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload });
     if (!parsed.success) {
@@ -84,7 +88,9 @@ export class SnapshotService {
     if (parsed.data.type !== "TABLE_SNAPSHOT") return;
 
     client.send("TABLE_SNAPSHOT", parsed.data.payload);
-    this.emitSnapshotHook(parsed.data.payload, reason);
+    // Persist SYSTEM view so replay has data (ReplayFrameService filters by hero.userId === "SYSTEM")
+    const systemPayload = this.plainPayload(this.buildTableSnapshot("SYSTEM", reason, actionId, this.currentSnapshotSeq()));
+    this.emitSnapshotHook(systemPayload, reason);
     logger.debug({
       snapshotVersion: parsed.data.payload.version,
       handId: parsed.data.payload.hand?.handId ?? "",
@@ -95,7 +101,7 @@ export class SnapshotService {
   }
 
   private emitSnapshotHook(payload: TableSnapshotPayload, reason: SnapshotReason): void {
-    const callback = this.deps.onTableSnapshotEmitted;
+    const callback = this.deps.emitHook;
     if (!callback) return;
 
     const state = this.deps.state;
@@ -104,6 +110,7 @@ export class SnapshotService {
       handId: state.handId || undefined,
       snapshotId: payload.snapshotId,
       reason,
+      frameReason: toFrameReason(reason) ?? undefined,
       street: payload.hand?.street ?? "WAITING",
       payloadJson: payload,
       stateHash: payload.stateHash,
@@ -142,6 +149,14 @@ export class SnapshotService {
     return this.snapshotSeq;
   }
 
+  private currentSnapshotSeq(): number {
+    if (this.snapshotSeq <= 0) {
+      logger.warn({ tableId: this.deps.state.tableId, reason: "bootstrap" }, "TABLE_SNAPSHOT_SEQ_BOOTSTRAP_TO_ONE");
+      return 1;
+    }
+    return this.snapshotSeq;
+  }
+
   private buildTableSnapshot(
     userId: string,
     reason: SnapshotReason,
@@ -153,6 +168,33 @@ export class SnapshotService {
     const hero = state.playersById.get(userId);
     const seats = state.seats.map((occupantUserId, seat) => {
       const player = occupantUserId ? state.playersById.get(occupantUserId) : undefined;
+      const connected = player?.connected ?? false;
+      const disconnectDeadlineTs = player?.disconnectDeadlineTs ?? 0;
+      if (connected && disconnectDeadlineTs !== 0) {
+        logger.error(
+          { tableId: state.tableId, seat, playerId: player?.id },
+          "INVARIANT: connected player must have disconnectDeadlineTs 0",
+        );
+        throw new Error("INVARIANT_VIOLATION: connected player must have disconnectDeadlineTs 0");
+      }
+      if (player && !connected && disconnectDeadlineTs <= 0) {
+        logger.warn(
+          { tableId: state.tableId, handId: state.handId, seat, userId: player?.id },
+          "MIRROR_INVARIANT: disconnected player should have disconnectDeadlineTs > 0",
+        );
+      }
+      if (!connected && disconnectDeadlineTs > 0) {
+        logger.debug(
+          {
+            tableId: state.tableId,
+            handId: state.handId,
+            userId: player?.id,
+            seat,
+            disconnectDeadlineTs,
+          },
+          "PLAYER_RECONNECT_GRACE",
+        );
+      }
       return {
         seat,
         occupied: Boolean(player),
@@ -163,7 +205,8 @@ export class SnapshotService {
         stackCents: player?.stackCents ?? 0,
         roundBetCents: player?.roundBetCents ?? 0,
         committedCents: player?.committedCents ?? 0,
-        connected: player?.connected ?? false,
+        connected,
+        disconnectDeadlineTs,
         isDealer: state.dealerSeat === seat,
         isToAct: state.toActSeat === seat,
       };
@@ -229,6 +272,7 @@ export class SnapshotService {
             potOddsPct,
           };
         })(),
+        playerStats: this.deps.getHeroSessionStats?.(userId),
       },
       calculationsMeta: this.handCalculations.getMeta(),
       lastAction: this.deps.getLastAction(),

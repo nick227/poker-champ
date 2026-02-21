@@ -19,7 +19,10 @@ const fallbackStorage: StateStorage = {
     memoryStorage.delete(name);
   },
 };
-const webLocalStorage = (globalThis as { localStorage?: Storage }).localStorage;
+interface HasLocalStorage {
+  localStorage?: StateStorage;
+}
+const webLocalStorage = typeof globalThis !== "undefined" && "localStorage" in globalThis ? (globalThis as HasLocalStorage).localStorage : undefined;
 
 type MultiTableState = {
   openTableIds: string[];

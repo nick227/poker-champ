@@ -94,22 +94,28 @@ export class TableSnapshotLogService {
     } catch (err: any) {
       // Duplicate snapshotId is idempotent/no-op.
       if (err?.code === "P2002") return;
-      const isHandIdFkViolation =
-        err?.code === "P2003" &&
-        params.handId &&
-        String(err?.meta?.field_name ?? "").includes("handId");
-      if (!isHandIdFkViolation) throw err;
-      logger.warn(
-        { tableId: params.tableId, handId: params.handId, snapshotId: params.snapshotId },
-        "SNAPSHOT_LOG_HAND_ID_NOT_PERSISTED_FALLBACK",
-      );
+      if (err?.code !== "P2003") throw err;
+      const fieldName = String(err?.meta?.field_name ?? "");
+      // Table not in DB (e.g. ephemeral/test table) – skip logging.
+      if (fieldName.includes("tableId")) {
+        logger.warn(
+          { tableId: params.tableId, snapshotId: params.snapshotId },
+          "SNAPSHOT_LOG_TABLE_NOT_PERSISTED_SKIP",
+        );
+        return;
+      }
+      // handId not persisted – retry without handId.
+      if (params.handId && fieldName.includes("handId")) {
+        logger.warn(
+          { tableId: params.tableId, handId: params.handId, snapshotId: params.snapshotId },
+          "SNAPSHOT_LOG_HAND_ID_NOT_PERSISTED_FALLBACK",
+        );
+        await prisma.tableSnapshotLog.create({
+          data: { ...baseData, handId: null },
+        });
+      } else {
+        throw err;
+      }
     }
-
-    await prisma.tableSnapshotLog.create({
-      data: {
-        ...baseData,
-        handId: null,
-      },
-    });
   }
 }

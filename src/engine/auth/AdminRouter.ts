@@ -1,4 +1,5 @@
 import express from "express";
+import { requireAuth } from "./RequireAuth.js";
 import { requireAdmin } from "./AdminMiddleware.js";
 import { AdminService } from "./AdminService.js";
 import { UserRole } from "@prisma/client";
@@ -7,7 +8,7 @@ import { toPublicUser } from "./PublicUser.js";
 
 const router = express.Router();
 
-router.use(requireAdmin); // Protect all routes
+router.use(requireAuth, requireAdmin); // Protect all routes
 
 // GET /api/admin/users
 router.get("/users", async (req, res) => {
@@ -16,8 +17,53 @@ router.get("/users", async (req, res) => {
     const limit = parseInt(String(req.query.limit) || "20");
     
     const result = await AdminService.getUsers(page, limit);
-    res.json({ users: result.users.map(toPublicUser), total: result.total });
+    res.json({
+      users: result.users.map((item) => ({
+        ...toPublicUser(item.user),
+        stats: item.stats,
+      })),
+      total: result.total,
+    });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/users
+router.post("/users", async (req, res) => {
+  try {
+    const { email, password, displayName, username } = req.body ?? {};
+    if (!email || !password) {
+      res.status(400).json({ error: "Email and password are required" });
+      return;
+    }
+
+    const user = await AdminService.createAdminUser({ email, password, displayName, username });
+    res.status(201).json(toPublicUser(user));
+  } catch (err: any) {
+    const message = err?.message ?? "Unable to create admin user";
+    if (
+      message === "Email already registered" ||
+      message === "Username already taken" ||
+      String(message).startsWith("Username must be at least")
+    ) {
+      res.status(400).json({ error: message });
+      return;
+    }
+    res.status(500).json({ error: message });
+  }
+});
+
+// PATCH /api/admin/users/:id/promote
+router.patch("/users/:id/promote", async (req, res) => {
+  try {
+    const user = await AdminService.promoteUserToAdmin(req.params.id);
+    res.json(toPublicUser(user));
+  } catch (err: any) {
+    if (err.code === "P2025") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
     res.status(500).json({ error: err.message });
   }
 });

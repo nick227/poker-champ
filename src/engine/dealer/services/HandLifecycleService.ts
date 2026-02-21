@@ -9,6 +9,7 @@ import {
   eligibleForShowdown,
   noFurtherBettingPossible,
   resetBettingRound,
+  syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
 import { buildSidePots, splitPotCents } from "../../rules/SidePotManager.js";
 import type { PokerState, Street } from "../../../state/PokerState.js";
@@ -24,6 +25,8 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import pokersolver from "pokersolver";
 import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
 import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
+import { assertMoneyConservationTransition } from "../../invariants/assertMoneyConservation.js";
+import { shouldFailClosedMoneyPath } from "../../invariants/moneyStrictMode.js";
 import { HAND_RESULT_HOLD_MS, RUNOUT_STAGE_DELAY_MS } from "../timing.js";
 
 const { Hand } = pokersolver as {
@@ -61,6 +64,41 @@ export class HandLifecycleService {
     setLastAction: (value: TableSnapshotPayload["lastAction"] | undefined) => void;
   }) {}
 
+  private sumStacksCents(): number {
+    let sum = 0;
+    for (const p of this.deps.state.playersById.values()) {
+      sum += p.stackCents;
+    }
+    return sum;
+  }
+
+  private assertHandMassOrThrow(state: PokerState, context: string, requireFullySettled = false): void {
+    const { settlementService } = this.deps;
+    const totalStacksCents = this.sumStacksCents();
+    const disbursedCents = settlementService.getCurrentHandPotDisbursedCents();
+    const effectiveMassCents = totalStacksCents + state.potCents - disbursedCents;
+    if (effectiveMassCents !== state.initialChipMassCents) {
+      throw new PokerError(
+        "BAD_STATE",
+        `${context}: hand chip mass mismatch (initial=${state.initialChipMassCents}, effective=${effectiveMassCents}, stacks=${totalStacksCents}, pot=${state.potCents}, disbursed=${disbursedCents}, hand=${state.handId}).`,
+      );
+    }
+    if (requireFullySettled) {
+      if (disbursedCents !== state.potCents) {
+        throw new PokerError(
+          "BAD_STATE",
+          `${context}: expected pot disbursed to equal pot (pot=${state.potCents}, disbursed=${disbursedCents}, hand=${state.handId}).`,
+        );
+      }
+      if (totalStacksCents !== state.initialChipMassCents) {
+        throw new PokerError(
+          "BAD_STATE",
+          `${context}: ending stack mass mismatch (initial=${state.initialChipMassCents}, stacks=${totalStacksCents}, hand=${state.handId}).`,
+        );
+      }
+    }
+  }
+
   async startHand(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
@@ -80,6 +118,7 @@ export class HandLifecycleService {
     state.potCents = 0;
     state.handActionSeq = 0;
     state.actionCount = 0;
+    state.initialChipMassCents = 0;
     state.nextHandAtTs = 0;
     this.deps.setLastHandResult(undefined);
     this.deps.setLastAction(undefined);
@@ -119,6 +158,8 @@ export class HandLifecycleService {
       maybeAssertStateInvariants(state);
       return plans;
     }
+
+    state.initialChipMassCents = this.sumStacksCents() + state.potCents;
 
     const activeSeats = activePlayers
       .map((player) => player.seat)
@@ -170,6 +211,9 @@ export class HandLifecycleService {
     const sbId = state.seats[sbSeat];
     const bbId = state.seats[bbSeat];
 
+    let postedSb = 0;
+    let postedBb = 0;
+
     if (sbId) {
       const sb = state.playersById.get(sbId);
       if (!sb) throw new PokerError("BAD_STATE", "Small blind player missing.");
@@ -177,7 +221,7 @@ export class HandLifecycleService {
         logger.error({ handId: state.handId, sbSeat, sbStatus: sb.status }, "SB not ACTIVE at hand start");
         throw new PokerError("BAD_STATE", "Small blind must be ACTIVE at hand start.");
       }
-      await this.deps.settlementService.postBlind(sb, "SB", state.smallBlindCents);
+      postedSb = await this.deps.settlementService.postBlind(sb, "SB", state.smallBlindCents);
     }
 
     if (bbId) {
@@ -187,10 +231,15 @@ export class HandLifecycleService {
         logger.error({ handId: state.handId, bbSeat, bbStatus: bb.status }, "BB not ACTIVE at hand start");
         throw new PokerError("BAD_STATE", "Big blind must be ACTIVE at hand start.");
       }
-      await this.deps.settlementService.postBlind(bb, "BB", state.bigBlindCents);
+      postedBb = await this.deps.settlementService.postBlind(bb, "BB", state.bigBlindCents);
     }
 
-    state.roundCurrentBetCents = state.bigBlindCents;
+    syncRoundCurrentBetCents(state);
+    if (postedBb > 0) {
+      state.roundCurrentBetCents = Math.max(state.roundCurrentBetCents, postedBb);
+    } else if (postedSb > 0) {
+      state.roundCurrentBetCents = Math.max(state.roundCurrentBetCents, postedSb);
+    }
     state.minRaiseCents = state.bigBlindCents;
     beginRound(state);
     state.toActSeat = findNextToActSeat(state, bbSeat);
@@ -214,6 +263,9 @@ export class HandLifecycleService {
   async advanceStreetOrShowdown(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    const totalStacksBeforeCents = this.sumStacksCents();
+    const potCentsBefore = state.potCents;
+    const disbursedBefore = this.deps.settlementService.getCurrentHandPotDisbursedCents();
     if (state.street === "WAITING") {
       throw new PokerError("BAD_STATE", "advanceStreetOrShowdown while WAITING.");
     }
@@ -253,6 +305,20 @@ export class HandLifecycleService {
 
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });
     plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    assertMoneyConservationTransition({
+      event: "STREET_SETTLE",
+      actionType: "STREET_TRANSITION",
+      street: state.street,
+      state,
+      potCentsBefore,
+      potCentsAfter: state.potCents,
+      totalStacksBeforeCents,
+      totalStacksAfterCents: this.sumStacksCents(),
+      potDisbursedCentsBefore: disbursedBefore,
+      potDisbursedCentsAfter: this.deps.settlementService.getCurrentHandPotDisbursedCents(),
+      expectedPotDeltaCents: 0,
+      expectedMassDeltaCents: 0,
+    });
     maybeAssertBettingState(state);
     maybeAssertStateInvariants(state);
     return plans;
@@ -272,6 +338,7 @@ export class HandLifecycleService {
         // Defensive: e.g. sole survivor is ABANDONED; credit pot so it is never left uncredited.
         const winner = notFoldedOrOut[0]!;
         await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
+        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_POST_PAYOUT", true);
         await this.deps.applyDisconnectedAutoActionCapForHand();
         this.deps.setLastHandResult({
           handId: state.handId,
@@ -281,6 +348,7 @@ export class HandLifecycleService {
           payoutsByUserId: { [winner.id]: state.potCents },
           board: [...state.board],
         });
+        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_PRE_FINALIZE", true);
         await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
         plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
         plans.push({ kind: "TRANSITION_TO_WAITING" });
@@ -289,6 +357,7 @@ export class HandLifecycleService {
         if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
           await this.deps.persistence.assertHandBalanced(state.handId);
         }
+        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
         maybeAssertStateInvariants(state);
         return plans;
       }
@@ -305,6 +374,7 @@ export class HandLifecycleService {
     const winner = remaining[0]!;
 
     await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
+    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_POST_PAYOUT", true);
     await this.deps.applyDisconnectedAutoActionCapForHand();
 
     this.deps.setLastHandResult({
@@ -315,6 +385,7 @@ export class HandLifecycleService {
       payoutsByUserId: { [winner.id]: state.potCents },
       board: [...state.board],
     });
+    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_PRE_FINALIZE", true);
     await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
@@ -323,6 +394,7 @@ export class HandLifecycleService {
     if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
+    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING", true);
     maybeAssertStateInvariants(state);
     return plans;
   }
@@ -394,6 +466,12 @@ export class HandLifecycleService {
       })[0];
 
       if (fallbackRecipient) {
+        if (shouldFailClosedMoneyPath()) {
+          throw new PokerError(
+            "BAD_STATE",
+            `SHOWDOWN_REMAINDER_RECONCILED: pot=${state.potCents}, paid=${totalPaidBeforeReconcile}, remainder=${remainder}, recipient=${fallbackRecipient.id}, hand=${state.handId}`,
+          );
+        }
         payouts.set(fallbackRecipient.id, (payouts.get(fallbackRecipient.id) ?? 0) + remainder);
         // Production should alert on this event; silent chip reconciliation masks side-pot bugs.
         logger.warn(
@@ -421,6 +499,7 @@ export class HandLifecycleService {
         await this.deps.settlementService.creditPayoutToPlayer(player, amount);
       }
     }
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_PAYOUT_BATCH", true);
 
     const payoutsEntries = [...payouts.entries()];
     const primaryWinnerId = seatOrder.find((id) => payouts.has(id));
@@ -448,9 +527,11 @@ export class HandLifecycleService {
       winningHandDescr: typeof winningDescr === "string" ? winningDescr : undefined,
     });
 
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_SHOWDOWN" });
     await this.deps.applyDisconnectedAutoActionCapForHand();
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
 
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_PRE_FINALIZE", true);
     await this.deps.settlementService.finalizePersistedHand("SHOWDOWN");
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
@@ -458,6 +539,7 @@ export class HandLifecycleService {
     if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN", true);
     maybeAssertStateInvariants(state);
     return plans;
   }

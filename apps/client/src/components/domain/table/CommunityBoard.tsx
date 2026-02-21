@@ -1,39 +1,56 @@
 import { View } from "react-native";
 import { PlayingCard } from "./PlayingCard";
 import { PotChipStack } from "./PotChipStack";
+import type { UiCard } from "./table.adapter";
+import {
+  COMMUNITY_BOARD_HEIGHT,
+  COMMUNITY_CARD_GAP,
+  COMMUNITY_CARD_ROW_HEIGHT,
+  COMMUNITY_CARD_SCALE,
+  POT_ROW_MIN_HEIGHT,
+} from "./constants/components/communityBoard.layout";
 
-type Card = { rank: string; suit: string } | null;
+/** Stable keys for 5 community card slots. */
+const COMMUNITY_CARD_KEYS = ["flop1", "flop2", "flop3", "turn", "river"] as const;
 
-const CARD_GAP = 10;
-const CARD_ROW_HEIGHT = 68;
-const POT_ROW_MIN_HEIGHT = 44;
-/** Extra bottom padding so pot value is not cut off by felt edge. */
-const FELT_BOTTOM_PADDING = 20;
-
-export function CommunityBoard({ cards, potCents }: { cards: Card[]; potCents: number }) {
+export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents: number }) {
   return (
     <View
       collapsable={false}
-      className="bg-felt mx-3 my-2 rounded-table border border-black/20"
-      style={{ flexDirection: "column" }}
+      className="bg-felt mx-3 justify-center rounded-table border border-black/20"
+      style={{ flexDirection: "column", height: COMMUNITY_BOARD_HEIGHT }}
     >
       <View
         collapsable={false}
         className="px-4 py-5 ui-stack-4"
-        style={{ flexDirection: "column", paddingBottom: FELT_BOTTOM_PADDING }}
+        style={{
+          flexDirection: "column",
+          flexGrow: 0,
+          flexShrink: 0,
+        }}
       >
         <View
           collapsable={false}
           className="ui-row ui-center"
-          style={{ gap: CARD_GAP, height: CARD_ROW_HEIGHT, alignItems: "center" }}
+          style={{
+            gap: COMMUNITY_CARD_GAP,
+            minHeight: COMMUNITY_CARD_ROW_HEIGHT,
+            alignItems: "center",
+            justifyContent: "space-evenly",
+          }}
         >
-          {cards.map((c, i) =>
-            c ? (
-              <PlayingCard key={i} rank={c.rank} suit={c.suit} />
+          {cards.map((c, i) => {
+            const key = COMMUNITY_CARD_KEYS[i] ?? `card-${i}`;
+            return c ? (
+              <View key={key} style={{ transform: [{ scale: COMMUNITY_CARD_SCALE }] }}>
+                <PlayingCard rank={c.rank} suit={c.suit} />
+              </View>
             ) : (
-              <PlayingCard key={i} faceDown />
-            )
-          )}
+              <View key={key} style={{ transform: [{ scale: COMMUNITY_CARD_SCALE }] }}>
+                <PlayingCard faceDown />
+              </View>
+            );
+          })}
         </View>
         <View
           collapsable={false}

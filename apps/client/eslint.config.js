@@ -114,6 +114,23 @@ export default [
       },
     },
   },
+  // Guardrail: table domain components remain store-free.
+  {
+    files: ["src/components/domain/table/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/registry/store.registry",
+              message: "Use route/container orchestration and pass data via props or scene contract.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Separate config for CommonJS files
   {
     files: ["**/*.cjs"],

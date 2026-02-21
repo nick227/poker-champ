@@ -47,7 +47,7 @@ router.get("/:id", async (req, res) => {
   res.json(tournament);
 });
 
-router.post("/", requireAdmin, async (req, res) => {
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
   const parsed = CreateTournamentSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid tournament payload", details: parsed.error.flatten() });

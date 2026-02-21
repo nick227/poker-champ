@@ -12,8 +12,10 @@ async function performDelete(tableId: string, options: { onSuccess?: () => void 
     if (res.ok) {
       options.onSuccess?.();
       useToastStore.getState().show("Table deleted", "success");
+    } else if (res.error?.status === 404) {
+      options.onSuccess?.();
     } else {
-      useToastStore.getState().show(res.error.message ?? "Failed to delete table", "danger");
+      useToastStore.getState().show(res.error?.message ?? "Failed to delete table", "danger");
     }
   } finally {
     deleteInProgress.current = false;

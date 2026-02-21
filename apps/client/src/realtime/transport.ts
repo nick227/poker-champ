@@ -27,6 +27,7 @@ export type RealtimeSession = {
   connected: () => boolean;
   send: (message: RealtimeOutboundMessage) => boolean;
   disconnect: () => void;
+  getNativeRoom?: () => unknown;
 };
 
 export const transportCapabilities = {
@@ -85,6 +86,7 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
       connected: () => false,
       send: () => false,
       disconnect: () => undefined,
+      getNativeRoom: () => null,
     };
   }
 
@@ -157,6 +159,7 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
       } catch {}
       socket = null;
     },
+    getNativeRoom: () => null,
   };
 }
 
@@ -168,6 +171,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       connected: () => false,
       send: () => false,
       disconnect: () => undefined,
+      getNativeRoom: () => null,
     };
   }
 
@@ -179,6 +183,8 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let attemptedRoomIdRecovery = false;
   let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
+  /** Set when server sends ERROR SESSION_REPLACED; we must not reconnect on leave (avoids replace→reconnect loop). */
+  let sessionReplacedByNewerConnection = false;
   const debugLog = (...args: unknown[]) => {
      
     console.log("[COLYSEUS_RT]", ...args);
@@ -257,6 +263,10 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       options.onOpen?.();
 
       room.onMessage("*", (type: string, payload: unknown) => {
+        if (type === "ERROR" && payload && typeof payload === "object" && (payload as { code?: string }).code === "SESSION_REPLACED") {
+          sessionReplacedByNewerConnection = true;
+          debugLog("SESSION_REPLACED_RECEIVED", { roomId: room?.roomId ?? options.roomId });
+        }
         options.onMessage({ type, payload });
       });
 
@@ -267,10 +277,13 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
 
       room.onLeave(() => {
         connected = false;
-        debugLog("LEFT", { roomId: room?.roomId ?? options.roomId, willReconnect: shouldReconnect });
         options.onMessage({ type: "DISCONNECTED" });
         options.onClose?.();
-        scheduleReconnect();
+        if (sessionReplacedByNewerConnection) {
+          debugLog("Session replaced by newer connection (no retry)");
+          return;
+        }
+        if (shouldReconnect) scheduleReconnect();
       });
     } catch (err: any) {
       connected = false;
@@ -352,5 +365,6 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       } catch {}
       room = null;
     },
+    getNativeRoom: () => room,
   };
 }

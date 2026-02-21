@@ -58,7 +58,7 @@ export class PersistenceFacade {
       return await this.ledger.postBlind(params);
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "postBlind failed");
-      return params.currentBalance - params.amountCents;
+      throw err;
     }
   }
 
@@ -82,7 +82,7 @@ export class PersistenceFacade {
       return await this.ledger.debitBet(ledgerParams);
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "debitBet failed");
-      return params.currentBalance - params.amountCents;
+      throw err;
     }
   }
 
@@ -104,7 +104,7 @@ export class PersistenceFacade {
       return await this.ledger.creditRefund(ledgerParams);
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "creditRefund failed");
-      return params.currentBalance + params.amountCents;
+      throw err;
     }
   }
 
@@ -126,7 +126,7 @@ export class PersistenceFacade {
       return await this.ledger.creditPayout(ledgerParams);
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "creditPayout failed");
-      return params.currentBalance + params.amountCents;
+      throw err;
     }
   }
 

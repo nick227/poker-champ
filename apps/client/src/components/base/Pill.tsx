@@ -28,13 +28,13 @@ export function Pill({
       className={`min-w-[5rem] ui-inline-1 rounded-md border px-2 py-1 ${variantClass[variant]} ${className}`}
       style={{ minHeight: 28, flexDirection: "row", alignItems: "center" }}
     >
-      <Text variant="muted" allowFontScaling={false} numberOfLines={1} style={{ minWidth: 60 }}>
+      <Text variant="muted" allowFontScaling={false} numberOfLines={1} style={{ minWidth: 0 }}>
         {label}
       </Text>
       <Text
         variant="body"
         allowFontScaling={false}
-        style={{ fontVariant: ["tabular-nums"], minWidth: 40 }}
+        style={{ fontVariant: ["tabular-nums"], minWidth: 0 }}
       >
         {value}
       </Text>

@@ -110,6 +110,13 @@ async function main() {
   const roomStreet = () => room.state?.street as string;
   const roomHandId = () => room.state?.handId as string;
   const roomHandNumber = () => (room.state?.handNumber as number) ?? 0;
+  const hasVisibleCurrentHand = (): boolean => {
+    const handId = roomHandId();
+    if (!handId) return false;
+    return (["user_a", "user_b", "user_c"] as const).some(
+      (userId) => snapshots[userId]?.hand?.handId === handId,
+    );
+  };
   const canAct = (userId: UserId): boolean => {
     const opts = snapshots[userId]?.hero?.actionOptions;
     return Boolean(
@@ -125,6 +132,16 @@ async function main() {
       (userId) => snapshots[userId]?.hand?.handId === handId && canAct(userId),
     );
     if (actors.length === 1) return actors[0];
+
+    // Fallback to server-authoritative toActSeat when snapshots are briefly out of sync.
+    const toActSeat = room.state?.toActSeat;
+    const toActStateUserId = room.state?.seats?.[toActSeat ?? -1];
+    if (
+      (toActStateUserId === "user_a" || toActStateUserId === "user_b" || toActStateUserId === "user_c") &&
+      snapshots[toActStateUserId]?.hand?.handId === handId
+    ) {
+      return toActStateUserId;
+    }
     return undefined;
   };
 
@@ -134,6 +151,34 @@ async function main() {
       15000,
       "next hand",
     );
+  };
+
+  const settleToWaitingState = async (): Promise<void> => {
+    let guard = 0;
+    while (roomStreet() !== "WAITING" && guard < 120) {
+      guard += 1;
+      const actingUserId = resolveSnapshotActorUserId();
+      if (!actingUserId) {
+        await delay(50);
+        continue;
+      }
+      const options = snapshots[actingUserId]?.hero?.actionOptions;
+      if (!options || snapshots[actingUserId]?.hand?.handId !== roomHandId()) {
+        await delay(50);
+        continue;
+      }
+      if (options.canCheck) emitAction(actingUserId, { action: "CHECK" });
+      else if (options.canCall) emitAction(actingUserId, { action: "CALL" });
+      else if (options.canFold) emitAction(actingUserId, { action: "FOLD" });
+      else if (options.canAllIn) emitAction(actingUserId, { action: "ALL_IN" });
+      else await delay(50);
+      await delay(120);
+    }
+    try {
+      await waitFor(() => roomStreet() === "WAITING", 20_000, "table waiting before persistence/rejoin check");
+    } catch {
+      // Best effort only: room persistence/rejoin checks below are valid even if we are mid-hand.
+    }
   };
 
   try {
@@ -236,9 +281,13 @@ async function main() {
       );
     }
 
-    const reconnectStartHand = activeHand()?.handNumber ?? 0;
-    const reconnectStartId = activeHand()?.handId ?? "";
-    await waitFor(() => Boolean(activeHand()?.handId), 5000, "reconnect scenario hand");
+    await waitFor(
+      () =>
+        (roomStreet() !== "WAITING" && Boolean(roomHandId()) && hasVisibleCurrentHand()) ||
+        roomStreet() === "WAITING",
+      20_000,
+      "reconnect scenario hand or waiting table",
+    );
 
     let reconnectUserId = resolveSnapshotActorUserId();
     if (!reconnectUserId) {
@@ -268,6 +317,8 @@ async function main() {
     await waitFor(() => snapshots[reconnectUserId]?.snapshotId !== undefined, 5000, "restored snapshot");
 
     let emittedProgressAction = false;
+    const reconnectProgressBaselineHandNo = roomHandNumber();
+    const reconnectProgressBaselineSnapshotId = snapshots[reconnectUserId]?.snapshotId;
 
     for (let i = 0; i < 32; i += 1) {
       const hand = activeHand();
@@ -294,9 +345,14 @@ async function main() {
       break;
     }
 
-    if (!emittedProgressAction) {
-      // eslint-disable-next-line no-console
-      console.warn("Headless harness reconnect progress action skipped: no actionable actor surfaced in time");
+    if (!emittedProgressAction && activeHand()) {
+      await waitFor(
+        () =>
+          roomHandNumber() > reconnectProgressBaselineHandNo ||
+          snapshots[reconnectUserId]?.snapshotId !== reconnectProgressBaselineSnapshotId,
+        12000,
+        "reconnect progress without direct action",
+      );
     }
 
     // Strict reconnect path: simulate transport drop and room-level reconnection grace recovery.
@@ -357,35 +413,29 @@ async function main() {
       }
     }
 
-    // Room persistence/rejoin check is best-effort in headless mode: known invariant
-    // paths during mid-hand consented leaves can be noisy in local runs.
-    try {
-      await room.onLeave(clients.user_a as any, 4000);
-      await room.onLeave(clients.user_b as any, 4000);
-      await room.onLeave(clients.user_c as any, 4000);
+    await settleToWaitingState();
+    await room.onLeave(clients.user_a as any, 4000);
+    await room.onLeave(clients.user_b as any, 4000);
+    await room.onLeave(clients.user_c as any, 4000);
 
-      const roomsAfterEmpty = await matchMaker.query({ name: "poker" });
-      const persistedRoom = roomsAfterEmpty.find((r: any) => r.roomId === roomId);
-      if (!persistedRoom) {
-        throw new Error(`Room ${roomId} is missing after all players left; expected persistent cash-game room.`);
-      }
-
-      const localRoomAfterEmpty = (matchMaker as any).getLocalRoomById(roomId) as PokerRoom | undefined;
-      if (!localRoomAfterEmpty) {
-        throw new Error(`Room ${roomId} is not locally joinable after all players left.`);
-      }
-
-      clients.user_a = makeClient("sess_rejoin_a", "user_a");
-      await localRoomAfterEmpty.onJoin(
-        clients.user_a as any,
-        { buyInCents: 5000 },
-        { userId: "user_a", username: "alice" },
-      );
-      await waitFor(() => Boolean(snapshots.user_a?.hero.youAreSeated), 5000, "rejoin after empty room");
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("Headless harness persistence/rejoin check skipped:", err);
+    const roomsAfterEmpty = await matchMaker.query({ name: "poker" });
+    const persistedRoom = roomsAfterEmpty.find((r: any) => r.roomId === roomId);
+    if (!persistedRoom) {
+      throw new Error(`Room ${roomId} is missing after all players left; expected persistent cash-game room.`);
     }
+
+    const localRoomAfterEmpty = (matchMaker as any).getLocalRoomById(roomId) as PokerRoom | undefined;
+    if (!localRoomAfterEmpty) {
+      throw new Error(`Room ${roomId} is not locally joinable after all players left.`);
+    }
+
+    clients.user_a = makeClient("sess_rejoin_a", "user_a");
+    await localRoomAfterEmpty.onJoin(
+      clients.user_a as any,
+      { buyInCents: 5000 },
+      { userId: "user_a", username: "alice" },
+    );
+    await waitFor(() => Boolean(snapshots.user_a?.hero.youAreSeated), 5000, "rejoin after empty room");
 
     // eslint-disable-next-line no-console
     console.log(

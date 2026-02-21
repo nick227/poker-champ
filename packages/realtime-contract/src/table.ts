@@ -13,6 +13,7 @@ export const TableErrorCodeEnum = z.enum([
   "INVALID_ACTION",
   "INSUFFICIENT_FUNDS",
   "TABLE_NOT_FOUND",
+  "TABLE_GONE",
   "BUYIN_INVALID",
   "UNAUTHORIZED",
 ]);
@@ -25,6 +26,7 @@ const SnapshotReasonEnum = z.enum([
   "RUNOUT_STAGE",
   "AUTO_TRANSITION",
   "HAND_START",
+  "HAND_SHOWDOWN",
   "HAND_END",
   "SEAT_CHANGE",
 ]);
@@ -91,6 +93,15 @@ export const HeroCalculationsSchema = z.object({
   updatedAtTs: z.number().int().nonnegative().optional(),
 });
 
+/** Session-scoped player stats (VPIP/PFR). Partial for incremental rollout. */
+export const HeroPlayerStatsSchema = z
+  .object({
+    hands: z.number().int().nonnegative(),
+    vpipPct: z.number().min(0).max(100),
+    pfrPct: z.number().min(0).max(100),
+  })
+  .partial();
+
 export const CalculationsMetaSchema = z.object({
   computedAtTs: z.number().int().nonnegative().optional(),
   street: StreetEnum.optional(),
@@ -109,6 +120,7 @@ export const TableSeatSnapshotSchema = z.object({
   roundBetCents: z.number().int().nonnegative().default(0),
   committedCents: z.number().int().nonnegative().default(0),
   connected: z.boolean().default(false),
+  disconnectDeadlineTs: z.number().int().nonnegative().default(0),
   isDealer: z.boolean().default(false),
   isToAct: z.boolean().default(false),
 });
@@ -173,6 +185,7 @@ export const TableSnapshotPayloadSchema = z.object({
     holeCards: z.array(z.string().min(2).max(2)).length(2).optional(),
     actionOptions: HeroActionOptionsSchema.optional(),
     calculations: HeroCalculationsSchema.optional(),
+    playerStats: HeroPlayerStatsSchema.optional(),
   }),
 
   calculationsMeta: CalculationsMetaSchema.optional(),
@@ -237,5 +250,6 @@ export type TableOutboundMessage = z.infer<typeof TableOutboundMessageSchema>;
 export type TableSnapshotPayload = z.infer<typeof TableSnapshotPayloadSchema>;
 export type TableLastAction = z.infer<typeof TableLastActionSchema>;
 export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;
+export type HeroPlayerStats = z.infer<typeof HeroPlayerStatsSchema>;
 export type TableErrorCode = z.infer<typeof TableErrorCodeEnum>;
 export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;

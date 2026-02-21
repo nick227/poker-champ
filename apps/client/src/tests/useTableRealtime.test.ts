@@ -1,62 +1,160 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.message";
+import { useMultiTableStore } from "@/stores/multitable.store";
+import { useTableStore } from "@/stores/table.store";
 
-describe('useTableRealtime - ActionId Diagnostics', () => {
+function makeSnapshot(seq: number, tableId = "t1"): TableSnapshotPayload {
+  return {
+    version: 1,
+    snapshotId: `snap_${seq}`,
+    snapshotSeq: seq,
+    emittedAtTs: Date.now(),
+    serverTimeTs: Date.now(),
+    stateHash: `hash_${seq}`,
+    reason: "ACTION_ACCEPTED",
+    table: {
+      tableId,
+      tableName: "Table",
+      visibility: "PUBLIC",
+      maxSeats: 6,
+      smallBlindCents: 50,
+      bigBlindCents: 100,
+      minBuyInCents: 1000,
+      maxBuyInCents: 10000,
+    },
+    hand: {
+      handId: "h1",
+      handNumber: 1,
+      street: "PREFLOP",
+      dealerSeat: 0,
+      sbSeat: 1,
+      bbSeat: 2,
+      toActSeat: 3,
+      actionCount: 1,
+      roundCurrentBetCents: 100,
+      minRaiseCents: 100,
+      potCents: 150,
+      board: [],
+    },
+    seats: [
+      {
+        seat: 0,
+        occupied: true,
+        userId: "u1",
+        name: "Hero",
+        status: "ACTIVE",
+        stackCents: 2500,
+        roundBetCents: 0,
+        committedCents: 0,
+        connected: true,
+        disconnectDeadlineTs: 0,
+        isDealer: true,
+        isToAct: false,
+        isBot: false,
+      },
+      {
+        seat: 1,
+        occupied: true,
+        userId: "u2",
+        name: "Villain",
+        status: "ACTIVE",
+        stackCents: 2500,
+        roundBetCents: 0,
+        committedCents: 0,
+        connected: true,
+        disconnectDeadlineTs: 0,
+        isDealer: false,
+        isToAct: true,
+        isBot: false,
+      },
+    ],
+    hero: {
+      userId: "u1",
+      youAreSeated: true,
+      seat: 0,
+    },
+  };
+}
+
+function dispatchTableMessage(tableId: string, type: string, payload: unknown) {
+  handleTableRealtimeInboundMessage({
+    tableId,
+    type,
+    payload,
+    deps: {
+      setRoomForTable: (t, roomId) => useMultiTableStore.getState().setRoomForTable(t, roomId),
+      resetSnapshotStream: (t) => useTableStore.getState().resetSnapshotStream(t),
+      setSnapshot: (t, snapshot) => useTableStore.getState().setSnapshot(t, snapshot),
+      appendChatMessage: (t, msg) => useTableStore.getState().appendChatMessage(t, msg),
+      setConnectionStatus: (t, status) => useTableStore.getState().setConnectionStatus(t, status),
+      clearConnectionStatus: (t) => useTableStore.getState().clearConnectionStatus(t),
+      setError: (t, message) => useTableStore.getState().setError(t, message),
+      onError: undefined,
+      debugLog: vi.fn(),
+    },
+  });
+}
+
+describe("useTableRealtime behavior", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    // Mock console methods to capture logs
-    vi.spyOn(console, 'log').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
-
-  const mockTableId = 'test-table-123';
-  const mockActionId = 'action-uuid-456';
-
-  it('should demonstrate actionId logging concept', () => {
-    // This test verifies the logging logic conceptually
-    // In the actual implementation, actionId logging happens in the onMessage callback
-    
-    // Simulate the logging that would happen for a successful action
-    console.log(`[TABLE_RT] Action completed: ${mockActionId} for table ${mockTableId}`);
-    
-    expect(console.log).toHaveBeenCalledWith(
-      `[TABLE_RT] Action completed: ${mockActionId} for table ${mockTableId}`
-    );
-  });
-
-  it('should demonstrate actionId error logging concept', () => {
-    // This test verifies the error logging logic conceptually
-    
-    // Simulate the error logging that would happen for a failed action
-    console.error(`[TABLE_RT] Action failed: ${mockActionId} for table ${mockTableId}`, 'INVALID_ACTION');
-    
-    expect(console.error).toHaveBeenCalledWith(
-      `[TABLE_RT] Action failed: ${mockActionId} for table ${mockTableId}`,
-      'INVALID_ACTION'
-    );
-  });
-
-  it('should demonstrate snapshotSeq logging concept', () => {
-    // This test verifies the snapshotSeq logging logic conceptually
-    
-    // Simulate the debug logging that includes snapshotSeq
-    console.log('[TABLE_RT]', {
-      tableId: mockTableId,
-      type: 'TABLE_SNAPSHOT',
-      snapshotSeq: 42,
-      actionId: mockActionId,
-      reason: 'ACTION_ACCEPTED'
+    useTableStore.setState({
+      snapshotsByTableId: {},
+      chatMessagesByTableId: {},
+      lastSeqByTableId: {},
+      connectionStatusByTableId: {},
+      statusByTableId: {},
+      errorByTableId: {},
     });
-    
-    expect(console.log).toHaveBeenCalledWith(
-      '[TABLE_RT]',
-      expect.objectContaining({
-        tableId: mockTableId,
-        type: 'TABLE_SNAPSHOT',
-        snapshotSeq: 42,
-        actionId: mockActionId,
-        reason: 'ACTION_ACCEPTED'
-      })
-    );
+    useMultiTableStore.getState().closeAll();
+  });
+
+  it("TABLE_SNAPSHOT updates snapshot store", () => {
+    const snap = makeSnapshot(1);
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useTableStore.getState().snapshotsByTableId["t1"]).toEqual(snap);
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(1);
+  });
+
+  it("WELCOME NEW + seq=1 replaces stale snapshot stream", () => {
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(5));
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(5);
+
+    dispatchTableMessage("t1", "WELCOME", {
+      version: 1,
+      roomId: "room_new",
+      playerId: "u1",
+      tableId: "t1",
+      joinMode: "NEW",
+    });
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(1));
+
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(1);
+    expect(useTableStore.getState().snapshotsByTableId["t1"]?.snapshotSeq).toBe(1);
+  });
+
+  it("ignores stale snapshot sequence", () => {
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(3));
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(2));
+
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(3);
+    expect(useTableStore.getState().snapshotsByTableId["t1"]?.snapshotSeq).toBe(3);
+  });
+
+  it("maps reconnect lifecycle to RECONNECTING then CONNECTED", () => {
+    dispatchTableMessage("t1", "RECONNECTING", undefined);
+    expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBe("RECONNECTING");
+
+    dispatchTableMessage("t1", "CONNECTED", undefined);
+    expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBe("CONNECTED");
+  });
+
+  it("clears connection status on DISCONNECTED", () => {
+    dispatchTableMessage("t1", "CONNECTED", undefined);
+    expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBe("CONNECTED");
+
+    dispatchTableMessage("t1", "DISCONNECTED", undefined);
+    expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBeUndefined();
   });
 });

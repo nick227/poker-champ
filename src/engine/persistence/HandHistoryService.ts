@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
+import { logger } from "../../lib/logger.js";
 
 export class HandHistoryService {
   /** externalId (userId / bot_*) -> PokerPlayer.id (cuid) */
@@ -17,6 +18,7 @@ export class HandHistoryService {
     const id = this.playerIdMap.get(externalId);
     if (!id) {
       const known = [...this.playerIdMap.keys()].join(", ");
+      logger.warn({ externalId, tableId: this.tableId, knownKeys: [...this.playerIdMap.keys()] }, "resolvePlayerId: unknown player — action/payout may not persist");
       throw new Error(`Unknown player ${externalId}. Known: ${known}`);
     }
     return id;
@@ -55,11 +57,8 @@ export class HandHistoryService {
     }
   }
 
-  /** Frees (tableId, externalId) so a new player can use that seat. Call when a player/bot leaves the table. */
+  /** Drops the player from the in-memory map so this service stops using them for new hands. Call when a player/bot leaves the table. Does NOT delete the PokerPlayer row — HandPlayer/HandAction/HandPayout reference it; deleting would break historical joins. Seat reuse is handled by ensureTableAndPlayers upsert on @@unique([tableId, externalId]). */
   async removePlayer(playerId: string): Promise<void> {
-    await this.prisma.pokerPlayer.deleteMany({
-      where: { tableId: this.tableId, externalId: playerId },
-    });
     this.playerIdMap.delete(playerId);
   }
 
@@ -120,7 +119,7 @@ export class HandHistoryService {
         amountCents: params.amountCents,
         potBeforeCents: params.potBeforeCents,
         potAfterCents: params.potAfterCents,
-        metaJson: params.meta ?? undefined,
+        metaJson: params.meta as object | undefined,
       },
     });
   }

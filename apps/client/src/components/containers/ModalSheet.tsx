@@ -5,6 +5,7 @@ import { Text } from "@/components/base/Text";
 import { DURATION, PRESS_OPACITY } from "@/theme/animation";
 import { BACKDROP_OVERLAY } from "@/theme/colors";
 import { MODAL } from "@/constants/copy";
+import { playSound } from "@/lib/sound";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
@@ -24,8 +25,17 @@ export function ModalSheet({
   const backdrop = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const exitCancelRef = useRef<(() => void) | null>(null);
+  const prevVisibleRef = useRef(visible);
 
   useEffect(() => () => { exitCancelRef.current?.(); }, []);
+
+  useEffect(() => {
+    const prevVisible = prevVisibleRef.current;
+    if (!prevVisible && visible) {
+      playSound("modalOpen");
+    }
+    prevVisibleRef.current = visible;
+  }, [visible]);
 
   useEffect(() => {
     if (visible && !isExiting) {
@@ -68,6 +78,7 @@ export function ModalSheet({
 
   const handleClose = () => {
     if (!visible) return;
+    playSound("modalClose");
     setIsExiting(true);
     runExit();
   };

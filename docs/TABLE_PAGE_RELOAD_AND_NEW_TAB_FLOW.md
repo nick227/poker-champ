@@ -62,8 +62,8 @@ When bootstrap completes, auth store updates → re-render.
     - `enabled` = `shouldConnectRealtime && canConnectWithAuth` = true.
     - `joinOptions` = `{ tableId, buyInCents: 20000 }` (because `hasValidBuyIn`).
     - **useRealtimeChannel** runs its effect: `canStartRealtimeSession(...)` true → `resolveRealtimeTransportConfig` (e.g. Colyseus) → `createRealtimeSession` with `roomId: realtimeRoomId` (tableId or resolved from lobby later) and `joinOptions`.
-  - **Colyseus**: `client.joinById(roomId, { tableId, buyInCents: 20000, token })` (or joinOrCreate with same options). Server receives join with buy-in and can re-seat the user; it sends **TABLE_SNAPSHOT** (and possibly WELCOME / SESSION_RESTORED).
-  - **On TABLE_SNAPSHOT**: `dispatchRealtimeChannelMessage` → table store `setSnapshot(tableId, snapshot)` → `snapshotsByTableId[tableId]` set → TableScreen re-renders with `snapshot` → UI switches from **ConnectingTableShell** to **EmptyTableView** or **TableLayout** (depending on `snapshot.hand`).
+  - **Colyseus**: `client.joinById(roomId, { tableId, buyInCents: 20000, token })` (or joinOrCreate with same options). Server receives join with buy-in and looks up a persisted seat session for that user/table. If one exists (persistent seats), it **restores the user in the same seat with their previous stack** (`restorePlayerFromSession` using `stackCentsSnapshot`), then sends **SESSION_RESTORED** and **TABLE_SNAPSHOT**. Otherwise it seats the user with the requested buy-in and sends **TABLE_SNAPSHOT**.
+  - **On TABLE_SNAPSHOT**: `dispatchRealtimeChannelMessage` → table store `setSnapshot(tableId, snapshot)` → `snapshotsByTableId[tableId]` set → TableScreen re-renders with `snapshot` (including hero `stackCents`) → UI switches from **ConnectingTableShell** to **EmptyTableView** or **TableLayout** (depending on `snapshot.hand`).
 
 ---
 
@@ -76,11 +76,18 @@ When bootstrap completes, auth store updates → re-render.
 | 3 | Bootstrap finishes: token from localStorage (or null), `auth.markHydrated()`. |
 | 4 | Re-render: if no token → redirect to login with `next=/table/...?buyInCents=20000`. If token → open-table effect runs, lobby refresh starts, useTableRealtime effect runs. |
 | 5 | Realtime session created with `joinOptions: { tableId, buyInCents }`. |
-| 6 | Colyseus join; server sends TABLE_SNAPSHOT; table store gets snapshot; UI shows table. |
+| 6 | Colyseus join; server restores persisted session (seat + stack) if present, else seats with buy-in; server sends TABLE_SNAPSHOT; table store gets snapshot; UI shows table (including hero stack). |
 
 ---
 
-## 7. Why “Missing buy-in data” used to appear (before URL fallback)
+## 7. Stack size retention on reload
+
+- **Client** does not persist stack; it is lost on reload.
+- **Server** persists seat sessions per user/table (e.g. via `TableSeatSessionService`), including `stackCentsSnapshot`. On join after a cold load, the server looks up a rejoinable session for that user at that table. If found, it restores the player in the same seat with that stack and sends **TABLE_SNAPSHOT** with the hero's restored `stackCents`. The user therefore **retains/restores their stack on page reload** (and when opening the table URL in a new tab), as long as persistent seats are enabled and a session exists.
+
+---
+
+## 8. Why “Missing buy-in data” used to appear (before URL fallback)
 
 - **Without** reading `buyInCents` from `window.location.search`: on first render `buyInCentsParam` from `useLocalSearchParams()` could be undefined on web → `routeBuyInCents` undefined → `buyInCents` undefined (no joinState, lobby not loaded) → `hasValidBuyIn` false.
 - Then: “Missing buy-in data” in ConnectingTableShell, and `joinOptions` in useTableRealtime was undefined → Colyseus join could omit or fail buy-in → server could reject or not re-seat.
@@ -89,7 +96,7 @@ When bootstrap completes, auth store updates → re-render.
 
 ---
 
-## 8. Reload vs new tab
+## 9. Reload vs new tab
 
 - **Reload**: same tab, full reload; same sequence as above.
 - **New tab**: new process/tab, same URL; same cold load and same sequence. No difference in app logic; both are “load document at table URL with query.”

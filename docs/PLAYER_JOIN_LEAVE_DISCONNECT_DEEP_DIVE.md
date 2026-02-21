@@ -249,7 +249,56 @@ So: if a human is disconnected and auto-acts (check/fold) for too many hands in 
 
 ---
 
-## 7. Key file reference
+## 7. SESSION_REPLACED and client reconnect
+
+### 7.1 When the server sends SESSION_REPLACED
+
+**`src/rooms/PokerRoom.ts` — `rebindClientExclusive(userId, client)`**
+
+When a **new** client (same userId) joins or restores, the server binds that client and, if there was already a bound client for that userId with a **different** sessionId, it:
+
+1. Sends to the **old** client: `ERROR` with `code: "SESSION_REPLACED"`, `message: "Session replaced by a newer connection."`
+2. Calls `oldClient.leave(4000)` so the old connection is closed.
+
+So SESSION_REPLACED is sent to the **stale** connection when a newer one takes over (e.g. second tab, or client retry creating a new socket).
+
+### 7.2 Typical trigger: Lobby → Table → Lobby → Table
+
+When the user is on a table, navigates to lobby, then navigates back to the same table:
+
+1. **[id].tsx** unmounts → **useRealtimeChannel** cleanup runs.
+2. Cleanup calls **session.disconnect()** synchronously (no debounce, no async). Transport sets `shouldReconnect = false`, calls **room.leave()**, clears room reference.
+3. The actual socket close / server-side **onLeave** is async. Before the server processes the leave, the user can navigate back.
+4. Table mounts again → new **createRealtimeSession()** runs → new session joins.
+5. Server sees: existing session (old) + new session (same userId) → **rebindClientExclusive** → old gets **SESSION_REPLACED** and is closed.
+
+This is **not** multi-tab; it's **double-session overlap** from navigation lifecycle. The client must not reconnect when it receives SESSION_REPLACED so the new session stays authoritative.
+
+### 7.3 Why “rejoin” used to loop (before the fix)
+
+- **Two connections for same user:** If the client ever has two connections in the room at once (e.g. two tabs, or a new connection created before the old one has fully left), the second join causes the server to replace the first → first receives SESSION_REPLACED and is closed.
+- **Retry loop:** After the old connection is closed, the client’s transport treats `onLeave` as “disconnected, retry”. It schedules a **new** connection. That new connection joins and replaces the **current** bound client (which may be the previous retry). So: replace → close → reconnect → replace → close → reconnect, and the user sees repeated SESSION_REPLACED and “keeps retrying”.
+
+### 7.4 Client fix (button-down reconnect)
+
+- **Do not reconnect when we were replaced.** When the transport receives an in-room `ERROR` with `code === "SESSION_REPLACED"`, it marks that this session was replaced. When `onLeave` fires (because the server closed us), the transport must **not** call `scheduleReconnect()`. That stops the loop and treats “replaced” as a terminal state for this session.
+- **New session can still reconnect.** Each new connection attempt (e.g. new page load or new effect run) starts with a fresh session and may reconnect on genuine disconnect; only the **replaced** instance must not retry.
+- **Never reset the flag inside `connect()`.** Only a brand-new session (new `createColyseusSession()` call) gets a fresh flag. If something else calls `connect()` again (route remount, effect re-run), the replaced instance must stay terminal.
+
+**File:** `apps/client/src/realtime/transport.ts` — Colyseus session: set a flag on SESSION_REPLACED; in `room.onLeave()`, skip `scheduleReconnect()` when that flag is set. Log "Session replaced by newer connection (no retry)" and return.
+
+### 7.5 Cleanup on unmount
+
+**useRealtimeChannel** must disconnect synchronously on unmount so we don’t create a new session while the old one is still “live” from React’s point of view:
+
+- Effect cleanup: `return () => { session.disconnect(); sessionRef.current = null; };` — no debounce, no async wrapper, no conditional.
+- **session.disconnect()** is synchronous (sets `shouldReconnect = false`, calls **room.leave()**, clears refs). The underlying socket close is async, so brief overlap on the server is still possible; SESSION_REPLACED handling makes the outcome stable.
+
+**Files:** `apps/client/src/realtime/useRealtimeChannel.ts` (effect cleanup), `apps/client/src/realtime/transport.ts` (disconnect implementation).
+
+---
+
+## 8. Key file reference
 
 | Topic | File(s) |
 |-------|---------|
@@ -261,3 +310,4 @@ So: if a human is disconnected and auto-acts (check/fold) for too many hands in 
 | Turn automation (disconnected / bot) | `src/engine/dealer/services/TurnAutomationService.ts` (`maybeActForBot`, `applyDisconnectedAutoActionCapForHand`), `src/engine/Dealer.ts` (`enqueueInternalAction`) |
 | toAct invariant | `src/engine/dealer/services/PlayerLifecycleService.ts` (`ensureToActHasNeedsActionIfNeeded`), `src/engine/invariants/assertState.ts` |
 | Config | `src/config/seats.ts` (`getAutoActionHandCap`, seat retention), `PokerRoom` (60s reconnect window) |
+| SESSION_REPLACED / client reconnect | `src/rooms/PokerRoom.ts` (`rebindClientExclusive`), `apps/client/src/realtime/transport.ts` (Colyseus: no reconnect on SESSION_REPLACED) |

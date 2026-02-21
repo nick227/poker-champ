@@ -3,6 +3,7 @@ import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import { CashierService } from "../engine/economy/CashierService.js";
+import { logger } from "../lib/logger.js";
 
 function makePlayer(id: string, seat: number, stackCents = 5000): PlayerState {
   const p = new PlayerState();
@@ -127,6 +128,35 @@ describe("dealer rule decisions", () => {
     expect(u1.status).toBe("ALL_IN");
   });
 
+  it("fails closed if persistence returns a mismatched ALL_IN balance", async () => {
+    const state = new PokerState();
+    state.tableId = "table_allin_stack_guard";
+    state.street = "PREFLOP";
+    state.handId = "hand_allin_stack_guard";
+    state.seats.push("u1", "u2");
+    state.toActSeat = 0;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 100;
+    state.bigBlindCents = 100;
+    state.potCents = 0;
+
+    const u1 = makePlayer("u1", 0, 300);
+    const u2 = makePlayer("u2", 1, 5000);
+    u1.needsAction = true;
+    u2.needsAction = true;
+    state.playersById.set("u1", u1);
+    state.playersById.set("u2", u2);
+
+    const persistence = makePersistence();
+    persistence.debitBet = vi.fn().mockResolvedValue(1);
+    const dealer = new Dealer(state, persistence);
+
+    await expect(dealer.handleAction("u1", { action: "ALL_IN" })).rejects.toThrow("LEDGER_BALANCE_MISMATCH");
+    expect(u1.stackCents).toBe(0);
+    expect(u1.status).toBe("ALL_IN");
+    expect(state.potCents).toBe(300);
+  });
+
   it("consented leave in-hand records fold semantics before seat removal", async () => {
     vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true } as any);
 
@@ -140,6 +170,7 @@ describe("dealer rule decisions", () => {
     state.minRaiseCents = 100;
     state.bigBlindCents = 100;
     state.potCents = 200;
+    state.initialChipMassCents = 8200;
 
     const u1 = makePlayer("u1", 0, 4000);
     const u2 = makePlayer("u2", 1, 4000);
@@ -288,6 +319,52 @@ describe("dealer rule decisions", () => {
       expect(flopIdx).toBeGreaterThanOrEqual(0);
       expect(handEndIdx).toBeGreaterThan(flopIdx);
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("strict no-silent-drift path completes all-in showdown without remainder reconcile", async () => {
+    vi.useFakeTimers();
+    const prevStrict = process.env.MONEY_STRICT;
+    process.env.MONEY_STRICT = "1";
+    const warnSpy = vi.spyOn(logger, "warn");
+    try {
+      const state = new PokerState();
+      state.tableId = "table_no_drift";
+      state.maxSeats = 2;
+      state.smallBlindCents = 50;
+      state.bigBlindCents = 100;
+      state.street = "WAITING";
+      state.dealerSeat = 1;
+      state.seats.push("u1", "u2");
+
+      const u1 = makePlayer("u1", 0, 5000);
+      const u2 = makePlayer("u2", 1, 5000);
+      state.playersById.set("u1", u1);
+      state.playersById.set("u2", u2);
+
+      const dealer = new Dealer(state, makePersistence());
+      await (dealer as any).startHand();
+
+      const firstToAct = state.seats[state.toActSeat]!;
+      const secondToAct = firstToAct === "u1" ? "u2" : "u1";
+
+      await dealer.handleAction(firstToAct, { action: "ALL_IN" });
+      const completeHandPromise = dealer.handleAction(secondToAct, { action: "CALL" });
+      await vi.advanceTimersByTimeAsync(6000);
+      await completeHandPromise;
+
+      const totalStacks = [...state.playersById.values()].reduce((sum, p) => sum + p.stackCents, 0);
+      expect(totalStacks).toBeGreaterThan(0);
+      expect(totalStacks).toBe(state.initialChipMassCents);
+      expect(
+        warnSpy.mock.calls.some(
+          ([arg]) => typeof arg === "object" && arg !== null && (arg as any).event === "SHOWDOWN_REMAINDER_RECONCILED",
+        ),
+      ).toBe(false);
+    } finally {
+      if (prevStrict === undefined) delete process.env.MONEY_STRICT;
+      else process.env.MONEY_STRICT = prevStrict;
       vi.useRealTimers();
     }
   });

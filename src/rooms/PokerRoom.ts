@@ -22,6 +22,8 @@ import { getSeatHardDeleteHours, getSeatRetentionHours } from "../config/seats.j
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { TableSnapshotLogService, type SnapshotLogReason } from "../engine/persistence/TableSnapshotLogService.js";
+import type { FrameReason } from "../engine/replay/FrameReason.js";
+import { registerVoiceRelay } from "./voice/register-voice-relay.js";
 
 type JoinOptions = { name?: string; buyInCents?: number; password?: string; tableId?: string };
 type AuthContext = { userId: string; sessionId: string; roles: string[]; username: string };
@@ -56,6 +58,7 @@ type PokerRoomMetadata = {
   runningSince?: number;
   creatorId?: string;
   humanCount?: number;
+  connectedHumanCount?: number;
 };
 
 export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMetadata }> {
@@ -92,6 +95,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     this.maxClients = this.state.maxSeats;
 
+    this.setMetadata({
+      tableId: this.state.tableId,
+      creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
+    });
+
     this.dealer = new Dealer(this.state, new PersistenceFacade(this.state.tableId), {
       onAutoSitOutReachedCap: async ({ userId, stackCents }) => {
         if (!this.persistentSeatsEnabled) return;
@@ -104,7 +112,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       },
       onTableSnapshotEmitted: async (snapshot) => {
         if (!this.snapshotLogEnabled) return;
-        const mappedReason = this.mapSnapshotReason(snapshot.reason);
+        const mappedReason = this.mapSnapshotReason(snapshot.reason, snapshot.frameReason);
         if (!mappedReason) return;
         await TableSnapshotLogService.writeSnapshot({
           tableId: snapshot.tableId,
@@ -121,6 +129,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     // Lobby metadata
     const humanCount = this.computeHumanCount();
+    const connectedHumanCount = this.computeConnectedHumanCount();
     void this.setMetadata({
       tableId: this.state.tableId,
       name: this.state.tableName,
@@ -136,7 +145,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       runningSince: undefined,
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
       humanCount,
+      connectedHumanCount,
     });
+
+    registerVoiceRelay(this);
 
     this.onMessage("ADD_BOT", async (client, message) => {
       const envelope = { type: "ADD_BOT" as const, payload: message };
@@ -154,7 +166,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         const botId = newBotId();
         await this.dealer.addBot(botId, parsed.data.name, parsed.data.buyInCents);
-        this.updateHumanCountMetadata();
+        this.updateMetadataCounts();
       } catch (err: unknown) {
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "ADD_BOT_FAILED", message: e?.message ?? String(err) });
@@ -175,7 +187,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       if (!this.isActiveBoundClient(userId, client)) return;
       try {
         await this.dealer.removeBot(parsed.data.botId);
-        this.updateHumanCountMetadata();
+        this.updateMetadataCounts();
       } catch (err: unknown) {
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "REMOVE_BOT_FAILED", message: e?.message ?? String(err) });
@@ -344,7 +356,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       // Server-authoritative rebind: if seat already exists for this user, restore session.
       if (this.dealer.hasPlayer(userId)) {
         this.rebindClientExclusive(userId, client);
-        this.dealer.markReconnected(userId);
+        await this.markReconnectedSafe(userId);
         if (this.persistentSeatsEnabled) {
           const stackCents = this.getPlayerStackCents(userId);
           await TableSeatSessionService.touchConnected({
@@ -367,9 +379,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         if (persisted) {
           try {
             await this.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
-            this.updateHumanCountMetadata();
+            this.updateMetadataCounts();
             this.rebindClientExclusive(userId, client);
-            this.dealer.markReconnected(userId);
+            await this.markReconnectedSafe(userId);
             await TableSeatSessionService.touchConnected({
               tableId: this.state.tableId,
               userId,
@@ -433,7 +445,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
         this.rebindClientExclusive(userId, client);
         await this.dealer.addPlayer(userId, name, buyInCents);
-        this.updateHumanCountMetadata();
+        this.updateMetadataCounts();
         if (this.persistentSeatsEnabled) {
           const seat = this.findPlayerSeat(userId);
           const stackCents = this.getPlayerStackCents(userId);
@@ -482,6 +494,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     const boundClient = this.getBoundClient(userId);
     if (boundClient && boundClient.sessionId !== client.sessionId) {
+      // Stale session: another client is bound to this userId. Do not unbind; ignore.
       logger.info(
         { roomId: this.roomId, tableId: this.state.tableId, userId, sessionId: client.sessionId },
         "POKER_LEAVE_STALE_SESSION_IGNORED",
@@ -494,7 +507,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const consented = code === CloseCode.CONSENTED;
     if (consented) {
       await this.dealer.handleConsentedLeave(userId);
-      this.updateHumanCountMetadata();
+      await this.maybeRemoveBotsIfNoHumans();
+      this.updateMetadataCounts();
       if (this.persistentSeatsEnabled) {
         await TableSeatSessionService.markLeft({
           tableId: this.state.tableId,
@@ -507,7 +521,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
 
     const deadlineTs = Date.now() + 60_000;
-    this.dealer.markDisconnected(userId, deadlineTs);
+    await this.markDisconnectedSafe(userId, deadlineTs);
+    this.updateMetadataCounts();
     if (this.persistentSeatsEnabled) {
       const stackCents = this.getPlayerStackCents(userId);
       await TableSeatSessionService.markSittingOut({
@@ -521,7 +536,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     try {
       const reconnected = await this.allowReconnection(client, 60);
       this.rebindClientExclusive(userId, reconnected);
-      this.dealer.markReconnected(userId);
+      await this.markReconnectedSafe(userId);
       if (this.persistentSeatsEnabled) {
         const stackCents = this.getPlayerStackCents(userId);
         await TableSeatSessionService.touchConnected({
@@ -533,12 +548,16 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
       this.sendTableMessage(reconnected, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
       this.dealer.emitSnapshotToUser(userId, "RECONNECT");
+      this.updateMetadataCounts();
     } catch {
       if (this.persistentSeatsEnabled) {
+        this.updateMetadataCounts();
         logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_RECONNECT_WINDOW_EXPIRED_SEAT_PRESERVED");
         return;
       }
-      await this.dealer.markAbandoned(userId);
+      await this.markAbandonedSafe(userId);
+      await this.maybeRemoveBotsIfNoHumans();
+      this.updateMetadataCounts();
     }
   }
 
@@ -555,6 +574,25 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     await this.dealer.kickUser(userId, reason);
   }
 
+  /** Called after economy buy-in (e.g. from EconomyRouter) to add chips to seated player. */
+  async applyRebuy(userId: string, amountCents: number): Promise<void> {
+    await this.dealer.applyRebuy(userId, amountCents);
+    if (this.persistentSeatsEnabled) {
+      const seat = this.findPlayerSeat(userId);
+      const stackCents = this.getPlayerStackCents(userId);
+      if (seat !== null) {
+        await TableSeatSessionService.upsertActiveSeat({
+          tableId: this.state.tableId,
+          userId,
+          seat,
+          stackCentsSnapshot: stackCents,
+          buyInCents: amountCents,
+          handIdSnapshot: this.state.handId || undefined,
+        });
+      }
+    }
+  }
+
   onDispose() {
     logger.warn(
       {
@@ -566,6 +604,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       "POKER_ROOM_DISPOSED",
     );
     this.dealer.stopDisconnectSweep();
+    this.dealer.resetSessionStats();
     this.unbindSessionEvent?.();
   }
 
@@ -617,6 +656,42 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
     this.dealer.bindClient(userId, client);
     this.userIdBySessionId.set(client.sessionId, userId);
+  }
+
+  private async markDisconnectedSafe(userId: string, disconnectDeadlineTs: number): Promise<void> {
+    const dealer = this.dealer as unknown as {
+      markDisconnectedSerialized?: (id: string, ts: number) => Promise<void>;
+      markDisconnected: (id: string, ts: number) => void;
+    };
+    if (typeof dealer.markDisconnectedSerialized === "function") {
+      await dealer.markDisconnectedSerialized(userId, disconnectDeadlineTs);
+      return;
+    }
+    dealer.markDisconnected(userId, disconnectDeadlineTs);
+  }
+
+  private async markReconnectedSafe(userId: string): Promise<void> {
+    const dealer = this.dealer as unknown as {
+      markReconnectedSerialized?: (id: string) => Promise<void>;
+      markReconnected: (id: string) => void;
+    };
+    if (typeof dealer.markReconnectedSerialized === "function") {
+      await dealer.markReconnectedSerialized(userId);
+      return;
+    }
+    dealer.markReconnected(userId);
+  }
+
+  private async markAbandonedSafe(userId: string): Promise<void> {
+    const dealer = this.dealer as unknown as {
+      markAbandonedSerialized?: (id: string) => Promise<void>;
+      markAbandoned: (id: string) => Promise<void>;
+    };
+    if (typeof dealer.markAbandonedSerialized === "function") {
+      await dealer.markAbandonedSerialized(userId);
+      return;
+    }
+    await dealer.markAbandoned(userId);
   }
 
   private getBoundClient(userId: string): Client | undefined {
@@ -682,7 +757,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         }
         try {
           await this.dealer.removePlayer(userId);
-          this.updateHumanCountMetadata();
+          await this.maybeRemoveBotsIfNoHumans();
+          this.updateMetadataCounts();
         } catch (err: any) {
           logger.warn(
             {
@@ -748,6 +824,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return n;
   }
 
+  /** Count humans who have a bound client (binding map is source of truth, not PlayerState.connected). */
+  private computeConnectedHumanCount(): number {
+    let n = 0;
+    for (const p of this.state.playersById.values()) {
+      if (p.kind !== "BOT" && this.getBoundClient(p.id)) n++;
+    }
+    return n;
+  }
+
   private getMetadataSafe(): Partial<PokerRoomMetadata> {
     try {
       return this.metadata ?? {};
@@ -756,15 +841,38 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 
-  private updateHumanCountMetadata(): void {
+  private updateMetadataCounts(): void {
     const humanCount = this.computeHumanCount();
+    const connectedHumanCount = this.computeConnectedHumanCount();
     const current = this.getMetadataSafe();
-    if (current.humanCount !== humanCount) {
-      void this.setMetadata({ ...current, humanCount });
+    if (current.humanCount !== humanCount || current.connectedHumanCount !== connectedHumanCount) {
+      void this.setMetadata({ ...current, humanCount, connectedHumanCount });
     }
   }
 
+  /** Remove all bots when zero seated humans remain (humanCount === 0, not connectedHumanCount). */
+  private async maybeRemoveBotsIfNoHumans(): Promise<void> {
+    if (this.computeHumanCount() !== 0) return;
+    const botIds = [...this.state.playersById.values()].filter((p) => p.kind === "BOT").map((p) => p.id);
+    for (const botId of botIds) {
+      try {
+        await this.dealer.removeBot(botId);
+      } catch (err) {
+        logger.warn({ roomId: this.roomId, tableId: this.state.tableId, botId }, "maybeRemoveBots removeBot failed");
+      }
+    }
+    if (botIds.length > 0) this.updateMetadataCounts();
+  }
+
   requestDisconnect(): void {
+    const payload = { version: 1 as const, code: "TABLE_GONE" as const, message: "Table no longer exists" };
+    this.clients.forEach((c) => {
+      try {
+        this.sendTableMessage(c, "ERROR", payload);
+      } catch (err) {
+        logger.warn({ roomId: this.roomId, sessionId: c.sessionId }, "requestDisconnect sendTableMessage failed");
+      }
+    });
     this.disconnect();
   }
 
@@ -814,7 +922,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           session.stackCentsSnapshot,
           { connected: false, sittingOut: true },
         );
-        this.updateHumanCountMetadata();
+        this.updateMetadataCounts();
       } catch (err: any) {
         logger.warn(
           {
@@ -829,7 +937,21 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 
-  private mapSnapshotReason(reason: string): SnapshotLogReason | null {
+  private mapSnapshotReason(reason: string, frameReason?: FrameReason): SnapshotLogReason | null {
+    if (frameReason) {
+      switch (frameReason) {
+        case "HAND_START":
+          return "HAND_START";
+        case "ACTION_ACCEPTED":
+          return "ACTION_ACCEPTED";
+        case "RUNOUT_STAGE":
+          return "STREET_TRANSITION";
+        case "HAND_SHOWDOWN":
+          return "SHOWDOWN";
+        case "HAND_END":
+          return "HAND_END";
+      }
+    }
     switch (reason) {
       case "HAND_START":
         return "HAND_START";
@@ -840,6 +962,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       case "RUNOUT_STAGE":
         return "STREET_TRANSITION";
       case "SHOWDOWN":
+      case "HAND_SHOWDOWN":
         return "SHOWDOWN";
       case "HAND_END":
         return "HAND_END";

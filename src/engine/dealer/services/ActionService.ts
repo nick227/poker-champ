@@ -16,8 +16,8 @@ import { countNotFoldedPlayers, findNextToActSeat } from "../utils/TableNavigato
 import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
 import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
 
-type ActionDebitKind = "CALL" | "BET" | "RAISE" | "ALL_IN";
-type AcceptedActionKind = "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
+export type ActionDebitKind = "CALL" | "BET" | "RAISE" | "ALL_IN";
+export type AcceptedActionKind = "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
 type LastActionOrigin = TableLastAction["origin"];
 type LastActionStreet = TableLastAction["street"];
 
@@ -36,7 +36,48 @@ export type ActionExecutionResult = {
   lastAction?: ActionServiceLastAction;
 };
 
+function resolveHeroTraceUserId(): string | null {
+  const value = process.env.HERO_TRACE_USER_ID?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+function shouldTraceUser(userId: string): boolean {
+  const heroTraceUserId = resolveHeroTraceUserId();
+  return !heroTraceUserId || heroTraceUserId === userId;
+}
+
+function traceHero(event: string, payload: Record<string, unknown>): void {
+  try {
+    console.log(`[HERO_TRACE] ${event} ${JSON.stringify(payload)}`);
+  } catch {
+    console.log(`[HERO_TRACE] ${event}`);
+  }
+}
+
 export class ActionService {
+  private tracePostAction(state: PokerState, player: PlayerState, action: string, potBefore: number): void {
+    if (!shouldTraceUser(player.id)) return;
+    traceHero("ACTION_POST_STATE", {
+      tableId: state.tableId,
+      handId: state.handId,
+      userId: player.id,
+      seat: player.seat,
+      action,
+      street: state.street,
+      stackCents: player.stackCents,
+      roundBetCents: player.roundBetCents,
+      committedCents: player.committedCents,
+      status: player.status,
+      potBeforeCents: potBefore,
+      potAfterCents: state.potCents,
+      roundCurrentBetCents: state.roundCurrentBetCents,
+      minRaiseCents: state.minRaiseCents,
+      toActSeat: state.toActSeat,
+      actionCount: state.actionCount,
+      handActionSeq: state.handActionSeq,
+    });
+  }
+
   private finish(state: PokerState, result: ActionResult): ActionResult {
     // HAND_FINISHED can be a transient pre-settlement state where betting invariants need not hold.
     if (result.kind !== "HAND_FINISHED") maybeAssertBettingState(state);
@@ -228,23 +269,23 @@ export class ActionService {
         if (callAmount === 0) {
           throw new PokerError("INVALID_ACTION", "Nothing to call; use CHECK.");
         }
-
-        assertCanAfford(player, callAmount);
-        await applyActionDebit(player, callAmount, "CALL");
-        assertPotAfter(potBefore + callAmount, "CALL");
+        const effectiveCallCents = Math.min(callAmount, player.stackCents);
+        assertCanAfford(player, effectiveCallCents);
+        await applyActionDebit(player, effectiveCallCents, "CALL");
+        assertPotAfter(potBefore + effectiveCallCents, "CALL");
         await recordAcceptedAction({
           player,
           action: "CALL",
-          amountCents: callAmount,
+          amountCents: effectiveCallCents,
           potBeforeCents: potBefore,
-          potAfterCents: potBefore + callAmount,
+          potAfterCents: potBefore + effectiveCallCents,
         });
         lastAction = this.buildLastAction({
           state,
           player,
           action: "CALL",
-          amountCents: callAmount,
-          potAfterCents: potBefore + callAmount,
+          amountCents: effectiveCallCents,
+          potAfterCents: potBefore + effectiveCallCents,
           origin,
         });
         clearPlayerNeedsAction(player);
@@ -302,6 +343,25 @@ export class ActionService {
         const raiseTo = player.roundBetCents + needed;
         const delta = raiseTo - state.roundCurrentBetCents;
         const isAllIn = needed === player.stackCents;
+        if (shouldTraceUser(player.id)) {
+          traceHero("HERO_RAISE_MATH", {
+            tableId: state.tableId,
+            handId: state.handId,
+            userId: player.id,
+            seat: player.seat,
+            street: state.street,
+            raiseToRequested,
+            playerRoundBetCentsBefore: player.roundBetCents,
+            roundCurrentBetCentsBefore: state.roundCurrentBetCents,
+            maxRaiseTo,
+            neededRequested,
+            neededApplied: needed,
+            raiseToApplied: raiseTo,
+            raiseDeltaCents: delta,
+            minRaiseCentsBefore: state.minRaiseCents,
+            isAllIn,
+          });
+        }
 
         if (delta < state.minRaiseCents && !isAllIn) {
           throw new PokerError("INVALID_ACTION", "RAISE below minRaise.");
@@ -360,6 +420,9 @@ export class ActionService {
           origin,
         });
         player.status = "ALL_IN";
+        if (player.stackCents !== 0) {
+          throw new PokerError("BAD_STATE", `ALL_IN must leave zero stack (got ${player.stackCents}).`);
+        }
         if (player.roundBetCents > prevRoundCurrentBet) {
           const delta = player.roundBetCents - prevRoundCurrentBet;
           state.roundCurrentBetCents = player.roundBetCents;
@@ -377,6 +440,7 @@ export class ActionService {
         break;
       }
     }
+    if (lastAction) this.tracePostAction(state, player, lastAction.action, potBefore);
 
     return {
       result: this.resolvePostAction(state, player.kind),
@@ -413,15 +477,17 @@ export class ActionService {
       recordAcceptedAction,
     });
 
+    let skipTurnAdvance = false;
     if (state.toActSeat === player.seat) {
       const nextSeat = findNextToActSeat(state, player.seat);
       if (nextSeat !== -1) {
         state.toActSeat = nextSeat;
+        skipTurnAdvance = true;
       }
     }
 
     return {
-      result: this.resolvePostAction(state, player.kind, { skipTurnAdvance: true }),
+      result: this.resolvePostAction(state, player.kind, { skipTurnAdvance }),
       lastAction,
     };
   }

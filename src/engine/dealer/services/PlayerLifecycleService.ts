@@ -28,6 +28,11 @@ export type PlayerLifecyclePlan =
 export type ForceFoldIfInHand = (userId: string) => Promise<void>;
 
 export class PlayerLifecycleService {
+  /** Prevents duplicate cash-out when leave/cash-out is triggered from multiple paths. */
+  private readonly cashedOutUserIds = new Set<string>();
+  /** Prevents duplicate removePlayer/leave from running concurrently for the same user. */
+  private readonly leaveInProgressUserIds = new Set<string>();
+
   constructor(private readonly deps: {
     state: PokerState;
     persistence: PersistenceFacade;
@@ -47,6 +52,7 @@ export class PlayerLifecycleService {
       logger.info({ userId }, 'addPlayer early return - player already exists');
       return plans;
     }
+    this.cashedOutUserIds.delete(userId);
 
     const seat = findOpenSeat(this.deps.state);
     if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
@@ -84,6 +90,9 @@ export class PlayerLifecycleService {
 
     this.deps.state.playersById.set(userId, player);
     this.deps.state.seats[seat] = userId;
+    if (this.deps.state.street !== "WAITING" && this.deps.state.initialChipMassCents > 0) {
+      this.deps.state.initialChipMassCents += buyInTableBalance;
+    }
 
     this.ensureToActHasNeedsActionIfNeeded(seat, userId);
 
@@ -114,6 +123,9 @@ export class PlayerLifecycleService {
     if (!player) return plans;
     this.assertValidBuyIn(amountCents);
     player.stackCents += amountCents;
+    if (this.deps.state.street !== "WAITING" && this.deps.state.initialChipMassCents > 0) {
+      this.deps.state.initialChipMassCents += amountCents;
+    }
     if (player.status === "OUT" || player.status === "ABANDONED") {
       player.sittingOutUntilNextHand = false;
       if (this.deps.state.street === "WAITING") {
@@ -123,6 +135,9 @@ export class PlayerLifecycleService {
     await this.deps.ensurePlayerPersistence(player);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
     logger.info({ userId, amountCents, newStackCents: player.stackCents }, "rebuy applied");
+    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
+      plans.push({ kind: "START_HAND" });
+    }
     return plans;
   }
 
@@ -135,6 +150,7 @@ export class PlayerLifecycleService {
   ): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     if (this.deps.state.playersById.has(userId)) return plans;
+    this.cashedOutUserIds.delete(userId);
     if (seat < 0 || seat >= this.deps.state.seats.length) {
       throw new PokerError("BAD_STATE", "Invalid seat from persisted session.");
     }
@@ -202,6 +218,9 @@ export class PlayerLifecycleService {
 
     this.deps.state.playersById.set(botId, player);
     this.deps.state.seats[seat] = botId;
+    if (this.deps.state.street !== "WAITING" && this.deps.state.initialChipMassCents > 0) {
+      this.deps.state.initialChipMassCents += buyInCents;
+    }
 
     this.ensureToActHasNeedsActionIfNeeded(seat, botId);
 
@@ -266,42 +285,55 @@ export class PlayerLifecycleService {
 
   async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
-    let player = this.deps.state.playersById.get(userId);
-    if (!player) return plans;
-
-    const seat = player.seat;
-    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
-      await this.deps.forceFoldIfInHand(userId);
-      player = this.deps.state.playersById.get(userId);
+    if (this.cashedOutUserIds.has(userId)) {
+      logger.warn({ userId }, "Duplicate remove/leave prevented (already cashed out)");
+      return plans;
+    }
+    if (this.leaveInProgressUserIds.has(userId)) {
+      logger.warn({ userId }, "Duplicate remove/leave prevented (leave already in progress)");
+      return plans;
+    }
+    this.leaveInProgressUserIds.add(userId);
+    try {
+      let player = this.deps.state.playersById.get(userId);
       if (!player) return plans;
+
+      const seat = player.seat;
+      if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
+        await this.deps.forceFoldIfInHand(userId);
+        player = this.deps.state.playersById.get(userId);
+        if (!player) return plans;
+      }
+
+      const remainingStack = player.stackCents;
+      if (!options?.cashOutAfterRemoval) {
+        await this.cashOutRemainingStack(userId, remainingStack);
+      }
+
+      this.deps.pendingSeatReleaseUserIds.delete(userId);
+      this.deps.autoActionsByUserId.delete(userId);
+      this.deps.currentHandAutoActedUserIds.delete(userId);
+
+      this.deps.state.seats[player.seat] = "";
+      this.deps.state.playersById.delete(userId);
+      this.deps.holeCardsByPlayerId.delete(userId);
+      this.syncBettingStateAfterRemoval();
+      if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
+        await this.deps.persistence.handHistory.removePlayer(userId);
+      }
+      plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+      logger.info({ userId }, "player left");
+      plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
+
+      if (options?.cashOutAfterRemoval) {
+        await this.cashOutRemainingStack(userId, remainingStack);
+      }
+      maybeAssertStateInvariants(this.deps.state);
+      return plans;
+    } finally {
+      this.leaveInProgressUserIds.delete(userId);
     }
-
-    const remainingStack = player.stackCents;
-    if (!options?.cashOutAfterRemoval) {
-      await this.cashOutRemainingStack(userId, remainingStack);
-    }
-
-    this.deps.pendingSeatReleaseUserIds.delete(userId);
-    this.deps.autoActionsByUserId.delete(userId);
-    this.deps.currentHandAutoActedUserIds.delete(userId);
-
-    this.deps.state.seats[player.seat] = "";
-    this.deps.state.playersById.delete(userId);
-    this.deps.holeCardsByPlayerId.delete(userId);
-    this.syncBettingStateAfterRemoval();
-    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
-      await this.deps.persistence.handHistory.removePlayer(userId);
-    }
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
-
-    logger.info({ userId }, "player left");
-    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
-
-    if (options?.cashOutAfterRemoval) {
-      await this.cashOutRemainingStack(userId, remainingStack);
-    }
-    maybeAssertStateInvariants(this.deps.state);
-    return plans;
   }
 
   markDisconnected(userId: string, disconnectDeadlineTs: number): PlayerLifecyclePlan[] {
@@ -415,6 +447,11 @@ export class PlayerLifecycleService {
 
   private async cashOutRemainingStack(userId: string, remainingStack: number): Promise<void> {
     if (remainingStack <= 0) return;
+    if (this.cashedOutUserIds.has(userId)) {
+      logger.warn({ userId }, "Duplicate cash-out prevented");
+      return;
+    }
+    this.cashedOutUserIds.add(userId);
 
     const externalRef = `cashout_${this.deps.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
     try {
@@ -425,7 +462,8 @@ export class PlayerLifecycleService {
         externalRef,
       });
       logger.info({ userId, remainingStack }, "cash-out processed");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      this.cashedOutUserIds.delete(userId);
       logger.error({ userId, err }, "cash-out failed, funds may be locked in PlayerBalance");
     }
   }

@@ -24,7 +24,11 @@ export function Toast({ message, variant = "default", onDismiss, duration = 3000
   }, [duration]);
 
   return (
-    <View className={`absolute bottom-24 left-4 right-4 rounded-lg border ui-p-4 ${variantClass[variant]}`}>
+    <View
+      className={`absolute bottom-24 left-4 right-4 rounded-lg border ui-p-4 ${variantClass[variant]}`}
+      data-testid="toast"
+      data-variant={variant}
+    >
       <Text variant="body">{message}</Text>
     </View>
   );

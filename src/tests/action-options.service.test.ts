@@ -101,4 +101,16 @@ describe("ActionOptionsService", () => {
     expect(raise.minRaiseTo).toBe(300);
     expect(raise.maxRaiseTo).toBe(600);
   });
+
+  it("allows call and sets callAmount to min(rawCall, stack) when facing overbet (e.g. all-in)", () => {
+    const state = makeState();
+    state.roundCurrentBetCents = 5_000;
+    state.minRaiseCents = 100;
+    const hero = makePlayer({ id: "u1", seat: 0, stackCents: 800, roundBetCents: 0 });
+    state.playersById.set(hero.id, hero);
+
+    const options = service.buildHeroActionOptions(state, hero.id)!;
+    expect(options.canCall).toBe(true);
+    expect(options.callAmount).toBe(800);
+  });
 });

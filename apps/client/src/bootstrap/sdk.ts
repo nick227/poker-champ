@@ -1,5 +1,5 @@
 import { SDK_VERSION, auth, setApiBaseUrl, setAuthToken } from "@poker-champ/sdk";
-import { setSoundPlayer } from "@/lib/sound";
+import { preloadSounds, setSoundPlayer } from "@/lib/sound";
 import { createExpoAvPlayer } from "@/lib/soundPlayer";
 import { storeRegistry } from "@/registry/store.registry";
 
@@ -60,6 +60,7 @@ export function bootstrapSdk() {
 
     storeRegistry.auth().markHydrated();
     setSoundPlayer(createExpoAvPlayer());
+    preloadSounds(["tap", "modalOpen", "check", "call", "bet", "cardDeal"]);
     void checkVersionMismatchOnce();
   })();
 

@@ -12,21 +12,29 @@ function toVariant(favorable: boolean, poor: boolean): PillVariant {
   return "warn";
 }
 
+type CalcPill = { label: string; value: string; variant: PillVariant };
+
 export function CalculationsStrip({
   equity,
   potOdds,
   outs,
+  vpipPct,
+  pfrPct,
+  statsHands,
   visible = true,
   muted = false,
 }: {
   equity?: number;
   potOdds?: number;
   outs?: number;
+  vpipPct?: number;
+  pfrPct?: number;
+  statsHands?: number;
   visible?: boolean;
   muted?: boolean;
 }) {
   const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  const prev = useRef({ equity, potOdds, outs });
+  const prev = useRef({ equity, potOdds, outs, vpipPct, pfrPct });
 
   useEffect(() => {
     if (!visible) {
@@ -41,8 +49,10 @@ export function CalculationsStrip({
     const changed =
       prev.current.equity !== equity ||
       prev.current.potOdds !== potOdds ||
-      prev.current.outs !== outs;
-    prev.current = { equity, potOdds, outs };
+      prev.current.outs !== outs ||
+      prev.current.vpipPct !== vpipPct ||
+      prev.current.pfrPct !== pfrPct;
+    prev.current = { equity, potOdds, outs, vpipPct, pfrPct };
     if (!changed) return;
     opacity.setValue(0.85);
     Animated.timing(opacity, {
@@ -50,7 +60,7 @@ export function CalculationsStrip({
       duration: DURATION.fast,
       useNativeDriver: true,
     }).start();
-  }, [equity, potOdds, outs, muted, visible, opacity]);
+  }, [equity, potOdds, outs, vpipPct, pfrPct, muted, visible, opacity]);
 
   useEffect(() => {
     if (!visible) opacity.setValue(0);
@@ -62,12 +72,33 @@ export function CalculationsStrip({
   const poVariant = typeof potOdds === "number" && typeof equity === "number"
     ? toVariant(potOdds < equity, potOdds > equity + 20)
     : "neutral";
+
+  const pills: CalcPill[] = [
+    { label: "Equity", value: typeof equity === "number" ? `${equity}%` : "--", variant: eqVariant },
+    { label: "Pot Odds", value: typeof potOdds === "number" ? `${potOdds}%` : "--", variant: poVariant },
+    { label: "Outs", value: typeof outs === "number" ? String(outs) : "--", variant: "neutral" },
+    {
+      label: "VPIP",
+      value: typeof vpipPct === "number"
+        ? (typeof statsHands === "number" ? `${vpipPct}% (${statsHands})` : `${vpipPct}%`)
+        : "--",
+      variant: "neutral",
+    },
+    {
+      label: "PFR",
+      value: typeof pfrPct === "number"
+        ? (typeof statsHands === "number" ? `${pfrPct}% (${statsHands})` : `${pfrPct}%`)
+        : "--",
+      variant: "neutral",
+    },
+  ];
+
   const content = (
     <View style={{ flexDirection: "column" }} className="ui-stack-2">
       <View className="ui-row ui-inline-2 ui-p-stack-2" style={{ flexWrap: "nowrap" }}>
-        <Pill label="Equity" value={typeof equity === "number" ? `${equity}%` : "--"} variant={eqVariant} />
-        <Pill label="Pot Odds" value={typeof potOdds === "number" ? `${potOdds}%` : "--"} variant={poVariant} />
-        <Pill label="Outs" value={typeof outs === "number" ? String(outs) : "--"} variant="neutral" />
+        {pills.map((p) => (
+          <Pill key={p.label} label={p.label} value={p.value} variant={p.variant} />
+        ))}
       </View>
     </View>
   );

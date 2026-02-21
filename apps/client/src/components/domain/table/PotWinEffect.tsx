@@ -1,62 +1,84 @@
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
 import type { ReactNode } from "react";
-import { DURATION } from "@/theme/animation";
-import { POT_WIN_RING } from "@/theme/colors";
 
-/** Subtle gold ring that blooms then softens around winner content. */
+const CHASER_COLORS = [
+  "#FFD700",
+  "#FF6B6B",
+  "#4ECDC4",
+  "#A855F7",
+  "#FFD700",
+];
+
+const CHASER_DURATION = 800;
+
 export function PotWinRing({ children }: { children: ReactNode }) {
-  const scale = useRef(new Animated.Value(0.88)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const animValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(scale, {
-          toValue: 1.06,
-          duration: DURATION.normal,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scale, {
-          toValue: 1.02,
-          duration: DURATION.fast,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.85,
-          duration: DURATION.normal,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.45,
-          duration: DURATION.fast,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [scale, opacity]);
+    Animated.loop(
+      Animated.timing(animValue, {
+        toValue: CHASER_COLORS.length - 1,
+        duration: CHASER_DURATION,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [animValue]);
+
+  const createChaserStyle = (index: number) => {
+    const color = CHASER_COLORS[index];
+
+    return {
+      position: "absolute" as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderWidth: 4,
+      borderColor: color,
+      borderRadius: 14,
+      opacity: animValue.interpolate({
+        inputRange: [index - 1, index, index + 1],
+        outputRange: [0, 1, 0],
+        extrapolate: "clamp",
+      }),
+    };
+  };
 
   return (
-    <View style={{ position: "relative", alignSelf: "center" }}>
-      <Animated.View
-        style={{
-          position: "absolute",
-          top: -10,
-          left: -10,
-          right: -10,
-          bottom: -10,
-          borderWidth: 2,
-          borderColor: POT_WIN_RING,
-          borderRadius: 16,
-          opacity,
-          transform: [{ scale }],
-        }}
-        pointerEvents="none"
-      />
-      <View style={{ zIndex: 1 }}>{children}</View>
+    <View style={wrapperStyle}>
+      <View style={baseRingStyle} pointerEvents="none" />
+      {CHASER_COLORS.map((_, i) => (
+        <Animated.View
+          key={i}
+          style={createChaserStyle(i)}
+          pointerEvents="none"
+        />
+      ))}
+      <View style={contentSlotStyle}>{children}</View>
     </View>
   );
 }
 
+const wrapperStyle = {
+  position: "relative" as const,
+  width: "100%" as const,
+  flexGrow: 0,
+  flexShrink: 0,
+};
+
+const contentSlotStyle = {
+  zIndex: 1 as const,
+  width: "100%" as const,
+};
+
+const baseRingStyle = {
+  position: "absolute" as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  borderWidth: 4,
+  borderColor: "rgba(255, 215, 0, 0.3)",
+  borderRadius: 14,
+};

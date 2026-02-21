@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import type { ReactNode } from "react";
 import { PRESS_OPACITY } from "@/theme/animation";
 import { Text } from "./Text";
+import { playSound } from "@/lib/sound";
 
 export function IconButton({
   icon,
@@ -13,16 +14,23 @@ export function IconButton({
   icon: ReactNode;
   onPress: () => void;
   disabled?: boolean;
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "ghost" | "link";
   /** When > 0, shows a compact count badge (e.g. unseen messages). */
   badge?: number;
 }) {
-  const bg = variant === "primary" ? "bg-brand" : "bg-transparent border border-border";
+  const bg =
+    variant === "primary" ? "bg-brand" : variant === "link" ? "bg-transparent border border-transparent" : "bg-transparent border border-border";
   const showBadge = typeof badge === "number" && badge > 0;
   const badgeLabel = showBadge ? (badge > 99 ? "99+" : String(badge)) : "";
+  const handlePress = () => {
+    if (disabled) return;
+    playSound("tap");
+    onPress();
+  };
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled}
       style={({ pressed }) => ({ opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
       className={`ui-touch rounded-md ${bg}`}

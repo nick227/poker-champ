@@ -14,3 +14,9 @@
    Touch:        ui-touch
    (Definitions live in tailwind.config.cjs for NativeWind.)
 */
+
+/* Table layout: smooth height change when switching normal/fallback (web only). */
+#root .table-opponent-strip,
+#root .table-hero-section {
+  transition: height 0.2s ease-out;
+}

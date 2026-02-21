@@ -27,9 +27,18 @@ export function getHeroCards(snapshot: TableSnapshotPayload): UiCard[] {
   return cards.slice(0, 2);
 }
 
+function getResolvedHeroSeat(snapshot: TableSnapshotPayload) {
+  const bySeat =
+    snapshot.hero.seat == null
+      ? undefined
+      : snapshot.seats.find((s) => s.seat === snapshot.hero.seat);
+  if (bySeat) return bySeat;
+  if (!snapshot.hero.youAreSeated || !snapshot.hero.userId) return undefined;
+  return snapshot.seats.find((s) => s.occupied && s.userId === snapshot.hero.userId);
+}
+
 export function getHeroStackCents(snapshot: TableSnapshotPayload): number {
-  if (snapshot.hero.seat == null) return 0;
-  const seat = snapshot.seats.find((s) => s.seat === snapshot.hero.seat);
+  const seat = getResolvedHeroSeat(snapshot);
   return seat?.stackCents ?? 0;
 }
 
@@ -46,26 +55,72 @@ const SEAT_STATUS_TO_OPPONENT: Record<string, Opponent["status"]> = {
   WAITING: "active",
 };
 
-export type HeroStatus = "ACTIVE" | "FOLDED" | "ALL_IN" | "OUT" | "ABANDONED";
+function getSeatOpponentStatus(
+  seat: { connected?: boolean; disconnectDeadlineTs?: number; status?: string },
+  serverNowTs?: number,
+): Opponent["status"] {
+  const now = serverNowTs ?? Date.now();
+  const deadline = seat.disconnectDeadlineTs ?? 0;
+  if (!seat.connected) {
+    return now < deadline ? "reconnecting" : "sittingOut";
+  }
+  if (seat.status === "ABANDONED" || seat.status === "OUT") return "sittingOut";
+  return SEAT_STATUS_TO_OPPONENT[seat.status ?? ""] ?? "active";
+}
 
-export function getHeroStatus(snapshot: TableSnapshotPayload): HeroStatus {
-  if (!snapshot.hero.youAreSeated || snapshot.hero.seat == null) return "OUT";
-  const heroSeat = snapshot.seats.find((s) => s.seat === snapshot.hero.seat);
-  if (!heroSeat) return "OUT";
+export type SeatDisplayStatus =
+  | "ACTIVE"
+  | "FOLDED"
+  | "ALL_IN"
+  | "SITTING_OUT"
+  | "RECONNECTING";
+
+export type HeroStatus = SeatDisplayStatus;
+
+export function assertNever(x: never): never {
+  throw new Error("Unhandled SeatDisplayStatus: " + String(x));
+}
+
+/** Opponent status maps 1:1 to SeatDisplayStatus (lowercase/camel). */
+export type OpponentDisplayStatus = "active" | "folded" | "allIn" | "sittingOut" | "reconnecting";
+
+/** Hero display status: uses connected + disconnectDeadlineTs for Reconnecting… vs Sitting out. */
+export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDisplayStatus {
+  const heroSeat = getResolvedHeroSeat(snapshot);
+  if (!heroSeat) return "SITTING_OUT";
+  const now = snapshot.serverTimeTs ?? Date.now();
+  const deadline = heroSeat.disconnectDeadlineTs ?? 0;
+  if (!heroSeat.connected) {
+    return now < deadline ? "RECONNECTING" : "SITTING_OUT";
+  }
   const s = heroSeat.status;
   if (s === "WAITING") return "ACTIVE";
+  if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
+  return s as SeatDisplayStatus;
+}
+
+/** Raw engine status; prefer getHeroDisplayStatus for UI. */
+export function getHeroStatus(snapshot: TableSnapshotPayload): HeroStatus {
+  const heroSeat = getResolvedHeroSeat(snapshot);
+  if (!heroSeat) return "SITTING_OUT";
+  const s = heroSeat.status;
+  if (s === "WAITING") return "ACTIVE";
+  if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
   return s as HeroStatus;
 }
 
 export function getIsMyTurn(snapshot: TableSnapshotPayload): boolean {
   const hand = snapshot.hand;
-  if (!hand || snapshot.hero.seat == null) return false;
-  return hand.toActSeat === snapshot.hero.seat;
+  const heroSeat = getResolvedHeroSeat(snapshot);
+  if (!hand || !heroSeat) return false;
+  return hand.toActSeat === heroSeat.seat;
 }
 
 export function getIsDealer(snapshot: TableSnapshotPayload): boolean {
-  if (!snapshot.hero.youAreSeated || !snapshot.hand) return false;
-  return snapshot.hero.seat === snapshot.hand.dealerSeat;
+  if (!snapshot.hand) return false;
+  const heroSeat = getResolvedHeroSeat(snapshot);
+  if (!heroSeat) return false;
+  return heroSeat.seat === snapshot.hand.dealerSeat;
 }
 
 export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] {
@@ -75,6 +130,7 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       : undefined;
 
   const heroId = snapshot.hero.userId;
+  const serverNowTs = snapshot.serverTimeTs;
   return snapshot.seats
     .filter((seat) => seat.occupied && seat.userId && seat.userId !== heroId)
     .map((seat) => ({
@@ -84,7 +140,7 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       isDealer: seat.seat === snapshot.hand?.dealerSeat,
       isActive: seat.isToAct,
       isBot: seat.isBot ?? false,
-      status: SEAT_STATUS_TO_OPPONENT[seat.status] ?? "active",
+      status: getSeatOpponentStatus(seat, serverNowTs),
       cards: (() => {
         if (snapshot.hand) {
           const isInHand = seat.status === "ACTIVE" || seat.status === "FOLDED" || seat.status === "ALL_IN";

@@ -69,6 +69,13 @@ Important detail:
 
 This is safe for determinism because each run recomputes and replaces rows for the exact `(period, category, computedAt)` bucket.
 
+## Why a category can show no entries
+
+- **No snapshot yet**: If no recompute has ever written rows for that `(period, category)`, the API returns `computedAt: null` and `entries: []`. Ensure `ENABLE_LEADERBOARD` is not `false` and the server has run at least one recompute (on startup or after the first hour).
+- **Biggest Winner / Biggest Donor**: Require `BalanceTransaction` rows with `handId` set and a related `Hand` with `endedAt` in the period. Empty if no such hands exist or no user has positive (winner) / negative (donor) net in the window.
+- **Showdown Wins (showdown_sniper)**: Requires `Hand.reason === "SHOWDOWN"` and each user must have at least `SHOWDOWN_MIN_SAMPLES` (5) such hands in the period to appear. If no user reaches that minimum, the list is empty.
+- When recompute runs but a category returns 0 entries, a single sentinel row is written (so the API can return `computedAt` and the UI shows "Last updated" instead of "Pending first snapshot"). The client shows a different empty-state message when `computedAt` is set vs when it is null.
+
 ## How Calculations Are Managed
 
 ## Periods and Categories

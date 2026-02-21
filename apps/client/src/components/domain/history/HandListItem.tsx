@@ -1,16 +1,8 @@
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { View } from "react-native";
-
-interface HandHistoryListItem {
-  id: string;
-  playedAt: Date;
-  tableName: string;
-  netResultCents: number;
-  bigBlindCents: number;
-  potCents: number;
-  heroActionSummary?: string;
-}
+import { Button } from "@/components/base/Button";
+import { useRouter } from "expo-router";
+import type { HandHistoryListItem } from "@/services/history.service";
 
 interface HandListItemProps {
   hand: HandHistoryListItem;
@@ -18,6 +10,8 @@ interface HandListItemProps {
 }
 
 export function HandListItem({ hand, onPress }: HandListItemProps) {
+  const router = useRouter();
+  
   const formatCents = (cents: number) => {
     return (cents / 100).toFixed(2);
   };
@@ -43,6 +37,12 @@ export function HandListItem({ hand, onPress }: HandListItemProps) {
   const resultPrefix = isWin ? "+" : "";
   const resultBadge = isWin ? "Won" : "Lost";
 
+  const hasReplay = hand.hasReplay === true;
+  const onReplayPress = () => {
+    if (!hasReplay) return;
+    router.push(`/replay/${hand.id}`);
+  };
+
   return (
     <Pressable
       onPress={() => onPress(hand.id)}
@@ -57,6 +57,11 @@ export function HandListItem({ hand, onPress }: HandListItemProps) {
                 {resultBadge}
               </Text>
             </View>
+            {!hasReplay && (
+              <View className="ml-2 px-2 py-1 rounded bg-muted/30">
+                <Text variant="muted" className="text-xs">No replay</Text>
+              </View>
+            )}
           </View>
           <Text variant="muted" className="text-xs">{formatRelativeTime(hand.playedAt)}</Text>
           {hand.heroActionSummary && (
@@ -69,13 +74,19 @@ export function HandListItem({ hand, onPress }: HandListItemProps) {
             {resultPrefix}${formatCents(hand.netResultCents)}
           </Text>
           <Text variant="muted" className="text-xs">
-            Pot: ${formatCents(hand.potCents)}
+            Pot: ${formatCents(hand.heroWonCents)}
           </Text>
           <Text variant="muted" className="text-xs">
             BB: {formatCents(hand.bigBlindCents)}
           </Text>
         </View>
       </View>
+      
+      {hasReplay && (
+        <View className="mt-3">
+          <Button title="Replay Hand" onPress={onReplayPress} variant="ghost" />
+        </View>
+      )}
     </Pressable>
   );
 }

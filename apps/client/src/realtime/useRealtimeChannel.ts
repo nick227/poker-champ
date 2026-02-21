@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { getAuthToken } from "@poker-champ/sdk";
 import { createRealtimeSession, type RealtimeSession, type RealtimeSessionOptions } from "./transport";
 import { resolveRealtimeTransportConfig, type TransportScope } from "@/registry/transport.registry";
+import { useE2EConnectionCountStore } from "@/stores/e2eConnectionCount.store";
 
 type UseRealtimeChannelOptions = {
   scope: TransportScope;
@@ -11,7 +12,7 @@ type UseRealtimeChannelOptions = {
   joinOptions?: Record<string, unknown>;
   onMessage: RealtimeSessionOptions["onMessage"];
   onError?: RealtimeSessionOptions["onError"];
-  onOpen?: (send: (type: string, payload?: unknown) => boolean) => void;
+  onOpen?: (send: (type: string, payload?: unknown) => boolean, getNativeRoom?: () => unknown) => void;
   onClose?: RealtimeSessionOptions["onClose"];
 };
 
@@ -60,12 +61,18 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
       joinOptions: "joinOptions" in config ? config.joinOptions : undefined,
       onMessage: (message) => callbackRef.current.onMessage(message),
       onError: (message) => callbackRef.current.onError?.(message),
-      onOpen: () => callbackRef.current.onOpen?.(send),
+      onOpen: () => callbackRef.current.onOpen?.(send, sessionRef.current?.getNativeRoom),
       onClose: () => callbackRef.current.onClose?.(),
     });
 
     sessionRef.current = session;
+    if (options.scope === "table") {
+      useE2EConnectionCountStore.getState().increment();
+    }
     return () => {
+      if (options.scope === "table") {
+        useE2EConnectionCountStore.getState().decrement();
+      }
       session.disconnect();
       sessionRef.current = null;
     };
@@ -74,6 +81,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
   return useMemo(
     () => ({
       send,
+      getNativeRoom: () => sessionRef.current?.getNativeRoom?.(),
     }),
     [],
   );

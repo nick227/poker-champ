@@ -259,6 +259,15 @@ export class TableSeatSessionService {
     });
   }
 
+  /** Mark all seat sessions for a table as LEFT. Used when table is deleted. */
+  static async markAllLeftForTable(params: { tableId: string }): Promise<void> {
+    const prisma = getPrisma() as any;
+    await prisma.tableSeatSession.updateMany({
+      where: { tableId: params.tableId, state: { in: ["SEATED_ACTIVE", "SEATED_SITTING_OUT"] } },
+      data: { state: "LEFT" as SeatSessionState, lastSeenAt: new Date() },
+    });
+  }
+
   static async touchConnected(params: {
     tableId: string;
     userId: string;

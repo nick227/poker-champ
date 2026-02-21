@@ -5,18 +5,20 @@ import { Button } from "@/components/base/Button";
 import { ChipButton } from "@/components/base/ChipButton";
 import { Input } from "@/components/base/Input";
 import { formatCents } from "@/lib/format";
+import { TABLE } from "@/constants/copy";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { HeroStatus } from "./table.adapter";
-import { buildWagerActionPayload, getActionBarAvailability, resolvePrimaryWagerAction } from "./actionBar.logic";
+import type { ActionContext } from "./actionBar.logic";
+import { buildWagerActionPayload, resolvePrimaryWagerAction } from "./actionBar.logic";
 import {
-  ACTION_BAR_HEIGHT,
   ACTION_BAR_PADDING,
   ACTION_BAR_GAP,
   STATUS_ROW_HEIGHT,
   BUTTONS_ROW_HEIGHT,
   BET_INPUT_ROW_HEIGHT,
   CHIPS_ROW_HEIGHT,
-} from "./constants/actionBar.constants";
+} from "./constants/components/actionBar.layout";
+import { ACTION_BAR_HEIGHT } from "./constants/tableLayout.constants";
 
 export { ACTION_BAR_HEIGHT };
 
@@ -24,13 +26,21 @@ const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
   ACTIVE: "Waiting for your turn",
   FOLDED: "You folded this hand",
   ALL_IN: "You are all-in",
-  OUT: "Sitting out",
-  ABANDONED: "Sitting out",
+  SITTING_OUT: "Sitting out",
+  RECONNECTING: TABLE.reconnecting,
 };
 
 export type TableAction = "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
 
 export type ActionBarOnAction = (payload: { type: TableAction; amount?: number }) => void;
+
+export type ActionBarProps = {
+  actionContext: ActionContext;
+  heroStatus: HeroStatus;
+  actionOptions?: HeroActionOptions;
+  potCents?: number;
+  onAction: ActionBarOnAction;
+};
 
 function formatInputFromCents(cents: number): string {
   return (Math.max(0, cents) / 100).toFixed(2);
@@ -44,27 +54,17 @@ function parseInputToCents(input: string): number {
 }
 
 export function ActionBar({
-  isMyTurn,
+  actionContext,
   heroStatus,
   actionOptions,
   potCents = 0,
-  connectionStatus,
   onAction,
-}: {
-  isMyTurn: boolean;
-  heroStatus: HeroStatus;
-  actionOptions?: HeroActionOptions;
-  potCents?: number;
-  connectionStatus?: "CONNECTED" | "RECONNECTING" | "DISCONNECTED";
-  onAction: ActionBarOnAction;
-}) {
+}: ActionBarProps) {
   const [betInput, setBetInput] = useState("0.00");
+  const { showActions, showReconnectingOverlay, allowedActions } = actionContext;
 
-  const statusLabel = isMyTurn ? "Your turn" : HERO_STATUS_LABEL[heroStatus];
-  const { showActions, actionsEnabled } = getActionBarAvailability({ isMyTurn, actionOptions, connectionStatus });
-
+  const statusLabel = showActions ? TABLE.yourTurn : HERO_STATUS_LABEL[heroStatus];
   const primaryWagerAction = resolvePrimaryWagerAction(actionOptions);
-  const canWager = !!primaryWagerAction;
 
   const foldLabel = "Fold";
   const checkCallLabel = actionOptions?.canCheck
@@ -73,16 +73,13 @@ export function ActionBar({
       ? `Call ${formatCents(actionOptions.callAmount ?? 0)}`
       : "Check/Call";
 
-  const foldDisabled = !actionOptions?.canFold;
-  const checkCallDisabled = !(actionOptions?.canCheck || actionOptions?.canCall);
-
   const betMin = actionOptions?.minRaiseTo;
   const betMax = actionOptions?.maxRaiseTo;
   const canShowBetInput =
     showActions &&
     typeof betMin === "number" &&
     typeof betMax === "number" &&
-    canWager;
+    allowedActions.WAGER;
 
   const submitWager = useCallback(
     (rawAmount: number) => {
@@ -121,15 +118,22 @@ export function ActionBar({
     setBetInput(sanitized);
   }, []);
 
+  const handleFold = useCallback(() => {
+    if (!allowedActions.FOLD) return;
+    onAction({ type: "FOLD" });
+  }, [allowedActions.FOLD, onAction]);
+
   const handleCheckCall = useCallback(() => {
+    if (!allowedActions.CHECK && !allowedActions.CALL) return;
     if (actionOptions?.canCheck) onAction({ type: "CHECK" });
     else if (actionOptions?.canCall) onAction({ type: "CALL" });
-  }, [actionOptions, onAction]);
+  }, [allowedActions.CHECK, allowedActions.CALL, actionOptions, onAction]);
 
   const handleBetRaise = useCallback(() => {
+    if (!allowedActions.WAGER) return;
     const amount = normalizeBetInput();
     submitWager(amount);
-  }, [normalizeBetInput, submitWager]);
+  }, [allowedActions.WAGER, normalizeBetInput, submitWager]);
 
   const handleMin = useCallback(() => {
     if (betMin != null) {
@@ -156,13 +160,12 @@ export function ActionBar({
   }, [betMax]);
 
   const handleAllIn = useCallback(() => {
-    if (actionOptions?.canAllIn) {
-      onAction({ type: "ALL_IN" });
-    }
-  }, [actionOptions, onAction]);
+    if (!allowedActions.ALL_IN) return;
+    onAction({ type: "ALL_IN" });
+  }, [allowedActions.ALL_IN, onAction]);
 
   const enteredBelowMin = betMin != null && clampedBetCents < betMin;
-  const betRaiseDisabled = !canWager || enteredBelowMin;
+  const betRaiseDisabled = !allowedActions.WAGER || enteredBelowMin;
   const hasBetBounds = betMin != null && betMax != null;
   const selectedWagerCents = hasBetBounds
     ? (clampedBetCents > 0 ? clampedBetCents : betMin)
@@ -184,7 +187,7 @@ export function ActionBar({
           gap: ACTION_BAR_GAP,
           flexDirection: "column",
         }}
-        className="ui-bottom-bar"
+        className="ui-action-bar"
       >
         <View style={{ height: STATUS_ROW_HEIGHT }} className="ui-center justify-center">
           <Text variant="label" allowFontScaling={false}>{statusLabel}</Text>
@@ -194,23 +197,23 @@ export function ActionBar({
             <Button
               variant="danger"
               title={foldLabel}
-              onPress={() => onAction({ type: "FOLD" })}
+              onPress={handleFold}
               className="flex-1 min-w-0"
-              disabled={!actionsEnabled || foldDisabled}
+              disabled={!allowedActions.FOLD}
             />
             <Button
               variant="ghost"
               title={checkCallLabel}
               onPress={handleCheckCall}
               className="flex-1 min-w-0"
-              disabled={!actionsEnabled || checkCallDisabled}
+              disabled={!allowedActions.CHECK && !allowedActions.CALL}
             />
             <Button
               variant="primary"
               title={betRaiseLabel}
               onPress={handleBetRaise}
               className="flex-1 min-w-0"
-              disabled={!actionsEnabled || betRaiseDisabled}
+              disabled={!allowedActions.WAGER || enteredBelowMin}
             />
           </View>
           <View style={{ height: BET_INPUT_ROW_HEIGHT, justifyContent: "center" }}>
@@ -225,7 +228,7 @@ export function ActionBar({
                 returnKeyType="done"
                 placeholder={formatInputFromCents(betMin)}
                 selectTextOnFocus
-                editable={actionsEnabled}
+                editable={allowedActions.WAGER}
                 allowFontScaling={false}
               />
             ) : (
@@ -233,16 +236,16 @@ export function ActionBar({
             )}
           </View>
           <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
-            <ChipButton title="MIN" onPress={handleMin} disabled={!actionsEnabled} />
-            <ChipButton title="1/2" onPress={handleHalfPot} disabled={!actionsEnabled} />
-            <ChipButton title="POT" onPress={handlePot} disabled={!actionsEnabled} />
-            <ChipButton title="ALL IN" onPress={handleAllIn} disabled={!actionsEnabled || !actionOptions?.canAllIn} />
+            <ChipButton title="MIN" onPress={handleMin} disabled={!allowedActions.WAGER} />
+            <ChipButton title="1/2" onPress={handleHalfPot} disabled={!allowedActions.WAGER} />
+            <ChipButton title="POT" onPress={handlePot} disabled={!allowedActions.WAGER} />
+            <ChipButton title="ALL IN" onPress={handleAllIn} disabled={!allowedActions.ALL_IN} />
           </View>
         </View>
       </View>
-      {connectionStatus === "RECONNECTING" && (
+      {showReconnectingOverlay && (
         <View pointerEvents="auto" className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg">
-          <Text variant="body" className="text-white text-center" allowFontScaling={false}>Reconnecting...</Text>
+          <Text variant="body" className="text-white text-center" allowFontScaling={false}>{TABLE.reconnecting}</Text>
         </View>
       )}
     </View>

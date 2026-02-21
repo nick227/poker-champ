@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest";
+import { Dealer } from "../engine/Dealer.js";
+import { PokerState } from "../state/PokerState.js";
+import { PlayerState } from "../state/PlayerState.js";
+
+function makePlayer(id: string, seat: number, stackCents: number): PlayerState {
+  const p = new PlayerState();
+  p.id = id;
+  p.userId = id;
+  p.kind = "HUMAN";
+  p.name = id;
+  p.seat = seat;
+  p.status = "ACTIVE";
+  p.stackCents = stackCents;
+  p.roundBetCents = 0;
+  p.committedCents = 0;
+  p.needsAction = false;
+  p.connected = true;
+  p.disconnectDeadlineTs = 0;
+  return p;
+}
+
+describe("dealer snapshot lifecycle invariants", () => {
+  it("emits HAND_START/HAND_END, keeps snapshotSeq monotonic, and ACTION_ACCEPTED reflects updated pot", async () => {
+    const state = new PokerState();
+    state.tableId = "table_snapshot_invariants";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("u1", "u2");
+    state.street = "WAITING";
+
+    state.playersById.set("u1", makePlayer("u1", 0, 5000));
+    state.playersById.set("u2", makePlayer("u2", 1, 5000));
+
+    const snapshots: Array<{
+      reason: string;
+      snapshotSeq: number;
+      potCents?: number;
+    }> = [];
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence, {
+      onTableSnapshotEmitted: (payload) => {
+        snapshots.push({
+          reason: payload.reason,
+          snapshotSeq: payload.payloadJson.snapshotSeq,
+          potCents: payload.payloadJson.hand?.potCents,
+        });
+      },
+    });
+    (dealer as any).scheduleNextHand = () => {};
+
+    await (dealer as any).startHand();
+    const potAfterBlinds = state.potCents;
+    const firstToAct = state.seats[state.toActSeat];
+    expect(firstToAct).toBeTruthy();
+
+    await dealer.handleAction(String(firstToAct), { action: "CALL" });
+    const actionSnapshot = [...snapshots].reverse().find((s) => s.reason === "ACTION_ACCEPTED");
+    expect(actionSnapshot).toBeDefined();
+    expect((actionSnapshot?.potCents ?? 0)).toBeGreaterThan(potAfterBlinds);
+
+    const secondToAct = state.seats[state.toActSeat];
+    expect(secondToAct).toBeTruthy();
+    await dealer.handleAction(String(secondToAct), { action: "FOLD" });
+
+    const reasons = snapshots.map((s) => s.reason);
+    expect(reasons).toContain("HAND_START");
+    expect(reasons).toContain("HAND_END");
+    expect(reasons.indexOf("HAND_START")).toBeLessThan(reasons.indexOf("HAND_END"));
+
+    for (let i = 1; i < snapshots.length; i++) {
+      expect(
+        snapshots[i]!.snapshotSeq,
+        `snapshotSeq must be monotonic: prev=${snapshots[i - 1]!.snapshotSeq}, next=${snapshots[i]!.snapshotSeq}`,
+      ).toBeGreaterThan(snapshots[i - 1]!.snapshotSeq);
+    }
+  });
+});

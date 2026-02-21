@@ -167,6 +167,65 @@ describe("table join guardrails", () => {
     expect(client.leave).toHaveBeenCalled();
   });
 
+  it("table → lobby → table: only one live session, old session gets SESSION_REPLACED and does not reconnect", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "false";
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_rejoin";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_rejoin",
+        name: "Rejoin Table",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const client1 = makeClient("session_table_first");
+    const client2 = makeClient("session_table_second");
+
+    await room.onJoin(
+      client1 as any,
+      { buyInCents: 5000 },
+      { userId: "user_same", username: "alice" },
+    );
+    expect(client1.send).toHaveBeenCalledWith(
+      "WELCOME",
+      expect.objectContaining({ roomId: "room_rejoin", playerId: "user_same", joinMode: "NEW" }),
+    );
+    expect(client1.leave).not.toHaveBeenCalled();
+
+    await room.onJoin(
+      client2 as any,
+      { buyInCents: 5000 },
+      { userId: "user_same", username: "alice" },
+    );
+    expect(client1.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({ code: "SESSION_REPLACED", message: "Session replaced by a newer connection." }),
+    );
+    expect(client1.leave).toHaveBeenCalledWith(4000);
+    expect(client2.send).toHaveBeenCalledWith(
+      "SESSION_RESTORED",
+      expect.objectContaining({ userId: "user_same", joinMode: "RESTORE" }),
+    );
+    expect(client2.leave).not.toHaveBeenCalled();
+
+    const boundClient = room.dealer.getClient("user_same");
+    expect(boundClient).toBe(client2);
+    expect(boundClient).not.toBe(client1);
+  });
+
   it("restores persisted seat session without requiring buyInCents", async () => {
     process.env.FEATURE_PERSISTENT_SEATS = "true";
     vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);

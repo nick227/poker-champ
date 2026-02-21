@@ -16,6 +16,7 @@ type ChooseTableModalProps = {
   minBuyInCents: number;
   maxBuyInCents: number;
   onApply: (opts: { buyInCents: number }) => void;
+  title?: string;
 };
 
 export function ChooseTableModal({
@@ -25,6 +26,7 @@ export function ChooseTableModal({
   minBuyInCents,
   maxBuyInCents,
   onApply,
+  title,
 }: ChooseTableModalProps) {
   const maxAllowed = Math.min(maxBuyInCents, balanceCents);
   const [buyInCents, setBuyInCents] = useState(minBuyInCents);
@@ -40,7 +42,7 @@ export function ChooseTableModal({
   };
 
   return (
-    <ModalSheet visible={visible} onClose={onClose} title={MODAL.chooseTable}>
+    <ModalSheet visible={visible} onClose={onClose} title={title ?? MODAL.chooseTable}>
       <View className="ui-stack-4">
         <View>
           <Text variant="label">Your Balance</Text>

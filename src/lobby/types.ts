@@ -31,4 +31,5 @@ export type LobbyTableSummary = {
   createdAt: number;
   creatorId?: string;
   humanCount?: number;
+  connectedHumanCount?: number;
 };

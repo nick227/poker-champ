@@ -5,104 +5,158 @@ import { CalculationsStrip } from "./CalculationsStrip";
 import { DealerButton } from "./DealerButton";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
-import type { HeroStatus } from "./table.adapter";
+import type { HeroStatus, UiCard } from "./table.adapter";
+import { assertNever } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
-import { HERO_ZONE_HEIGHT } from "./constants/heroZone.constants";
+import { hasHeroCalculations } from "./table.utils";
+import { HERO_ZONE_HEIGHT } from "./constants/tableLayout.constants";
+import { useTableLayoutHeight } from "./TableLayoutHeightContext";
+import { heroZoneStyles as s } from "./heroZone.styles";
 
 export { HERO_ZONE_HEIGHT };
 
-type Card = { rank: string; suit: string } | null;
-
-const CARD_GAP = 10;
-const CALC_STRIP_HEIGHT = 40;
-
-function isInactive(status: HeroStatus): boolean {
-  return status === "FOLDED" || status === "OUT" || status === "ABANDONED";
-}
-
-function getStatusLabel(status: HeroStatus): string | null {
-  if (status === "FOLDED") return TABLE.fold;
-  if (status === "OUT" || status === "ABANDONED") return TABLE.sittingOut;
-  return null;
-}
-
-export function HeroZone({
-  cards,
-  stackCents,
-  isMyTurn,
-  heroStatus,
-  equity,
-  potOdds,
-  outs,
-  isWinner = false,
-  isDealer = false,
-  userName,
-  height: heightProp,
-}: {
-  cards: Card[];
+export type HeroZoneProps = {
+  cards: UiCard[];
   stackCents: number;
-  isMyTurn: boolean;
+  canAct: boolean;
   heroStatus: HeroStatus;
   equity?: number;
   potOdds?: number;
   outs?: number;
+  playerStats?: { hands?: number; vpipPct?: number; pfrPct?: number };
   isWinner?: boolean;
   isDealer?: boolean;
   userName?: string;
-  /** Override when viewport is small (emergency fallback). */
+  /** Override height when viewport is small. */
   height?: number;
-}) {
-  const zoneHeight = heightProp ?? HERO_ZONE_HEIGHT;
+};
+
+function isInactive(status: HeroStatus): boolean {
+  switch (status) {
+    case "ACTIVE":
+    case "ALL_IN":
+      return false;
+    case "FOLDED":
+    case "SITTING_OUT":
+    case "RECONNECTING":
+      return true;
+    default:
+      return assertNever(status);
+  }
+}
+
+function getStatusLabel(status: HeroStatus): string | null {
+  switch (status) {
+    case "ACTIVE":
+    case "ALL_IN":
+      return null;
+    case "FOLDED":
+      return TABLE.fold;
+    case "SITTING_OUT":
+      return TABLE.sittingOut;
+    case "RECONNECTING":
+      return TABLE.reconnecting;
+    default:
+      return assertNever(status);
+  }
+}
+
+const HERO_CARD_KEYS = ["left", "right"] as const;
+
+export function HeroZone({
+  cards,
+  stackCents,
+  canAct,
+  heroStatus,
+  equity,
+  potOdds,
+  outs,
+  playerStats,
+  isWinner = false,
+  isDealer = false,
+  userName,
+  height: heightProp,
+}: HeroZoneProps) {
+  const layoutHeight = useTableLayoutHeight();
+  const zoneHeight =
+    heightProp ?? layoutHeight?.heroZoneHeight ?? HERO_ZONE_HEIGHT;
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
-  const hasCalculations = typeof equity === "number" || typeof potOdds === "number" || typeof outs === "number";
+  const hasCalculations = hasHeroCalculations({ equity, potOdds, outs });
+  // Keep calc strip visually persistent so Hero cards never shift between states.
+  const showCalculations = true;
+  const calcMuted = !canAct || !hasCalculations;
+
+  // Core hero panel content. This is optionally wrapped with a win-ring below.
   const content = (
     <View
       collapsable={false}
-      className="border-t border-border-subtle ui-p-4 ui-stack-4 flex-shrink-0 bg-panel/60"
-      style={{ height: zoneHeight, flexDirection: "column" }}
+      className="hero-container flex-shrink-0"
+      style={[s.root, { height: zoneHeight, padding: 16, gap: 16 }]}
     >
-      <View style={{ height: CALC_STRIP_HEIGHT }}>
+      {/* Top rail: calculation stats (always rendered to preserve layout height). */}
+      <View style={s.calcStrip}>
         <CalculationsStrip
           equity={equity}
           potOdds={potOdds}
           outs={outs}
-          visible={hasCalculations && !folded}
-          muted={!isMyTurn}
+          vpipPct={playerStats?.vpipPct}
+          pfrPct={playerStats?.pfrPct}
+          statsHands={playerStats?.hands}
+          visible={showCalculations}
+          muted={calcMuted}
         />
       </View>
-      <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={{ gap: 20, alignItems: "stretch" }}>
-        <View className="ui-col ui-center rounded-lg border border-border-subtle bg-panel/80 px-3 py-2" style={{ gap: 8 }}>
-          <View className="ui-row ui-center" style={{ gap: 6 }}>
-            <Text variant="label" allowFontScaling={false}>Hole cards</Text>
-            {statusLabel ? (
-              <Text variant={folded ? "danger" : "muted"} className="text-xs" allowFontScaling={false}>{statusLabel}</Text>
-            ) : null}
-          </View>
-          <View className="ui-row ui-center" style={{ gap: CARD_GAP }}>
-            {cards.map((c, i) =>
-              c ? (
-                <PlayingCard key={i} rank={c.rank} suit={c.suit} />
+
+      {/* Main row: hero cards + stack summary (+ optional dealer button). */}
+      <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={s.mainRow}>
+        {/* Left card: status label + two hero hole cards. */}
+        <View className="ui-col ui-center rounded-lg border border-border-subtle bg-panel/80 px-3 py-4" style={s.holeCardsCol}>
+          <View className="ui-row ui-center" style={s.cardRow}>
+            {cards.map((c, i) => {
+              const key = HERO_CARD_KEYS[i] ?? `card-${i}`;
+              return c ? (
+                <PlayingCard key={key} rank={c.rank} suit={c.suit} />
               ) : (
-                <PlayingCard key={i} faceDown />
-              )
-            )}
+                <PlayingCard key={key} faceDown />
+              );
+            })}
           </View>
         </View>
-        <View className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]" style={{ gap: 4 }}>
+
+        {/* Center card: player identity and stack amount. */}
+        <View
+          className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]"
+          style={s.stackCol}
+          data-testid="hero-stack"
+          data-stack-cents={String(stackCents)}
+          data-hero-name={userName ?? ""}
+        >
           {userName ? (
             <Text variant="label" numberOfLines={1} className="text-center" allowFontScaling={false}>{userName}</Text>
           ) : null}
           <Text variant="label" allowFontScaling={false}>Stack</Text>
           <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
         </View>
-        <View style={{ width: 24, height: 24, justifyContent: "center", alignItems: "center" }}>
-          {isDealer ? <DealerButton size="small" /> : null}
+
+        {/* Right slot: dealer indicator when hero has the button. */}
+        {isDealer ? (
+          <View style={s.dealerSlot}>
+            <DealerButton size="small" />
+          </View>
+        ) : null}
+
+        {/* Right slot: game status. */}
+        <View className="ui-row ui-center" style={s.holeCardsHeader}>
+          <Text variant={folded ? "danger" : "muted"} className="text-xs" allowFontScaling={false}>
+            {statusLabel ?? " "}
+          </Text>
         </View>
       </View>
     </View>
   );
 
+  // Winner state: add celebratory ring around the same content tree.
   return isWinner ? <PotWinRing>{content}</PotWinRing> : content;
 }

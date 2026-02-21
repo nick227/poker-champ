@@ -103,9 +103,9 @@ Use explicit formulas and hard thresholds to avoid ambiguous ranking.
 - Snapshot bucket rule:
   - `computedAt = floorToHour(nowUtc())`
   - Window lower bound uses `endedAt >= computedAt - windowSize`
-- Minimum samples (MVP defaults):
+- Minimum samples (MVP defaults; implementation uses 5 for showdown so leaderboard populates with typical play):
   - VPIP categories: `minHands = 100`
-  - Showdown Sniper: `minShowdowns = 20`
+  - Showdown Sniper: `minShowdowns = 5`
 - Tie-breakers (in order):
   1. Better metric value
   2. Higher `handCount`

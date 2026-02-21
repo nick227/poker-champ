@@ -1,7 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRealtimeChannel } from "./useRealtimeChannel";
-import { dispatchRealtimeChannelMessage } from "@/registry/realtime-channel.registry";
 import { storeRegistry } from "@/registry/store.registry";
+import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.message";
 
 type UseTableRealtimeOptions = {
   tableId: string;
@@ -10,15 +10,32 @@ type UseTableRealtimeOptions = {
   password?: string;
   enabled?: boolean;
   onError?: (message: string) => void;
+  onTableGone?: (tableId: string) => void;
+  onReadyRoom?: (room: unknown | null) => void;
 };
 
-export function useTableRealtime({ tableId, roomId, buyInCents, password, enabled = true, onError }: UseTableRealtimeOptions) {
+export function useTableRealtime({
+  tableId,
+  roomId,
+  buyInCents,
+  password,
+  enabled = true,
+  onError,
+  onTableGone,
+  onReadyRoom,
+}: UseTableRealtimeOptions) {
   const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
   const hasValidBuyIn = Number.isInteger(buyInCents) && Number(buyInCents) > 0;
   const debugLog = (...args: unknown[]) => {
-     
     console.log("[TABLE_RT]", ...args);
   };
+  const onErrorRef = useRef(onError);
+  const onTableGoneRef = useRef(onTableGone);
+  const onReadyRoomRef = useRef(onReadyRoom);
+  onErrorRef.current = onError;
+  onTableGoneRef.current = onTableGone;
+  onReadyRoomRef.current = onReadyRoom;
+
   const joinOptions = useMemo(
     () =>
       ({
@@ -36,44 +53,21 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
     authHydrated,
     joinOptions,
     onMessage: ({ type, payload }) => {
-      if (type === "WELCOME") {
-        const p = payload as { roomId?: string } | undefined;
-        if (typeof p?.roomId === "string" && p.roomId.length > 0) {
-          storeRegistry.tables().setRoomForTable(tableId, p.roomId);
-        }
-      }
-      if (type === "TABLE_SNAPSHOT") {
-        const snap = payload as { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number; snapshotSeq?: number } | undefined;
-        debugLog("INBOUND", { tableId, type, reason: snap?.reason, handId: snap?.hand?.handId, street: snap?.hand?.street, actionId: snap?.actionId, version: snap?.version, snapshotSeq: snap?.snapshotSeq });
-        
-        // Log actionId correlation for diagnostics
-        if (snap?.actionId) {
-          console.log(`[TABLE_RT] Action completed: ${snap.actionId} for table ${tableId}`);
-        }
-      } else if (type === "ERROR") {
-        const error = payload as any;
-        debugLog("INBOUND", { tableId, type, code: error?.code, message: error?.message, actionId: error?.actionId });
-        
-        // Log actionId error correlation for diagnostics
-        if (error?.actionId) {
-          console.error(`[TABLE_RT] Action failed: ${error.actionId} for table ${tableId}`, error.message || error.code);
-        }
-      } else if (type === "WELCOME" || type === "SESSION_RESTORED" || type === "RECONNECTING" || type === "DISCONNECTED" || type === "CONNECTED") {
-        debugLog("INBOUND", { tableId, type, payload });
-      }
-      dispatchRealtimeChannelMessage("table", type, payload, {
+      handleTableRealtimeInboundMessage({
         tableId,
-        onSnapshot: (targetTableId, snapshot) => {
-          storeRegistry.table().setSnapshot(targetTableId, snapshot);
-        },
-        setStatus: (status) => {
-          storeRegistry.table().setConnectionStatus(tableId, status as "CONNECTED" | "RECONNECTING" | "DISCONNECTED");
-          debugLog("STATUS", { tableId, status });
-        },
-        onError: (message) => {
-          storeRegistry.table().setError(tableId, message);
-          debugLog("ERROR", { tableId, message });
-          onError?.(message);
+        type,
+        payload,
+        deps: {
+          setRoomForTable: (t, r) => storeRegistry.tables().setRoomForTable(t, r),
+          resetSnapshotStream: (t) => storeRegistry.table().resetSnapshotStream(t),
+          setSnapshot: (t, snapshot) => storeRegistry.table().setSnapshot(t, snapshot),
+          appendChatMessage: (t, message) => storeRegistry.table().appendChatMessage(t, message),
+          setConnectionStatus: (t, status) => storeRegistry.table().setConnectionStatus(t, status),
+          clearConnectionStatus: (t) => storeRegistry.table().clearConnectionStatus(t),
+          setError: (t, message) => storeRegistry.table().setError(t, message),
+          onError: (m) => onErrorRef.current?.(m),
+          onTableGone: (t) => onTableGoneRef.current?.(t),
+          debugLog,
         },
       });
     },
@@ -81,13 +75,22 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
       const normalized = message && message.trim().length > 0 ? message : "Connection closed unexpectedly";
       storeRegistry.table().setError(tableId, normalized);
       debugLog("TRANSPORT_ERROR", { tableId, message: normalized });
-      onError?.(normalized);
+      onErrorRef.current?.(normalized);
+    },
+    onOpen: (_send, getNativeRoom) => {
+      onReadyRoomRef.current?.(getNativeRoom?.() ?? null);
+    },
+    onClose: () => {
+      onReadyRoomRef.current?.(null);
     },
   });
 
   useEffect(() => {
     if (roomId && roomId.length > 0) {
-      storeRegistry.tables().setRoomForTable(tableId, roomId);
+      const current = storeRegistry.tables().roomIdByTableId[tableId];
+      if (current !== roomId) {
+        storeRegistry.tables().setRoomForTable(tableId, roomId);
+      }
     }
     debugLog("CONNECT_CONFIG", {
       tableId,
@@ -102,6 +105,7 @@ export function useTableRealtime({ tableId, roomId, buyInCents, password, enable
     return () => {
       debugLog("DISPOSE", { tableId });
       storeRegistry.tables().unregisterTableSender(tableId);
+      onReadyRoomRef.current?.(null);
     };
   }, [tableId, roomId, realtime, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
 }

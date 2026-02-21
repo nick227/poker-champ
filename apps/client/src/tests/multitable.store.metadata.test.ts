@@ -6,7 +6,10 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 describe("multi-table metadata persistence", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    const localStorageRef = (globalThis as { localStorage?: Storage }).localStorage;
+    interface HasLocalStorage {
+      localStorage?: { removeItem: (key: string) => void };
+    }
+    const localStorageRef = typeof globalThis !== "undefined" && "localStorage" in globalThis ? (globalThis as HasLocalStorage).localStorage : undefined;
     if (localStorageRef) {
       localStorageRef.removeItem("multitable-store");
     }
