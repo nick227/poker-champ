@@ -82,9 +82,10 @@ export function OpponentStrip({
     >
       <ScrollView
         horizontal
-        style={[s.scrollViewFill, { flexGrow: 0, flexShrink: 0, overflow: "visible" }]}
+        className="overflow-x-auto"
+        style={s.scrollViewFill}
         contentContainerStyle={[s.scrollContent, s.horizontalScrollContent]}
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         bounces={false}
         overScrollMode="never"
         scrollEventThrottle={16}

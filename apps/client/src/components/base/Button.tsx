@@ -23,6 +23,8 @@ export function Button({
   variant = "primary",
   className = "",
   minWidth = 0,
+  marginRight = 0,
+  marginLeft = 0,
 }: {
   title: string;
   onPress: () => void;
@@ -31,6 +33,8 @@ export function Button({
   variant?: Variant;
   className?: string;
   minWidth?: number;
+  marginRight?: number;
+  marginLeft?: number;
 }) {
   const isDisabled = disabled || loading;
   const handlePress = () => {
@@ -46,7 +50,7 @@ export function Button({
       style={({ pressed }) => ({ opacity: isDisabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
       className={className}
     >
-      <View className={`${base} ${variants[variant]} ${className}`} style={{ minHeight: 44, minWidth: minWidth }}>
+      <View className={`${base} ${variants[variant]} ${className}`} style={{ minHeight: 44, minWidth: minWidth, marginRight: marginRight, marginLeft: marginLeft }}>
         <Text variant="body" allowFontScaling={false}>
         {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : title}
         </Text>

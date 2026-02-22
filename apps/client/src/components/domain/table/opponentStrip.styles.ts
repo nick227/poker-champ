@@ -15,6 +15,9 @@ import {
   OPPONENT_CARD_HEIGHT,
   OPPONENT_CARD_GAP,
   OPPONENT_CARD_SCALE,
+  CONTAINER_HORIZONTAL_PADDING,
+  CONTAINER_VERTICAL_PADDING,
+  CONTAINER_BOTTOM_PADDING,
 } from "./constants/components/opponentStrip.layout";
 import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
 import {
@@ -29,6 +32,7 @@ const ROW_BASE = ROW_PADDING * 2;
 export const opponentStripStyles = StyleSheet.create({
   strip: {
     width: "100%",
+    overflow: "hidden",
   },
   /** Fill fixed-height band without % or flex:1; alignSelf: stretch uses parent height. */
   scrollViewFill: {
@@ -37,19 +41,24 @@ export const opponentStripStyles = StyleSheet.create({
     alignSelf: "stretch",
   },
   scrollContent: {
-    paddingHorizontal: CONTAINER_PADDING,
-    paddingVertical: CONTAINER_PADDING,
+    paddingHorizontal: CONTAINER_HORIZONTAL_PADDING,
+    paddingVertical: CONTAINER_VERTICAL_PADDING,
+    paddingTop: CONTAINER_VERTICAL_PADDING,
+    paddingBottom: CONTAINER_BOTTOM_PADDING,
     alignItems: "stretch",
   },
   horizontalScrollContent: {
     flexDirection: "row",
     flexWrap: "nowrap",
     alignItems: "center",
+    flexGrow: 0,
+    flexShrink: 0,
   },
   opponentRow: {
     flexDirection: "row",
     flexWrap: "nowrap",
     gap: OPPONENT_ROW_GAP,
+    flexShrink: 0,
   },
   tile: {
     width: TILE_WIDTH,

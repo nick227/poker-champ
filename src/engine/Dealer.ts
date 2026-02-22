@@ -680,7 +680,7 @@ private nextHandScheduled = false;
   private startDisconnectSweep(): void {
     if (this.disconnectSweepIntervalId != null) return;
     this.disconnectSweepIntervalId = setInterval(() => {
-      void this.sweepDisconnectDeadlines();
+      void this.enqueueSerializedStateMutation(() => this.sweepDisconnectDeadlines());
     }, Dealer.DISCONNECT_SWEEP_MS);
   }
 
@@ -695,9 +695,13 @@ private nextHandScheduled = false;
     const now = Date.now();
     const toAbandon: string[] = [];
     for (const [userId, player] of this.state.playersById.entries()) {
-      if (player.disconnectDeadlineTs > 0 && now > player.disconnectDeadlineTs) {
-        toAbandon.push(userId);
+      if (player.disconnectDeadlineTs <= 0 || now <= player.disconnectDeadlineTs) continue;
+      if (this.clientsByUserId.has(userId)) {
+        const plans = this.playerLifecycleService.markReconnected(userId);
+        await this.executePlayerLifecyclePlans(plans);
+        continue;
       }
+      toAbandon.push(userId);
     }
     for (const userId of toAbandon) {
       try {

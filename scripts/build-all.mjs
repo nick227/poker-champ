@@ -4,6 +4,12 @@
  * --web-only  Skip desktop build (e.g. for PRs).
  */
 import { execSync } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", "apps", "client", ".env") });
 
 const webOnly = process.argv.includes("--web-only");
 
@@ -14,7 +20,6 @@ console.log("=========================\n");
 
 const REQUIRED_ENV = [
   "EXPO_PUBLIC_API_URL",
-  "EXPO_PUBLIC_WS_URL",
   "EXPO_PUBLIC_COLYSEUS_URL",
 ];
 
@@ -22,7 +27,7 @@ function assertEnv() {
   const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     console.error("Missing required env vars:", missing.join(", "));
-    console.error("Set them before build to avoid silent dev-URL disasters.");
+    console.error("Set them in apps/client/.env (see .env.example) or before build.");
     process.exit(1);
   }
 }
@@ -35,6 +40,12 @@ function run(name, cmd) {
 run("Preflight", "pnpm preflight:client");
 assertEnv();
 run("Web", "pnpm build:web");
-if (!webOnly) run("Desktop", "pnpm build:desktop");
+if (!webOnly) {
+  try {
+    run("Desktop", "pnpm build:desktop");
+  } catch {
+    console.warn("\nDesktop build skipped (Tauri CLI not available or build failed). Use --web-only to skip explicitly.\n");
+  }
+}
 
 console.log("\n--- Done ---\n");

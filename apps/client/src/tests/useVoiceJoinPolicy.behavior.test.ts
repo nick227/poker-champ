@@ -94,6 +94,7 @@ describe("useVoiceJoinPolicy", () => {
   });
 
   it("disables voice and calls showVoiceError when join rejects", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const controller = createController();
     const joinError = new Error("NotAllowedError");
     controller.join.mockRejectedValueOnce(joinError);
@@ -122,5 +123,6 @@ describe("useVoiceJoinPolicy", () => {
 
     expect(setVoiceEnabled).toHaveBeenCalledWith(false);
     expect(showVoiceError).toHaveBeenCalledWith(joinError);
+    logSpy.mockRestore();
   });
 });

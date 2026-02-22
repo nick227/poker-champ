@@ -58,10 +58,11 @@ function getSeatOpponentStatus(
   seat: { connected?: boolean; disconnectDeadlineTs?: number; status?: string },
   serverNowTs?: number,
 ): Opponent["status"] {
-  const now = serverNowTs ?? Date.now();
-  const deadline = seat.disconnectDeadlineTs ?? 0;
   if (!seat.connected) {
-    return now < deadline ? "reconnecting" : "sittingOut";
+    if (seat.status === "ABANDONED" || seat.status === "OUT") return "sittingOut";
+    const deadline = seat.disconnectDeadlineTs ?? 0;
+    if (deadline <= 0 || serverNowTs == null) return "reconnecting";
+    return serverNowTs < deadline ? "reconnecting" : "sittingOut";
   }
   if (seat.status === "ABANDONED" || seat.status === "OUT") return "sittingOut";
   return SEAT_STATUS_TO_OPPONENT[seat.status ?? ""] ?? "active";
@@ -104,9 +105,13 @@ export type Opponent = {
 export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDisplayStatus {
   const heroSeat = getResolvedHeroSeat(snapshot);
   if (!heroSeat) return "SITTING_OUT";
-  const now = snapshot.serverTimeTs ?? Date.now();
-  const deadline = heroSeat.disconnectDeadlineTs ?? 0;
   if (!heroSeat.connected) {
+    const s = heroSeat.status;
+    if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
+    const deadline = heroSeat.disconnectDeadlineTs ?? 0;
+    if (deadline <= 0) return "SITTING_OUT";
+    const now = snapshot.serverTimeTs;
+    if (now == null) return "RECONNECTING";
     return now < deadline ? "RECONNECTING" : "SITTING_OUT";
   }
   const s = heroSeat.status;
