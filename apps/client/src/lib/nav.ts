@@ -22,10 +22,3 @@ export function loginPathWithNext(next: string): string {
   return `${base}?next=${encodeURIComponent(next)}`;
 }
 
-export function historyPath(): string {
-  return screenRegistry.byKey.history.path;
-}
-
-export function leaderboardPath(): string {
-  return screenRegistry.byKey.leaderboard.path;
-}

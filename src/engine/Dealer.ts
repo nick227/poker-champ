@@ -10,7 +10,6 @@ import {
 } from "./rules/BettingRound.js";
 import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
-import { nanoid } from "nanoid";
 import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { RandomBotBrain } from "./bots/BotBrain.js";
 import type { BotBrain } from "./bots/BotBrain.js";
@@ -62,7 +61,12 @@ export class Dealer {
   private preflopFlagsByUserId = new Map<string, { vpip: boolean; pfr: boolean }>();
 
   private actionQueue: Promise<void> = Promise.resolve();
-  private readonly processedActionIds: Set<string> = new Set();
+  private readonly processedActionKeys: Set<string> = new Set();
+  private readonly actionIdFirstClaimByKey: Map<string, string> = new Map();
+  private readonly warnedCrossUserCollisionKeys: Set<string> = new Set();
+  private lastProcessedHandId: string | null = null;
+  private pendingActionCount = 0;
+  private readonly maxQueueDepth: number;
   private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -81,11 +85,18 @@ export class Dealer {
         stateHash: string;
         schemaVersion: number;
       }) => Promise<void> | void;
+      maxQueueDepth?: number;
     },
   ) {
     this.state = state;
-    this.persistence = persistence ?? new PersistenceFacade(this.state.tableId || "table_poc");
+    this.persistence =
+      persistence ??
+      new PersistenceFacade({
+        tableId: this.state.tableId || "table_poc",
+        tableName: this.state.tableName,
+      });
     this.onAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
+    this.maxQueueDepth = options?.maxQueueDepth ?? 50;
     this.settlementService = new SettlementService({
       state: this.state,
       persistence: this.persistence,
@@ -96,7 +107,7 @@ export class Dealer {
       settlementService: this.settlementService,
       holeCardsByPlayerId: this.holeCardsByPlayerId,
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
-      processedActionIds: this.processedActionIds,
+      processedActionIds: this.processedActionKeys,
       applyDisconnectedAutoActionCapForHand: () => this.applyDisconnectedAutoActionCapForHand(),
       setLastHandResult: (value) => { this.lastHandResult = value; },
       setLastAction: (value) => { this.lastAction = value; },
@@ -245,22 +256,58 @@ export class Dealer {
     await this.markAbandoned(userId);
   }
   async handleAction(userId: string, msg: ActionPayload, actionId?: string) {
-    // Action serialization queue (mutex)
-    return this.actionQueue = this.actionQueue.then(async () => {
-      if (actionId && this.processedActionIds.has(actionId)) {
-        return;
-      }
-      const handIdBefore = this.state.handId;
+    if (this.pendingActionCount >= this.maxQueueDepth) {
+      throw new PokerError("QUEUE_FULL", "Action queue full. Retry shortly.", {
+        retryAfterSeconds: 2,
+        queueDepth: this.pendingActionCount,
+        maxQueueDepth: this.maxQueueDepth,
+      });
+    }
+    this.pendingActionCount++;
+    return (this.actionQueue = this.actionQueue.then(async () => {
       try {
-        await this._handleAction(userId, msg, "PLAYER");
-        if (actionId && handIdBefore && this.state.handId === handIdBefore) {
-          this.processedActionIds.add(actionId);
+        const currentHandId = this.state.handId ?? null;
+        if (this.lastProcessedHandId !== currentHandId) {
+          this.processedActionKeys.clear();
+          this.actionIdFirstClaimByKey.clear();
+          this.warnedCrossUserCollisionKeys.clear();
+          this.lastProcessedHandId = currentHandId;
         }
-      } catch (err) {
-        logger.error({ err, userId, action: msg.action }, "Action failed");
-        throw err;
+        const actionKey =
+          actionId && currentHandId
+            ? `${currentHandId}:${userId}:${actionId}`
+            : null;
+        const claimKey =
+          actionId && currentHandId
+            ? `${currentHandId}:${actionId}`
+            : null;
+        if (claimKey) {
+          const firstUserId = this.actionIdFirstClaimByKey.get(claimKey);
+          if (!firstUserId) {
+            this.actionIdFirstClaimByKey.set(claimKey, userId);
+          } else if (firstUserId !== userId && !this.warnedCrossUserCollisionKeys.has(claimKey)) {
+            this.warnedCrossUserCollisionKeys.add(claimKey);
+            logger.warn(
+              { handId: currentHandId, actionId, firstUserId, userId },
+              "ACTION_ID_CROSS_USER_COLLISION",
+            );
+          }
+        }
+        if (actionKey && this.processedActionKeys.has(actionKey)) return;
+        const handIdBefore = this.state.handId;
+        try {
+          await this._handleAction(userId, msg, "PLAYER");
+          if (actionKey && handIdBefore && this.state.handId === handIdBefore) {
+            this.processedActionKeys.add(actionKey);
+          }
+        } catch (err) {
+          logger.error({ err, userId, action: msg.action }, "Action failed");
+          throw err;
+        }
+      } finally {
+        this.pendingActionCount--;
       }
-    });
+    }));
   }
 
   private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
@@ -344,7 +391,9 @@ export class Dealer {
   private flushSessionStatsThenTransitionToWaiting(): void {
     this.state.street = "WAITING";
     this.state.runoutMode = "NONE";
-    this.processedActionIds.clear();
+    this.processedActionKeys.clear();
+    this.actionIdFirstClaimByKey.clear();
+    this.warnedCrossUserCollisionKeys.clear();
   }
 
   // -------------------------
@@ -538,7 +587,7 @@ private nextHandScheduled = false;
         maybeAssertBettingState(this.state);
         return;
       case "TURN_ADVANCED":
-        this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${nanoid(8)}`);
+        this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
         maybeAssertBettingState(this.state);
         this.maybeActForBot();
         return;

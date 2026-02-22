@@ -34,5 +34,33 @@ export const JoinTableSchema = z.object({
   password: z.string().min(1).max(64).optional(),
 });
 
+export const OnlinePlayerTableSchema = z.object({
+  tableId: z.string().min(1),
+  tableName: z.string().min(1),
+});
+
+export const OnlinePlayerLocationSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("LOBBY") }),
+  z.object({
+    kind: z.literal("TABLE"),
+    tableId: z.string().min(1),
+    tableName: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("MULTI_TABLE"),
+    tables: z.array(OnlinePlayerTableSchema).min(2),
+  }),
+]);
+
+export const OnlinePlayerSummarySchema = z.object({
+  userId: z.string().min(1),
+  displayName: z.string().min(1),
+  initials: z.string().min(1).max(4),
+  location: OnlinePlayerLocationSchema,
+});
+
 export type CreateTableInput = z.infer<typeof CreateTableSchema>;
 export type JoinTableInput = z.infer<typeof JoinTableSchema>;
+export type OnlinePlayerTable = z.infer<typeof OnlinePlayerTableSchema>;
+export type OnlinePlayerLocation = z.infer<typeof OnlinePlayerLocationSchema>;
+export type OnlinePlayerSummary = z.infer<typeof OnlinePlayerSummarySchema>;

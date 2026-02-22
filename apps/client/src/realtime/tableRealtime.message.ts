@@ -1,5 +1,6 @@
 import type { TableSnapshotPayload, ChatMessagePayload } from "@poker-champ/realtime-contract";
 import { dispatchRealtimeChannelMessage } from "@/registry/realtime-channel.registry";
+import { storeRegistry } from "@/registry/store.registry";
 
 type TableLifecycleStatus = "CONNECTED" | "RECONNECTING" | "DISCONNECTED";
 
@@ -49,19 +50,26 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
     });
 
     if (snap?.actionId) {
+      storeRegistry.tables().clearPendingActionIfMatch(tableId, snap.actionId);
       console.log(`[TABLE_RT] Action completed: ${snap.actionId} for table ${tableId}`);
     }
   } else if (type === "ERROR") {
-    const error = payload as { code?: string; message?: string; actionId?: string } | undefined;
-    deps.debugLog("INBOUND", { tableId, type, code: error?.code, message: error?.message, actionId: error?.actionId });
+    const p = payload as { code?: string; message?: string; actionId?: string; retryAfterSeconds?: number };
+    deps.debugLog("INBOUND", { tableId, type, code: p?.code, message: p?.message, actionId: p?.actionId });
 
-    if (error?.code === "TABLE_GONE") {
+    if (p?.code === "TABLE_GONE") {
+      storeRegistry.tables().clearPendingAction(tableId);
       deps.onTableGone?.(tableId);
-      if (!deps.onTableGone) deps.setError(tableId, error?.message ?? "Table no longer exists");
+      if (!deps.onTableGone) deps.setError(tableId, p?.message ?? "Table no longer exists");
       return;
     }
-    if (error?.actionId) {
-      console.error(`[TABLE_RT] Action failed: ${error.actionId} for table ${tableId}`, error.message || error.code);
+    if (p?.code === "QUEUE_FULL" || p?.code === "RATE_LIMITED") {
+      storeRegistry.tables().scheduleActionRetry(tableId, p?.retryAfterSeconds ?? 2);
+      return;
+    }
+    storeRegistry.tables().clearPendingAction(tableId);
+    if (p?.actionId) {
+      console.error(`[TABLE_RT] Action failed: ${p.actionId} for table ${tableId}`, p.message || p.code);
     }
   } else if (
     type === "WELCOME" ||

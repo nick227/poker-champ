@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { BottomBar } from "@/components/containers/BottomBar";
@@ -22,7 +22,7 @@ export default function ReplayScreen() {
     [snapshot]
   );
 
-  const wrapWithShell = (content: React.ReactNode) => (
+  const wrapWithShell = (content: ReactNode) => (
     <Screen>
       <Masthead />
       <View className="flex-1 ui-stack-3">

@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
 import { makeEquityCacheKey } from "../engine/odds/OddsService.js";
+import { OddsCache } from "../engine/odds/OddsCache.js";
+
+describe("OddsCache", () => {
+  it("evicts oldest entry when exceeding maxEntries", () => {
+    const cache = new OddsCache<number>(3);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    cache.set("c", 3);
+
+    cache.set("d", 4);
+    expect(cache.get("a")).toBeUndefined();
+    expect(cache.get("b")).toBe(2);
+    expect(cache.get("c")).toBe(3);
+    expect(cache.get("d")).toBe(4);
+  });
+
+  it("respects maxEntries of 1", () => {
+    const cache = new OddsCache<number>(1);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    expect(cache.get("a")).toBeUndefined();
+    expect(cache.get("b")).toBe(2);
+  });
+});
 
 describe("makeEquityCacheKey", () => {
   it("is deterministic regardless of player array order", () => {

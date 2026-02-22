@@ -4,7 +4,10 @@ import { isValidLobbyInbound, isValidLobbyOutbound, isValidTableInbound, isValid
 describe("realtime contract guards", () => {
   it("accepts valid lobby/table envelopes", () => {
     expect(isValidLobbyInbound("LIST_TABLES")).toBe(true);
+    expect(isValidLobbyInbound("LIST_ONLINE_PLAYERS")).toBe(true);
     expect(isValidLobbyOutbound("TABLE_LIST", { tables: [] })).toBe(true);
+    expect(isValidLobbyOutbound("ONLINE_COUNT", { totalOnline: 3 })).toBe(true);
+    expect(isValidLobbyOutbound("ONLINE_PLAYERS", { totalOnline: 1, generatedAt: Date.now(), players: [] })).toBe(true);
     expect(isValidTableInbound("ACTION", { action: "RAISE", amountCents: 100 })).toBe(true);
     expect(isValidTableOutbound("WELCOME", { roomId: "r1", playerId: "u1", tableId: "t1", joinMode: "NEW" })).toBe(true);
   });

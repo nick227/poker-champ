@@ -52,12 +52,23 @@ export class RecoveryService {
     for (const pb of abandoned as any[]) {
       try {
         const externalRef = `recovery_${pb.tableId}_${pb.userId}_${Date.now()}`;
+        const table = await prisma.pokerTable.findUnique({
+          where: { id: pb.tableId },
+          select: { name: true, creatorId: true },
+        });
+        if (!table) {
+          throw new Error(`TABLE_NOT_FOUND_FOR_RECOVERY:${pb.tableId}`);
+        }
         
         await CashierService.processCashGameCashOut({
           userId: pb.userId,
           tableId: pb.tableId,
           amountCents: pb.balanceCents,
           externalRef,
+          tableMeta: {
+            name: table.name,
+            creatorId: table.creatorId ?? undefined,
+          },
         });
 
         // Mark as explicitly ABANDONED (final state after recovery)

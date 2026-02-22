@@ -1,8 +1,13 @@
 import { create } from "zustand";
 import { getLobbyTables } from "@/services/get/lobby.get";
+import type { OnlinePlayerSummary } from "@poker-champ/realtime-contract";
 
 type LobbyState = {
   tables: any[];
+  onlineTotal: number;
+  onlinePlayers: OnlinePlayerSummary[];
+  onlineBusy: boolean;
+  onlineError: string | null;
   busy: boolean;
   error: string | null;
   transportState: "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
@@ -11,6 +16,10 @@ type LobbyState = {
 
 export const useLobbyStore = create<LobbyState>((set) => ({
   tables: [],
+  onlineTotal: 0,
+  onlinePlayers: [],
+  onlineBusy: false,
+  onlineError: null,
   busy: false,
   error: null,
   transportState: "DISCONNECTED",

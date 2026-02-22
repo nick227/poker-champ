@@ -6,13 +6,16 @@ import type { LobbyTableSummary } from "./types.js";
 import { LobbyInboundMessageSchema, LobbyOutboundMessageSchema } from "@poker-champ/realtime-contract";
 import { logger } from "../lib/logger.js";
 import { AuthService } from "../engine/auth/AuthService.js";
+import { presenceIndex } from "./PresenceIndex.js";
 
 type LobbyState = any;
 
-type LobbyAuth = { userId: string } | Record<string, never>;
+type LobbyAuth = { userId: string; displayName: string } | Record<string, never>;
 
 export class LobbyRoom extends Room<LobbyState> {
   private readonly userIdBySessionId = new Map<string, string>();
+  private unsubscribePresence?: () => void;
+  private onlineCountBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
   async onAuth(
     _client: { sessionId: string },
@@ -23,19 +26,30 @@ export class LobbyRoom extends Room<LobbyState> {
     if (!token) return {};
     try {
       const user = await AuthService.validateSession(token);
-      return user ? { userId: user.id } : {};
+      if (!user) return {};
+      const displayName = user.displayName ?? user.username ?? `Player-${user.id.slice(0, 4)}`;
+      return { userId: user.id, displayName };
     } catch {
       return {};
     }
   }
 
-  onJoin(_client: { sessionId: string }, _options: unknown, auth?: LobbyAuth): void {
+  onJoin(client: { sessionId: string; send: (type: string, payload: unknown) => void }, _options: unknown, auth?: LobbyAuth): void {
     const userId = auth && "userId" in auth ? auth.userId : undefined;
-    if (userId) this.userIdBySessionId.set(_client.sessionId, userId);
+    if (!userId) return;
+    const displayName = auth && "displayName" in auth ? auth.displayName : undefined;
+    this.userIdBySessionId.set(client.sessionId, userId);
+    presenceIndex.add(userId, { kind: "LOBBY" }, displayName);
+    this.sendLobbyMessage(client, "ONLINE_COUNT", {
+      totalOnline: presenceIndex.getTotalOnline(),
+    });
   }
 
   onLeave(client: { sessionId: string }): void {
+    const userId = this.userIdBySessionId.get(client.sessionId);
     this.userIdBySessionId.delete(client.sessionId);
+    if (!userId) return;
+    presenceIndex.remove(userId, { kind: "LOBBY" });
   }
 
   async pushTableListUpdate() {
@@ -44,6 +58,16 @@ export class LobbyRoom extends Room<LobbyState> {
   }
 
   onCreate() {
+    this.unsubscribePresence = presenceIndex.subscribe((totalOnline) => {
+      if (this.onlineCountBroadcastTimer) {
+        clearTimeout(this.onlineCountBroadcastTimer);
+      }
+      this.onlineCountBroadcastTimer = setTimeout(() => {
+        this.broadcastLobbyMessage("ONLINE_COUNT", { totalOnline });
+        this.onlineCountBroadcastTimer = null;
+      }, 100);
+    });
+
     this.onMessage("LIST_TABLES", async (client, message) => {
       const inbound = LobbyInboundMessageSchema.safeParse({ type: "LIST_TABLES", payload: message });
       if (!inbound.success) {
@@ -116,6 +140,34 @@ export class LobbyRoom extends Room<LobbyState> {
 
       this.sendLobbyMessage(client, "TABLE_JOIN_INFO", { tableId: target.tableId, roomId: target.roomId });
     });
+
+    this.onMessage("LIST_ONLINE_PLAYERS", (client, message) => {
+      const inbound = LobbyInboundMessageSchema.safeParse({ type: "LIST_ONLINE_PLAYERS", payload: message });
+      if (!inbound.success) {
+        this.sendLobbyMessage(client, "ERROR", { code: "BAD_MESSAGE", details: inbound.error.flatten() });
+        return;
+      }
+
+      this.sendLobbyMessage(client, "ONLINE_PLAYERS", {
+        totalOnline: presenceIndex.getTotalOnline(),
+        generatedAt: Date.now(),
+        players: presenceIndex.getPlayersSnapshot(),
+      });
+    });
+  }
+
+  onDispose(): void {
+    if (this.onlineCountBroadcastTimer) {
+      clearTimeout(this.onlineCountBroadcastTimer);
+      this.onlineCountBroadcastTimer = null;
+    }
+    this.unsubscribePresence?.();
+    this.unsubscribePresence = undefined;
+
+    for (const userId of this.userIdBySessionId.values()) {
+      presenceIndex.remove(userId, { kind: "LOBBY" });
+    }
+    this.userIdBySessionId.clear();
   }
 
   private sendLobbyMessage(client: { send: (type: string, payload: unknown) => void }, type: string, payload: unknown) {

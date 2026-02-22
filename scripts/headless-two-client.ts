@@ -1,4 +1,5 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { LobbyRoom } from "../src/lobby/LobbyRoom.js";
@@ -103,7 +104,7 @@ async function main() {
   };
 
   const emitAction = (userId: UserId, payload: { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number }) => {
-    room.onMessageEvents.emit("ACTION", clients[userId], payload);
+    room.onMessageEvents.emit("ACTION", clients[userId], { actionId: randomUUID(), ...payload });
   };
 
   const activeHand = () => snapshots.user_a?.hand;

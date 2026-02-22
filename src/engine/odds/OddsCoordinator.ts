@@ -12,7 +12,7 @@ type Equity = { equitiesPct: number[] };
  * Important: This is a per-room helper. Instantiate once in Dealer.
  */
 export class OddsCoordinator {
-  private cache = new OddsCache<Equity>(200);
+  private cache = new OddsCache<Equity>(50);
   private inFlight = new Map<string, Promise<Equity>>();
   private lastComputedAt = new Map<string, number>();
 

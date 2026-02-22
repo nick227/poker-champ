@@ -23,7 +23,16 @@ export class PersistenceFacade {
   readonly handHistory: HandHistoryService | null;
   readonly ledger: LedgerService | null;
 
-  constructor(private tableId: string) {
+  constructor(private table:
+    | string
+    | {
+        tableId: string;
+        tableName?: string;
+        creatorId?: string;
+      }) {
+    const tableId = typeof table === "string" ? table : table.tableId;
+    const tableName = typeof table === "string" ? undefined : table.tableName;
+    const creatorId = typeof table === "string" ? undefined : table.creatorId;
     const hasDb = !!process.env.DATABASE_URL && process.env.NODE_ENV !== "test";
     this.enabled = hasDb;
 
@@ -34,9 +43,13 @@ export class PersistenceFacade {
       return;
     }
 
+    if (!tableName || tableName.trim().length === 0) {
+      throw new Error("INVARIANT: tableName required for PokerTable persistence");
+    }
+
     const prisma = getPrisma();
     this.prisma = prisma;
-    this.handHistory = new HandHistoryService(prisma, tableId);
+    this.handHistory = new HandHistoryService(prisma, tableId, { name: tableName, creatorId });
     this.ledger = new LedgerService(prisma, tableId);
   }
 
@@ -135,7 +148,8 @@ export class PersistenceFacade {
     try {
       await this.ledger.assertHandBalanced(handId);
     } catch (err) {
-      logger.warn({ err, tableId: this.tableId, handId }, "ledger assertion failed");
+      const tableId = typeof this.table === "string" ? this.table : this.table.tableId;
+      logger.warn({ err, tableId, handId }, "ledger assertion failed");
       // In many environments we log but don't crash the server.
       // But Phase 3 says "fail hard if debits != credits".
       // We will re-throw here so the Dealer/Room can handle it.

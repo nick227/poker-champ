@@ -13,6 +13,8 @@ model PokerTable {
   updatedAt DateTime @updatedAt
 
   name      String   @default("POC Table")
+  creatorId String?
+  creator   User?    @relation("TableCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   maxSeats  Int      @default(9)
 
   players   PokerPlayer[]
@@ -20,6 +22,8 @@ model PokerTable {
   snapshotLogs TableSnapshotLog[]
   balances  PlayerBalance[]
   transactions BalanceTransaction[]
+
+  @@index([creatorId])
 }
 
 model PokerPlayer {
@@ -248,6 +252,7 @@ model User {
   transactions  BalanceTransaction[]
   registrations TournamentRegistration[]
   leaderboardSnapshots LeaderboardSnapshot[]
+  createdTables PokerTable[] @relation("TableCreator")
 
   @@index([usernameNormalized])
 }

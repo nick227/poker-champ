@@ -1,3 +1,4 @@
+import { nanoid } from "nanoid";
 import type { TableActionKey } from "@/registry/table-action.registry";
 import type { TableAction } from "@poker-champ/realtime-contract";
 
@@ -14,5 +15,6 @@ export function toServerActionPayload(input: { action: TableActionKey; amountCen
   return {
     action: actionToServerAction[input.action],
     ...(typeof input.amountCents === "number" ? { amountCents: input.amountCents } : {}),
+    actionId: nanoid(12),
   };
 }

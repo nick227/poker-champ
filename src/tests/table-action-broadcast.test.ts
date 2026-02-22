@@ -150,7 +150,7 @@ describe("table action broadcasting", () => {
       const wrongClient = toActUserId === "user_a" ? clientB : clientA;
       const errorCountBefore = wrongClient.sentByType.ERROR?.length ?? 0;
 
-      room.onMessageEvents.emit("ACTION", wrongClient as any, { action: "FOLD" });
+      room.onMessageEvents.emit("ACTION", wrongClient as any, { action: "FOLD", actionId: "test-reject-" + Date.now() });
       await waitFor(() => (wrongClient.sentByType.ERROR?.length ?? 0) > errorCountBefore, 2000, "error message");
 
       const errorCodes = ((wrongClient.sentByType.ERROR ?? []) as any[]).map((e) => e?.code);
@@ -176,7 +176,7 @@ describe("table action broadcasting", () => {
       const toActSeat = beforeA.hand!.toActSeat;
       const toActUserId = beforeA.seats.find((s) => s.seat === toActSeat)?.userId;
       const actor = toActUserId === "user_a" ? clientA : clientB;
-      const action = pickLegalAction(actor.latestSnapshot!);
+      const action = { ...pickLegalAction(actor.latestSnapshot!), actionId: "test-broadcast-" + Date.now() };
 
       room.onMessageEvents.emit("ACTION", actor as any, action);
 
@@ -298,7 +298,7 @@ describe("table action broadcasting", () => {
         const connectedSeat = snap.seats.find((s) => s.userId === connectedUserId)?.seat;
         const canActNow = connectedSeat !== undefined && snap.hand?.toActSeat === connectedSeat;
         if (canActNow) {
-          const action = pickLegalAction(snap);
+          const action = { ...pickLegalAction(snap), actionId: `act-${i}-${Date.now()}` };
           room.onMessageEvents.emit("ACTION", connectedClient as any, action);
         }
         await delay(120);

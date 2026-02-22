@@ -6,7 +6,7 @@
 export class OddsCache<T> {
   private map = new Map<string, T>();
 
-  constructor(private readonly maxEntries: number = 200) {}
+  constructor(private readonly maxEntries: number = 50) {}
 
   get(key: string): T | undefined {
     const v = this.map.get(key);

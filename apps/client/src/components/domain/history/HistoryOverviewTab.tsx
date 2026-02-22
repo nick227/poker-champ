@@ -4,13 +4,32 @@ import { ScrollView, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import type { HistoryOverview } from "@/services/history.service";
 
-type Span = "half" | "third" | "full";
+import { SECTION_SHAPE } from "./sectionShape";
+import type { TileShape } from "./sectionShape";
 
-const SPAN_CLASS: Record<Span, string> = {
-  half: "col-span-3",
-  third: "col-span-2",
-  full: "col-span-6",
+import { SPAN_STYLE, type Span } from "./layout";
+import {
+  fmtMoneyFromCents,
+  fmtPct,
+  fmtRatioPct,
+  fmtLossDisplayFromCents,
+  safeNum,
+} from "./formatters";
+import { Skeleton } from "./Skeleton";
+
+/* =========================
+   Constants
+========================= */
+
+const CONTENT_STYLE = {
+  padding: 16,
+  paddingBottom: 96,
+  gap: 16,
 };
+
+/* =========================
+   Layout Components
+========================= */
 
 function Section({
   title,
@@ -24,9 +43,7 @@ function Section({
       <Text variant="muted" className="text-xs uppercase tracking-wide px-1">
         {title}
       </Text>
-      <View className="ui-grid grid-cols-6 gap-3">
-        {children}
-      </View>
+      <View className="flex-row flex-wrap -mx-1">{children}</View>
     </View>
   );
 }
@@ -43,139 +60,270 @@ function MosaicStat({
   valueClass?: string;
 }) {
   return (
-    <View className={`ui-surface p-4 rounded-lg ${SPAN_CLASS[span]}`}>
-      <Text variant="muted" className="text-xs">
-        {label}
-      </Text>
-      <Text variant="h2" className={valueClass}>
-        {value}
-      </Text>
+    <View style={SPAN_STYLE[span]} className="px-1 mb-2">
+      <View className="ui-surface p-4 rounded-lg h-full">
+        <Text variant="muted" className="text-xs">
+          {label}
+        </Text>
+        <Text variant="h2" className={valueClass}>
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
 
-export function HistoryOverviewTab({ overview }: { overview: HistoryOverview | null }) {
-  const formatCents = (cents = 0) => (cents / 100).toFixed(2);
-  const formatPct = (value = 0) => `${value.toFixed(1)}%`;
+function MosaicStatSkeleton({ span = "half" }: { span?: Span }) {
+  return (
+    <View style={SPAN_STYLE[span]} className="px-1 mb-2">
+      <View className="ui-surface p-4 rounded-lg h-full space-y-2">
+        <Skeleton height={12} width="60%" />
+        <Skeleton height={28} width="40%" rounded="rounded-lg" />
+      </View>
+    </View>
+  );
+}
 
-  const profitFactorValue =
-    overview?.profitFactor == null
-      ? "-"
-      : Number.isFinite(overview.profitFactor)
-        ? overview.profitFactor.toFixed(2)
-        : "-";
+/* =========================
+   Tile Binding
+========================= */
 
-  const profitFactorClass =
-    overview?.profitFactor == null
-      ? undefined
-      : overview.profitFactor >= 1
-        ? "text-green-500"
-        : "text-red-500";
+type TileSpec = TileShape & {
+  value: (o: HistoryOverview) => string | number;
+  valueClass?: (o: HistoryOverview) => string | undefined;
+};
+
+type SectionSpec = { title: string; tiles: TileSpec[] };
+
+function assertNever(x: never): never {
+  throw new Error(`Unhandled tile key: ${x}`);
+}
+
+function buildSections(): SectionSpec[] {
+  const bindTile = (tile: TileShape): TileSpec => {
+    switch (tile.key) {
+      /* ---------- Volume ---------- */
+
+      case "totalHands":
+        return { ...tile, value: o => o.totalHands };
+
+      case "winningHands":
+        return { ...tile, value: o => o.winningHands };
+
+      case "losingHands":
+        return { ...tile, value: o => o.losingHands };
+
+      case "breakEvenHands":
+        return { ...tile, value: o => o.breakEvenHands };
+
+      /* ---------- Profitability ---------- */
+
+      case "netProfit":
+        return {
+          ...tile,
+          value: o => fmtMoneyFromCents(o.totalProfitCents),
+          valueClass: o =>
+            o.totalProfitCents >= 0 ? "text-green-500" : "text-red-500",
+        };
+
+      case "avgProfitHand":
+        return {
+          ...tile,
+          value: o => fmtMoneyFromCents(o.avgProfitPerHandCents),
+          valueClass: o =>
+            o.avgProfitPerHandCents >= 0
+              ? "text-green-500"
+              : "text-red-500",
+        };
+
+      case "bbPer100":
+        return {
+          ...tile,
+          value: o => safeNum(o.bbPer100).toFixed(1),
+        };
+
+      case "winRate":
+        return { ...tile, value: o => fmtPct(o.winRate) };
+
+      case "profitFactor":
+        return {
+          ...tile,
+          value: o =>
+            o.profitFactor == null ? "N/A" : o.profitFactor.toFixed(2),
+          valueClass: o =>
+            o.profitFactor == null
+              ? undefined
+              : o.profitFactor >= 1
+              ? "text-green-500"
+              : "text-red-500",
+        };
+
+      /* ---------- Preflop ---------- */
+
+      case "vpip":
+        return {
+          ...tile,
+          value: o => fmtRatioPct(o.vpipPct, o.vpipHands, o.totalHands),
+        };
+
+      case "pfr":
+        return {
+          ...tile,
+          value: o => fmtRatioPct(o.pfrPct, o.pfrHands, o.totalHands),
+        };
+
+      case "threeBet":
+        return {
+          ...tile,
+          value: o =>
+            fmtRatioPct(
+              o.threeBetPct,
+              o.threeBetHands,
+              o.threeBetOpportunities
+            ),
+        };
+
+      case "foldTo3bet":
+        return {
+          ...tile,
+          value: o =>
+            fmtRatioPct(
+              o.foldToThreeBetPct,
+              o.foldToThreeBetHands,
+              o.foldToThreeBetOpportunities
+            ),
+        };
+
+      case "steal":
+        return {
+          ...tile,
+          value: o =>
+            fmtRatioPct(
+              o.stealAttemptPct,
+              o.stealAttempts,
+              o.stealOpportunities
+            ),
+        };
+
+      case "foldBbToSteal":
+        return {
+          ...tile,
+          value: o =>
+            fmtRatioPct(
+              o.foldBbToStealPct,
+              o.foldBbToStealHands,
+              o.foldBbToStealOpportunities
+            ),
+        };
+
+      /* ---------- Outcomes ---------- */
+
+      case "showdownRate":
+        return {
+          ...tile,
+          value: o =>
+            `${fmtPct(o.showdownRate)} (${o.showdownHands})`,
+        };
+
+      case "avgPot":
+        return { ...tile, value: o => fmtMoneyFromCents(o.avgPotCents) };
+
+      case "grossWon":
+        return {
+          ...tile,
+          value: o => fmtMoneyFromCents(o.grossWonCents),
+          valueClass: () => "text-green-500",
+        };
+
+      case "grossLost":
+        return {
+          ...tile,
+          value: o => {
+            const r = fmtLossDisplayFromCents(o.grossLostCents);
+            return r.text;
+          },
+          valueClass: o =>
+            fmtLossDisplayFromCents(o.grossLostCents).className,
+        };
+
+      case "biggestPot":
+        return {
+          ...tile,
+          value: o => fmtMoneyFromCents(o.biggestPotCents),
+        };
+
+      case "biggestWin":
+        return {
+          ...tile,
+          value: o => fmtMoneyFromCents(o.biggestWinCents),
+          valueClass: () => "text-green-500",
+        };
+
+      case "biggestLoss":
+        return {
+          ...tile,
+          value: o => {
+            const r = fmtLossDisplayFromCents(o.biggestLossCents);
+            return r.text;
+          },
+          valueClass: o =>
+            fmtLossDisplayFromCents(o.biggestLossCents).className,
+        };
+
+      default:
+        return assertNever(tile.key);
+    }
+  };
+
+  return SECTION_SHAPE.map(section => ({
+    title: section.title,
+    tiles: section.tiles.map(bindTile),
+  }));
+}
+
+/* =========================
+   Main Component
+========================= */
+
+export function HistoryOverviewTab({
+  overview,
+}: {
+  overview: HistoryOverview | null;
+}) {
+  if (!overview) {
+    return (
+      <ScrollView className="flex-1" contentContainerStyle={CONTENT_STYLE}>
+        {SECTION_SHAPE.map(section => (
+          <Section key={section.title} title={section.title}>
+            {section.tiles.map(tile => (
+              <MosaicStatSkeleton
+                key={tile.key}
+                span={tile.span}
+              />
+            ))}
+          </Section>
+        ))}
+      </ScrollView>
+    );
+  }
+
+  const sections = buildSections();
 
   return (
-    <ScrollView
-      className="flex-1"
-      contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 16 }}
-    >
-      <Section title="Volume">
-        <MosaicStat label="Total Hands" value={overview?.totalHands ?? 0} span="full" />
-        <MosaicStat label="Winning Hands" value={overview?.winningHands ?? 0} span="third" />
-        <MosaicStat label="Losing Hands" value={overview?.losingHands ?? 0} span="third" />
-        <MosaicStat label="Break Even Hands" value={overview?.breakEvenHands ?? 0} span="third" />
-      </Section>
-
-      <Section title="Profitability">
-        <MosaicStat
-          label="Net Profit"
-          value={`$${formatCents(overview?.totalProfitCents ?? 0)}`}
-          span="half"
-          valueClass={(overview?.totalProfitCents ?? 0) >= 0 ? "text-green-500" : "text-red-500"}
-        />
-        <MosaicStat
-          label="Avg Profit / Hand"
-          value={`$${formatCents(overview?.avgProfitPerHandCents ?? 0)}`}
-          span="half"
-          valueClass={(overview?.avgProfitPerHandCents ?? 0) >= 0 ? "text-green-500" : "text-red-500"}
-        />
-        <MosaicStat label="BB / 100" value={(overview?.bbPer100 ?? 0).toFixed(1)} span="third" />
-        <MosaicStat label="Win Rate" value={formatPct(overview?.winRate ?? 0)} span="third" />
-        <MosaicStat label="Profit Factor" value={profitFactorValue} span="third" valueClass={profitFactorClass} />
-      </Section>
-
-      <Section title="Preflop Tendencies">
-        <MosaicStat
-          label="VPIP"
-          value={`${formatPct(overview?.vpipPct ?? 0)} (${overview?.vpipHands ?? 0})`}
-          span="third"
-        />
-        <MosaicStat
-          label="PFR"
-          value={`${formatPct(overview?.pfrPct ?? 0)} (${overview?.pfrHands ?? 0})`}
-          span="third"
-        />
-        <MosaicStat
-          label="3-Bet"
-          value={`${formatPct(overview?.threeBetPct ?? 0)} (${overview?.threeBetHands ?? 0}/${overview?.threeBetOpportunities ?? 0})`}
-          span="third"
-        />
-        <MosaicStat
-          label="Fold to 3-Bet"
-          value={`${formatPct(overview?.foldToThreeBetPct ?? 0)} (${overview?.foldToThreeBetHands ?? 0}/${overview?.foldToThreeBetOpportunities ?? 0})`}
-          span="half"
-        />
-        <MosaicStat
-          label="Steal Attempt"
-          value={`${formatPct(overview?.stealAttemptPct ?? 0)} (${overview?.stealAttempts ?? 0}/${overview?.stealOpportunities ?? 0})`}
-          span="half"
-        />
-        <MosaicStat
-          label="Fold BB to Steal"
-          value={`${formatPct(overview?.foldBbToStealPct ?? 0)} (${overview?.foldBbToStealHands ?? 0}/${overview?.foldBbToStealOpportunities ?? 0})`}
-          span="full"
-        />
-      </Section>
-
-      <Section title="Hand Outcomes">
-        <MosaicStat
-          label="Showdown Rate"
-          value={`${formatPct(overview?.showdownRate ?? 0)} (${overview?.showdownHands ?? 0})`}
-          span="half"
-        />
-        <MosaicStat
-          label="Avg Pot"
-          value={`$${formatCents(overview?.avgPotCents ?? 0)}`}
-          span="half"
-        />
-        <MosaicStat
-          label="Gross Won"
-          value={`$${formatCents(overview?.grossWonCents ?? 0)}`}
-          span="third"
-          valueClass="text-green-500"
-        />
-        <MosaicStat
-          label="Gross Lost"
-          value={`$${formatCents(overview?.grossLostCents ?? 0)}`}
-          span="third"
-          valueClass="text-red-500"
-        />
-        <MosaicStat
-          label="Biggest Pot"
-          value={`$${formatCents(overview?.biggestPotCents ?? 0)}`}
-          span="third"
-        />
-        <MosaicStat
-          label="Biggest Win"
-          value={`$${formatCents(overview?.biggestWinCents ?? 0)}`}
-          span="half"
-          valueClass="text-green-500"
-        />
-        <MosaicStat
-          label="Biggest Loss"
-          value={`$${formatCents(overview?.biggestLossCents ?? 0)}`}
-          span="half"
-          valueClass={(overview?.biggestLossCents ?? 0) < 0 ? "text-red-500" : undefined}
-        />
-      </Section>
+    <ScrollView className="flex-1" contentContainerStyle={CONTENT_STYLE}>
+      {sections.map(section => (
+        <Section key={section.title} title={section.title}>
+          {section.tiles.map(tile => (
+            <MosaicStat
+              key={tile.key}
+              label={tile.label}
+              value={tile.value(overview)}
+              span={tile.span}
+              valueClass={tile.valueClass?.(overview)}
+            />
+          ))}
+        </Section>
+      ))}
     </ScrollView>
   );
 }

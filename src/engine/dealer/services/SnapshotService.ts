@@ -1,13 +1,15 @@
 import { Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
-import { nanoid } from "nanoid";
 import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { HandCalculationsCoordinator } from "../../odds/HandCalculationsCoordinator.js";
 import { toFrameReason, type FrameReason } from "../../replay/FrameReason.js";
+import { snapshotMetrics } from "../metrics/snapshotMetrics.js";
 
 export type SnapshotReason = TableSnapshotPayload["reason"];
+
+const VALIDATE_SNAPSHOTS = process.env.NODE_ENV !== "production";
 
 type SnapshotEmitHook = (args: {
   tableId: string;
@@ -24,6 +26,7 @@ type SnapshotEmitHook = (args: {
 export class SnapshotService {
   private readonly handCalculations = new HandCalculationsCoordinator();
   private snapshotSeq = 0;
+  private lastHandKey: string | null = null;
 
   constructor(private readonly deps: {
     state: PokerState;
@@ -37,67 +40,60 @@ export class SnapshotService {
   }) {}
 
   emitToAll(reason: SnapshotReason, actionId?: string): void {
-    this.updateCurrentHandCalculations();
+    const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
-    const canonicalPayload = this.plainPayload(this.buildTableSnapshot("SYSTEM", reason, actionId, snapshotSeq));
-    this.emitSnapshotHook(canonicalPayload, reason);
+    this.refreshHandCalculationsIfNeeded();
+    const base = this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const toActUserId = this.deps.state.street !== "WAITING"
+      ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
+      : null;
+
+    const systemPayload = this.finalizePayload(this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
+    this.emitSnapshotHook(systemPayload, reason);
+
     for (const [userId, client] of this.deps.clientsByUserId.entries()) {
-      const raw = this.buildTableSnapshot(userId, reason, actionId, snapshotSeq);
-      const payload = this.plainPayload(raw);
-      const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload });
-      if (!parsed.success) {
-        logger.warn(
-          { reason, userId, errors: parsed.error.flatten(), issues: parsed.error.issues },
-          "Dropping invalid TABLE_SNAPSHOT payload",
-        );
-        continue;
+      const payload = this.buildHeroPatch(userId, base, toActUserId);
+      const final = this.finalizePayload(payload, userId);
+      if (VALIDATE_SNAPSHOTS) {
+        const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
+        if (!parsed.success) {
+          logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
+          continue;
+        }
       }
-      if (parsed.data.type !== "TABLE_SNAPSHOT") continue;
-
-      client.send("TABLE_SNAPSHOT", parsed.data.payload);
-      logger.debug({
-        snapshotVersion: parsed.data.payload.version,
-        handId: parsed.data.payload.hand?.handId ?? "",
-        actionId: parsed.data.payload.actionId ?? "",
-        reason,
-        userId,
-      }, "TABLE_SNAPSHOT emitted");
+      client.send("TABLE_SNAPSHOT", final);
+      snapshotMetrics.emitSnapshot();
     }
-  }
-
-  /** Copy to plain JSON object so Colyseus Schema references don't break Zod validation or serialization. */
-  private plainPayload(payload: TableSnapshotPayload): TableSnapshotPayload {
-    return JSON.parse(JSON.stringify(payload)) as TableSnapshotPayload;
+    snapshotMetrics.observeBuildMs(performance.now() - t0);
   }
 
   emitToUser(userId: string, reason: SnapshotReason, actionId?: string): void {
     const client = this.deps.clientsByUserId.get(userId);
     if (!client) return;
 
-    this.updateCurrentHandCalculations();
-    const raw = this.buildTableSnapshot(userId, reason, actionId, this.currentSnapshotSeq());
-    const payload = this.plainPayload(raw);
-    const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload });
-    if (!parsed.success) {
-      logger.warn(
-        { reason, userId, errors: parsed.error.flatten(), issues: parsed.error.issues },
-        "Dropping invalid TABLE_SNAPSHOT payload",
-      );
-      return;
-    }
-    if (parsed.data.type !== "TABLE_SNAPSHOT") return;
+    const t0 = performance.now();
+    const snapshotSeq = this.currentSnapshotSeq();
+    this.refreshHandCalculationsIfNeeded();
+    const base = this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const toActUserId = this.deps.state.street !== "WAITING"
+      ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
+      : null;
+    const payload = this.buildHeroPatch(userId, base, toActUserId);
+    const final = this.finalizePayload(payload, userId);
 
-    client.send("TABLE_SNAPSHOT", parsed.data.payload);
-    // Persist SYSTEM view so replay has data (ReplayFrameService filters by hero.userId === "SYSTEM")
-    const systemPayload = this.plainPayload(this.buildTableSnapshot("SYSTEM", reason, actionId, this.currentSnapshotSeq()));
+    if (VALIDATE_SNAPSHOTS) {
+      const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
+      if (!parsed.success) {
+        logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
+        return;
+      }
+    }
+    client.send("TABLE_SNAPSHOT", final);
+    snapshotMetrics.emitSnapshot();
+
+    const systemPayload = this.finalizePayload(this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
     this.emitSnapshotHook(systemPayload, reason);
-    logger.debug({
-      snapshotVersion: parsed.data.payload.version,
-      handId: parsed.data.payload.hand?.handId ?? "",
-      actionId: parsed.data.payload.actionId ?? "",
-      reason,
-      userId,
-    }, "TABLE_SNAPSHOT emitted (single user)");
+    snapshotMetrics.observeBuildMs(performance.now() - t0);
   }
 
   private emitSnapshotHook(payload: TableSnapshotPayload, reason: SnapshotReason): void {
@@ -118,6 +114,17 @@ export class SnapshotService {
     })).catch((err) => {
       logger.warn({ err, tableId: state.tableId, snapshotId: payload.snapshotId }, "TABLE_SNAPSHOT_LOG_WRITE_FAILED");
     });
+  }
+
+  private refreshHandCalculationsIfNeeded(): string | null {
+    const state = this.deps.state;
+    const handKey = state.handId && state.street !== "WAITING"
+      ? `${state.handId}_${state.street}_${state.toActSeat}_${state.actionCount}`
+      : null;
+    if (handKey === this.lastHandKey) return handKey;
+    this.lastHandKey = handKey;
+    this.updateCurrentHandCalculations();
+    return handKey;
   }
 
   private updateCurrentHandCalculations(): void {
@@ -157,43 +164,21 @@ export class SnapshotService {
     return this.snapshotSeq;
   }
 
-  private buildTableSnapshot(
-    userId: string,
+  private buildBaseSnapshot(
     reason: SnapshotReason,
     actionId: string | undefined,
     snapshotSeq: number,
-  ): TableSnapshotPayload {
+  ): Omit<TableSnapshotPayload, "hero" | "stateHash"> {
     const state = this.deps.state;
     const nowTs = Date.now();
-    const hero = state.playersById.get(userId);
+
     const seats = state.seats.map((occupantUserId, seat) => {
       const player = occupantUserId ? state.playersById.get(occupantUserId) : undefined;
       const connected = player?.connected ?? false;
       const disconnectDeadlineTs = player?.disconnectDeadlineTs ?? 0;
       if (connected && disconnectDeadlineTs !== 0) {
-        logger.error(
-          { tableId: state.tableId, seat, playerId: player?.id },
-          "INVARIANT: connected player must have disconnectDeadlineTs 0",
-        );
-        throw new Error("INVARIANT_VIOLATION: connected player must have disconnectDeadlineTs 0");
-      }
-      if (player && !connected && disconnectDeadlineTs <= 0) {
-        logger.warn(
-          { tableId: state.tableId, handId: state.handId, seat, userId: player?.id },
-          "MIRROR_INVARIANT: disconnected player should have disconnectDeadlineTs > 0",
-        );
-      }
-      if (!connected && disconnectDeadlineTs > 0) {
-        logger.debug(
-          {
-            tableId: state.tableId,
-            handId: state.handId,
-            userId: player?.id,
-            seat,
-            disconnectDeadlineTs,
-          },
-          "PLAYER_RECONNECT_GRACE",
-        );
+        logger.error({ tableId: state.tableId, seat, playerId: player?.id }, "INVARIANT: connected player must have disconnectDeadlineTs 0");
+        throw new Error("INVARIANT_VIOLATION");
       }
       return {
         seat,
@@ -229,9 +214,9 @@ export class SnapshotService {
           board: [...state.board],
         };
 
-    const payloadWithoutHash = {
+    return {
       version: 1 as const,
-      snapshotId: `snap_${state.tableId}_${nanoid(10)}`,
+      snapshotId: `snap_${state.tableId}_${snapshotSeq}`,
       snapshotSeq,
       emittedAtTs: nowTs,
       serverTimeTs: nowTs,
@@ -250,39 +235,51 @@ export class SnapshotService {
       },
       hand,
       seats,
-      hero: {
-        userId,
-        youAreSeated: Boolean(hero),
-        seat: hero?.seat,
-        holeCards: hero ? this.deps.holeCardsByPlayerId.get(userId) : undefined,
-        actionOptions: this.deps.getHeroActionOptions(userId),
-        calculations: (() => {
-          const calc = this.handCalculations.getForUser(userId);
-          const options = this.deps.getHeroActionOptions(userId);
-          const callAmount = options?.callAmount ?? 0;
-          const potOddsPct = callAmount > 0
-            ? Math.round((callAmount / (state.potCents + callAmount)) * 100)
-            : undefined;
-
-          if (!calc && potOddsPct === undefined) return undefined;
-          return {
-            mode: calc?.mode ?? "SHOWDOWN_ANALYSIS",
-            stale: calc?.stale ?? false,
-            ...calc,
-            potOddsPct,
-          };
-        })(),
-        playerStats: this.deps.getHeroSessionStats?.(userId),
-      },
       calculationsMeta: this.handCalculations.getMeta(),
       lastAction: this.deps.getLastAction(),
       lastHandResult: this.deps.getLastHandResult(),
     };
+  }
 
-    const stateHash = createHash("sha1").update(JSON.stringify(payloadWithoutHash)).digest("hex");
-    return {
-      ...payloadWithoutHash,
-      stateHash,
+  private buildHeroPatch(
+    userId: string,
+    base: Omit<TableSnapshotPayload, "hero" | "stateHash">,
+    toActUserId: string | null,
+  ): Omit<TableSnapshotPayload, "stateHash"> {
+    const state = this.deps.state;
+    const hero = state.playersById.get(userId);
+    const actionOptions = userId === toActUserId ? this.deps.getHeroActionOptions(userId) : undefined;
+    const calc = this.handCalculations.getForUser(userId);
+    const callAmount = actionOptions?.callAmount ?? 0;
+    const potOddsPct = callAmount > 0
+      ? Math.round((callAmount / (state.potCents + callAmount)) * 100)
+      : undefined;
+
+    const hasCalc = Boolean(calc) || potOddsPct !== undefined;
+    const heroSection = {
+      userId,
+      youAreSeated: Boolean(hero),
+      seat: hero?.seat,
+      holeCards: hero ? this.deps.holeCardsByPlayerId.get(userId) : undefined,
+      actionOptions,
+      calculations: hasCalc
+        ? {
+            mode: (calc?.mode ?? "SHOWDOWN_ANALYSIS") as "LIVE_ADVISORY" | "SHOWDOWN_ANALYSIS",
+            stale: calc?.stale ?? false,
+            equityPct: calc?.equityPct,
+            potOddsPct: calc?.potOddsPct ?? potOddsPct,
+            outs: calc?.outs,
+            updatedAtTs: calc?.updatedAtTs,
+          }
+        : undefined,
+      playerStats: this.deps.getHeroSessionStats?.(userId),
     };
+
+    return { ...base, hero: heroSection };
+  }
+
+  private finalizePayload(payload: Omit<TableSnapshotPayload, "stateHash">, _userId: string): TableSnapshotPayload {
+    const stateHash = createHash("sha1").update(JSON.stringify(payload)).digest("hex");
+    return { ...payload, stateHash };
   }
 }

@@ -165,9 +165,42 @@ describe("basic table flow", () => {
     });
 
     room.userIdBySessionId.set("session_1", "user_1");
+    const actionId = "flow-test-" + Date.now();
+    room.onMessageEvents.emit("ACTION", client as any, { action: "FOLD", actionId });
+    await flushAsyncHandlers();
+
+    expect(dealer.handleAction).toHaveBeenCalledWith("user_1", { action: "FOLD" }, actionId);
+  });
+
+  it("rejects ACTION without actionId", async () => {
+    const room = new PokerRoom() as any;
+    const client = makeClient("session_2");
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_poker_2";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_poker_2",
+        name: "Poker Table",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+    room.dealer = { handleAction: vi.fn(), hasPlayer: vi.fn().mockReturnValue(true), bindClient: vi.fn(), markReconnected: vi.fn(), addPlayer: vi.fn(), emitSnapshotToUser: vi.fn() };
+    await room.onJoin(client as any, { buyInCents: 5000 }, { userId: "user_2", username: "bob" });
+    room.userIdBySessionId.set("session_2", "user_2");
+
     room.onMessageEvents.emit("ACTION", client as any, { action: "FOLD" });
     await flushAsyncHandlers();
 
-    expect(dealer.handleAction).toHaveBeenCalledWith("user_1", { action: "FOLD" });
+    expect(room.dealer.handleAction).not.toHaveBeenCalled();
+    const errors = (client.send as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === "ERROR");
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]?.[1]?.code).toBe("BAD_MESSAGE");
+    expect(errors[0]?.[1]?.message).toContain("actionId");
   });
 });

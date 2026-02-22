@@ -6,7 +6,11 @@ export class HandHistoryService {
   /** externalId (userId / bot_*) -> PokerPlayer.id (cuid) */
   private playerIdMap = new Map<string, string>();
 
-  constructor(private prisma: PrismaClient, private tableId: string) {}
+  constructor(
+    private prisma: PrismaClient,
+    private tableId: string,
+    private tableMeta?: { name?: string; creatorId?: string },
+  ) {}
 
   private assertTableId(tableId: string) {
     if (tableId !== this.tableId) {
@@ -30,7 +34,11 @@ export class HandHistoryService {
     }
     await this.prisma.pokerTable.upsert({
       where: { id: this.tableId },
-      create: { id: this.tableId },
+      create: {
+        id: this.tableId,
+        name: this.tableMeta?.name ?? "POC Table",
+        creatorId: this.tableMeta?.creatorId,
+      },
       update: {},
     });
 

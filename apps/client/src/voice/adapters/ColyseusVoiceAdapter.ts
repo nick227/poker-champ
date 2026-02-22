@@ -16,7 +16,7 @@ export class ColyseusVoiceAdapter implements VoiceSignalingAdapter {
   constructor(private readonly room: RoomLike) {}
 
   send(msg: VoiceSignalMessage): void {
-    let size = 0;
+    let size: number;
     try {
       size = JSON.stringify(msg).length;
     } catch {

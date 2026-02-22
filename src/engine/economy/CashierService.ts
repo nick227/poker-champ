@@ -2,11 +2,28 @@
 import { getPrisma } from "../../db/prisma.js";
 import { nanoid } from "nanoid";
 
+export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
+
 export class CashierService {
-  private static async ensureTableExists(tx: any, tableId: string) {
+  private static assertTableMeta(tableMeta: { name: string; creatorId?: string }): void {
+    if (!tableMeta.name || tableMeta.name.trim().length === 0) {
+      throw new Error(TABLE_NAME_REQUIRED);
+    }
+  }
+
+  private static async ensureTableExists(
+    tx: any,
+    tableId: string,
+    tableMeta: { name: string; creatorId?: string },
+  ) {
+    CashierService.assertTableMeta(tableMeta);
     await tx.pokerTable.upsert({
       where: { id: tableId },
-      create: { id: tableId },
+      create: {
+        id: tableId,
+        name: tableMeta.name,
+        creatorId: tableMeta.creatorId,
+      },
       update: {},
     });
   }
@@ -20,13 +37,14 @@ export class CashierService {
     tableId: string;
     amountCents: number;
     externalRef: string;
+    tableMeta: { name: string; creatorId?: string };
   }): Promise<{ success: boolean; newTableBalance: number }> {
     const prisma = getPrisma();
-    const { userId, tableId, amountCents, externalRef } = params;
+    const { userId, tableId, amountCents, externalRef, tableMeta } = params;
 
     return await prisma.$transaction(async (tx: any) => {
       // Ensure FK target exists for PlayerBalance/BalanceTransaction writes.
-      await CashierService.ensureTableExists(tx, tableId);
+      await CashierService.ensureTableExists(tx, tableId, tableMeta);
 
       // 1. Check idempotency
       const existingTx = await tx.balanceTransaction.findUnique({
@@ -101,13 +119,14 @@ export class CashierService {
     tableId: string;
     amountCents: number;
     externalRef: string;
+    tableMeta: { name: string; creatorId?: string };
   }): Promise<{ success: boolean }> {
     const prisma = getPrisma();
-    const { userId, tableId, amountCents, externalRef } = params;
+    const { userId, tableId, amountCents, externalRef, tableMeta } = params;
 
     return await prisma.$transaction(async (tx: any) => {
        // Ensure FK target exists for BalanceTransaction writes.
-       await CashierService.ensureTableExists(tx, tableId);
+       await CashierService.ensureTableExists(tx, tableId, tableMeta);
 
        // 1. Idempotency Check
        const existingTx = await tx.balanceTransaction.findUnique({

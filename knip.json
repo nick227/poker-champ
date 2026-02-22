@@ -6,8 +6,7 @@
         "src/index.ts",
         "scripts/*.ts",
         "src/engine/seats/TableSeatSessionService.ts",
-        "src/**/*.test.ts",
-        "src/**/*.spec.ts"
+        "src/**/*.test.ts"
       ],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
     },
@@ -16,7 +15,6 @@
         "app/**/*.{ts,tsx}",
         "app/**/+*.{ts,tsx}",
         "src/**/*.test.ts",
-        "src/**/*.spec.ts",
         "e2e/**/*.spec.ts"
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "e2e/**/*.ts"]
@@ -30,13 +28,7 @@
       "project": ["src/**/*.ts"]
     }
   },
-  "ignoreUnresolved": [
-    "expo-router/entry",
-    "nativewind/preset",
-    "expo/metro-config",
-    "nativewind/metro",
-    "babel-preset-expo"
-  ],
+  "ignoreUnresolved": ["babel-preset-expo", "expo-router/entry"],
   "ignoreBinaries": ["eas", "tauri"],
   "ignoreDependencies": [
     "@vitest/coverage-v8",
@@ -45,5 +37,16 @@
     "@babel/runtime",
     "react-native-css-interop"
   ],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    "src/engine/dealer/utils/TableNavigator.ts": ["exports"],
+    "apps/client/src/components/base/Icons.tsx": ["exports"],
+    "apps/client/src/components/domain/table/PlayingCard.tsx": ["exports"],
+    "apps/client/src/lib/sound.ts": ["exports"],
+    "apps/client/src/registry/sound.registry.ts": ["exports"],
+    "apps/client/src/realtime/transport.ts": ["exports"],
+    "apps/client/src/theme/colors.ts": ["exports"],
+    "apps/client/src/registry/service.registry.ts": ["types"],
+    "apps/client/src/types/replayController.ts": ["types"]
+  }
 }

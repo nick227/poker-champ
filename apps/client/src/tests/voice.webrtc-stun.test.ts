@@ -1,3 +1,4 @@
+/* global RTCConfiguration, FrameRequestCallback, MediaStream */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PeerConnectionManager } from "@/voice/sdk/PeerConnectionManager";
 import { VoiceSDK } from "@/voice/sdk/VoiceSDK";

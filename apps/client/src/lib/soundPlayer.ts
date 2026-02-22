@@ -101,7 +101,6 @@ export function createExpoAvPlayer(): {
         await playWithPool(key, def, volume);
       } catch (error) {
         if (shouldLogInDev(`play:${key}`)) {
-          // eslint-disable-next-line no-console
           console.warn(`[sound] play failed for "${key}"`, error);
         }
       }
@@ -111,7 +110,6 @@ export function createExpoAvPlayer(): {
         await preload(keys);
       } catch (error) {
         if (shouldLogInDev("preload")) {
-          // eslint-disable-next-line no-console
           console.warn("[sound] preload failed", error);
         }
       }
@@ -121,7 +119,6 @@ export function createExpoAvPlayer(): {
         await disposeAll();
       } catch (error) {
         if (shouldLogInDev("disposeAll")) {
-          // eslint-disable-next-line no-console
           console.warn("[sound] dispose failed", error);
         }
       }

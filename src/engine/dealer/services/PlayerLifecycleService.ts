@@ -66,6 +66,9 @@ export class PlayerLifecycleService {
         tableId: this.deps.state.tableId,
         amountCents: buyInCents,
         externalRef,
+        tableMeta: {
+          name: this.deps.state.tableName,
+        },
       });
       buyInTableBalance = result.newTableBalance;
       logger.info({ userId, buyInCents, newTableBalance: result.newTableBalance }, "buy-in processed");
@@ -460,6 +463,9 @@ export class PlayerLifecycleService {
         tableId: this.deps.state.tableId,
         amountCents: remainingStack,
         externalRef,
+        tableMeta: {
+          name: this.deps.state.tableName,
+        },
       });
       logger.info({ userId, remainingStack }, "cash-out processed");
     } catch (err: unknown) {

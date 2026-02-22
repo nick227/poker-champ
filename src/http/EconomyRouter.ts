@@ -4,7 +4,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { getPrisma } from "../db/prisma.js";
-import { CashierService } from "../engine/economy/CashierService.js";
+import { CashierService, TABLE_NAME_REQUIRED } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
 
 const router = express.Router();
@@ -78,17 +78,36 @@ router.post("/buy-in", async (req, res) => {
   }
 
   try {
+    const rooms = (await matchMaker.query({ name: "poker" })) as {
+      roomId?: string;
+      metadata?: { tableId?: string; name?: string; creatorId?: string };
+    }[];
+    const room = rooms.find((r) => (r.metadata?.tableId ?? r.roomId) === parsed.data.tableId);
+    const prisma = getPrisma();
+    const tableRow = await prisma.pokerTable.findUnique({
+      where: { id: parsed.data.tableId },
+      select: { name: true, creatorId: true },
+    });
+    const tableName = room?.metadata?.name ?? tableRow?.name;
+    if (!tableName || tableName.trim().length === 0) {
+      res.status(409).json({ error: "Table metadata unavailable; cannot process buy-in." });
+      return;
+    }
+    const tableMeta = {
+      name: tableName,
+      creatorId: room?.metadata?.creatorId ?? tableRow?.creatorId ?? undefined,
+    };
+
     const result = await CashierService.processCashGameBuyIn({
       userId: req.user!.id,
       tableId: parsed.data.tableId,
       amountCents: parsed.data.amountCents,
       externalRef: parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}`,
+      tableMeta,
     });
     const userId = req.user!.id;
     const { tableId, amountCents } = parsed.data;
     try {
-      const rooms = (await matchMaker.query({ name: "poker" })) as { roomId?: string; metadata?: { tableId?: string } }[];
-      const room = rooms.find((r) => (r.metadata?.tableId ?? r.roomId) === tableId);
       if (room?.roomId) {
         await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents]);
       }
@@ -99,6 +118,10 @@ router.post("/buy-in", async (req, res) => {
   } catch (err: any) {
     if (err?.message === "INSUFFICIENT_BANKROLL") {
       res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err?.message === TABLE_NAME_REQUIRED) {
+      res.status(409).json({ error: "Table name metadata is required for buy-in." });
       return;
     }
     res.status(500).json({ error: err?.message ?? "Buy-in failed" });
@@ -113,16 +136,41 @@ router.post("/cash-out", async (req, res) => {
   }
 
   try {
+    const rooms = (await matchMaker.query({ name: "poker" })) as {
+      roomId?: string;
+      metadata?: { tableId?: string; name?: string; creatorId?: string };
+    }[];
+    const room = rooms.find((r) => (r.metadata?.tableId ?? r.roomId) === parsed.data.tableId);
+    const prisma = getPrisma();
+    const tableRow = await prisma.pokerTable.findUnique({
+      where: { id: parsed.data.tableId },
+      select: { name: true, creatorId: true },
+    });
+    const tableName = room?.metadata?.name ?? tableRow?.name;
+    if (!tableName || tableName.trim().length === 0) {
+      res.status(409).json({ error: "Table metadata unavailable; cannot process cash-out." });
+      return;
+    }
+    const tableMeta = {
+      name: tableName,
+      creatorId: room?.metadata?.creatorId ?? tableRow?.creatorId ?? undefined,
+    };
+
     const result = await CashierService.processCashGameCashOut({
       userId: req.user!.id,
       tableId: parsed.data.tableId,
       amountCents: parsed.data.amountCents,
       externalRef: parsed.data.externalRef ?? `cashout_${parsed.data.tableId}_${req.user!.id}`,
+      tableMeta,
     });
     res.json(result);
   } catch (err: any) {
     if (err?.message === "INSUFFICIENT_TABLE_BALANCE") {
       res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err?.message === TABLE_NAME_REQUIRED) {
+      res.status(409).json({ error: "Table name metadata is required for cash-out." });
       return;
     }
     res.status(500).json({ error: err?.message ?? "Cash-out failed" });

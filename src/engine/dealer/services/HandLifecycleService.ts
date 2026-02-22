@@ -125,13 +125,13 @@ export class HandLifecycleService {
 
     resetBettingRound(state);
 
+    // Consume one-hand sit-out tokens before selecting participants for this hand.
     for (const player of state.playersById.values()) {
-      if (
-        player.connected &&
-        player.status === "ABANDONED" &&
-        player.stackCents > 0 &&
-        player.sittingOutUntilNextHand !== true
-      ) {
+      player.sittingOutUntilNextHand = false;
+    }
+
+    for (const player of state.playersById.values()) {
+      if (player.connected && player.status === "ABANDONED" && player.stackCents > 0) {
         player.status = "ACTIVE";
       }
     }
@@ -145,11 +145,8 @@ export class HandLifecycleService {
       }
     }
 
-    // Resolve active players while sittingOutUntilNextHand is still set (excludes sit-out for this hand).
+    // Resolve active players for this hand after consuming sit-out-until-next-hand flags.
     const activePlayers = resolveActivePlayersForHand(state);
-    for (const p of state.playersById.values()) {
-      p.sittingOutUntilNextHand = false;
-    }
 
     if (activePlayers.length < 2) {
       state.street = "WAITING";

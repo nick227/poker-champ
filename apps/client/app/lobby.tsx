@@ -8,6 +8,7 @@ import { BankrollDisplay } from "@/components/domain/lobby/BankrollDisplay";
 import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
 import { GameTableRow } from "@/components/domain/lobby/GameTableRow";
 import { EmptyState } from "@/components/domain/lobby/EmptyState";
+import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { CreateGameModal } from "@/components/domain/lobby/CreateGameModal";
 import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
 import { TableNotificationBell } from "@/components/domain/table/TableNotificationBell";
@@ -39,7 +40,7 @@ const SORT_CYCLE: Record<SortKey, SortKey> = { name: "players", players: "blinds
 
 export default function LobbyScreen() {
   const router = useRouter();
-  const { tables, refresh, busy, error } = storeRegistry.use.lobby();
+  const { tables, refresh, busy, error, onlineTotal, onlinePlayers, onlineBusy, onlineError } = storeRegistry.use.lobby();
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setActive = storeRegistry.use.tables((s) => s.setActive);
@@ -53,8 +54,9 @@ export default function LobbyScreen() {
     maxBuyInCents: number;
   } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
+  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
-  useLobbyRealtime();
+  const { requestOnlinePlayers } = useLobbyRealtime();
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
     const timer = setInterval(() => {
@@ -114,10 +116,21 @@ export default function LobbyScreen() {
     [openTableIds]
   );
 
+  const openOnlineSheet = useCallback(() => {
+    setOnlineSheetVisible(true);
+    requestOnlinePlayers();
+  }, [requestOnlinePlayers]);
+
+  const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
+
   return (
     <Screen>
         <Masthead />
-        <ProfileStrip username={profile.username ?? "Player"} location={profile.location} />
+        <ProfileStrip
+          username={profile.username ?? "Player"}
+          location={profile.location}
+          rightAction={<Button variant="link" title={onlineLabel} onPress={openOnlineSheet} />}
+        />
         <View className="ui-row ui-inline-2 ui-section-tight">
           <Button variant="ghost" title="My Account" onPress={() => {}} />
           <Button variant="ghost" title="Deposit" onPress={handleDeposit} />
@@ -171,6 +184,14 @@ export default function LobbyScreen() {
           router.push(tablePath(id));
           setActiveTablesDropdownVisible(false);
         }}
+      />
+      <OnlinePlayersSheet
+        visible={onlineSheetVisible}
+        onClose={() => setOnlineSheetVisible(false)}
+        players={onlinePlayers}
+        loading={onlineBusy}
+        error={onlineError}
+        onRefresh={requestOnlinePlayers}
       />
       <BottomBar active="lobby" />
     </Screen>

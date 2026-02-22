@@ -39,9 +39,16 @@ export const TableJoinOptionsSchema = z.object({
 });
 
 export const ActionEnvelopePayloadSchema = z.object({
-  actionId: z.string().uuid().optional(),
+  actionId: z.string().min(1),
   payload: ActionPayloadSchema,
 });
+
+export const ActionWithIdPayloadSchema = z.intersection(
+  ActionPayloadSchema,
+  z.object({
+    actionId: z.string().min(1),
+  }),
+);
 
 export const AddBotPayloadSchema = z.object({
   name: z.string().min(1).max(80).default("Bot"),
@@ -65,7 +72,7 @@ export const ChatMessagePayloadSchema = z.object({
 });
 
 export const TableInboundMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("ACTION"), payload: z.union([ActionPayloadSchema, ActionEnvelopePayloadSchema]) }),
+  z.object({ type: z.literal("ACTION"), payload: z.union([ActionWithIdPayloadSchema, ActionEnvelopePayloadSchema]) }),
   z.object({ type: z.literal("ADD_BOT"), payload: AddBotPayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),

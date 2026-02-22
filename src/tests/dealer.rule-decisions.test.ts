@@ -273,6 +273,74 @@ describe("dealer rule decisions", () => {
     expect(persistence.recordAction.mock.calls.length).toBe(recordActionCallsAfterFirst);
   });
 
+  it("does not dedupe different users sharing the same actionId in the same hand", async () => {
+    const state = new PokerState();
+    state.tableId = "table_action_id_user_scope";
+    state.street = "PREFLOP";
+    state.handId = "hand_action_id_user_scope";
+    state.seats.push("u1", "u2", "u3");
+    state.toActSeat = 0;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 100;
+    state.bigBlindCents = 100;
+
+    const u1 = makePlayer("u1", 0, 5000);
+    const u2 = makePlayer("u2", 1, 5000);
+    const u3 = makePlayer("u3", 2, 5000);
+    u1.needsAction = true;
+    u2.needsAction = true;
+    u3.needsAction = true;
+    state.playersById.set("u1", u1);
+    state.playersById.set("u2", u2);
+    state.playersById.set("u3", u3);
+
+    const persistence = makePersistence();
+    const dealer = new Dealer(state, persistence);
+    const sharedActionId = "shared-action-id";
+
+    await dealer.handleAction("u1", { action: "CHECK" }, sharedActionId);
+    const recordActionCallsAfterFirst = persistence.recordAction.mock.calls.length;
+
+    await dealer.handleAction("u2", { action: "CHECK" }, sharedActionId);
+
+    expect(persistence.recordAction.mock.calls.length).toBe(recordActionCallsAfterFirst + 1);
+  });
+
+  it("warns once when the same hand actionId is claimed by a different user", async () => {
+    const warnSpy = vi.spyOn(logger, "warn");
+    const state = new PokerState();
+    state.tableId = "table_action_id_collision_warn";
+    state.street = "PREFLOP";
+    state.handId = "hand_action_id_collision_warn";
+    state.seats.push("u1", "u2", "u3");
+    state.toActSeat = 0;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 100;
+    state.bigBlindCents = 100;
+
+    const u1 = makePlayer("u1", 0, 5000);
+    const u2 = makePlayer("u2", 1, 5000);
+    const u3 = makePlayer("u3", 2, 5000);
+    u1.needsAction = true;
+    u2.needsAction = true;
+    u3.needsAction = true;
+    state.playersById.set("u1", u1);
+    state.playersById.set("u2", u2);
+    state.playersById.set("u3", u3);
+
+    const dealer = new Dealer(state, makePersistence());
+    const sharedActionId = "shared-collision-id";
+
+    await dealer.handleAction("u1", { action: "CHECK" }, sharedActionId);
+    await dealer.handleAction("u2", { action: "CHECK" }, sharedActionId);
+    await expect(dealer.handleAction("u3", { action: "BET", amountCents: 0 }, sharedActionId)).rejects.toMatchObject({
+      code: "INVALID_ACTION",
+    });
+
+    const collisionLogs = warnSpy.mock.calls.filter((call) => call[1] === "ACTION_ID_CROSS_USER_COLLISION");
+    expect(collisionLogs.length).toBe(1);
+  });
+
   it("emits staged runout snapshots in order for preflop all-in heads-up", async () => {
     vi.useFakeTimers();
     try {

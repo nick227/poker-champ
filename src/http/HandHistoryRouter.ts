@@ -16,8 +16,6 @@ const HandIdSchema = z.object({
   id: z.string().min(1).max(191),
 });
 
-// Feature flag for learning reveal mode
-const ENABLE_LEARNING_REVEAL = process.env.ENABLE_LEARNING_REVEAL === "true";
 const HISTORY_CURSOR_SEPARATOR = "::";
 const PREFLOP_VOLUNTARY_ACTIONS = new Set(["CALL", "BET", "RAISE", "ALL_IN"]);
 const PREFLOP_AGGRESSIVE_ACTIONS = new Set(["BET", "RAISE", "ALL_IN"]);
@@ -608,6 +606,7 @@ router.get("/hands/:id", async (req, res) => {
             player: {
               select: {
                 userId: true,
+                externalId: true,
                 displayName: true,
               },
             },
@@ -652,26 +651,25 @@ router.get("/hands/:id", async (req, res) => {
       return;
     }
 
+    const snapshots = await ReplayFrameService.getFramesForHand(hand.id);
+    const showdownCards = snapshots
+      .map((s) => s.lastHandResult?.showdownHoleCardsByUserId)
+      .filter(Boolean)
+      .pop() as Record<string, [string, string]> | undefined;
+
     // Process board cards
     const boardCards = hand.boardJson as string[] || [];
 
-    // Process players with hole card privacy rules
+    // Process players (hole cards from DB; fallback to showdown reveal from snapshots for bots)
     const players = hand.players.map((player) => {
-      let holeCards: string[] | undefined;
-      
-      if (player.player.userId === userId) {
-        // Hero: always include hole cards
-        holeCards = player.holeCardsJson as string[] || undefined;
-      } else {
-        // Opponents: only at showdown unless learning reveal enabled
-        const isShowdown = hand.reason === "SHOWDOWN";
-        if (isShowdown || ENABLE_LEARNING_REVEAL) {
-          holeCards = player.holeCardsJson as string[] || undefined;
-        }
+      let holeCards = (player.holeCardsJson as string[] | null) ?? undefined;
+      if ((!holeCards || holeCards.length === 0) && showdownCards) {
+        const key = player.player.userId ?? player.player.externalId;
+        const fromShowdown = key ? showdownCards[key] : undefined;
+        if (fromShowdown) holeCards = [...fromShowdown];
       }
-
       return {
-        userId: player.player.userId ?? player.playerId,
+        userId: player.player.userId ?? player.player.externalId ?? player.playerId,
         displayName: player.player.displayName,
         seat: player.seat,
         holeCards,
@@ -694,8 +692,6 @@ router.get("/hands/:id", async (req, res) => {
       displayName: payout.player.displayName,
       amountCents: payout.amountCents,
     }));
-
-    const snapshots = await ReplayFrameService.getFramesForHand(hand.id);
 
     res.json({
       id: hand.id,

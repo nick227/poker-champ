@@ -1,5 +1,5 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
-import type { TableSnapshotPayload, ChatMessagePayload } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload, OnlinePlayerSummary } from "@poker-champ/realtime-contract";
 
 export type RealtimeScope = "lobby" | "table";
 export type TransportState = "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
@@ -8,6 +8,8 @@ type LobbyMessageContext = {
   onError?: (message: string) => void;
   onSessionRestored?: (userId: string) => void;
   onTableList?: (tables: unknown[]) => void;
+  onOnlineCount?: (totalOnline: number) => void;
+  onOnlinePlayers?: (payload: { totalOnline: number; generatedAt: number; players: OnlinePlayerSummary[] }) => void;
   onTransportState?: (state: TransportState) => void;
 };
 
@@ -42,6 +44,19 @@ const realtimeChannelByScope: ScopeRegistryMap = {
     TABLE_LIST: (payload, context) => {
       const p = payload as any;
       context.onTableList?.(Array.isArray(p?.tables) ? p.tables : []);
+    },
+    ONLINE_COUNT: (payload, context) => {
+      const p = payload as any;
+      const totalOnline = typeof p?.totalOnline === "number" ? p.totalOnline : 0;
+      context.onOnlineCount?.(totalOnline);
+    },
+    ONLINE_PLAYERS: (payload, context) => {
+      const p = payload as any;
+      context.onOnlinePlayers?.({
+        totalOnline: typeof p?.totalOnline === "number" ? p.totalOnline : 0,
+        generatedAt: typeof p?.generatedAt === "number" ? p.generatedAt : Date.now(),
+        players: Array.isArray(p?.players) ? p.players : [],
+      });
     },
     CONNECTED: (_payload, context) => {
       context.onTransportState?.("CONNECTED");

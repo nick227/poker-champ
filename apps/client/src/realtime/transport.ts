@@ -183,6 +183,9 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let attemptedRoomIdRecovery = false;
   let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
+  let reconnectAttempts = 0;
+  let terminalJoinFailure = false;
+  const MAX_RECONNECT_ATTEMPTS = 3;
   /** Set when server sends ERROR SESSION_REPLACED; we must not reconnect on leave (avoids replace→reconnect loop). */
   let sessionReplacedByNewerConnection = false;
   const debugLog = (...args: unknown[]) => {
@@ -208,6 +211,21 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
 
   const scheduleReconnect = () => {
     if (!shouldReconnect || reconnectTimer) return;
+    if (terminalJoinFailure) {
+      debugLog("RECONNECT_ABORTED_TERMINAL_JOIN_FAILURE", { roomId: activeRoomId, roomName: options.roomName });
+      return;
+    }
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      debugLog("RECONNECT_ABORTED_MAX_ATTEMPTS", {
+        roomId: activeRoomId,
+        roomName: options.roomName,
+        reconnectAttempts,
+      });
+      shouldReconnect = false;
+      options.onError?.("Join failed repeatedly. Please retry manually.");
+      return;
+    }
+    reconnectAttempts += 1;
     debugLog("SCHEDULE_RECONNECT", { roomId: options.roomId, roomName: options.roomName });
     options.onMessage({ type: "RECONNECTING" });
     reconnectTimer = setTimeout(() => {
@@ -258,11 +276,21 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         : await client.joinOrCreate(options.roomName ?? "lobby", options.joinOptions ?? {});
 
       connected = true;
+      reconnectAttempts = 0;
+      terminalJoinFailure = false;
       debugLog("CONNECTED", { roomId: room?.roomId ?? options.roomId, sessionId: room?.sessionId });
       options.onMessage({ type: "CONNECTED" });
       options.onOpen?.();
 
       room.onMessage("*", (type: string, payload: unknown) => {
+        if (type === "ERROR" && payload && typeof payload === "object") {
+          const code = (payload as { code?: string }).code;
+          if (code === "JOIN_FAILED" || code === "BAD_JOIN_OPTIONS" || code === "MISSING_BUY_IN_CENTS" || code === "UNAUTHORIZED") {
+            terminalJoinFailure = true;
+            shouldReconnect = false;
+            debugLog("TERMINAL_JOIN_ERROR_RECEIVED", { roomId: room?.roomId ?? options.roomId, code });
+          }
+        }
         if (type === "ERROR" && payload && typeof payload === "object" && (payload as { code?: string }).code === "SESSION_REPLACED") {
           sessionReplacedByNewerConnection = true;
           debugLog("SESSION_REPLACED_RECEIVED", { roomId: room?.roomId ?? options.roomId });
@@ -336,7 +364,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       }
 
       options.onError?.(message);
-      if (isRetryableJoinError(message)) {
+      if (isRetryableJoinError(message) && !terminalJoinFailure) {
         scheduleReconnect();
       }
     }

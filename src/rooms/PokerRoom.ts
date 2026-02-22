@@ -24,6 +24,8 @@ import { CashierService } from "../engine/economy/CashierService.js";
 import { TableSnapshotLogService, type SnapshotLogReason } from "../engine/persistence/TableSnapshotLogService.js";
 import type { FrameReason } from "../engine/replay/FrameReason.js";
 import { registerVoiceRelay } from "./voice/register-voice-relay.js";
+import { presenceIndex } from "../lobby/PresenceIndex.js";
+import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 
 type JoinOptions = { name?: string; buyInCents?: number; password?: string; tableId?: string };
 type AuthContext = { userId: string; sessionId: string; roles: string[]; username: string };
@@ -72,6 +74,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private readonly snapshotLogEnabled = isTableSnapshotLogPersistenceEnabled();
   private readonly joinLocksByKey: Map<string, Promise<void>> = new Map();
   private readonly seatSchemaVersion = 1;
+  private readonly actionRateLimit = createPerClientRateLimiter({ maxPerWindow: 30, windowMs: 60_000 });
+  private readonly chatRateLimit = createPerClientRateLimiter({ maxPerWindow: 20, windowMs: 60_000 });
+
+  private lastActiveAtTs = Date.now();
+  private emptySinceTs: number | null = null;
+  private idleDisposeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly EMPTY_GRACE_MS = Number(process.env.POKER_ROOM_EMPTY_GRACE_MS ?? 60_000);
+  private readonly IDLE_DISPOSE_MS = Number(process.env.POKER_ROOM_IDLE_DISPOSE_MS ?? 30 * 60_000);
 
   onCreate(options: any) {
     // Keep explicit in onCreate as well for defensive clarity in runtime logs.
@@ -100,7 +110,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
     });
 
-    this.dealer = new Dealer(this.state, new PersistenceFacade(this.state.tableId), {
+    this.dealer = new Dealer(
+      this.state,
+      new PersistenceFacade({
+        tableId: this.state.tableId,
+        tableName: this.state.tableName,
+        creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
+      }),
+      {
       onAutoSitOutReachedCap: async ({ userId, stackCents }) => {
         if (!this.persistentSeatsEnabled) return;
         await TableSeatSessionService.markSittingOut({
@@ -185,6 +202,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return;
       }
       if (!this.isActiveBoundClient(userId, client)) return;
+      if (this.state.street !== "WAITING") {
+        this.sendTableMessage(client, "ERROR", {
+          code: "REMOVE_BOT_NOT_ALLOWED",
+          message: "Can only remove bots between hands or when table is stopped.",
+        });
+        return;
+      }
       try {
         await this.dealer.removeBot(parsed.data.botId);
         this.updateMetadataCounts();
@@ -195,6 +219,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     });
 
     this.onMessage("CHAT", (client, message) => {
+      if (!this.chatRateLimit.check(client.sessionId)) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many messages. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
+      this.touchActivity();
       const parsed = ChatPayloadSchema.safeParse(message);
       if (!parsed.success) {
         this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid chat message." });
@@ -223,14 +256,42 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     });
 
     this.onMessage("ACTION", async (client, message) => {
+      if (!this.actionRateLimit.check(client.sessionId)) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many actions. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
       const envelope = TableInboundMessageSchema.safeParse({ type: "ACTION", payload: message });
       if (!envelope.success) {
+        const missingActionId = envelope.error.issues.some((issue) => issue.path.join(".") === "payload.actionId");
+        if (missingActionId) {
+          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "actionId is required for idempotency." });
+          return;
+        }
         this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: envelope.error.flatten() });
         return;
       }
 
-      const normalized = this.normalizeActionPayload(envelope.data.payload);
+      const rawMessage = (message && typeof message === "object" ? message : {}) as Record<string, unknown>;
+      const normalized = this.normalizeActionPayload(rawMessage);
       if (!normalized) {
+        const topLevelActionId = rawMessage.actionId;
+        const nestedActionId =
+          rawMessage.payload &&
+          typeof rawMessage.payload === "object" &&
+          typeof (rawMessage.payload as Record<string, unknown>).actionId === "string"
+            ? (rawMessage.payload as Record<string, unknown>).actionId
+            : undefined;
+        const hasActionId =
+          (typeof topLevelActionId === "string" && topLevelActionId.length > 0) ||
+          (typeof nestedActionId === "string" && nestedActionId.length > 0);
+        if (!hasActionId) {
+          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "actionId is required for idempotency." });
+          return;
+        }
         this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid ACTION message format." });
         return;
       }
@@ -245,6 +306,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         const userId = this.userIdBySessionId.get(client.sessionId);
         if (!userId) throw new PokerError("BAD_STATE", "Session is not bound to a seated user.");
         if (!this.isActiveBoundClient(userId, client)) return;
+        this.touchActivity();
         logger.info(
           {
             roomId: this.roomId,
@@ -255,11 +317,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           },
           "POKER_ACTION_ATTEMPT",
         );
-        if (normalized.actionId) {
-          await this.dealer.handleAction(userId, parsed.data, normalized.actionId);
-        } else {
-          await this.dealer.handleAction(userId, parsed.data);
-        }
+        await this.dealer.handleAction(userId, parsed.data, normalized.actionId);
         logger.info(
           {
             roomId: this.roomId,
@@ -282,7 +340,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           "POKER_ACTION_REJECTED",
         );
         if (err instanceof PokerError) {
-          this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
+          this.sendTableMessage(client, "ERROR", {
+            code: err.code,
+            message: err.message,
+            ...(err.meta ?? {}),
+          });
         } else {
           this.sendTableMessage(client, "ERROR", { code: "ACTION_REJECTED", message: err?.message ?? String(err) });
         }
@@ -296,6 +358,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.unbindSessionEvent = () => sessionEvents.off("user.banned", onBan);
 
     logger.info({ roomId: this.roomId, tableId: this.state.tableId }, "PokerRoom created");
+    this.touchActivity();
     void this.bootstrapPersistentSeatRecovery();
   }
 
@@ -335,6 +398,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const userId = auth?.userId;
     const lockKey = `${this.state.tableId}:${userId ?? client.sessionId}`;
     await this.withJoinLock(lockKey, async () => {
+      this.touchActivity();
       await this.runPersistentSeatCleanup();
       logger.info(
         {
@@ -357,6 +421,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       if (this.dealer.hasPlayer(userId)) {
         this.rebindClientExclusive(userId, client);
         await this.markReconnectedSafe(userId);
+        this.addTablePresence(client, userId, auth.username);
         if (this.persistentSeatsEnabled) {
           const stackCents = this.getPlayerStackCents(userId);
           await TableSeatSessionService.touchConnected({
@@ -368,6 +433,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         }
         this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
         this.dealer.emitSnapshotToUser(userId, "RECONNECT");
+        this.handleEmptyStateChange();
         return;
       }
 
@@ -382,6 +448,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             this.updateMetadataCounts();
             this.rebindClientExclusive(userId, client);
             await this.markReconnectedSafe(userId);
+            this.addTablePresence(client, userId, auth.username);
             await TableSeatSessionService.touchConnected({
               tableId: this.state.tableId,
               userId,
@@ -391,6 +458,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
             this.dealer.emitSnapshotToUser(userId, "RECONNECT");
             logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_REBOUND_PERSISTED");
+            this.handleEmptyStateChange();
             return;
           } catch (err: any) {
             logger.warn(
@@ -466,8 +534,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           tableId: this.state.tableId,
           joinMode: "NEW",
         });
+        this.addTablePresence(client, userId, auth.username);
         this.dealer.emitSnapshotToUser(userId, "JOIN");
         logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_SUCCESS");
+        this.handleEmptyStateChange();
       } catch (err: any) {
         logger.warn(
           {
@@ -487,6 +557,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   async onLeave(client: Client, code?: number) {
+    this.touchActivity();
+    this.handleEmptyStateChange();
     const userId = this.userIdBySessionId.get(client.sessionId) ?? client.auth?.userId;
     this.userIdBySessionId.delete(client.sessionId);
 
@@ -499,10 +571,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         { roomId: this.roomId, tableId: this.state.tableId, userId, sessionId: client.sessionId },
         "POKER_LEAVE_STALE_SESSION_IGNORED",
       );
+      // Decrement only this leaving session's table presence reference.
+      this.removeTablePresence(userId);
       return;
     }
 
     this.dealer.unbindClient(userId);
+    this.removeTablePresence(userId);
 
     const consented = code === CloseCode.CONSENTED;
     if (consented) {
@@ -537,6 +612,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       const reconnected = await this.allowReconnection(client, 60);
       this.rebindClientExclusive(userId, reconnected);
       await this.markReconnectedSafe(userId);
+      this.addTablePresence(reconnected, userId);
       if (this.persistentSeatsEnabled) {
         const stackCents = this.getPlayerStackCents(userId);
         await TableSeatSessionService.touchConnected({
@@ -594,6 +670,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   onDispose() {
+    if (this.idleDisposeTimer) {
+      clearTimeout(this.idleDisposeTimer);
+      this.idleDisposeTimer = null;
+    }
     logger.warn(
       {
         roomId: this.roomId,
@@ -606,6 +686,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.dealer.stopDisconnectSweep();
     this.dealer.resetSessionStats();
     this.unbindSessionEvent?.();
+    for (const userId of this.userIdBySessionId.values()) {
+      this.removeTablePresence(userId);
+    }
+    this.userIdBySessionId.clear();
   }
 
   private extractBearerToken(raw: unknown): string | null {
@@ -658,6 +742,21 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.userIdBySessionId.set(client.sessionId, userId);
   }
 
+  private addTablePresence(client: Client, userId: string, displayName?: string): void {
+    const authedUserId = client.auth?.userId;
+    if (!authedUserId || authedUserId !== userId) return;
+    presenceIndex.add(
+      userId,
+      { kind: "TABLE", tableId: this.state.tableId, tableName: this.state.tableName },
+      displayName,
+    );
+  }
+
+  private removeTablePresence(userId: string): void {
+    if (!userId) return;
+    presenceIndex.remove(userId, { kind: "TABLE", tableId: this.state.tableId, tableName: this.state.tableName });
+  }
+
   private async markDisconnectedSafe(userId: string, disconnectDeadlineTs: number): Promise<void> {
     const dealer = this.dealer as unknown as {
       markDisconnectedSerialized?: (id: string, ts: number) => Promise<void>;
@@ -705,18 +804,26 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return !boundClient || boundClient.sessionId === client.sessionId;
   }
 
-  private normalizeActionPayload(payload: unknown): { payload: unknown; actionId?: string } | null {
+  private normalizeActionPayload(payload: unknown): { payload: unknown; actionId: string } | null {
     if (!payload || typeof payload !== "object") {
-      return { payload };
+      return null;
     }
     const candidate = payload as Record<string, unknown>;
+    const payloadRecord = candidate.payload as Record<string, unknown> | undefined;
+    const payloadActionId = payloadRecord?.actionId;
+    const actionId: string | undefined =
+      typeof candidate.actionId === "string"
+        ? candidate.actionId
+        : candidate.payload !== undefined && typeof payloadActionId === "string"
+          ? payloadActionId
+          : undefined;
     if (candidate.payload !== undefined) {
-      return {
-        payload: candidate.payload,
-        actionId: typeof candidate.actionId === "string" ? candidate.actionId : undefined,
-      };
+      if (typeof actionId !== "string" || actionId.length < 1) return null;
+      return { payload: candidate.payload, actionId };
     }
-    return { payload };
+    const { actionId: embedded, ...rest } = candidate;
+    if (typeof embedded !== "string" || embedded.length < 1) return null;
+    return { payload: rest, actionId: embedded };
   }
 
   private async withJoinLock(key: string, fn: () => Promise<void>): Promise<void> {
@@ -781,6 +888,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           tableId: this.state.tableId,
           amountCents: session.stackCentsSnapshot,
           externalRef,
+          tableMeta: {
+            name: this.state.tableName,
+          },
         });
       } catch (err: any) {
         logger.warn(
@@ -864,6 +974,48 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     if (botIds.length > 0) this.updateMetadataCounts();
   }
 
+  private touchActivity(): void {
+    this.lastActiveAtTs = Date.now();
+  }
+
+  private getConnectedClientCount(): number {
+    return this.clients?.length ?? 0;
+  }
+
+  private handleEmptyStateChange(): void {
+    const count = this.getConnectedClientCount();
+    if (count === 0) {
+      if (this.emptySinceTs == null) {
+        this.emptySinceTs = Date.now();
+        this.scheduleIdleDispose();
+      }
+      return;
+    }
+    this.emptySinceTs = null;
+    if (this.idleDisposeTimer) {
+      clearTimeout(this.idleDisposeTimer);
+      this.idleDisposeTimer = null;
+    }
+  }
+
+  private scheduleIdleDispose(): void {
+    if (this.idleDisposeTimer) return;
+    this.idleDisposeTimer = setTimeout(() => {
+      const now = Date.now();
+      if (this.getConnectedClientCount() !== 0) return;
+      if (this.emptySinceTs != null && now - this.emptySinceTs < this.EMPTY_GRACE_MS) {
+        this.idleDisposeTimer = null;
+        this.scheduleIdleDispose();
+        return;
+      }
+      logger.info(
+        { roomId: this.roomId, tableId: this.state.tableId, idleMs: now - this.lastActiveAtTs },
+        "POKER_ROOM_IDLE_DISPOSE",
+      );
+      this.requestDisconnect();
+    }, this.IDLE_DISPOSE_MS);
+  }
+
   requestDisconnect(): void {
     const payload = { version: 1 as const, code: "TABLE_GONE" as const, message: "Table no longer exists" };
     this.clients.forEach((c) => {
@@ -895,6 +1047,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
               tableId: this.state.tableId,
               amountCents: session.stackCentsSnapshot,
               externalRef,
+              tableMeta: {
+                name: this.state.tableName,
+              },
             });
           } catch (err: any) {
             logger.warn(

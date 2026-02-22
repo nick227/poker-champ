@@ -92,4 +92,29 @@ describe("hand lifecycle", () => {
     expect(sbId).not.toBe("u0");
     expect(bbId).not.toBe("u0");
   });
+
+  it("seats a bot added mid-hand into the immediate next deal", async () => {
+    const s = new PokerState();
+    s.maxSeats = 6;
+    s.minBuyInCents = 1000;
+    s.maxBuyInCents = 10000;
+
+    const d = new Dealer(s);
+    await d.addPlayer("p1", "A", 5000);
+    await d.addPlayer("p2", "B", 5000);
+
+    expect(s.handId).toMatch(/^hand_/);
+    expect(s.street).not.toBe("WAITING");
+
+    await d.addBot("bot_2", "Bot", 5000);
+    const botAfterAdd = s.playersById.get("bot_2");
+    expect(botAfterAdd?.status).toBe("ABANDONED");
+    expect(botAfterAdd?.sittingOutUntilNextHand).toBe(true);
+
+    await expect((d as any).startHand()).resolves.toBeUndefined();
+    const botOnNextHand = s.playersById.get("bot_2");
+    expect(botOnNextHand?.status).toBe("ACTIVE");
+    expect(botOnNextHand?.sittingOutUntilNextHand).toBe(false);
+    expect((d as any).holeCardsByPlayerId.has("bot_2")).toBe(true);
+  }, 15000);
 });

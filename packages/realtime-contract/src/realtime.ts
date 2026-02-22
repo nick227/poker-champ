@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { CreateTableSchema, JoinTableSchema } from "./lobby";
+import { CreateTableSchema, JoinTableSchema, OnlinePlayerSummarySchema } from "./lobby";
 
 export const LobbyInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("LIST_TABLES"), payload: z.unknown().optional() }),
+  z.object({ type: z.literal("LIST_ONLINE_PLAYERS"), payload: z.unknown().optional() }),
   z.object({ type: z.literal("CREATE_TABLE"), payload: CreateTableSchema }),
   z.object({ type: z.literal("JOIN_TABLE"), payload: JoinTableSchema }),
 ]);
@@ -16,6 +17,18 @@ export const LobbyOutboundMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("TABLE_JOIN_INFO"),
     payload: z.object({ tableId: z.string().min(1), roomId: z.string().min(1) }),
+  }),
+  z.object({
+    type: z.literal("ONLINE_COUNT"),
+    payload: z.object({ totalOnline: z.number().int().min(0) }),
+  }),
+  z.object({
+    type: z.literal("ONLINE_PLAYERS"),
+    payload: z.object({
+      totalOnline: z.number().int().min(0),
+      generatedAt: z.number().int().nonnegative(),
+      players: z.array(OnlinePlayerSummarySchema),
+    }),
   }),
   z.object({
     type: z.literal("ERROR"),

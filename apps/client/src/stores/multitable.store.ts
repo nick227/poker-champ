@@ -7,7 +7,19 @@ import { isValidTableInbound } from "@/realtime/contract.guards";
 
 type RealtimeSender = (type: string, payload?: unknown) => boolean;
 type TableJoinState = { buyInCents?: number; password?: string };
+
+type PendingAction = {
+  actionId: string;
+  payload: ReturnType<typeof toServerActionPayload>;
+  retriesLeft: number;
+};
 const TTL_MS = 24 * 60 * 60 * 1000;
+
+function hasActionId(payload: unknown): payload is { actionId: string } {
+  if (!payload || typeof payload !== "object") return false;
+  const candidate = payload as { actionId?: unknown };
+  return typeof candidate.actionId === "string" && candidate.actionId.length > 0;
+}
 
 const memoryStorage = new Map<string, string>();
 const fallbackStorage: StateStorage = {
@@ -28,6 +40,7 @@ type MultiTableState = {
   openTableIds: string[];
   activeTableId: string | null;
   tableSenders: Record<string, RealtimeSender>;
+  pendingActionByTableId: Record<string, PendingAction | undefined>;
   tableJoinById: Record<string, TableJoinState>;
   roomIdByTableId: Record<string, string>;
   lastBuyInCentsByTableId: Record<string, number>;
@@ -45,6 +58,9 @@ type MultiTableState = {
   dispatchAddBot: (input: { tableId: string; name?: string; buyInCents: number }) => boolean;
   dispatchRemoveBot: (input: { tableId: string; botId: string }) => boolean;
   closeAll: () => void;
+  scheduleActionRetry: (tableId: string, retryAfterSeconds?: number) => void;
+  clearPendingAction: (tableId: string) => void;
+  clearPendingActionIfMatch: (tableId: string, actionId?: string) => void;
 };
 
 export const useMultiTableStore = create<MultiTableState>()(
@@ -53,6 +69,7 @@ export const useMultiTableStore = create<MultiTableState>()(
       openTableIds: [],
       activeTableId: null,
       tableSenders: {},
+      pendingActionByTableId: {},
       tableJoinById: {},
       roomIdByTableId: {},
       lastBuyInCentsByTableId: {},
@@ -108,7 +125,8 @@ export const useMultiTableStore = create<MultiTableState>()(
         set((s) => {
           const open = s.openTableIds.filter((x) => x !== id);
           const active = s.activeTableId === id ? open[0] ?? null : s.activeTableId;
-          const { [id]: _, ...restSenders } = s.tableSenders;
+          const { [id]: _s, ...restSenders } = s.tableSenders;
+          const { [id]: _p, ...restPending } = s.pendingActionByTableId;
           const { [id]: __, ...restJoin } = s.tableJoinById;
           const { [id]: ___, ...restRoomId } = s.roomIdByTableId;
           const { [id]: ____, ...restBuyIn } = s.lastBuyInCentsByTableId;
@@ -117,6 +135,7 @@ export const useMultiTableStore = create<MultiTableState>()(
             openTableIds: open,
             activeTableId: active,
             tableSenders: restSenders,
+            pendingActionByTableId: restPending,
             tableJoinById: restJoin,
             roomIdByTableId: restRoomId,
             lastBuyInCentsByTableId: restBuyIn,
@@ -184,6 +203,12 @@ export const useMultiTableStore = create<MultiTableState>()(
         if (!sender) return false;
         const payload = toServerActionPayload({ action, amountCents });
         if (!isValidTableInbound("ACTION", payload)) return false;
+        set((s) => ({
+          pendingActionByTableId: {
+            ...s.pendingActionByTableId,
+            [tableId]: { actionId: payload.actionId, payload, retriesLeft: 3 },
+          },
+        }));
         return sender("ACTION", payload);
       },
       dispatchSendChat: ({ tableId, text }): boolean => {
@@ -206,11 +231,48 @@ export const useMultiTableStore = create<MultiTableState>()(
         if (!sender) return false;
         return sender("REMOVE_BOT", { botId });
       },
+      scheduleActionRetry: (tableId, retryAfterSeconds = 2) => {
+        const pending = get().pendingActionByTableId[tableId];
+        if (!pending || pending.retriesLeft <= 0) return;
+        const baseMs = retryAfterSeconds * 1000;
+        const jitter = 0.5 + Math.random();
+        const delayMs = Math.round(baseMs * jitter);
+        set((s) => ({
+          pendingActionByTableId: {
+            ...s.pendingActionByTableId,
+            [tableId]: { ...pending, retriesLeft: pending.retriesLeft - 1 },
+          },
+        }));
+        setTimeout(() => {
+          const sender = get().tableSenders[tableId];
+          const p = get().pendingActionByTableId[tableId];
+          if (!sender || !p) return;
+          if (!hasActionId(p.payload) || !isValidTableInbound("ACTION", p.payload)) {
+            const { [tableId]: _, ...rest } = get().pendingActionByTableId;
+            set({ pendingActionByTableId: rest });
+            return;
+          }
+          sender("ACTION", p.payload);
+        }, delayMs);
+      },
+      clearPendingAction: (tableId) =>
+        set((s) => {
+          const { [tableId]: _, ...rest } = s.pendingActionByTableId;
+          return { pendingActionByTableId: rest };
+        }),
+      clearPendingActionIfMatch: (tableId, actionId) =>
+        set((s) => {
+          const pending = s.pendingActionByTableId[tableId];
+          if (!pending || (actionId != null && pending.actionId !== actionId)) return s;
+          const { [tableId]: _, ...rest } = s.pendingActionByTableId;
+          return { pendingActionByTableId: rest };
+        }),
       closeAll: () =>
         set({
           openTableIds: [],
           activeTableId: null,
           tableSenders: {},
+          pendingActionByTableId: {},
           tableJoinById: {},
           roomIdByTableId: {},
           lastBuyInCentsByTableId: {},

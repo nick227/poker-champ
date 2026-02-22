@@ -1,5 +1,4 @@
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { Opponent } from "./OpponentStrip";
 
 export type UiCard = { rank: string; suit: string } | null;
 
@@ -84,6 +83,23 @@ export function assertNever(x: never): never {
 /** Opponent status maps 1:1 to SeatDisplayStatus (lowercase/camel). */
 export type OpponentDisplayStatus = "active" | "folded" | "allIn" | "sittingOut" | "reconnecting";
 
+export type Opponent = {
+  id: string;
+  name: string;
+  stackCents: number;
+  isDealer?: boolean;
+  isActive?: boolean;
+  isBot?: boolean;
+  status?: OpponentDisplayStatus;
+  actionLabel?: string;
+  cards?: {
+    left?: UiCard;
+    right?: UiCard;
+    faceDown: boolean;
+    visible: boolean;
+  };
+};
+
 /** Hero display status: uses connected + disconnectDeadlineTs for Reconnecting… vs Sitting out. */
 export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDisplayStatus {
   const heroSeat = getResolvedHeroSeat(snapshot);
@@ -97,16 +113,6 @@ export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDispla
   if (s === "WAITING") return "ACTIVE";
   if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
   return s as SeatDisplayStatus;
-}
-
-/** Raw engine status; prefer getHeroDisplayStatus for UI. */
-export function getHeroStatus(snapshot: TableSnapshotPayload): HeroStatus {
-  const heroSeat = getResolvedHeroSeat(snapshot);
-  if (!heroSeat) return "SITTING_OUT";
-  const s = heroSeat.status;
-  if (s === "WAITING") return "ACTIVE";
-  if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
-  return s as HeroStatus;
 }
 
 export function getIsMyTurn(snapshot: TableSnapshotPayload): boolean {

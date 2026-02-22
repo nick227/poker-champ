@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.2.0",
   "packageManager": "pnpm@9.15.4",
+  "type": "module",
+  "engines": { "node": ">=18 <23" },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -10,7 +12,11 @@
   "scripts": {
     "dev:web": "pnpm -C apps/client dev:web",
     "dev": "pnpm -C apps/client dev",
+    "build": "pnpm --filter @poker-champ/realtime-contract build && node scripts/retry-prisma-generate.mjs && tsc -p tsconfig.json",
+    "preflight:client": "pnpm --filter @poker-champ/realtime-contract build && pnpm sdk:check && pnpm -C apps/client typecheck && pnpm -C apps/client lint && pnpm test:client && pnpm test:client:money-safety",
+    "preflight:client:ci": "pnpm preflight:client",
     "build:web": "pnpm -C apps/client build:web",
+    "build:client:all": "node scripts/build-all.mjs",
     "build:android": "pnpm -C apps/client build:android",
     "build:ios": "pnpm -C apps/client build:ios",
     "build:desktop": "pnpm -C apps/client build:desktop",
@@ -29,6 +35,8 @@
     "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast && pnpm test:server:money-safety",
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",
+    "start": "node dist/index.js",
+    "db:migrate": "prisma migrate deploy",
     "server:typecheck": "tsc -p tsconfig.json --noEmit",
     "realtime:check": "pnpm -C packages/realtime-contract typecheck && pnpm server:typecheck && pnpm -C apps/client typecheck",
     "harness:headless": "tsx scripts/headless-two-client.ts",

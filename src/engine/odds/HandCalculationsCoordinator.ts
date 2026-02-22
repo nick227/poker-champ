@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { HeroActionOptions, TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { snapshotMetrics } from "../dealer/metrics/snapshotMetrics.js";
 import { logger } from "../../lib/logger.js";
 import { OddsCoordinator } from "./OddsCoordinator.js";
 import { calcHeadsUpTieOrBetterOuts } from "./OutsService.js";
@@ -49,6 +50,7 @@ export class HandCalculationsCoordinator {
     const inputHash = this.buildInputHash(params);
     if (this.currentInputHash === inputHash) return;
 
+    snapshotMetrics.recordEquityRefresh();
     const nowTs = Date.now();
 
     try {

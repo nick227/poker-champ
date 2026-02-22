@@ -3,6 +3,17 @@ import { useRealtimeChannel } from "./useRealtimeChannel";
 import { storeRegistry } from "@/registry/store.registry";
 import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.message";
 
+export type TableRealtimeRoom = {
+  send: (type: string, payload?: unknown) => void;
+  onMessage: (type: string, cb: (payload: unknown) => void) => void;
+};
+
+function isTableRealtimeRoom(value: unknown): value is TableRealtimeRoom {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { send?: unknown; onMessage?: unknown };
+  return typeof candidate.send === "function" && typeof candidate.onMessage === "function";
+}
+
 type UseTableRealtimeOptions = {
   tableId: string;
   roomId?: string;
@@ -11,7 +22,7 @@ type UseTableRealtimeOptions = {
   enabled?: boolean;
   onError?: (message: string) => void;
   onTableGone?: (tableId: string) => void;
-  onReadyRoom?: (room: unknown | null) => void;
+  onReadyRoom?: (room: TableRealtimeRoom | null) => void;
 };
 
 export function useTableRealtime({
@@ -78,7 +89,8 @@ export function useTableRealtime({
       onErrorRef.current?.(normalized);
     },
     onOpen: (_send, getNativeRoom) => {
-      onReadyRoomRef.current?.(getNativeRoom?.() ?? null);
+      const nativeRoom = getNativeRoom?.() ?? null;
+      onReadyRoomRef.current?.(isTableRealtimeRoom(nativeRoom) ? nativeRoom : null);
     },
     onClose: () => {
       onReadyRoomRef.current?.(null);

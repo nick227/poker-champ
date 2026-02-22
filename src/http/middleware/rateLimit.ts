@@ -13,8 +13,16 @@ type RateLimitOptions = {
 export function createIpRateLimit(options: RateLimitOptions) {
   const buckets = new Map<string, Bucket>();
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  function sweepStale(now: number) {
+    for (const [key, bucket] of buckets.entries()) {
+      if (now > bucket.resetAt) buckets.delete(key);
+    }
+  }
+
+  const middleware = (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
+    sweepStale(now);
+
     const ip = req.ip || req.socket.remoteAddress || "unknown";
     const bucket = buckets.get(ip);
 
@@ -38,4 +46,7 @@ export function createIpRateLimit(options: RateLimitOptions) {
 
     next();
   };
+
+  (middleware as { getBucketCount?: () => number }).getBucketCount = () => buckets.size;
+  return middleware;
 }

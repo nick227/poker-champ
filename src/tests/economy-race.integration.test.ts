@@ -43,6 +43,7 @@ describe("Cashier Race Conditions", () => {
       tableId: tableA,
       amountCents: amount,
       externalRef: `buyin_${tableA}_${userId}`,
+      tableMeta: { name: "Table A" },
     });
 
     const promiseB = CashierService.processCashGameBuyIn({
@@ -50,6 +51,7 @@ describe("Cashier Race Conditions", () => {
       tableId: tableB,
       amountCents: amount,
       externalRef: `buyin_${tableB}_${userId}`,
+      tableMeta: { name: "Table B" },
     });
 
     const results = await Promise.allSettled([promiseA, promiseB]);

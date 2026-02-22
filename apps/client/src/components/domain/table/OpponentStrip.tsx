@@ -4,38 +4,21 @@ import { DealerButton } from "./DealerButton";
 import { PlayingCard } from "./PlayingCard";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
-import type { OpponentDisplayStatus } from "./table.adapter";
+import type { Opponent, OpponentDisplayStatus } from "./table.adapter";
 import { assertNever } from "./table.adapter";
+
+export type { Opponent } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
 import { OPPONENT_STRIP_HEIGHT } from "./constants/tableLayout.constants";
 import { opponentStripStyles as s, PRESSABLE_HIT_SLOP, PRESSABLE_ANDROID_RIPPLE } from "./opponentStrip.styles";
 
 export { OPPONENT_STRIP_HEIGHT };
 
-type OpponentCardFace = { rank: string; suit: string };
-
 export type OpponentStripProps = {
   opponents: Opponent[];
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
   height?: number;
-};
-
-export type Opponent = {
-  id: string;
-  name: string;
-  stackCents: number;
-  isDealer?: boolean;
-  isActive?: boolean;
-  isBot?: boolean;
-  status?: OpponentDisplayStatus;
-  actionLabel?: string;
-  cards?: {
-    left?: OpponentCardFace | null;
-    right?: OpponentCardFace | null;
-    faceDown: boolean;
-    visible: boolean;
-  };
 };
 
 function getStatusLabel(status: Opponent["status"]): string | null {

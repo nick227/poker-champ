@@ -1,6 +1,7 @@
 name: Client Build Smoke
 
 on:
+  pull_request:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
@@ -8,6 +9,10 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      EXPO_PUBLIC_API_URL: "https://api.example.com"
+      EXPO_PUBLIC_WS_URL: "wss://api.example.com/ws"
+      EXPO_PUBLIC_COLYSEUS_URL: "https://colyseus.example.com"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,20 +23,36 @@ jobs:
           version: 9
       - run: pnpm install --frozen-lockfile
 
-      - name: Web Build Smoke
-        id: web_build
-        continue-on-error: true
+      - name: Install Tauri deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+
+      - name: Preflight
+        run: pnpm preflight:client:ci
+
+      - name: Assert env
+        run: node -e "const r=['EXPO_PUBLIC_API_URL','EXPO_PUBLIC_WS_URL','EXPO_PUBLIC_COLYSEUS_URL']; const m=r.filter(k=>!process.env[k]); if(m.length){ console.error('Missing:', m.join(', ')); process.exit(1); }"
+
+      - name: Web Build
         run: pnpm build:web
 
-      - name: Desktop Build Smoke
-        id: desktop_build
-        continue-on-error: true
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-web-${{ github.sha }}
+          path: apps/client/dist
+
+      - name: Desktop Build
+        if: github.event_name != 'pull_request'
         run: pnpm build:desktop
 
-      - name: Build Smoke Summary
-        if: always()
-        run: |
-          echo "Web build outcome: ${{ steps.web_build.outcome }}"
-          echo "Desktop build outcome: ${{ steps.desktop_build.outcome }}"
-          echo "This lane is intentionally non-blocking."
-
+      - name: Upload desktop artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-desktop-${{ github.sha }}
+          path: apps/client/tauri/target/release
+          if-no-files-found: ignore

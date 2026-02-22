@@ -60,9 +60,7 @@ The HTTP layer only **reads** hand data; it does not write it.
   Cursor-based pagination. Loads completed hands for the authenticated user, ordered by `createdAt` desc, with table name, players, payouts, actions. Transforms each hand into a list item: hero is picked in code by `userId`; computes netResultCents, heroWonCents (pot total), heroActionSummary from last hero action. Returns `{ hands: HandHistoryListItem[], nextCursor }`.
 
 - **GET /api/history/hands/:id**  
-  Loads the hand only if the user participated. Returns hand metadata, boardCards, players (with hole-card privacy: hero always gets hole cards; opponents only at showdown unless **ENABLE_LEARNING_REVEAL** — see below), actions, payouts. Replay frames for the hand (if any) are loaded via **ReplayFrameService.getFramesForHand(handId)** and included as `snapshots` in the response.
-
-**ENABLE_LEARNING_REVEAL** (env: `ENABLE_LEARNING_REVEAL=true`): When set, opponent hole cards are included in hand detail even when the hand did not reach showdown. Default is off (opponents’ cards only at showdown). If you’re debugging hand history and opponent cards aren’t showing, check this flag.
+  Loads the hand only if the user participated. Returns hand metadata, boardCards, players (including hole cards for all players — human and bot — from `HandPlayer.holeCardsJson`), actions, payouts. Replay frames for the hand (if any) are loaded via **ReplayFrameService.getFramesForHand(handId)** and included as `snapshots` in the response. When `holeCardsJson` is missing for a player (e.g. legacy data), the API falls back to `lastHandResult.showdownHoleCardsByUserId` from snapshots if the hand reached showdown.
 
 ### 3.2 Replay frames (hand detail)
 
@@ -76,7 +74,7 @@ The HTTP layer only **reads** hand data; it does not write it.
 
 - **HandList / HandListItem**: Consume `HandHistoryListItem` from the history service; display playedAt, tableName, net result, pot (heroWonCents), and hero action summary.
 
-- **HandDetailModal**: Shows board, players (with hole cards per privacy rules), actions, payouts, and can drive replay from the `snapshots` array when present.
+- **HandDetailModal**: Shows board, players (with all hole cards for each player), actions, payouts, and can drive replay from the `snapshots` array when present.
 
 ---
 
@@ -99,13 +97,14 @@ The HTTP layer only **reads** hand data; it does not write it.
 
 1. Ensure `DATABASE_URL` is set and the server is **not** running with `NODE_ENV=test`.
 2. Ensure `ensureTableAndPlayers` is always called with the **full table roster** (e.g. after addPlayer and when addBot runs).
-3. Run `npx tsx scripts/confirm-history-user.ts <email>` to inspect overview counts and PokerPlayer rows for that user (see below).
+3. Run `npx tsx scripts/confirm-history-user.ts <email>` to inspect overview counts and PokerPlayer rows for that user.
+4. Run `npx tsx scripts/inspect-hand-hole-cards.ts [limit]` to verify hole cards in HandPlayer rows (humans vs bots).
 
 ---
 
-## 6. confirm-history-user.ts
+## 6. Scripts
 
-**Usage:** `npx tsx scripts/confirm-history-user.ts [email]` (default email: `test@example.com`).
+**confirm-history-user.ts** — `npx tsx scripts/confirm-history-user.ts [email]` (default email: `test@example.com`).
 
 **Output:**
 
@@ -113,3 +112,5 @@ The HTTP layer only **reads** hand data; it does not write it.
 - **Overview (computed like API):** totalHands, totalProfitCents, winningHands, winRate %, avgPotCents, biggestPotCents — same logic as GET /api/history/overview.
 - **Raw hand count:** number of completed hands where the user participated (hands.length).
 - **PokerPlayer rows:** count of PokerPlayer rows with that userId (can be &gt; 1 if the user has played at multiple tables).
+
+**inspect-hand-hole-cards.ts** — `npx tsx scripts/inspect-hand-hole-cards.ts [limit]` — Inspects hole card presence in HandPlayer rows for the last N completed hands; compares humans vs bots and simulates the API response mapping.
