@@ -66,6 +66,50 @@ describe("table snapshot contract emission", () => {
     expect(payload.stateHash.length).toBeGreaterThan(0);
   });
 
+  it("keeps hero showdown hole cards visible while waiting for next hand", () => {
+    const state = new PokerState();
+    state.tableId = "table_snapshot_showdown_waiting";
+    state.tableName = "Snapshot Showdown Waiting";
+    state.maxSeats = 2;
+    state.street = "WAITING";
+
+    const hero = makePlayer({
+      id: "u1",
+      name: "Hero",
+      seat: 0,
+      status: "ACTIVE",
+      stackCents: 5100,
+    });
+    state.playersById.set(hero.id, hero);
+    state.seats[0] = hero.id;
+    state.seats[1] = "";
+
+    const dealer = new Dealer(state);
+    (dealer as any).lastHandResult = {
+      handId: "hand_showdown_prev",
+      reason: "SHOWDOWN",
+      potCents: 300,
+      winnerId: "u1",
+      payoutsByUserId: { u1: 300 },
+      board: ["Ah", "Kd", "9c", "3s", "2d"],
+      showdownHoleCardsByUserId: {
+        u1: ["As", "Ad"],
+        u2: ["Kh", "Kd"],
+      },
+      winnerHoleCards: ["As", "Ad"],
+      winningHandDescr: "Pair of Aces",
+    };
+
+    const client = makeClient();
+    dealer.bindClient(hero.id, client as any);
+
+    dealer.emitSnapshotToUser(hero.id, "AUTO_TRANSITION");
+
+    const payload = client.send.mock.calls[0][1] as any;
+    expect(payload.hero.holeCards).toEqual(["As", "Ad"]);
+    expect(payload.lastHandResult?.reason).toBe("SHOWDOWN");
+  });
+
   it("emits seated hero snapshot with action options derived from server state", () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_2";

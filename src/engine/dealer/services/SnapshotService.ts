@@ -410,6 +410,12 @@ export class SnapshotService {
   ): Omit<TableSnapshotPayload, "stateHash"> {
     const state = this.deps.state;
     const hero = state.playersById.get(userId);
+    const liveHoleCards = hero ? this.deps.getHoleCardsByPlayerId().get(userId) : undefined;
+    const revealedShowdownHoleCards =
+      hero && state.street === "WAITING"
+        ? this.deps.getLastHandResult()?.showdownHoleCardsByUserId?.[userId]
+        : undefined;
+    const heroHoleCards = liveHoleCards ?? (revealedShowdownHoleCards ? [...revealedShowdownHoleCards] : undefined);
     const actionOptions = userId === toActUserId ? this.deps.getHeroActionOptions(userId) : undefined;
     const calc = this.handCalculations.getForUser(userId);
     const callAmount = actionOptions?.callAmount ?? 0;
@@ -422,7 +428,7 @@ export class SnapshotService {
       userId,
       youAreSeated: Boolean(hero),
       seat: hero?.seat,
-      holeCards: hero ? this.deps.getHoleCardsByPlayerId().get(userId) : undefined,
+      holeCards: hero ? heroHoleCards : undefined,
       actionOptions,
       calculations: hasCalc
         ? {

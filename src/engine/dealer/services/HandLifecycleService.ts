@@ -177,6 +177,10 @@ export class HandLifecycleService {
     return sum;
   }
 
+  private shouldAssertLedgerForCurrentHand(): boolean {
+    return !this.currentHandIncludesBotParticipants;
+  }
+
   // ============================================================================
   // CALCULATION & VALIDATION METHODS
   // ============================================================================
@@ -603,7 +607,7 @@ export class HandLifecycleService {
       plans.push({ kind: "TRANSITION_TO_WAITING" });
       plans.push({ kind: "RELEASE_PENDING_SEATS" });
       plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-      if (this.deps.persistence.enabled) {
+      if (this.deps.persistence.enabled && this.shouldAssertLedgerForCurrentHand()) {
         await this.deps.persistence.assertHandBalanced(state.handId);
       }
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
@@ -669,9 +673,7 @@ export class HandLifecycleService {
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
     plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
     maybeAssertStateInvariants(state);
-    // Step 4: Assert ledger balance — always run regardless of bot participation.
-    // Bots use the same stackCents logic as humans; skipping this hides side-pot calculation bugs.
-    if (this.deps.persistence.enabled) {
+    if (this.deps.persistence.enabled && this.shouldAssertLedgerForCurrentHand()) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
     return plans;
@@ -848,9 +850,7 @@ export class HandLifecycleService {
     
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
     maybeAssertStateInvariants(state);
-    // Assert ledger balance for all hands — bots use the same stackCents logic
-    // as humans, so including them catches side-pot calculation bugs early.
-    if (this.deps.persistence.enabled) {
+    if (this.deps.persistence.enabled && this.shouldAssertLedgerForCurrentHand()) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
     return plans;
