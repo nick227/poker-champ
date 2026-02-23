@@ -12,8 +12,13 @@ type LobbyState = any;
 
 type LobbyAuth = { userId: string; displayName: string } | Record<string, never>;
 
+const LOBBY_VOICE_CHANNEL_ID = "lobby";
+const LOBBY_VOICE_CAP = 8;
+
 export class LobbyRoom extends Room<LobbyState> {
   private readonly userIdBySessionId = new Map<string, string>();
+  private readonly sessionIdByUserId = new Map<string, string>();
+  private readonly lobbyVoiceParticipants = new Set<string>();
   private unsubscribePresence?: () => void;
   private onlineCountBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -39,6 +44,7 @@ export class LobbyRoom extends Room<LobbyState> {
     if (!userId) return;
     const displayName = auth && "displayName" in auth ? auth.displayName : undefined;
     this.userIdBySessionId.set(client.sessionId, userId);
+    this.sessionIdByUserId.set(userId, client.sessionId);
     presenceIndex.add(userId, { kind: "LOBBY" }, displayName);
     this.sendLobbyMessage(client, "ONLINE_COUNT", {
       totalOnline: presenceIndex.getTotalOnline(),
@@ -48,8 +54,12 @@ export class LobbyRoom extends Room<LobbyState> {
   onLeave(client: { sessionId: string }): void {
     const userId = this.userIdBySessionId.get(client.sessionId);
     this.userIdBySessionId.delete(client.sessionId);
-    if (!userId) return;
-    presenceIndex.remove(userId, { kind: "LOBBY" });
+    if (userId) {
+      this.sessionIdByUserId.delete(userId);
+      this.lobbyVoiceParticipants.delete(userId);
+      this.broadcastLobbyVoiceParticipants();
+      presenceIndex.remove(userId, { kind: "LOBBY" });
+    }
   }
 
   async pushTableListUpdate() {
@@ -153,6 +163,53 @@ export class LobbyRoom extends Room<LobbyState> {
         generatedAt: Date.now(),
         players: presenceIndex.getPlayersSnapshot(),
       });
+    });
+
+    this.onMessage("JOIN_LOBBY_VOICE", (client) => {
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) return;
+      if (this.lobbyVoiceParticipants.size >= LOBBY_VOICE_CAP && !this.lobbyVoiceParticipants.has(userId)) {
+        this.sendLobbyMessage(client, "ERROR", { code: "LOBBY_VOICE_FULL", message: "Lobby voice is full." });
+        return;
+      }
+      this.lobbyVoiceParticipants.add(userId);
+      this.broadcastLobbyVoiceParticipants();
+    });
+
+    this.onMessage("LEAVE_LOBBY_VOICE", (client) => {
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) return;
+      this.lobbyVoiceParticipants.delete(userId);
+      this.broadcastLobbyVoiceParticipants();
+    });
+
+    this.onMessage("VOICE_SIGNAL", (client, payload: unknown) => {
+      const msg = payload as Record<string, unknown> | null;
+      if (!msg || msg.channelId !== LOBBY_VOICE_CHANNEL_ID) {
+        logger.warn({ payload: msg }, "Rejected VOICE_SIGNAL with invalid lobby channel");
+        return;
+      }
+      const fromUserId = msg.fromUserId;
+      if (typeof fromUserId !== "string" || !fromUserId) return;
+      const expectedSessionId = this.sessionIdByUserId.get(fromUserId);
+      if (!expectedSessionId || expectedSessionId !== client.sessionId) {
+        return;
+      }
+      const toUserId = msg.toUserId;
+      if (typeof toUserId !== "string" || !toUserId) return;
+      if (fromUserId === toUserId) return;
+      if (!this.lobbyVoiceParticipants.has(fromUserId) || !this.lobbyVoiceParticipants.has(toUserId)) return;
+      const targetSessionId = this.sessionIdByUserId.get(toUserId);
+      if (!targetSessionId) return;
+      const targetClient = this.clients.find((c) => c.sessionId === targetSessionId);
+      if (targetClient) targetClient.send("VOICE_SIGNAL", payload);
+    });
+  }
+
+  private broadcastLobbyVoiceParticipants(): void {
+    this.broadcastLobbyMessage("LOBBY_VOICE_PARTICIPANTS", {
+      userIds: Array.from(this.lobbyVoiceParticipants),
+      serverNowTs: Date.now(),
     });
   }
 

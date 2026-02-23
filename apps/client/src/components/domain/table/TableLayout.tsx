@@ -17,6 +17,7 @@ import { useTableSceneModel } from "./hooks/useTableSceneModel";
 import type { TableSceneModel } from "./hooks/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "./table.types";
 import { TableSceneShell } from "./TableSceneShell";
+import { TABLE_SHELL_TITLE_CLASSNAME, TABLE_SHELL_TOP_BAR_CLASSNAME } from "./constants/tableLayout.constants";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -70,6 +71,7 @@ export function TableLayout({
     heroCalculations,
     heroPlayerStats,
     heroName,
+    isHeroToAct,
     isHeroWinner,
     isHeroDealer,
     tableName,
@@ -95,8 +97,7 @@ export function TableLayout({
   }, [communityCards]);
 
   return (
-    <>
-      <TableSceneShell
+    <TableSceneShell
         tableName={tableName}
         blinds={blinds}
         playerCount={playerCount}
@@ -129,6 +130,7 @@ export function TableLayout({
             playerStats={heroPlayerStats}
             isWinner={isHeroWinner}
             isDealer={isHeroDealer}
+            isActiveTurn={isHeroToAct}
             userName={heroName}
           />
         }
@@ -145,9 +147,8 @@ export function TableLayout({
             />
           )
         }
-        titleSectionClassName="mb-4"
-        topBarSectionClassName="border-t border-b border-border-subtle mb-4"
+        titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
+        topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
       />
-    </>
   );
 }

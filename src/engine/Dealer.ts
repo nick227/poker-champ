@@ -11,8 +11,7 @@ import {
 import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
 import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { RandomBotBrain } from "./bots/BotBrain.js";
-import type { BotBrain } from "./bots/BotBrain.js";
+import { BotResolver } from "./bots/BotResolver.js";
 import { SnapshotService, type SnapshotReason } from "./dealer/services/SnapshotService.js";
 import { ActionService, type ActionResult, type ActionServiceLastAction, type ActionDebitKind } from "./dealer/services/ActionService.js";
 import { SettlementService } from "./dealer/services/SettlementService.js";
@@ -27,25 +26,33 @@ import {
   countNotFoldedPlayers,
   findNextToActSeat,
 } from "./dealer/utils/TableNavigator.js";
+import { buildActionKey, buildClaimKey } from "./dealer/utils/actionKeys.js";
+import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
+import { HandContext } from "./dealer/HandContext.js";
 import { NEXT_HAND_DELAY_MS } from "./dealer/timing.js";
 import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
 /**
- * v3.0 Dealer (final milestone):
- * - Side pots + showdown payout
- * - Betting-round settlement via needsAction flags
- * - Multiway equity w/ warmup + in-flight de-dup + throttle
- * - Typed errors for clean client UX
+ * Dealer: table state machine and action gateway.
+ *
+ * - Owns PokerState, HandContext (per-hand), and service wiring.
+ * - Public API: client binding, player lifecycle (join/leave/rebuy/bots), connection state, handleAction.
+ * - Hand lifecycle: startHand → advanceStreetOrShowdown / finishHand* → transitionToWaiting → scheduleNextHand.
+ * - All mutation is serialized through the action queue (or enqueueSerializedStateMutation for non-action paths),
+ *   except fire-and-forget disconnect/reconnect paths (see TODO DEALER_REFACTOR_PROPOSAL).
  */
 export class Dealer {
+  // -----------------------------------------------------------------------------
+  // State
+  // -----------------------------------------------------------------------------
+
   private readonly state: PokerState;
   private readonly persistence: PersistenceFacade;
   private readonly clientsByUserId: Map<string, Client> = new Map();
 
-  private holeCardsByPlayerId: Map<string, string[]> = new Map();
   private pendingSeatReleaseUserIds: Set<string> = new Set();
+  /** Displayed after hand ends during WAITING; set by HandLifecycleService callback. */
   private lastHandResult: TableSnapshotPayload["lastHandResult"] | undefined = undefined;
-  private lastAction: TableSnapshotPayload["lastAction"] | undefined = undefined;
-  private readonly botBrain: BotBrain = new RandomBotBrain();
+  private readonly botResolver = new BotResolver();
   private readonly autoActionsByUserId: Map<string, number> = new Map();
   private readonly currentHandAutoActedUserIds: Set<string> = new Set();
   private readonly onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
@@ -57,17 +64,18 @@ export class Dealer {
   private readonly playerLifecycleService: PlayerLifecycleService;
   private readonly actionOptionsService = new ActionOptionsService();
   private readonly sessionStatsTracker = new SessionPlayerStatsTracker();
-  /** One hand. Inited at HAND_START for dealt-in players; cleared after flush. */
-  private preflopFlagsByUserId = new Map<string, { vpip: boolean; pfr: boolean }>();
+
+  /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
+  private currentHand: HandContext | null = null;
 
   private actionQueue: Promise<void> = Promise.resolve();
-  private readonly processedActionKeys: Set<string> = new Set();
-  private readonly actionIdFirstClaimByKey: Map<string, string> = new Map();
-  private readonly warnedCrossUserCollisionKeys: Set<string> = new Set();
-  private lastProcessedHandId: string | null = null;
   private pendingActionCount = 0;
   private readonly maxQueueDepth: number;
   private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  // -----------------------------------------------------------------------------
+  // Constructor (service wiring; hand-scoped getters see currentHand)
+  // -----------------------------------------------------------------------------
 
   constructor(
     state: PokerState,
@@ -97,24 +105,30 @@ export class Dealer {
       });
     this.onAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
     this.maxQueueDepth = options?.maxQueueDepth ?? 50;
+    // Hand-scoped getters: return currentHand's maps when a hand is active, else empty. Write paths (e.g. deal
+    // in HandLifecycleService) only run when currentHand was just set (startHand) or during an active hand.
     this.settlementService = new SettlementService({
       state: this.state,
       persistence: this.persistence,
+      getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
+      getHandStartingStacksByPlayerId: () => this.currentHand?.handStartingStacksByPlayerId ?? new Map(),
     });
     this.handLifecycleService = new HandLifecycleService({
       state: this.state,
       persistence: this.persistence,
       settlementService: this.settlementService,
-      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
+      getHandStartingStacksByPlayerId: () => this.currentHand?.handStartingStacksByPlayerId ?? new Map(),
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
-      processedActionIds: this.processedActionKeys,
+      getProcessedActionIds: () => this.currentHand?.processedActionKeys ?? new Set(),
       applyDisconnectedAutoActionCapForHand: () => this.applyDisconnectedAutoActionCapForHand(),
       setLastHandResult: (value) => { this.lastHandResult = value; },
-      setLastAction: (value) => { this.lastAction = value; },
+      setLastAction: (value) => { if (this.currentHand) this.currentHand.lastAction = value; },
     });
     this.turnAutomationService = new TurnAutomationService({
       state: this.state,
-      botBrain: this.botBrain,
+      botResolver: this.botResolver,
+      getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
       autoActionsByUserId: this.autoActionsByUserId,
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
@@ -127,17 +141,17 @@ export class Dealer {
       pendingSeatReleaseUserIds: this.pendingSeatReleaseUserIds,
       autoActionsByUserId: this.autoActionsByUserId,
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
-      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
       ensurePlayerPersistence: (player) => this.ensurePlayerPersistence(player),
       forceFoldIfInHand: (userId) => this.forceFoldForLeave(userId),
     });
     this.snapshotService = new SnapshotService({
       state: this.state,
       clientsByUserId: this.clientsByUserId,
-      holeCardsByPlayerId: this.holeCardsByPlayerId,
+      getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       getLastHandResult: () => this.lastHandResult,
-      getLastAction: () => this.lastAction,
+      getLastAction: () => this.currentHand?.lastAction,
       getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
       emitHook: options?.onTableSnapshotEmitted,
     });
@@ -146,6 +160,10 @@ export class Dealer {
       for (let i = 0; i < (this.state.maxSeats || 9); i++) this.state.seats.push("");
     }
   }
+
+  // -----------------------------------------------------------------------------
+  // Public API — Client binding and snapshots
+  // -----------------------------------------------------------------------------
 
   bindClient(userId: string, client: Client) { this.clientsByUserId.set(userId, client); }
   unbindClient(userId: string) { this.clientsByUserId.delete(userId); }
@@ -162,6 +180,10 @@ export class Dealer {
   emitSnapshotsToAll(reason: SnapshotReason, actionId?: string) {
     this.snapshotService.emitToAll(reason, actionId);
   }
+
+  // -----------------------------------------------------------------------------
+  // Public API — Player lifecycle (join, leave, rebuy, bots)
+  // -----------------------------------------------------------------------------
 
   async addPlayer(userId: string, name: string, buyInCents: number) {
     const plans = await this.playerLifecycleService.addPlayer(userId, name, buyInCents);
@@ -180,9 +202,9 @@ export class Dealer {
   }
 
   /** Serialized with applyRebuy so add-bot-after-rebuy sees updated state/ledger. */
-  async addBot(botId: string, name: string, buyInCents: number) {
+  async addBot(botId: string, name: string, buyInCents: number, catalogBotId?: string) {
     await this.enqueueSerializedStateMutation(async () => {
-      const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents);
+      const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents, catalogBotId);
       await this.executePlayerLifecyclePlans(plans);
     });
   }
@@ -209,6 +231,10 @@ export class Dealer {
     await this.forceFoldForLeave(userId);
     await this.removePlayer(userId, { cashOutAfterRemoval: true });
   }
+
+  // -----------------------------------------------------------------------------
+  // Public API — Connection state (disconnect, reconnect, abandon, kick)
+  // -----------------------------------------------------------------------------
 
   markDisconnected(userId: string, disconnectDeadlineTs: number) {
     const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
@@ -255,6 +281,11 @@ export class Dealer {
     }
     await this.markAbandoned(userId);
   }
+
+  // -----------------------------------------------------------------------------
+  // Public API — Player actions (queued, deduped by HandContext)
+  // -----------------------------------------------------------------------------
+
   async handleAction(userId: string, msg: ActionPayload, actionId?: string) {
     if (this.pendingActionCount >= this.maxQueueDepth) {
       throw new PokerError("QUEUE_FULL", "Action queue full. Retry shortly.", {
@@ -264,41 +295,31 @@ export class Dealer {
       });
     }
     this.pendingActionCount++;
+    const currentHandIdAtEnqueue = this.state.handId ?? null;
     return (this.actionQueue = this.actionQueue.then(async () => {
       try {
-        const currentHandId = this.state.handId ?? null;
-        if (this.lastProcessedHandId !== currentHandId) {
-          this.processedActionKeys.clear();
-          this.actionIdFirstClaimByKey.clear();
-          this.warnedCrossUserCollisionKeys.clear();
-          this.lastProcessedHandId = currentHandId;
-        }
+        // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
+        // If the hand changed in between, sameHand is false and we skip dedup (correct — no record in wrong hand).
+        const handContext = this.currentHand;
+        const sameHand = handContext && currentHandIdAtEnqueue && this.state.handId === currentHandIdAtEnqueue;
         const actionKey =
-          actionId && currentHandId
-            ? `${currentHandId}:${userId}:${actionId}`
-            : null;
+          actionId && currentHandIdAtEnqueue ? buildActionKey(currentHandIdAtEnqueue, userId, actionId) : null;
         const claimKey =
-          actionId && currentHandId
-            ? `${currentHandId}:${actionId}`
-            : null;
-        if (claimKey) {
-          const firstUserId = this.actionIdFirstClaimByKey.get(claimKey);
-          if (!firstUserId) {
-            this.actionIdFirstClaimByKey.set(claimKey, userId);
-          } else if (firstUserId !== userId && !this.warnedCrossUserCollisionKeys.has(claimKey)) {
-            this.warnedCrossUserCollisionKeys.add(claimKey);
+          actionId && currentHandIdAtEnqueue ? buildClaimKey(currentHandIdAtEnqueue, actionId) : null;
+        if (sameHand && claimKey) {
+          if (handContext!.recordClaimAndWarnIfCollision(claimKey, userId)) {
             logger.warn(
-              { handId: currentHandId, actionId, firstUserId, userId },
+              { handId: currentHandIdAtEnqueue, actionId, firstUserId: handContext!.actionIdFirstClaimByKey.get(claimKey), userId },
               "ACTION_ID_CROSS_USER_COLLISION",
             );
           }
         }
-        if (actionKey && this.processedActionKeys.has(actionKey)) return;
+        if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) return;
         const handIdBefore = this.state.handId;
         try {
           await this._handleAction(userId, msg, "PLAYER");
-          if (actionKey && handIdBefore && this.state.handId === handIdBefore) {
-            this.processedActionKeys.add(actionKey);
+          if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
+            handContext.recordProcessed(actionKey);
           }
         } catch (err) {
           logger.error({ err, userId, action: msg.action }, "Action failed");
@@ -309,6 +330,10 @@ export class Dealer {
       }
     }));
   }
+
+  // -----------------------------------------------------------------------------
+  // Action handling (private: execute, lastAction, preflop stats, result application)
+  // -----------------------------------------------------------------------------
 
   private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
     const roundBetBefore = this.state.street === "PREFLOP" ? this.state.roundCurrentBetCents : 0;
@@ -336,74 +361,66 @@ export class Dealer {
   }
 
   private setLastActionFromExecution(lastAction: ActionServiceLastAction | undefined): void {
-    if (!lastAction) return;
+    if (!lastAction || !this.currentHand) return;
     const nextSeq = this.state.handActionSeq + 1;
     this.state.handActionSeq = nextSeq;
-    this.lastAction = {
+    this.currentHand.lastAction = {
       ...lastAction,
       seq: nextSeq,
     };
   }
 
-  /** Call at HAND_START so walked hands and first-action edge cases have flags. */
+  /** Call at HAND_START after hand is started so dealt-in players have flags. */
   private initPreflopFlagsForHand(): void {
-    this.preflopFlagsByUserId = new Map();
-    for (const userId of this.holeCardsByPlayerId.keys()) {
-      this.preflopFlagsByUserId.set(userId, { vpip: false, pfr: false });
-    }
+    if (!this.currentHand) return;
+    this.currentHand.initPreflopFlags(this.currentHand.holeCardsByPlayerId.keys());
   }
 
-  /** Apply-time only: isRaise = nextBetTo > currentBetTo; no snapshot-time inference. */
+  /** Apply-time only: roundBetBefore must be captured before execution. */
   private updatePreflopFlagsAfterAction(
     userId: string,
     lastAction: ActionServiceLastAction,
     roundBetBefore: number,
   ): void {
-    const flags = this.preflopFlagsByUserId.get(userId);
-    if (!flags) return;
-    const { action, amountCents, raiseToCents } = lastAction;
-    const voluntary =
-      (action === "CALL" || action === "BET" || action === "RAISE" || action === "ALL_IN") &&
-      amountCents > 0;
-    if (voluntary) flags.vpip = true;
-    const player = this.state.playersById.get(userId);
-    const newRoundBet = player?.roundBetCents ?? 0;
-    const isRaise =
-      action === "RAISE" ||
-      (action === "ALL_IN" && newRoundBet > roundBetBefore) ||
-      (raiseToCents !== undefined && raiseToCents > roundBetBefore);
-    if (isRaise) flags.pfr = true;
+    if (!this.currentHand) return;
+    this.currentHand.recordActionForPreflopStats(
+      userId,
+      lastAction,
+      roundBetBefore,
+      (id) => this.state.playersById.get(id)?.roundBetCents ?? 0,
+    );
   }
 
   /** Call before emitting HAND_END snapshot so payload includes updated stats. */
   private flushSessionStatsOnly(): void {
-    for (const userId of this.holeCardsByPlayerId.keys()) {
-      const flags = this.preflopFlagsByUserId.get(userId) ?? { vpip: false, pfr: false };
-      this.sessionStatsTracker.recordHandForUser(userId, {
-        dealtIn: true,
-        vpip: flags.vpip,
-        pfr: flags.pfr,
-      });
-    }
-    this.preflopFlagsByUserId.clear();
+    this.currentHand?.flushPreflopFlagsToSessionStats(this.sessionStatsTracker);
   }
 
-  private flushSessionStatsThenTransitionToWaiting(): void {
+  /** Stats flush is done by flushSessionStatsOnly() before HAND_END snapshot; this only transitions and clears context. */
+  private transitionToWaiting(): void {
     this.state.street = "WAITING";
     this.state.runoutMode = "NONE";
-    this.processedActionKeys.clear();
-    this.actionIdFirstClaimByKey.clear();
-    this.warnedCrossUserCollisionKeys.clear();
+    this.currentHand = null;
   }
 
-  // -------------------------
-  // Hand lifecycle
-  // -------------------------
+  // -----------------------------------------------------------------------------
+  // Hand lifecycle (start, advance street, finish by last standing or showdown)
+  // -----------------------------------------------------------------------------
 
   private async startHand() {
-    const plans = await this.handLifecycleService.startHand();
-    this.initPreflopFlagsForHand();
-    await this.executeHandLifecyclePlans(plans);
+    this.currentHand = new HandContext();
+    try {
+      const plans = await this.handLifecycleService.startHand();
+      if (this.state.street === "WAITING") {
+        this.currentHand = null;
+        return;
+      }
+      this.initPreflopFlagsForHand();
+      await this.executeHandLifecyclePlans(plans);
+    } catch (err) {
+      this.currentHand = null;
+      throw err;
+    }
   }
 
   private async advanceStreetOrShowdown() {
@@ -422,6 +439,10 @@ export class Dealer {
     await this.executeHandLifecyclePlans(plans);
   }
 
+  // -----------------------------------------------------------------------------
+  // Plan execution (hand and player lifecycle plans)
+  // -----------------------------------------------------------------------------
+
   private async executeHandLifecyclePlans(plans: HandLifecyclePlan[]): Promise<void> {
     for (const plan of plans) {
       switch (plan.kind) {
@@ -437,7 +458,7 @@ export class Dealer {
           this.maybeActForBot();
           break;
         case "TRANSITION_TO_WAITING":
-          this.flushSessionStatsThenTransitionToWaiting();
+          this.transitionToWaiting();
           break;
         case "RELEASE_PENDING_SEATS":
           await this.releasePendingSeats();
@@ -483,6 +504,10 @@ export class Dealer {
     });
   }
 
+  // -----------------------------------------------------------------------------
+  // Hand lifecycle helpers (schedule next hand, release seats, force fold, apply result)
+  // -----------------------------------------------------------------------------
+
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
     if (this.state.street === "WAITING") {
       if (countNonOutPlayers(this.state) >= 2) await this.startHand();
@@ -514,10 +539,7 @@ export class Dealer {
     }
   }
 
-// -------------------------
-// Hand lifecycle helpers
-// -------------------------
-private nextHandScheduled = false;
+  private nextHandScheduled = false;
 
   private scheduleNextHand(reason: string, delayMs = 0) {
     if (this.nextHandScheduled) return;
@@ -594,10 +616,14 @@ private nextHandScheduled = false;
     }
   }
 
+  // -----------------------------------------------------------------------------
+  // Persistence (hand history roster, ensure player/table)
+  // -----------------------------------------------------------------------------
+
   private async ensurePlayerPersistence(p: PlayerState) {
     if (!this.persistence.enabled || !this.persistence.handHistory || !this.persistence.ledger) return;
     try {
-      const roster = this.buildHandHistoryRoster();
+      const roster = buildHandHistoryRoster(this.state.playersById);
       await this.persistence.handHistory.ensureTableAndPlayers(roster);
       await this.persistence.ledger.ensureBalances([p.id], { [p.id]: 0 });
     } catch (err) {
@@ -605,21 +631,9 @@ private nextHandScheduled = false;
     }
   }
 
-  /** Full table roster for HandHistoryService (must include all seated players so resolvePlayerId works). */
-  private buildHandHistoryRoster(): { id: string; name: string; seat: number; userId: string | null }[] {
-    return [...this.state.playersById.values()]
-      .filter((pl) => pl.seat >= 0)
-      .map((pl) => ({
-        id: pl.id,
-        name: pl.name,
-        seat: pl.seat,
-        userId: pl.kind === "HUMAN" ? pl.userId || pl.id : null,
-      }));
-  }
-
-  // -------------------------
-  // Helpers
-  // -------------------------
+  // -----------------------------------------------------------------------------
+  // Queue and automation (bot turn, enqueue internal action, serialized mutation)
+  // -----------------------------------------------------------------------------
 
   /**
    * Automation hook for non-human turn blocking:
@@ -675,6 +689,10 @@ private nextHandScheduled = false;
     return queued;
   }
 
+  // -----------------------------------------------------------------------------
+  // Disconnect sweep (periodic abandon of players past deadline)
+  // -----------------------------------------------------------------------------
+
   private static readonly DISCONNECT_SWEEP_MS = 10_000;
 
   private startDisconnectSweep(): void {
@@ -696,6 +714,8 @@ private nextHandScheduled = false;
     const toAbandon: string[] = [];
     for (const [userId, player] of this.state.playersById.entries()) {
       if (player.disconnectDeadlineTs <= 0 || now <= player.disconnectDeadlineTs) continue;
+      // TODO (DEALER_REFACTOR_PROPOSAL): Clear disconnectDeadlineTs to 0 in the reconnect path so a connected
+      // player never has a past deadline; then this branch is unreachable and can be removed.
       if (this.clientsByUserId.has(userId)) {
         const plans = this.playerLifecycleService.markReconnected(userId);
         await this.executePlayerLifecyclePlans(plans);
@@ -712,12 +732,12 @@ private nextHandScheduled = false;
     }
   }
 
+  // -----------------------------------------------------------------------------
+  // Snapshot delegation (internal use; single-user emits go via public emitSnapshotToUser)
+  // -----------------------------------------------------------------------------
+
   private sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string) {
     this.snapshotService.emitToAll(reason, actionId);
-  }
-
-  private sendTableSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string) {
-    this.snapshotService.emitToUser(userId, reason, actionId);
   }
 
 }

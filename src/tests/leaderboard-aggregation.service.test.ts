@@ -49,6 +49,7 @@ describe("LeaderboardAggregationService", () => {
 
     const prismaMock = {
       balanceTransaction: { groupBy },
+      handPlayer: { findMany: vi.fn().mockResolvedValue([]) },
       user: { findMany: findManyUsers },
       $transaction: async (fn: (tx: typeof tx) => Promise<void>) => fn(tx),
     };

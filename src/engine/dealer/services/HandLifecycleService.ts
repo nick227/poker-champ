@@ -56,9 +56,11 @@ export class HandLifecycleService {
     state: PokerState;
     persistence: PersistenceFacade;
     settlementService: SettlementService;
-    holeCardsByPlayerId: Map<string, string[]>;
+    getHoleCardsByPlayerId: () => Map<string, string[]>;
+    getHandStartingStacksByPlayerId: () => Map<string, number>;
     currentHandAutoActedUserIds: Set<string>;
-    processedActionIds: Set<string>;
+    /** Hand-setup only: clear at hand start. Action dedup (check/record) lives in Dealer/HandContext. */
+    getProcessedActionIds: () => Set<string>;
     applyDisconnectedAutoActionCapForHand: () => Promise<void>;
     setLastHandResult: (value: TableSnapshotPayload["lastHandResult"] | undefined) => void;
     setLastAction: (value: TableSnapshotPayload["lastAction"] | undefined) => void;
@@ -104,6 +106,7 @@ export class HandLifecycleService {
     const { state } = this.deps;
     this.deck = null;
     this.currentHandIncludesBotParticipants = false;
+    this.deps.getHandStartingStacksByPlayerId().clear();
     if (countActiveHumanPlayers(state) === 0) return plans;
     state.runningSinceTs = Date.now();
 
@@ -111,7 +114,7 @@ export class HandLifecycleService {
     state.handNumber += 1;
     this.deps.currentHandAutoActedUserIds.clear();
     this.deps.settlementService.resetHandCounters();
-    this.deps.processedActionIds.clear();
+    this.deps.getProcessedActionIds().clear();
     state.street = "PREFLOP";
     state.runoutMode = "NONE";
     state.board.clear();
@@ -174,12 +177,14 @@ export class HandLifecycleService {
     const startingStacksByUserId = new Map<string, number>();
     for (const player of activePlayers) {
       startingStacksByUserId.set(player.id, player.stackCents);
+      this.deps.getHandStartingStacksByPlayerId().set(player.id, player.stackCents);
     }
 
-    this.deps.holeCardsByPlayerId.clear();
+    const holeCards = this.deps.getHoleCardsByPlayerId();
+    holeCards.clear();
     for (const player of activePlayers) {
       const cards = [this.drawCard(), this.drawCard()];
-      this.deps.holeCardsByPlayerId.set(player.id, cards);
+      holeCards.set(player.id, cards);
     }
 
     if (this.deps.persistence.enabled && this.deps.persistence.handHistory) {
@@ -193,7 +198,7 @@ export class HandLifecycleService {
           id: player.id,
           seat: player.seat,
           startingStackCents: startingStacksByUserId.get(player.id) ?? player.stackCents,
-          holeCards: this.deps.holeCardsByPlayerId.get(player.id) ?? [],
+          holeCards: holeCards.get(player.id) ?? [],
         })),
       });
     }
@@ -418,9 +423,10 @@ export class HandLifecycleService {
     const pots = buildSidePots(playersAll, eligible);
     const board = [...state.board];
 
+    const holeCards = this.deps.getHoleCardsByPlayerId();
     const solved = new Map<string, SolvedHand>();
     for (const player of eligible) {
-      const cards = this.deps.holeCardsByPlayerId.get(player.id) ?? [];
+      const cards = holeCards.get(player.id) ?? [];
       if (cards.length !== 2) {
         throw new PokerError("BAD_STATE", `Missing hole cards at showdown for player ${player.id}.`);
       }
@@ -501,12 +507,12 @@ export class HandLifecycleService {
     const payoutsEntries = [...payouts.entries()];
     const primaryWinnerId = seatOrder.find((id) => payouts.has(id));
     const displayWinnerId = payoutsEntries.length === 1 ? primaryWinnerId : undefined;
-    const primaryWinnerCards = primaryWinnerId ? this.deps.holeCardsByPlayerId.get(primaryWinnerId) : undefined;
+    const primaryWinnerCards = primaryWinnerId ? holeCards.get(primaryWinnerId) : undefined;
     const primarySolved = primaryWinnerId ? solved.get(primaryWinnerId) : undefined;
     const winningDescr = primarySolved?.descr ?? primarySolved?.name;
     const showdownHoleCardsByUserId: Record<string, [string, string]> = {};
     for (const player of eligible) {
-      const cards = this.deps.holeCardsByPlayerId.get(player.id);
+      const cards = holeCards.get(player.id);
       if (cards?.length === 2) {
         showdownHoleCardsByUserId[player.id] = [cards[0]!, cards[1]!];
       }

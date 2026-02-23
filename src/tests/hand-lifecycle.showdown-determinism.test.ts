@@ -34,10 +34,12 @@ function makeLifecycleHarness() {
   state.dealerSeat = 0;
 
   const holeCardsByPlayerId = new Map<string, string[]>();
+  const handStartingStacksByPlayerId = new Map<string, number>();
   const processedActionIds = new Set<string>();
   const currentHandAutoActedUserIds = new Set<string>();
   const payoutCalls: Array<{ id: string; amount: number }> = [];
   let lastHandResult: any | undefined;
+  let disbursedCents = 0;
 
   const service = new HandLifecycleService({
     state,
@@ -47,11 +49,15 @@ function makeLifecycleHarness() {
     } as any,
     settlementService: {
       creditPayoutToPlayer: async (player: PlayerState, amountCents: number) => {
+        player.stackCents += amountCents;
+        disbursedCents += amountCents;
         payoutCalls.push({ id: player.id, amount: amountCents });
       },
       finalizePersistedHand: async () => {},
+      getCurrentHandPotDisbursedCents: () => disbursedCents,
     } as any,
     holeCardsByPlayerId,
+    handStartingStacksByPlayerId,
     currentHandAutoActedUserIds,
     processedActionIds,
     applyDisconnectedAutoActionCapForHand: async () => {},
@@ -81,6 +87,7 @@ describe("HandLifecycleService showdown determinism", () => {
     holeCardsByPlayerId.set(b.id, ["Kh", "Kd"]);
     holeCardsByPlayerId.set(c.id, ["6c", "7c"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
     const plans = await service.finishHandShowdownWithSidePots();
 
     expect(payoutCalls).toEqual([{ id: "C", amount: 900 }]);
@@ -109,6 +116,8 @@ describe("HandLifecycleService showdown determinism", () => {
     holeCardsByPlayerId.set(b.id, ["As", "4d"]);
     holeCardsByPlayerId.set(c.id, ["9h", "8h"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     expect(payoutCalls).toEqual([
@@ -124,3 +133,4 @@ describe("HandLifecycleService showdown determinism", () => {
     });
   });
 });
+

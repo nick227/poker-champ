@@ -9,6 +9,7 @@ interface HandListProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   onHandPress: (handId: string) => void;
+  onReplayPress?: (handId: string) => void;
   error?: string | null;
 }
 
@@ -18,6 +19,7 @@ export function HandList({
   onLoadMore,
   hasMore = false,
   onHandPress,
+  onReplayPress,
   error = null,
 }: HandListProps) {
 
@@ -46,6 +48,7 @@ export function HandList({
         <HandListItem
           hand={item}
           onPress={onHandPress}
+          onReplayPress={onReplayPress}
         />
       )}
 

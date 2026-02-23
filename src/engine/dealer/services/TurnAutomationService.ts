@@ -1,17 +1,17 @@
 import type { ActionPayload } from "../../../messages/schemas.js";
-import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { getAutoActionHandCap } from "../../../config/seats.js";
 import { logger } from "../../../lib/logger.js";
 import { eligibleToAct } from "../../rules/BettingRound.js";
-import type { BotBrain } from "../../bots/BotBrain.js";
+import { BotResolver } from "../../bots/BotResolver.js";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import { BOT_ACTION_DELAY_MS } from "../timing.js";
 
 export class TurnAutomationService {
   constructor(private readonly deps: {
     state: PokerState;
-    botBrain: BotBrain;
+    botResolver: BotResolver;
+    getHoleCardsByPlayerId: () => Map<string, string[]>;
     autoActionsByUserId: Map<string, number>;
     currentHandAutoActedUserIds: Set<string>;
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
@@ -54,9 +54,11 @@ export class TurnAutomationService {
         roundBetCents: player.roundBetCents,
         seat: player.seat,
       },
+      activePlayersInHand: countActivePlayersInHand(state),
+      heroHoleCards: [...(this.deps.getHoleCardsByPlayerId().get(toActId) ?? [])],
     };
 
-    const payload = this.deps.botBrain.pickAction(ctx);
+    const payload = this.deps.botResolver.pickAction(player, ctx);
     this.deps.enqueueAction(toActId, payload, BOT_ACTION_DELAY_MS);
   }
 
@@ -88,4 +90,12 @@ export class TurnAutomationService {
       }
     }
   }
+}
+
+function countActivePlayersInHand(state: PokerState): number {
+  let count = 0;
+  for (const player of state.playersById.values()) {
+    if (player.status === "ACTIVE" || player.status === "ALL_IN") count += 1;
+  }
+  return count;
 }

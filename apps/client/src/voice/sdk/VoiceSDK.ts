@@ -25,6 +25,8 @@ export class VoiceSDK {
   private pcm: PeerConnectionManager | null = null;
 
   private joined = false;
+  private joining = false;
+  private disposed = false;
   private muted = false;
   private speaking = false;
   private onSpeakingChanged?: (speaking: boolean) => void;
@@ -32,7 +34,7 @@ export class VoiceSDK {
   private analyser: AnalyserNode | null = null;
   private mediaSource: MediaStreamAudioSourceNode | null = null;
   private speakingRaf: number | null = null;
-  private speakingBuffer: Uint8Array<ArrayBuffer> | null = null;
+  private speakingBuffer: Uint8Array | null = null;
 
   constructor(params: {
     adapter: VoiceSignalingAdapter;
@@ -73,40 +75,78 @@ export class VoiceSDK {
    * Starts mic and begins offers (deterministic initiator rule).
    */
   async joinChannel(): Promise<void> {
-    if (this.joined) return;
+    if (this.joined || this.joining) return;
+    this.joining = true;
 
-    this.local = new LocalAudioTrack();
-    await this.local.start();
-    this.startSpeakingMeter(this.local.getStreamOrThrow());
+    try {
+      this.local = new LocalAudioTrack();
+      await this.local.start();
+      if (!this.joining) {
+        await this.safeTeardown();
+        return;
+      }
+      this.startSpeakingMeter(this.local.getStreamOrThrow());
 
-    this.pcm = new PeerConnectionManager({
-      selfUserId: this.selfUserId,
-      channelId: this.channelId,
-      adapter: this.adapter,
-      localStream: this.local.getStreamOrThrow(),
-    });
+      this.pcm = new PeerConnectionManager({
+        selfUserId: this.selfUserId,
+        channelId: this.channelId,
+        adapter: this.adapter,
+        localStream: this.local.getStreamOrThrow(),
+      });
 
-    this.pcm.setPeers(this.peers);
-    await this.pcm.beginNegotiation();
-
-    this.joined = true;
+      this.pcm.setPeers(this.peers);
+      await this.pcm.beginNegotiation();
+      if (!this.joining) {
+        await this.safeTeardown();
+        return;
+      }
+      this.joined = true;
+    } catch (e) {
+      await this.safeTeardown();
+      throw e;
+    } finally {
+      this.joining = false;
+    }
   }
 
   /**
    * leave -> channel
-   * Tears down all peer connections and stops mic.
+   * Tears down all peer connections and stops mic. Safe to call during join.
    */
   async leaveChannel(): Promise<void> {
-    if (!this.joined) return;
+    if (!this.joined && !this.joining) return;
+    await this.safeTeardown();
+  }
 
-    await this.pcm?.dispose();
-    await this.local?.stop();
-
+  private async safeTeardown(): Promise<void> {
+    try {
+      await this.pcm?.dispose();
+    } catch (_e) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.warn("[VoiceSDK] pcm.dispose error", _e);
+      }
+    }
+    try {
+      await this.local?.stop();
+    } catch (_e) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.warn("[VoiceSDK] local.stop error", _e);
+      }
+    }
     this.pcm = null;
     this.local = null;
     this.stopSpeakingMeter();
     this.setSpeaking(false);
     this.joined = false;
+    this.joining = false;
+  }
+
+  /**
+   * Mark SDK disposed so handleSignal no-ops. Call leaveChannel (or dispose) from lifecycle.
+   */
+  dispose(): void {
+    this.disposed = true;
+    void this.leaveChannel();
   }
 
   /**
@@ -138,17 +178,41 @@ export class VoiceSDK {
   }
 
   /**
+   * Dev-only: snapshot for leak checks (localTracks, peerCount, meterRunning).
+   */
+  getDebugState(): {
+    joined: boolean;
+    muted: boolean;
+    localTracks: { kind: string; readyState: string }[];
+    peerCount: number;
+    meterRunning: boolean;
+  } {
+    let localTracks: { kind: string; readyState: string }[] = [];
+    if (this.local) {
+      try {
+        const stream = this.local.getStreamOrThrow();
+        localTracks = stream.getTracks().map((t) => ({ kind: t.kind, readyState: t.readyState }));
+      } catch {
+        // no stream
+      }
+    }
+    return Object.freeze({
+      joined: this.joined,
+      muted: this.muted,
+      localTracks,
+      peerCount: this.pcm?.getDebugPeerCount?.() ?? 0,
+      meterRunning: this.speakingRaf != null,
+    });
+  }
+
+  /**
    * handle -> signal
    */
   private async handleSignal(msg: VoiceSignalMessage): Promise<void> {
-    // Ignore mismatched channels
+    if (this.disposed) return;
     if (msg.channelId !== this.channelId) return;
     if (msg.toUserId !== this.selfUserId) return;
-
-    if (!this.pcm) {
-      // If we haven't joined, ignore signals (future: auto-join)
-      return;
-    }
+    if (!this.pcm) return;
 
     await this.pcm.handleSignal(msg);
   }
@@ -193,7 +257,7 @@ export class VoiceSDK {
         return;
       }
 
-      this.analyser.getByteTimeDomainData(this.speakingBuffer);
+      this.analyser.getByteTimeDomainData(this.speakingBuffer as Uint8Array<ArrayBuffer>);
       let sum = 0;
       for (let i = 0; i < this.speakingBuffer.length; i += 1) {
         const centered = (this.speakingBuffer[i] - 128) / 128;
@@ -219,13 +283,25 @@ export class VoiceSDK {
     }
     try {
       this.mediaSource?.disconnect();
-    } catch {}
+    } catch (e) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.warn("[VoiceSDK] stopSpeakingMeter mediaSource.disconnect", e);
+      }
+    }
     try {
       this.analyser?.disconnect();
-    } catch {}
+    } catch (e) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.warn("[VoiceSDK] stopSpeakingMeter analyser.disconnect", e);
+      }
+    }
     try {
       void this.audioContext?.close();
-    } catch {}
+    } catch (e) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV !== "production") {
+        console.warn("[VoiceSDK] stopSpeakingMeter audioContext.close", e);
+      }
+    }
     this.mediaSource = null;
     this.analyser = null;
     this.audioContext = null;

@@ -16,6 +16,7 @@ import { lobbyRouter } from "./http/LobbyRouter.js";
 import { profileRouter } from "./http/ProfileRouter.js";
 import { handHistoryRouter } from "./http/HandHistoryRouter.js";
 import { leaderboardRouter } from "./http/LeaderboardRouter.js";
+import { botRouter } from "./http/BotRouter.js";
 import { openApiSpec } from "./http/openapi.js";
 import { RecoveryService } from "./engine/recovery/RecoveryService.js";
 import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
@@ -100,6 +101,7 @@ app.use("/api/tournaments", tournamentsRouter);
 app.use("/api/lobby", lobbyRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/history", handHistoryRouter);
+app.use("/api/bots", botRouter);
 if (isLeaderboardEnabled()) {
   app.use("/api/leaderboard", leaderboardRouter);
 }

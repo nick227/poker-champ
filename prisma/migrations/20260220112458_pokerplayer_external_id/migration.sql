@@ -6,13 +6,16 @@
 
 */
 -- DropIndex
-DROP INDEX `PokerPlayer_tableId_seat_key` ON `pokerplayer`;
+-- MySQL requires an index on `tableId` for `PokerPlayer_tableId_fkey`.
+-- The old unique index (`tableId`, `seat`) currently satisfies that requirement,
+-- so create a replacement index before dropping it.
+CREATE INDEX `PokerPlayer_tableId_idx` ON `PokerPlayer`(`tableId`);
+
+-- DropIndex
+DROP INDEX `PokerPlayer_tableId_seat_key` ON `PokerPlayer`;
 
 -- AlterTable
 ALTER TABLE `pokerplayer` ADD COLUMN `externalId` VARCHAR(191) NOT NULL;
-
--- CreateIndex
-CREATE INDEX `PokerPlayer_tableId_idx` ON `PokerPlayer`(`tableId`);
 
 -- CreateIndex
 CREATE UNIQUE INDEX `PokerPlayer_tableId_externalId_key` ON `PokerPlayer`(`tableId`, `externalId`);

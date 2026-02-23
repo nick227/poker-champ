@@ -21,6 +21,7 @@ export function useTableScreenStores(tableId: string | undefined) {
       persistedBuyInCents: id ? s.lastBuyInCentsByTableId[id] : undefined,
       dispatchTableAction: s.dispatchTableAction,
       dispatchSendChat: s.dispatchSendChat,
+      dispatchListBots: s.dispatchListBots,
       dispatchAddBot: s.dispatchAddBot,
       dispatchRemoveBot: s.dispatchRemoveBot,
       joinState: id ? s.tableJoinById[id] : undefined,
@@ -33,6 +34,8 @@ export function useTableScreenStores(tableId: string | undefined) {
     useShallow((s) => ({
       snapshotsByTableId: s.snapshotsByTableId,
       chatMessagesByTableId: s.chatMessagesByTableId,
+      botSummariesByTableId: s.botSummariesByTableId,
+      botSummariesUpdatedAtByTableId: s.botSummariesUpdatedAtByTableId,
       connectionStatusByTableId: s.connectionStatusByTableId,
       errorByTableId: s.errorByTableId,
     }))

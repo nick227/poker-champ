@@ -35,10 +35,12 @@ function makeHarness() {
   state.dealerSeat = 0;
 
   const holeCardsByPlayerId = new Map<string, string[]>();
+  const handStartingStacksByPlayerId = new Map<string, number>();
   const processedActionIds = new Set<string>();
   const currentHandAutoActedUserIds = new Set<string>();
   const payoutCalls: Array<{ id: string; amount: number }> = [];
   let lastHandResult: Record<string, unknown> | undefined;
+  let disbursedCents = 0;
 
   const service = new HandLifecycleService({
     state,
@@ -49,11 +51,14 @@ function makeHarness() {
     settlementService: {
       creditPayoutToPlayer: async (player: PlayerState, amountCents: number) => {
         player.stackCents += amountCents;
+        disbursedCents += amountCents;
         payoutCalls.push({ id: player.id, amount: amountCents });
       },
       finalizePersistedHand: async () => {},
+      getCurrentHandPotDisbursedCents: () => disbursedCents,
     } as any,
     holeCardsByPlayerId,
+    handStartingStacksByPlayerId,
     currentHandAutoActedUserIds,
     processedActionIds,
     applyDisconnectedAutoActionCapForHand: async () => {},
@@ -100,6 +105,8 @@ describe("showdown determinism — invariants", () => {
     holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
     holeCardsByPlayerId.set(b.id, ["9h", "8h"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     const result = getLastHandResult();
@@ -117,6 +124,8 @@ describe("showdown determinism — invariants", () => {
     state.board.push("Ah", "Kd", "Qs", "2c", "3d");
     holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
     holeCardsByPlayerId.set(b.id, ["As", "4d"]);
+
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
 
     await service.finishHandShowdownWithSidePots();
 
@@ -141,6 +150,8 @@ describe("showdown determinism — invariants", () => {
     holeCardsByPlayerId.set(b.id, ["Kh", "Kd"]);
     holeCardsByPlayerId.set(c.id, ["6c", "7c"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     const payouts = getLastHandResult()?.payoutsByUserId as Record<string, number>;
@@ -164,6 +175,8 @@ describe("showdown determinism — invariants", () => {
     const playersBefore = [a, b];
     const preTotal = sumStacks(playersBefore) + state.potCents;
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     const playersAfter = [a, b];
@@ -182,6 +195,8 @@ describe("showdown determinism — invariants", () => {
       h.state.board.push("Ah", "Kd", "Qs", "2c", "3d");
       h.holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
       h.holeCardsByPlayerId.set(b.id, ["As", "4d"]);
+      h.state.initialChipMassCents =
+        [...h.state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + h.state.potCents;
       return h.service.finishHandShowdownWithSidePots().then(() => h.payoutCalls);
     };
 
@@ -207,6 +222,8 @@ describe("showdown determinism — minimal test set", () => {
     holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
     holeCardsByPlayerId.set(b.id, ["9h", "8h"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     expect(getLastHandResult()?.payoutsByUserId).toEqual({ A: 1000 });
@@ -223,6 +240,8 @@ describe("showdown determinism — minimal test set", () => {
     state.board.push("Ah", "Kd", "Qs", "2c", "3d");
     holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
     holeCardsByPlayerId.set(b.id, ["As", "4d"]);
+
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
 
     await service.finishHandShowdownWithSidePots();
 
@@ -246,6 +265,8 @@ describe("showdown determinism — minimal test set", () => {
     holeCardsByPlayerId.set(b.id, ["Kh", "Kd"]);
     holeCardsByPlayerId.set(c.id, ["6c", "7c"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     const payouts = getLastHandResult()?.payoutsByUserId as Record<string, number>;
@@ -266,6 +287,8 @@ describe("showdown determinism — minimal test set", () => {
     holeCardsByPlayerId.set(a.id, ["Ac", "4c"]);
     holeCardsByPlayerId.set(b.id, ["As", "4d"]);
     holeCardsByPlayerId.set(c.id, ["9h", "8h"]);
+
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
 
     await service.finishHandShowdownWithSidePots();
 
@@ -292,6 +315,8 @@ describe("showdown determinism — minimal test set", () => {
     holeCardsByPlayerId.set(b.id, ["As", "4d"]);
     holeCardsByPlayerId.set(c.id, ["Ad", "4h"]);
 
+    state.initialChipMassCents = [...state.playersById.values()].reduce((sum, player) => sum + player.stackCents, 0) + state.potCents;
+
     await service.finishHandShowdownWithSidePots();
 
     const total = payoutCalls.reduce((s, x) => s + x.amount, 0);
@@ -300,3 +325,4 @@ describe("showdown determinism — minimal test set", () => {
     payoutCalls.forEach((x) => expect(x.amount).toBe(100));
   });
 });
+

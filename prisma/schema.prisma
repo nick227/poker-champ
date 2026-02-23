@@ -251,7 +251,6 @@ model User {
   balances      PlayerBalance[]
   transactions  BalanceTransaction[]
   registrations TournamentRegistration[]
-  leaderboardSnapshots LeaderboardSnapshot[]
   createdTables PokerTable[] @relation("TableCreator")
 
   @@index([usernameNormalized])
@@ -264,7 +263,6 @@ model LeaderboardSnapshot {
   period          String
   category        String
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userDisplayName String
 
   value           String
@@ -352,4 +350,13 @@ model TableSeatSession {
   @@index([tableId])
   @@index([tableId, state])
   @@unique([tableId, userId])
+}
+
+model BotStats {
+  botId          String   @id
+  handsPlayed    Int      @default(0)
+  netCents       BigInt   @default(0)
+  grossWonCents  BigInt   @default(0)
+  grossLostCents BigInt   @default(0)
+  updatedAt      DateTime @updatedAt
 }

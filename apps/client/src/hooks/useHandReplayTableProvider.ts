@@ -5,14 +5,14 @@
  * No parallel abstractions - just another provider
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
 import { historyService } from "@/services/history.service";
 import { storeRegistry } from "@/registry/store.registry";
-import { assertTableProvider, type TableProvider } from "@/types/tableProvider";
+import { assertTableProvider } from "@/types/tableProvider";
 import type { ReplayController, ReplayTableProvider } from "@/types/replayController";
 import { buildTableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
 
 export interface HandReplayResult {
   provider: ReplayTableProvider | null;
@@ -36,8 +36,15 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
 
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
+  const hasValidHandId = Boolean(handId?.trim());
+
   // 🎯 LOAD SNAPSHOTS
   useEffect(() => {
+    if (!hasValidHandId) {
+      setLoading(false);
+      setError("No hand ID.");
+      return;
+    }
     let cancelled = false;
 
     const loadSnapshots = async () => {
@@ -80,7 +87,7 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
     return () => {
       cancelled = true;
     };
-  }, [handId]);
+  }, [handId, hasValidHandId]);
 
   // 🎯 AUTO-PLAY LOGIC
   useEffect(() => {
@@ -102,50 +109,53 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
   }, [isPlaying, currentStep, speed, snapshots.length]);
 
   // 🎯 LOADING/ERROR/EMPTY: return result with no provider (no throw)
+  if (!hasValidHandId) {
+    return { provider: null, loading: false, error: "No hand ID." };
+  }
   if (loading) {
     return { provider: null, loading: true, error: null };
   }
-
   if (error || snapshots.length === 0) {
     return { provider: null, loading: false, error: error ?? "No replay data for this hand." };
   }
 
   // 🎯 TABLE PROVIDER (pure contract) - only reached when we have at least one snapshot
   const currentSnapshot = snapshots[currentStep];
+  const totalSteps = snapshots.length;
+  const sceneModel = buildReplayDisabledSceneModel(
+    buildTableSceneModel(currentSnapshot, null, "CONNECTED"),
+  );
   const tableProvider = assertTableProvider({
     snapshot: currentSnapshot,
-    sceneModel: buildTableSceneModel(currentSnapshot, null, "CONNECTED"),
+    sceneModel,
     onAction: () => {
       console.warn("[REPLAY] Actions are disabled in replay mode");
     },
   });
 
-  const replayController: ReplayController = {
-    currentStep,
-    totalSteps: snapshots.length,
-    next: () => {
-      if (currentStep < snapshots.length - 1) {
-        setCurrentStep(prev => prev + 1);
-      }
-    },
-    prev: () => {
-      if (currentStep > 0) {
-        setCurrentStep(prev => prev - 1);
-      }
-    },
-    goTo: (step: number) => {
-      if (step >= 0 && step < snapshots.length) {
-        setCurrentStep(step);
-      }
-    },
-    play: () => setIsPlaying(true),
-    pause: () => setIsPlaying(false),
-    setSpeed: (newSpeed: number) => {
-      setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
-    },
-    isPlaying,
-    speed,
-  };
+  const replayController = useMemo<ReplayController>(
+    () => ({
+      currentStep,
+      totalSteps,
+      next: () => {
+        if (currentStep < totalSteps - 1) setCurrentStep((prev) => prev + 1);
+      },
+      prev: () => {
+        if (currentStep > 0) setCurrentStep((prev) => prev - 1);
+      },
+      goTo: (step: number) => {
+        if (step >= 0 && step < totalSteps) setCurrentStep(step);
+      },
+      play: () => setIsPlaying(true),
+      pause: () => setIsPlaying(false),
+      setSpeed: (newSpeed: number) => {
+        setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
+      },
+      isPlaying,
+      speed,
+    }),
+    [currentStep, totalSteps, isPlaying, speed],
+  );
 
   return {
     provider: { ...tableProvider, replay: replayController },

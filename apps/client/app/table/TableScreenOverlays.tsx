@@ -2,6 +2,7 @@ import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
 import { PlayerHistoryPopup } from "@/components/domain/table/PlayerHistoryPopup";
 import { ChatOverlay } from "@/components/domain/table/ChatOverlay";
 import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
+import { BotPickerSheet } from "@/components/domain/table/BotPickerSheet";
 import { ThemePickerSheet } from "@/components/domain/table/ThemePickerSheet";
 import { MODAL } from "@/constants/copy";
 import type { TableScreenController } from "@/types/tableSceneContract";
@@ -46,6 +47,13 @@ export function TableScreenOverlays({ renderModel, uiState, actions }: TableScre
         onSelectTable={actions.selectTableFromDropdown}
       />
       <ThemePickerSheet visible={uiState.themePickerVisible} onClose={actions.closeThemePicker} />
+      <BotPickerSheet
+        visible={uiState.botPickerVisible}
+        loading={uiState.botPickerLoading}
+        bots={renderModel.botSummaries}
+        onClose={actions.closeBotPicker}
+        onPick={actions.pickBot}
+      />
     </>
   );
 }

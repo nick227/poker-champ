@@ -61,12 +61,15 @@ export function useTableScreenController({
     persistedBuyInCents,
     dispatchTableAction,
     dispatchSendChat,
+    dispatchListBots,
     dispatchAddBot,
     dispatchRemoveBot,
     joinState,
     lobbyTables,
     snapshotsByTableId,
     chatMessagesByTableId,
+    botSummariesByTableId,
+    botSummariesUpdatedAtByTableId,
     connectionStatusByTableId: tableStatusByTableId,
     errorByTableId: tableErrorByTableId,
     hydrated: authHydrated,
@@ -154,10 +157,13 @@ export function useTableScreenController({
     handleRebuyApply,
   } = useRebuySheet(tableId, snapshot, refreshBankroll);
 
-  const { addBotPending, handleAddBot } = useAddBot({
+  const { addBotPending, botPickerVisible, botPickerLoading, handleAddBotPress, handleBotPick, closeBotPicker } = useAddBot({
     tableId,
     buyInCents,
     dispatchAddBot,
+    dispatchListBots,
+    botSummaries: botSummariesByTableId[tableId] ?? [],
+    botSummariesUpdatedAtTs: botSummariesUpdatedAtByTableId[tableId],
     snapshot,
   });
 
@@ -352,7 +358,7 @@ export function useTableScreenController({
         chatBadge={chatOverlay.unseenCount || undefined}
         voiceEnabled={voiceEnabled}
         voiceMuted={voiceMuted}
-        onAddBot={handleAddBot}
+        onAddBot={handleAddBotPress}
         onOpenTheme={() => setThemePickerVisible(true)}
         onOpenChat={openChat}
         onToggleVoice={handleToggleVoice}
@@ -366,7 +372,7 @@ export function useTableScreenController({
       chatOverlay.unseenCount,
       voiceEnabled,
       voiceMuted,
-      handleAddBot,
+      handleAddBotPress,
       handleToggleVoice,
       handleToggleMute,
       closeTableAndReturn,
@@ -423,11 +429,14 @@ export function useTableScreenController({
       activeTableRows,
       chatMessages: chatOverlay.messages,
       chatVisible: chatOverlay.visible,
+      botSummaries: botSummariesByTableId[tableId] ?? [],
     },
     uiState: {
       activeTablesDropdownVisible,
       themePickerVisible,
       rebuySheetVisible,
+      botPickerVisible,
+      botPickerLoading,
       playerPopup,
     },
     actions: {
@@ -440,6 +449,7 @@ export function useTableScreenController({
       closeActiveTablesDropdown: () => setActiveTablesDropdownVisible(false),
       openThemePicker: () => setThemePickerVisible(true),
       closeThemePicker: () => setThemePickerVisible(false),
+      closeBotPicker,
       openRebuySheet: () => setRebuySheetVisible(true),
       closeRebuySheet: () => setRebuySheetVisible(false),
       applyRebuy: (rebuyBuyInCents: number) => {
@@ -448,6 +458,7 @@ export function useTableScreenController({
       },
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
+      pickBot: handleBotPick,
       sendAction,
       closeChat: chatOverlay.onClose,
       sendChat: chatOverlay.onSend,

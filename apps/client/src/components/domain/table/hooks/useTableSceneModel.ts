@@ -42,6 +42,12 @@ export function buildTableSceneModel(
   const potCents = getPotCents(snapshot);
   const heroCards = getHeroCards(snapshot);
   const heroStackCents = getHeroStackCents(snapshot);
+  const heroSeat = snapshot.hero.seat;
+  const toActSeat = snapshot.hand?.toActSeat;
+  const isHeroToAct =
+    heroSeat != null &&
+    toActSeat != null &&
+    heroSeat === toActSeat;
   const heroName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
   const isHeroDealer = getIsDealer(snapshot);
@@ -72,6 +78,7 @@ export function buildTableSceneModel(
     heroCalculations: snapshot.hero.calculations,
     heroPlayerStats: snapshot.hero.playerStats,
     heroName,
+    isHeroToAct,
     isHeroWinner,
     isHeroDealer,
     tableName,
@@ -93,4 +100,3 @@ export function useTableSceneModel(
     [snapshot, handResultMessage, connectionStatus],
   );
 }
-

@@ -1,5 +1,5 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
-import type { TableSnapshotPayload, ChatMessagePayload, OnlinePlayerSummary } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload, OnlinePlayerSummary, BotSummary } from "@poker-champ/realtime-contract";
 
 export type RealtimeScope = "lobby" | "table";
 export type TransportState = "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
@@ -19,6 +19,7 @@ type TableMessageContext = {
   onError?: (message: string) => void;
   onSnapshot?: (tableId: string, snapshot: TableSnapshotPayload) => void;
   appendChatMessage?: (tableId: string, message: ChatMessagePayload) => void;
+  onBotsList?: (tableId: string, bots: BotSummary[]) => void;
 };
 
 type ScopeContextMap = {
@@ -98,6 +99,11 @@ const realtimeChannelByScope: ScopeRegistryMap = {
       if (p?.tableId && p?.id) {
         context.appendChatMessage?.(p.tableId, p);
       }
+    },
+    BOTS_LIST: (payload, context) => {
+      const p = payload as { bots?: BotSummary[] };
+      if (!context.tableId) return;
+      context.onBotsList?.(context.tableId, Array.isArray(p?.bots) ? p.bots : []);
     },
   },
 };

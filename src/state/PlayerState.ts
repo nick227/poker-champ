@@ -8,6 +8,8 @@ export class PlayerState extends Schema {
   /** Authenticated user id; empty string for bots (Colyseus schema does not support null). */
   @type("string") userId: string = "";
   @type("string") kind: PlayerKind = "HUMAN";
+  /** Character id for bots (catalog key); empty for humans. */
+  @type("string") botId: string = "";
   @type("string") name: string = "";
 
   @type("number") seat: number = -1;

@@ -26,6 +26,7 @@ import type { FrameReason } from "../engine/replay/FrameReason.js";
 import { registerVoiceRelay } from "./voice/register-voice-relay.js";
 import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
+import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../engine/bots/BotCatalog.js";
 
 type JoinOptions = { name?: string; buyInCents?: number; password?: string; tableId?: string };
 type AuthContext = { userId: string; sessionId: string; roles: string[]; username: string };
@@ -181,13 +182,34 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
       if (!this.isActiveBoundClient(userId, client)) return;
       try {
-        const botId = newBotId();
-        await this.dealer.addBot(botId, parsed.data.name, parsed.data.buyInCents);
+        const resolved = resolveBotSelectionForAdd(parsed.data.botId);
+        if (!resolved.ok) {
+          const message =
+            resolved.reason === "NO_ENABLED_BOTS"
+              ? "No enabled bots are available."
+              : "Unknown or disabled botId.";
+          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message });
+          return;
+        }
+        const runtimeBotId = newBotId();
+        const botName = resolved.bot.name ?? parsed.data.name ?? "Bot";
+        const catalogBotId = resolved.bot.id;
+        await this.dealer.addBot(runtimeBotId, botName, parsed.data.buyInCents, catalogBotId);
         this.updateMetadataCounts();
       } catch (err: unknown) {
         const e = err as { code?: string; message?: string };
         this.sendTableMessage(client, "ERROR", { code: e?.code ?? "ADD_BOT_FAILED", message: e?.message ?? String(err) });
       }
+    });
+
+    this.onMessage("LIST_BOTS", (client, message) => {
+      const envelope = { type: "LIST_BOTS" as const, payload: message ?? {} };
+      const parsed = TableInboundMessageSchema.safeParse(envelope);
+      if (!parsed.success) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      this.sendTableMessage(client, "BOTS_LIST", { bots: listEnabledBotSummaries() });
     });
 
     this.onMessage("REMOVE_BOT", async (client, message) => {

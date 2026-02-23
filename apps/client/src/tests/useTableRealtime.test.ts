@@ -87,6 +87,7 @@ function dispatchTableMessage(tableId: string, type: string, payload: unknown) {
       resetSnapshotStream: (t) => useTableStore.getState().resetSnapshotStream(t),
       setSnapshot: (t, snapshot) => useTableStore.getState().setSnapshot(t, snapshot),
       appendChatMessage: (t, msg) => useTableStore.getState().appendChatMessage(t, msg),
+      setBotSummaries: (t, bots) => useTableStore.getState().setBotSummaries(t, bots),
       setConnectionStatus: (t, status) => useTableStore.getState().setConnectionStatus(t, status),
       clearConnectionStatus: (t) => useTableStore.getState().clearConnectionStatus(t),
       setError: (t, message) => useTableStore.getState().setError(t, message),
@@ -101,6 +102,7 @@ describe("useTableRealtime behavior", () => {
     useTableStore.setState({
       snapshotsByTableId: {},
       chatMessagesByTableId: {},
+      botSummariesByTableId: {},
       lastSeqByTableId: {},
       connectionStatusByTableId: {},
       statusByTableId: {},

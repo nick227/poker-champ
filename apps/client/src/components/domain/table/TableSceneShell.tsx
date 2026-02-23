@@ -1,3 +1,7 @@
+/**
+ * Single table chrome. All table states (auth, connecting, idle, active) use this shell only.
+ * Do not introduce another shell (e.g. FooTableShell); see TABLE_SCENE_VIEWS_OVERVIEW.md guardrails.
+ */
 import type { ReactNode } from "react";
 import { Platform, View } from "react-native";
 import { vars } from "nativewind";
@@ -161,7 +165,7 @@ export function TableSceneShell({
             paddingBottom: insets.bottom,
           },
         ]}
-        className="border-t border-border-subtle"
+        className="border-t border-border-subtle flex items-center justify-center"
       >
         {bottom}
       </View>

@@ -8,7 +8,7 @@ export type TableRealtimeRoom = {
   onMessage: (type: string, cb: (payload: unknown) => void) => void;
 };
 
-function isTableRealtimeRoom(value: unknown): value is TableRealtimeRoom {
+export function isTableRealtimeRoom(value: unknown): value is TableRealtimeRoom {
   if (!value || typeof value !== "object") return false;
   const candidate = value as { send?: unknown; onMessage?: unknown };
   return typeof candidate.send === "function" && typeof candidate.onMessage === "function";
@@ -73,6 +73,7 @@ export function useTableRealtime({
           resetSnapshotStream: (t) => storeRegistry.table().resetSnapshotStream(t),
           setSnapshot: (t, snapshot) => storeRegistry.table().setSnapshot(t, snapshot),
           appendChatMessage: (t, message) => storeRegistry.table().appendChatMessage(t, message),
+          setBotSummaries: (t, bots) => storeRegistry.table().setBotSummaries(t, bots),
           setConnectionStatus: (t, status) => storeRegistry.table().setConnectionStatus(t, status),
           clearConnectionStatus: (t) => storeRegistry.table().clearConnectionStatus(t),
           setError: (t, message) => storeRegistry.table().setError(t, message),

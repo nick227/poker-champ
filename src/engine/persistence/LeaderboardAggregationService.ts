@@ -42,7 +42,7 @@ const SNAPSHOT_WRITE_CHUNK_SIZE = 500;
 /** Placeholder value for empty snapshots so we can store computedAt; excluded when reading. */
 const EMPTY_SNAPSHOT_SENTINEL_VALUE = "__empty__";
 
-type UserMetadata = {
+type ActorMetadata = {
   displayName: string;
   createdAtMs: number;
 };
@@ -206,14 +206,14 @@ function formatPerHundred(numerator: number, denominator: number): string {
   return `${((numerator / denominator) * 100).toFixed(1)} /100`;
 }
 
-async function getUserMetadata(userIds: string[]): Promise<Map<string, UserMetadata>> {
+async function getUserMetadata(userIds: string[]): Promise<Map<string, ActorMetadata>> {
   const prisma = getPrisma();
   if (userIds.length === 0) return new Map();
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
     select: { id: true, displayName: true, username: true, email: true, createdAt: true },
   });
-  const map = new Map<string, UserMetadata>();
+  const map = new Map<string, ActorMetadata>();
   for (const user of users) {
     map.set(user.id, {
       displayName: user.displayName || user.username || user.email || user.id,
@@ -223,11 +223,18 @@ async function getUserMetadata(userIds: string[]): Promise<Map<string, UserMetad
   return map;
 }
 
-function compareUserTieBreak(meta: Map<string, UserMetadata>, aUserId: string, bUserId: string): number {
+function compareUserTieBreak(meta: Map<string, ActorMetadata>, aUserId: string, bUserId: string): number {
   const aCreated = meta.get(aUserId)?.createdAtMs ?? Number.MAX_SAFE_INTEGER;
   const bCreated = meta.get(bUserId)?.createdAtMs ?? Number.MAX_SAFE_INTEGER;
   if (aCreated !== bCreated) return aCreated - bCreated;
   return aUserId.localeCompare(bUserId);
+}
+
+function resolveActorId(input: { userId: string | null; externalId: string; displayName?: string | null }): string {
+  if (input.userId) return input.userId;
+  const botName = input.displayName?.trim().toLowerCase();
+  if (botName) return `bot:${botName}`;
+  return input.externalId;
 }
 
 function withRanks(rows: Omit<LeaderboardSnapshotEntry, "rank">[]): LeaderboardSnapshotEntry[] {
@@ -307,6 +314,47 @@ async function computeProfitLeaders(
 
   const userMeta = await getUserMetadata(filtered.map((row) => row.userId));
 
+  // Bots don't have BalanceTransaction rows, so include them from hand stack deltas.
+  const botHandRows = await prisma.handPlayer.findMany({
+    where: {
+      hand: handWhere,
+      player: { userId: null },
+    },
+    select: {
+      handId: true,
+      startingStackCents: true,
+      endingStackCents: true,
+      player: {
+        select: {
+          userId: true,
+          externalId: true,
+          displayName: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+  const botProfitById = new Map<string, number>();
+  const botHandsById = new Map<string, Set<string>>();
+  for (const row of botHandRows) {
+    if (row.endingStackCents == null) continue;
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    const delta = row.endingStackCents - row.startingStackCents;
+    botProfitById.set(actorId, (botProfitById.get(actorId) ?? 0) + delta);
+    if (!botHandsById.has(actorId)) botHandsById.set(actorId, new Set());
+    botHandsById.get(actorId)!.add(row.handId);
+    if (!userMeta.has(actorId)) {
+      userMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
+  }
+
   filtered.sort((a, b) => {
     const aValue = a._sum.amountCents ?? 0;
     const bValue = b._sum.amountCents ?? 0;
@@ -330,6 +378,26 @@ async function computeProfitLeaders(
     };
   });
 
+  for (const [actorId, value] of botProfitById.entries()) {
+    const include = mode === "winner" ? value > 0 : value < 0;
+    if (!include) continue;
+    rows.push({
+      userId: actorId,
+      displayName: userMeta.get(actorId)?.displayName ?? actorId,
+      value: formatCurrencyCents(value),
+      valueNumerator: value,
+      valueDenominator: null,
+      handCount: botHandsById.get(actorId)?.size ?? 0,
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (mode === "winner" && b.valueNumerator !== a.valueNumerator) return b.valueNumerator - a.valueNumerator;
+    if (mode === "donor" && a.valueNumerator !== b.valueNumerator) return a.valueNumerator - b.valueNumerator;
+    if (b.handCount !== a.handCount) return b.handCount - a.handCount;
+    return compareUserTieBreak(userMeta, a.userId, b.userId);
+  });
+
   return withRanks(rows);
 }
 
@@ -344,23 +412,38 @@ async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Pro
     where: handWhere,
     select: {
       players: {
-        where: { player: { userId: { not: null } } },
-        select: { player: { select: { userId: true } } },
+        select: {
+          player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
+        },
       },
       payouts: {
-        where: { player: { userId: { not: null } } },
-        select: { amountCents: true, player: { select: { userId: true } } },
+        select: {
+          amountCents: true,
+          player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
+        },
       },
     },
   });
 
   const seen = new Map<string, number>();
   const wins = new Map<string, number>();
+  const actorMeta = new Map<string, ActorMetadata>();
 
   for (const hand of hands) {
     const usersInHand = new Set<string>();
     for (const hp of hand.players) {
-      if (hp.player.userId) usersInHand.add(hp.player.userId);
+      const actorId = resolveActorId({
+        userId: hp.player.userId,
+        externalId: hp.player.externalId,
+        displayName: hp.player.displayName,
+      });
+      usersInHand.add(actorId);
+      if (!actorMeta.has(actorId)) {
+        actorMeta.set(actorId, {
+          displayName: hp.player.displayName || actorId,
+          createdAtMs: hp.player.createdAt.getTime(),
+        });
+      }
     }
     for (const userId of usersInHand) {
       seen.set(userId, (seen.get(userId) ?? 0) + 1);
@@ -368,17 +451,25 @@ async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Pro
 
     const payoutByUser = new Map<string, number>();
     for (const payout of hand.payouts) {
-      const userId = payout.player.userId;
-      if (!userId) continue;
-      payoutByUser.set(userId, (payoutByUser.get(userId) ?? 0) + payout.amountCents);
+      const actorId = resolveActorId({
+        userId: payout.player.userId,
+        externalId: payout.player.externalId,
+        displayName: payout.player.displayName,
+      });
+      payoutByUser.set(actorId, (payoutByUser.get(actorId) ?? 0) + payout.amountCents);
+      if (!actorMeta.has(actorId)) {
+        actorMeta.set(actorId, {
+          displayName: payout.player.displayName || actorId,
+          createdAtMs: payout.player.createdAt.getTime(),
+        });
+      }
     }
-    for (const [userId, amount] of payoutByUser.entries()) {
-      if (amount > 0) wins.set(userId, (wins.get(userId) ?? 0) + 1);
+    for (const [actorId, amount] of payoutByUser.entries()) {
+      if (amount > 0) wins.set(actorId, (wins.get(actorId) ?? 0) + 1);
     }
   }
 
   const candidateIds = Array.from(seen.keys()).filter((userId) => (seen.get(userId) ?? 0) >= SHOWDOWN_MIN_SAMPLES);
-  const userMeta = await getUserMetadata(candidateIds);
 
   const rows = candidateIds
     .map((userId) => {
@@ -386,7 +477,7 @@ async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Pro
       const denominator = seen.get(userId) ?? 0;
       return {
         userId,
-        displayName: userMeta.get(userId)?.displayName ?? userId,
+        displayName: actorMeta.get(userId)?.displayName ?? userId,
         value: formatPercent(numerator, denominator),
         valueNumerator: numerator,
         valueDenominator: denominator,
@@ -398,7 +489,7 @@ async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Pro
       const bRatio = b.valueDenominator ? b.valueNumerator / b.valueDenominator : 0;
       if (bRatio !== aRatio) return bRatio - aRatio;
       if (b.handCount !== a.handCount) return b.handCount - a.handCount;
-      return compareUserTieBreak(userMeta, a.userId, b.userId);
+      return compareUserTieBreak(actorMeta, a.userId, b.userId);
     });
 
   return withRanks(rows);
@@ -414,42 +505,58 @@ async function computeAllInManiac(period: LeaderboardPeriod, asOf: Date): Promis
   const participationRows = await prisma.handPlayer.findMany({
     where: {
       hand: handWhere,
-      player: { userId: { not: null } },
     },
     select: {
       handId: true,
-      player: { select: { userId: true } },
+      player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
   const handsByUser = new Map<string, Set<string>>();
+  const actorMeta = new Map<string, ActorMetadata>();
   for (const row of participationRows) {
-    const userId = row.player.userId;
-    if (!userId) continue;
-    if (!handsByUser.has(userId)) handsByUser.set(userId, new Set());
-    handsByUser.get(userId)!.add(row.handId);
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!handsByUser.has(actorId)) handsByUser.set(actorId, new Set());
+    handsByUser.get(actorId)!.add(row.handId);
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
   }
 
   const allInRows = await prisma.handAction.findMany({
     where: {
       action: "ALL_IN",
       hand: handWhere,
-      player: { userId: { not: null } },
     },
     select: {
-      player: { select: { userId: true } },
+      player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
   const allInByUser = new Map<string, number>();
   for (const row of allInRows) {
-    const userId = row.player.userId;
-    if (!userId) continue;
-    allInByUser.set(userId, (allInByUser.get(userId) ?? 0) + 1);
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    allInByUser.set(actorId, (allInByUser.get(actorId) ?? 0) + 1);
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
   }
 
   const userIds = Array.from(handsByUser.keys());
-  const userMeta = await getUserMetadata(userIds);
 
   const rows = userIds
     .map((userId) => {
@@ -457,7 +564,7 @@ async function computeAllInManiac(period: LeaderboardPeriod, asOf: Date): Promis
       const numerator = allInByUser.get(userId) ?? 0;
       return {
         userId,
-        displayName: userMeta.get(userId)?.displayName ?? userId,
+        displayName: actorMeta.get(userId)?.displayName ?? userId,
         value: formatPerHundred(numerator, handCount),
         valueNumerator: numerator,
         valueDenominator: handCount,
@@ -470,7 +577,7 @@ async function computeAllInManiac(period: LeaderboardPeriod, asOf: Date): Promis
       const bRatio = b.valueDenominator ? b.valueNumerator / b.valueDenominator : 0;
       if (bRatio !== aRatio) return bRatio - aRatio;
       if (b.handCount !== a.handCount) return b.handCount - a.handCount;
-      return compareUserTieBreak(userMeta, a.userId, b.userId);
+      return compareUserTieBreak(actorMeta, a.userId, b.userId);
     });
 
   return withRanks(rows);
@@ -487,13 +594,16 @@ async function computeStreaks(
     ? { endedAt: { not: null, gte: since, lte: asOf } }
     : { endedAt: { not: null, lte: asOf } };
 
-  const deltas = await prisma.balanceTransaction.groupBy({
-    by: ["userId", "handId"],
+  const deltas = await prisma.handPlayer.findMany({
     where: {
-      handId: { not: null },
       hand: handWhere,
     },
-    _sum: { amountCents: true },
+    select: {
+      handId: true,
+      startingStackCents: true,
+      endingStackCents: true,
+      player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
+    },
   });
 
   const handIds = Array.from(new Set(deltas.map((d) => d.handId).filter((id): id is string => Boolean(id))));
@@ -507,18 +617,29 @@ async function computeStreaks(
   }
 
   const byUser = new Map<string, Array<{ net: number; endedAt: number }>>();
+  const actorMeta = new Map<string, ActorMetadata>();
   for (const row of deltas) {
-    if (!row.handId) continue;
+    if (!row.handId || row.endingStackCents == null) continue;
     const endedAt = endedAtByHandId.get(row.handId) ?? 0;
-    if (!byUser.has(row.userId)) byUser.set(row.userId, []);
-    byUser.get(row.userId)!.push({
-      net: row._sum.amountCents ?? 0,
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!byUser.has(actorId)) byUser.set(actorId, []);
+    byUser.get(actorId)!.push({
+      net: row.endingStackCents - row.startingStackCents,
       endedAt,
     });
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
   }
 
   const userIds = Array.from(byUser.keys());
-  const userMeta = await getUserMetadata(userIds);
 
   const rows: Omit<LeaderboardSnapshotEntry, "rank">[] = [];
   for (const userId of userIds) {
@@ -536,7 +657,7 @@ async function computeStreaks(
     }
     rows.push({
       userId,
-      displayName: userMeta.get(userId)?.displayName ?? userId,
+      displayName: actorMeta.get(userId)?.displayName ?? userId,
       value: `${best} hands`,
       valueNumerator: best,
       valueDenominator: null,
@@ -547,7 +668,7 @@ async function computeStreaks(
   rows.sort((a, b) => {
     if (b.valueNumerator !== a.valueNumerator) return b.valueNumerator - a.valueNumerator;
     if (b.handCount !== a.handCount) return b.handCount - a.handCount;
-    return compareUserTieBreak(userMeta, a.userId, b.userId);
+    return compareUserTieBreak(actorMeta, a.userId, b.userId);
   });
   return withRanks(rows);
 }
@@ -566,20 +687,29 @@ async function computeVpip(
   const participationRows = await prisma.handPlayer.findMany({
     where: {
       hand: handWhere,
-      player: { userId: { not: null } },
     },
     select: {
       handId: true,
-      player: { select: { userId: true } },
+      player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
   const handsByUser = new Map<string, Set<string>>();
+  const actorMeta = new Map<string, ActorMetadata>();
   for (const row of participationRows) {
-    const userId = row.player.userId;
-    if (!userId) continue;
-    if (!handsByUser.has(userId)) handsByUser.set(userId, new Set());
-    handsByUser.get(userId)!.add(row.handId);
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!handsByUser.has(actorId)) handsByUser.set(actorId, new Set());
+    handsByUser.get(actorId)!.add(row.handId);
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
   }
 
   const vpipRows = await prisma.handAction.findMany({
@@ -587,12 +717,11 @@ async function computeVpip(
       hand: handWhere,
       street: "PREFLOP",
       action: { in: ["CALL", "BET", "RAISE", "ALL_IN"] },
-      player: { userId: { not: null } },
     },
     select: {
       handId: true,
       actionIndex: true,
-      player: { select: { userId: true } },
+      player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
@@ -612,21 +741,29 @@ async function computeVpip(
   const vpipByUser = new Map<string, Set<string>>();
   for (const row of vpipRows) {
     if (forcedBlindActionKeys.has(`${row.handId}:${row.actionIndex}`)) continue;
-    const userId = row.player.userId;
-    if (!userId) continue;
-    if (!vpipByUser.has(userId)) vpipByUser.set(userId, new Set());
-    vpipByUser.get(userId)!.add(row.handId);
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!vpipByUser.has(actorId)) vpipByUser.set(actorId, new Set());
+    vpipByUser.get(actorId)!.add(row.handId);
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
+      });
+    }
   }
 
   const userIds = Array.from(handsByUser.keys());
-  const userMeta = await getUserMetadata(userIds);
   const rows = userIds
     .map((userId) => {
       const handCount = handsByUser.get(userId)?.size ?? 0;
       const numerator = vpipByUser.get(userId)?.size ?? 0;
       return {
         userId,
-        displayName: userMeta.get(userId)?.displayName ?? userId,
+        displayName: actorMeta.get(userId)?.displayName ?? userId,
         value: `${(handCount > 0 ? (numerator / handCount) * 100 : 0).toFixed(1)}% VPIP`,
         valueNumerator: numerator,
         valueDenominator: handCount,
@@ -643,7 +780,7 @@ async function computeVpip(
         if (bRatio !== aRatio) return bRatio - aRatio;
       }
       if (b.handCount !== a.handCount) return b.handCount - a.handCount;
-      return compareUserTieBreak(userMeta, a.userId, b.userId);
+      return compareUserTieBreak(actorMeta, a.userId, b.userId);
     });
 
   return withRanks(rows);

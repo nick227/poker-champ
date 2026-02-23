@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getPrisma } from "../../db/prisma.js";
 import { HandHistoryService } from "./HandHistoryService.js";
 import { LedgerService } from "./LedgerService.js";
+import { BotStatsService } from "./BotStatsService.js";
 import { logger } from "../../lib/logger.js";
 import type { Street } from "../../state/PokerState.js";
 import type { PlayerState } from "../../state/PlayerState.js";
@@ -22,6 +23,7 @@ export class PersistenceFacade {
   readonly prisma: PrismaClient | null;
   readonly handHistory: HandHistoryService | null;
   readonly ledger: LedgerService | null;
+  readonly botStats: BotStatsService | null;
 
   constructor(private table:
     | string
@@ -40,6 +42,7 @@ export class PersistenceFacade {
       this.prisma = null;
       this.handHistory = null;
       this.ledger = null;
+      this.botStats = null;
       return;
     }
 
@@ -51,6 +54,7 @@ export class PersistenceFacade {
     this.prisma = prisma;
     this.handHistory = new HandHistoryService(prisma, tableId, { name: tableName, creatorId });
     this.ledger = new LedgerService(prisma, tableId);
+    this.botStats = new BotStatsService(prisma);
   }
 
   /**

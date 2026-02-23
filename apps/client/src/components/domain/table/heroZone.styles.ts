@@ -4,10 +4,27 @@ import {
   HERO_CARD_GAP,
   DEALER_BUTTON_SLOT_SIZE,
 } from "./constants/components/heroZone.layout";
+import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
+import { ACTIVE_TILE_BORDER } from "./constants/style/tableColors";
 
 export const heroZoneStyles = StyleSheet.create({
   root: {
     flexDirection: "column",
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: TABLE_TILE_RADIUS,
+  },
+  activeTurn: {
+    borderColor: ACTIVE_TILE_BORDER,
+    boxShadow: [
+      {
+        offsetX: 0,
+        offsetY: 0,
+        blurRadius: 8,
+        color: "hsla(158, 52%, 42%, 0.35)",
+      },
+    ] as const,
+    elevation: 6,
   },
   calcStrip: {
     height: CALC_STRIP_HEIGHT,

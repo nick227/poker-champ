@@ -26,6 +26,7 @@ export type HeroZoneProps = {
   playerStats?: { hands?: number; vpipPct?: number; pfrPct?: number };
   isWinner?: boolean;
   isDealer?: boolean;
+  isActiveTurn?: boolean;
   userName?: string;
   /** Override height when viewport is small. */
   height?: number;
@@ -74,6 +75,7 @@ export function HeroZone({
   playerStats,
   isWinner = false,
   isDealer = false,
+  isActiveTurn = false,
   userName,
   height: heightProp,
 }: HeroZoneProps) {
@@ -93,7 +95,7 @@ export function HeroZone({
     <View
       collapsable={false}
       className="hero-container flex-shrink-0"
-      style={[s.root, { height: zoneHeight, padding: 16, gap: 16 }]}
+      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, padding: 16, gap: 16 }]}
     >
       {/* Top rail: calculation stats (always rendered to preserve layout height). */}
       <View style={s.calcStrip}>

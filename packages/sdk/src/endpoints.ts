@@ -124,6 +124,15 @@ export const admin = {
     ),
 };
 
+export const bots = {
+  list: () => request<SuccessPayload<Operation<"/api/bots", "get">>>("GET", "/api/bots"),
+  stats: (path: PathParams<Operation<"/api/bots/{id}/stats", "get">>) =>
+    request<SuccessPayload<Operation<"/api/bots/{id}/stats", "get">>>(
+      "GET",
+      pathWithParams("/api/bots/{id}/stats", path as Record<string, string | number>),
+    ),
+};
+
 export function createNamespacedSdk() {
-  return { auth, profile, lobby, economy, tournaments, admin };
+  return { auth, profile, lobby, economy, tournaments, admin, bots };
 }

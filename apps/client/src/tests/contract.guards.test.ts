@@ -9,7 +9,9 @@ describe("realtime contract guards", () => {
     expect(isValidLobbyOutbound("ONLINE_COUNT", { totalOnline: 3 })).toBe(true);
     expect(isValidLobbyOutbound("ONLINE_PLAYERS", { totalOnline: 1, generatedAt: Date.now(), players: [] })).toBe(true);
     expect(isValidTableInbound("ACTION", { action: "RAISE", amountCents: 100, actionId: "a1" })).toBe(true);
+    expect(isValidTableInbound("LIST_BOTS", {})).toBe(true);
     expect(isValidTableOutbound("WELCOME", { roomId: "r1", playerId: "u1", tableId: "t1", joinMode: "NEW" })).toBe(true);
+    expect(isValidTableOutbound("BOTS_LIST", { bots: [{ id: "nash_nate", name: "Nash Nate" }] })).toBe(true);
   });
 
   it("rejects invalid lobby/table envelopes", () => {

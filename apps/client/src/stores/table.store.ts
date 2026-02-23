@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import type { TableSnapshotPayload, ChatMessagePayload } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload, BotSummary } from "@poker-champ/realtime-contract";
 
 const CHAT_MESSAGES_CAP = 100;
 
 type TableStoreState = {
   snapshotsByTableId: Record<string, TableSnapshotPayload | undefined>;
   chatMessagesByTableId: Record<string, ChatMessagePayload[]>;
+  botSummariesByTableId: Record<string, BotSummary[]>;
+  botSummariesUpdatedAtByTableId: Record<string, number>;
   lastSeqByTableId: Record<string, number>;
   connectionStatusByTableId: Record<string, "CONNECTED" | "RECONNECTING" | "DISCONNECTED">;
   statusByTableId: Record<string, string | undefined>;
@@ -13,6 +15,7 @@ type TableStoreState = {
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
   resetSnapshotStream: (tableId: string) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
+  setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
   clearConnectionStatus: (tableId: string) => void;
   setStatus: (tableId: string, status: string) => void;
@@ -23,6 +26,8 @@ type TableStoreState = {
 export const useTableStore = create<TableStoreState>((set) => ({
   snapshotsByTableId: {},
   chatMessagesByTableId: {},
+  botSummariesByTableId: {},
+  botSummariesUpdatedAtByTableId: {},
   lastSeqByTableId: {},
   connectionStatusByTableId: {},
   statusByTableId: {},
@@ -34,6 +39,17 @@ export const useTableStore = create<TableStoreState>((set) => ({
       const next = [...list, message].slice(-CHAT_MESSAGES_CAP);
       return { chatMessagesByTableId: { ...s.chatMessagesByTableId, [tableId]: next } };
     }),
+  setBotSummaries: (tableId, bots) =>
+    set((s) => ({
+      botSummariesByTableId: {
+        ...s.botSummariesByTableId,
+        [tableId]: bots,
+      },
+      botSummariesUpdatedAtByTableId: {
+        ...s.botSummariesUpdatedAtByTableId,
+        [tableId]: Date.now(),
+      },
+    })),
   setSnapshot: (tableId, snapshot) =>
     set((s) => {
       const lastSeq = s.lastSeqByTableId[tableId] || 0;
@@ -118,10 +134,21 @@ export const useTableStore = create<TableStoreState>((set) => ({
     set((s) => {
       const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
       const { [tableId]: _chat, ...chatMessagesByTableId } = s.chatMessagesByTableId;
+      const { [tableId]: _bots, ...botSummariesByTableId } = s.botSummariesByTableId;
+      const { [tableId]: _botsAt, ...botSummariesUpdatedAtByTableId } = s.botSummariesUpdatedAtByTableId;
       const { [tableId]: _status, ...statusByTableId } = s.statusByTableId;
       const { [tableId]: _error, ...errorByTableId } = s.errorByTableId;
       const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
       const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
-      return { snapshotsByTableId, chatMessagesByTableId, statusByTableId, errorByTableId, lastSeqByTableId, connectionStatusByTableId };
+      return {
+        snapshotsByTableId,
+        chatMessagesByTableId,
+        botSummariesByTableId,
+        botSummariesUpdatedAtByTableId,
+        statusByTableId,
+        errorByTableId,
+        lastSeqByTableId,
+        connectionStatusByTableId,
+      };
     }),
 }));

@@ -6,6 +6,9 @@ export const LobbyInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("LIST_ONLINE_PLAYERS"), payload: z.unknown().optional() }),
   z.object({ type: z.literal("CREATE_TABLE"), payload: CreateTableSchema }),
   z.object({ type: z.literal("JOIN_TABLE"), payload: JoinTableSchema }),
+  z.object({ type: z.literal("JOIN_LOBBY_VOICE"), payload: z.unknown().optional() }),
+  z.object({ type: z.literal("LEAVE_LOBBY_VOICE"), payload: z.unknown().optional() }),
+  z.object({ type: z.literal("VOICE_SIGNAL"), payload: z.unknown().optional() }),
 ]);
 
 export const LobbyOutboundMessageSchema = z.discriminatedUnion("type", [
@@ -28,6 +31,13 @@ export const LobbyOutboundMessageSchema = z.discriminatedUnion("type", [
       totalOnline: z.number().int().min(0),
       generatedAt: z.number().int().nonnegative(),
       players: z.array(OnlinePlayerSummarySchema),
+    }),
+  }),
+  z.object({
+    type: z.literal("LOBBY_VOICE_PARTICIPANTS"),
+    payload: z.object({
+      userIds: z.array(z.string().min(1)),
+      serverNowTs: z.number().int().nonnegative(),
     }),
   }),
   z.object({

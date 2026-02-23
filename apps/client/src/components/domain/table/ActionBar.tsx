@@ -177,7 +177,7 @@ export function ActionBar({
     <View
       collapsable={false}
       className="relative"
-      style={{ height: ACTION_BAR_HEIGHT, paddingHorizontal: 12 }}
+      style={{ height: ACTION_BAR_HEIGHT, paddingHorizontal: 12, width: "100%" }}
     >
       <View
         style={{

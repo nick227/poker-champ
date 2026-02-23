@@ -51,11 +51,23 @@ export const ActionWithIdPayloadSchema = z.intersection(
 );
 
 export const AddBotPayloadSchema = z.object({
-  name: z.string().min(1).max(80).default("Bot"),
+  botId: z.string().min(1).optional(),
+  name: z.string().min(1).max(80).optional(),
   buyInCents: z.number().int().positive(),
 });
+export const ListBotsPayloadSchema = z.object({});
 export const RemoveBotPayloadSchema = z.object({
   botId: z.string().min(1),
+});
+
+export const BotSummarySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  avatarUrl: z.string().min(1).optional(),
+});
+
+export const BotsListPayloadSchema = z.object({
+  bots: z.array(BotSummarySchema),
 });
 
 export const ChatPayloadSchema = z.object({
@@ -74,6 +86,7 @@ export const ChatMessagePayloadSchema = z.object({
 export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ACTION"), payload: z.union([ActionWithIdPayloadSchema, ActionEnvelopePayloadSchema]) }),
   z.object({ type: z.literal("ADD_BOT"), payload: AddBotPayloadSchema }),
+  z.object({ type: z.literal("LIST_BOTS"), payload: ListBotsPayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
 ]);
@@ -248,6 +261,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
       details: z.unknown().optional(),
     }),
   }),
+  z.object({ type: z.literal("BOTS_LIST"), payload: BotsListPayloadSchema }),
   z.object({ type: z.literal("CHAT_MESSAGE"), payload: ChatMessagePayloadSchema }),
 ]);
 
@@ -260,3 +274,4 @@ export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;
 export type HeroPlayerStats = z.infer<typeof HeroPlayerStatsSchema>;
 export type TableErrorCode = z.infer<typeof TableErrorCodeEnum>;
 export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;
+export type BotSummary = z.infer<typeof BotSummarySchema>;

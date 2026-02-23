@@ -16,6 +16,7 @@ export const openApiSpec = {
     { name: "economy" },
     { name: "tournaments" },
     { name: "lobby" },
+    { name: "bots" },
     { name: "admin" },
   ],
   components: {
@@ -87,6 +88,15 @@ export const openApiSpec = {
           "runningSince",
           "createdAt",
         ],
+      },
+      BotSummary: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          avatarUrl: { type: "string", nullable: true },
+        },
+        required: ["id", "name"],
       },
     },
   },
@@ -989,6 +999,77 @@ export const openApiSpec = {
           },
           "400": {
             description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/bots": {
+      get: {
+        tags: ["bots"],
+        operationId: "botsList",
+        responses: {
+          "200": {
+            description: "Enabled bot catalog summaries",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    bots: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/BotSummary" },
+                    },
+                  },
+                  required: ["bots"],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/bots/{id}/stats": {
+      get: {
+        tags: ["bots"],
+        operationId: "botStatsGet",
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Global cumulative study stats for a bot",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    bot: { $ref: "#/components/schemas/BotSummary" },
+                    stats: {
+                      type: "object",
+                      properties: {
+                        botId: { type: "string" },
+                        handsPlayed: { type: "integer" },
+                        netCents: { type: "integer" },
+                        grossWonCents: { type: "integer" },
+                        grossLostCents: { type: "integer" },
+                        updatedAt: { type: "string", format: "date-time", nullable: true },
+                      },
+                      required: ["botId", "handsPlayed", "netCents", "grossWonCents", "grossLostCents", "updatedAt"],
+                    },
+                  },
+                  required: ["bot", "stats"],
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Bot not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

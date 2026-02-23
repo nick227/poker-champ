@@ -1,0 +1,57 @@
+{
+  "brainId": "tight_aggressive_v1",
+  "simulations": 10000,
+  "seed": 1337,
+  "rows": [
+    {
+      "axisId": "player_count",
+      "influence": 8117.780557937546,
+      "share": 0.348588258368619
+    },
+    {
+      "axisId": "stack_depth",
+      "influence": 3265.019317801414,
+      "share": 0.14020425772896924
+    },
+    {
+      "axisId": "initiative",
+      "influence": 2794.2155276732396,
+      "share": 0.11998731886707155
+    },
+    {
+      "axisId": "facing_pressure",
+      "influence": 2236.9511220264912,
+      "share": 0.09605764655962284
+    },
+    {
+      "axisId": "spr",
+      "influence": 1801.1316897388922,
+      "share": 0.07734298239987465
+    },
+    {
+      "axisId": "position_postflop",
+      "influence": 1560.847288517827,
+      "share": 0.06702485168212607
+    },
+    {
+      "axisId": "street",
+      "influence": 983.9030090132667,
+      "share": 0.04225009950290121
+    },
+    {
+      "axisId": "pot_odds",
+      "influence": 944.1999256931778,
+      "share": 0.04054519647335563
+    },
+    {
+      "axisId": "draws",
+      "influence": 812.6072525921672,
+      "share": 0.0348944326465977
+    },
+    {
+      "axisId": "open_opportunity",
+      "influence": 770.934648188594,
+      "share": 0.03310495577086201
+    }
+  ]
+}

@@ -130,6 +130,21 @@ describe("realtime channel registry dispatch", () => {
     expect(list?.[0]?.id).toBe("m1");
   });
 
+  it("routes BOTS_LIST through context callback", () => {
+    const onBotsList = vi.fn();
+    const bots = [{ id: "nash_nate", name: "Nash Nate" }];
+
+    dispatchRealtimeChannelMessage("table", "BOTS_LIST", { bots }, {
+      tableId: "t1",
+      onBotsList,
+      onSnapshot: vi.fn(),
+      onError: vi.fn(),
+      setStatus: vi.fn(),
+    });
+
+    expect(onBotsList).toHaveBeenCalledWith("t1", bots);
+  });
+
   it("rejects invalid payload and surfaces INVALID_REALTIME_MESSAGE", () => {
     const onError = vi.fn();
 

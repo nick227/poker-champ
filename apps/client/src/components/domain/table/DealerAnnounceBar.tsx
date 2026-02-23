@@ -1,3 +1,7 @@
+/**
+ * Owns all textual status: game messages (hand, action, result, waiting) or statusMessage (connecting/error).
+ * No other component should show "Connecting", "Error", "Waiting" etc. See TABLE_SCENE_VIEWS_OVERVIEW.md.
+ */
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
@@ -32,6 +36,8 @@ export type DealerAnnounceBarProps = {
   handResultMessage?: HandResultMessage;
   tableStatus?: string;
   nextHandAtTs?: number;
+  /** When set (e.g. connecting/error), shown instead of derived game message. */
+  statusMessage?: string;
 };
 
 export function DealerAnnounceBar({
@@ -40,6 +46,7 @@ export function DealerAnnounceBar({
   handResultMessage,
   tableStatus,
   nextHandAtTs,
+  statusMessage,
 }: DealerAnnounceBarProps) {
   const [remaining, setRemaining] = useState<number>(0);
 
@@ -59,7 +66,8 @@ export function DealerAnnounceBar({
     return () => clearInterval(interval);
   }, [nextHandAtTs]);
 
-  const message = deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
+  const message =
+    statusMessage ?? deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
 
   return (
     <View collapsable={false} className="relative h-9 ui-row flex-shrink-0 items-center w-full justify-center">

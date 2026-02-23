@@ -1,10 +1,32 @@
+import type { ReactNode } from "react";
 import { View } from "react-native";
 import { TableLayout } from "@/components/domain/table/TableLayout";
 import { EmptyTableView } from "@/components/domain/table/EmptyTableView";
-import { ConnectingTableShell } from "@/components/domain/table/ConnectingTableShell";
-import { TableTopBar } from "@/components/domain/table/TableTopBar";
+import { TableSceneShell } from "@/components/domain/table/TableSceneShell";
+import { DealerAnnounceBar } from "@/components/domain/table/DealerAnnounceBar";
+import { ConnectingCard } from "@/components/domain/table/ConnectingCard";
 import { Button } from "@/components/base/Button";
 import type { TableScreenController } from "@/types/tableSceneContract";
+import {
+  DEFAULT_MAX_SEATS,
+  TABLE_SHELL_TITLE_CLASSNAME,
+  TABLE_SHELL_TOP_BAR_CLASSNAME,
+} from "@/components/domain/table/constants/tableLayout.constants";
+
+/** Single source for all non-game status text. DealerAnnounceBar is the only place that shows these. */
+function statusMessageFor(
+  mode: TableScreenController["scene"]["mode"],
+  scene: TableScreenController["scene"],
+): string {
+  if (mode === "auth_loading") return "Restoring session…";
+  if (mode === "auth_required") return "Session required. Redirecting to login…";
+  const { hasValidBuyIn, tableError, tableStatus } = scene;
+  if (!hasValidBuyIn) return "Missing buy-in data.";
+  if (tableError) return tableError;
+  if (tableStatus === "DISCONNECTED") return "Connecting…";
+  if (tableStatus === "RECONNECTING") return "Reconnecting to table…";
+  return `Connecting to table (${tableStatus})…`;
+}
 
 type TableScreenSceneProps = {
   scene: TableScreenController["scene"];
@@ -12,50 +34,63 @@ type TableScreenSceneProps = {
   actions: TableScreenController["actions"];
 };
 
-export function TableScreenScene({ scene, renderModel, actions }: TableScreenSceneProps) {
-  const snapshot = renderModel.snapshot;
+function statusBottom(
+  mode: TableScreenController["scene"]["mode"],
+  actions: TableScreenController["actions"],
+): ReactNode {
+  const isLogin = mode === "auth_required";
+  return (
+    <View className="ui-p-inline-4">
+      <Button
+        title={isLogin ? "Go to login" : "Return to lobby"}
+        onPress={isLogin ? actions.goToLogin : actions.goToLobby}
+      />
+    </View>
+  );
+}
 
-  switch (scene.mode) {
+/** One shell for all "no table yet" states: auth and connecting. Only message and bottom CTA differ. */
+function StatusShell({
+  mode,
+  scene,
+  renderModel,
+  actions,
+}: TableScreenSceneProps & { mode: TableScreenController["scene"]["mode"] }) {
+  const message = statusMessageFor(mode, scene);
+  return (
+    <TableSceneShell
+      tableName="Connecting…"
+      playerCount={0}
+      maxSeats={DEFAULT_MAX_SEATS}
+      balanceCents={renderModel.balanceCents}
+      topBarRight={renderModel.tableTopBarRight}
+      opponents={[]}
+      dealerBar={<DealerAnnounceBar statusMessage={message} />}
+      board={
+        <ConnectingCard
+          message={message}
+          action={
+            <Button variant="link" title="Return to lobby" onPress={actions.goToLobby} />
+          }
+        />
+      }
+      hero={<View collapsable={false} />}
+      bottom={statusBottom(mode, actions)}
+      titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
+      topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
+    />
+  );
+}
+
+export function TableScreenScene({ scene, renderModel, actions }: TableScreenSceneProps) {
+  const { snapshot } = renderModel;
+  const { mode } = scene;
+
+  switch (mode) {
     case "auth_loading":
-      return (
-        <View className="flex-1 ui-center ui-stack-4">
-          <Button title="Restoring session..." onPress={() => {}} />
-        </View>
-      );
     case "auth_required":
-      return (
-        <View className="flex-1 ui-center ui-stack-4">
-          <Button title="Session required. Redirecting to login..." onPress={actions.goToLogin} />
-        </View>
-      );
     case "connecting":
-      return (
-        <View className="flex-1">
-          <TableTopBar
-            userName={renderModel.profileUsername}
-            balanceCents={renderModel.balanceCents}
-            right={
-              <View className="ui-row ui-inline-1">
-                <Button variant="link" title="X" onPress={actions.closeTableAndReturn} />
-              </View>
-            }
-          />
-          <ConnectingTableShell
-            message={
-              !scene.hasValidBuyIn
-                ? "Missing buy-in data."
-                : scene.tableError
-                  ? scene.tableError
-                  : scene.tableStatus === "DISCONNECTED"
-                    ? "Connecting..."
-                    : scene.tableStatus === "RECONNECTING"
-                      ? "Reconnecting to table..."
-                      : `Connecting to table (${scene.tableStatus})...`
-            }
-            action={<Button variant="link" title="Return to lobby" onPress={actions.goToLobby} />}
-          />
-        </View>
-      );
+      return <StatusShell mode={mode} scene={scene} renderModel={renderModel} actions={actions} />;
     case "idle":
       return (
         <EmptyTableView

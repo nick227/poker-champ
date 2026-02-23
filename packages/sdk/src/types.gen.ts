@@ -340,6 +340,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["botsList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/bots/{id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["botStatsGet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users": {
         parameters: {
             query?: never;
@@ -494,6 +526,11 @@ export interface components {
             visibility: "PUBLIC" | "PRIVATE";
             runningSince: number | null;
             createdAt: number;
+        };
+        BotSummary: {
+            id: string;
+            name: string;
+            avatarUrl?: string | null;
         };
     };
     responses: never;
@@ -1366,6 +1403,70 @@ export interface operations {
             };
             /** @description Invalid request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    botsList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enabled bot catalog summaries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bots: components["schemas"]["BotSummary"][];
+                    };
+                };
+            };
+        };
+    };
+    botStatsGet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Global cumulative study stats for a bot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bot: components["schemas"]["BotSummary"];
+                        stats: {
+                            botId: string;
+                            handsPlayed: number;
+                            netCents: number;
+                            grossWonCents: number;
+                            grossLostCents: number;
+                            /** Format: date-time */
+                            updatedAt: string | null;
+                        };
+                    };
+                };
+            };
+            /** @description Bot not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

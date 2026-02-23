@@ -31,7 +31,7 @@ export class SnapshotService {
   constructor(private readonly deps: {
     state: PokerState;
     clientsByUserId: Map<string, Client>;
-    holeCardsByPlayerId: Map<string, string[]>;
+    getHoleCardsByPlayerId: () => Map<string, string[]>;
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
     getLastHandResult: () => TableSnapshotPayload["lastHandResult"] | undefined;
     getLastAction: () => TableSnapshotPayload["lastAction"] | undefined;
@@ -146,7 +146,7 @@ export class SnapshotService {
         roundBetCents: player.roundBetCents,
         committedCents: player.committedCents,
       })),
-      holeCardsByPlayerId: this.deps.holeCardsByPlayerId,
+      holeCardsByPlayerId: this.deps.getHoleCardsByPlayerId(),
       getActionOptions: (userId) => this.deps.getHeroActionOptions(userId),
     });
   }
@@ -260,7 +260,7 @@ export class SnapshotService {
       userId,
       youAreSeated: Boolean(hero),
       seat: hero?.seat,
-      holeCards: hero ? this.deps.holeCardsByPlayerId.get(userId) : undefined,
+      holeCards: hero ? this.deps.getHoleCardsByPlayerId().get(userId) : undefined,
       actionOptions,
       calculations: hasCalc
         ? {

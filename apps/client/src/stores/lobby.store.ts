@@ -3,7 +3,7 @@ import { getLobbyTables } from "@/services/get/lobby.get";
 import type { OnlinePlayerSummary } from "@poker-champ/realtime-contract";
 
 type LobbyState = {
-  tables: any[];
+  tables: unknown[];
   onlineTotal: number;
   onlinePlayers: OnlinePlayerSummary[];
   onlineBusy: boolean;
@@ -11,6 +11,8 @@ type LobbyState = {
   busy: boolean;
   error: string | null;
   transportState: "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
+  lobbyVoiceParticipantIds: string[];
+  lobbyVoiceServerNowTs: number | null;
   refresh: (opts?: { background?: boolean }) => Promise<void>;
 };
 
@@ -23,6 +25,8 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   busy: false,
   error: null,
   transportState: "DISCONNECTED",
+  lobbyVoiceParticipantIds: [],
+  lobbyVoiceServerNowTs: null,
   refresh: async (opts) => {
     const background = opts?.background === true;
     if (!background) set({ busy: true, error: null });

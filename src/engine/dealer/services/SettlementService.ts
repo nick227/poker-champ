@@ -3,6 +3,7 @@ import { PokerError } from "../../errors.js";
 import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { assertMoneyConservationTransition } from "../../invariants/assertMoneyConservation.js";
+import { logger } from "../../../lib/logger.js";
 
 type DebitActionKind = "CALL" | "BET" | "RAISE" | "ALL_IN" | "POST_SB" | "POST_BB";
 
@@ -32,6 +33,8 @@ export class SettlementService {
   constructor(private readonly deps: {
     state: PokerState;
     persistence: PersistenceFacade;
+    getHoleCardsByPlayerId: () => Map<string, string[]>;
+    getHandStartingStacksByPlayerId: () => Map<string, number>;
   }) {}
 
   resetHandCounters(): void {
@@ -603,5 +606,39 @@ export class SettlementService {
         endingStackCents: player.stackCents,
       })),
     });
+
+    if (!persistence.botStats) return;
+
+    const dealtBotIds: string[] = [];
+    const deltaByBotId: Record<string, number> = {};
+    const holeCardsByPlayerId = this.deps.getHoleCardsByPlayerId();
+    for (const dealtPlayerId of holeCardsByPlayerId.keys()) {
+      const player = state.playersById.get(dealtPlayerId);
+      if (!player || player.kind !== "BOT") continue;
+      const characterBotId = player.botId || player.id;
+      const startingStack = this.deps.getHandStartingStacksByPlayerId().get(player.id);
+      if (startingStack == null) continue;
+      const delta = player.stackCents - startingStack;
+      deltaByBotId[characterBotId] = (deltaByBotId[characterBotId] ?? 0) + delta;
+      dealtBotIds.push(characterBotId);
+    }
+
+    try {
+      await persistence.botStats.recordHandResult({
+        handId: state.handId,
+        dealtBotIds,
+        deltaByBotId,
+      });
+    } catch (err) {
+      logger.warn(
+        {
+          err,
+          handId: state.handId,
+          tableId: state.tableId,
+          dealtBotIds,
+        },
+        "BOT_STATS_RECORDING_FAILED_POST_SETTLEMENT",
+      );
+    }
   }
 }

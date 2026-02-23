@@ -7,11 +7,12 @@ import type { HandHistoryListItem } from "@/services/history.service";
 interface HandListItemProps {
   hand: HandHistoryListItem;
   onPress: (handId: string) => void;
+  onReplayPress?: (handId: string) => void;
 }
 
-export function HandListItem({ hand, onPress }: HandListItemProps) {
+export function HandListItem({ hand, onPress, onReplayPress }: HandListItemProps) {
   const router = useRouter();
-  
+
   const formatCents = (cents: number) => {
     return (cents / 100).toFixed(2);
   };
@@ -38,9 +39,13 @@ export function HandListItem({ hand, onPress }: HandListItemProps) {
   const resultBadge = isWin ? "Won" : "Lost";
 
   const hasReplay = hand.hasReplay === true;
-  const onReplayPress = () => {
+  const handleReplayPress = () => {
     if (!hasReplay) return;
-    router.push(`/replay/${hand.id}`);
+    if (onReplayPress) {
+      onReplayPress(hand.id);
+    } else {
+      router.push(`/replay/${hand.id}`);
+    }
   };
 
   return (
@@ -84,7 +89,7 @@ export function HandListItem({ hand, onPress }: HandListItemProps) {
       
       {hasReplay && (
         <View className="mt-3">
-          <Button title="Replay Hand" onPress={onReplayPress} variant="ghost" />
+          <Button title="Replay Hand" onPress={handleReplayPress} variant="ghost" />
         </View>
       )}
     </Pressable>

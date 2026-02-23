@@ -1,40 +1,17 @@
 import { Modal, View, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/base/Text";
-
-interface HandHistoryDetail {
-  id: string;
-  boardCards: string[];
-  bigBlindCents: number;
-  reason: string | null;
-  players: Array<{
-    userId: string;
-    displayName: string;
-    seat: number;
-    holeCards?: string[];
-    finalStack: number;
-  }>;
-  actions: Array<{
-    street: string;
-    actorUserId: string;
-    actorDisplayName: string;
-    action: string;
-    amountCents: number;
-  }>;
-  payouts: Array<{
-    userId: string;
-    displayName: string;
-    amountCents: number;
-  }>;
-}
+import { Button } from "@/components/base/Button";
+import type { HandHistoryDetail } from "@/services/history.service";
 
 interface HandDetailModalProps {
   visible: boolean;
   hand: HandHistoryDetail | null;
   onClose: () => void;
   currentUserId: string;
+  onReplayPress?: (handId: string) => void;
 }
 
-export function HandDetailModal({ visible, hand, onClose, currentUserId }: HandDetailModalProps) {
+export function HandDetailModal({ visible, hand, onClose, currentUserId, onReplayPress }: HandDetailModalProps) {
   if (!hand) return null;
 
   const formatCents = (cents: number) => {
@@ -79,6 +56,7 @@ export function HandDetailModal({ visible, hand, onClose, currentUserId }: HandD
   };
 
   const actionGroups = groupActionsByStreet();
+  const hasReplay = (hand.snapshots?.length ?? 0) > 0;
 
   return (
     <Modal
@@ -102,6 +80,18 @@ export function HandDetailModal({ visible, hand, onClose, currentUserId }: HandD
             <Text variant="body" className="font-semibold mb-2">Hand Information</Text>
             <Text variant="muted" className="text-xs">Big Blind: ${formatCents(hand.bigBlindCents)}</Text>
             <Text variant="muted" className="text-xs">Result: {hand.reason || "In Progress"}</Text>
+            {hasReplay && onReplayPress && (
+              <View className="mt-3">
+                <Button
+                  title="Replay Hand"
+                  onPress={() => {
+                    onReplayPress(hand.id);
+                    onClose();
+                  }}
+                  variant="ghost"
+                />
+              </View>
+            )}
           </View>
 
           {/* Board */}

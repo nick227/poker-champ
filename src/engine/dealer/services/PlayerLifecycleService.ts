@@ -39,7 +39,7 @@ export class PlayerLifecycleService {
     pendingSeatReleaseUserIds: Set<string>;
     autoActionsByUserId: Map<string, number>;
     currentHandAutoActedUserIds: Set<string>;
-    holeCardsByPlayerId: Map<string, string[]>;
+    getHoleCardsByPlayerId: () => Map<string, string[]>;
     ensurePlayerPersistence: (player: PlayerState) => Promise<void>;
     /** When set, used to force-fold before abandon/remove so hand history and pot math are consistent. */
     forceFoldIfInHand?: ForceFoldIfInHand;
@@ -199,7 +199,7 @@ export class PlayerLifecycleService {
     return plans;
   }
 
-  async addBot(botId: string, name: string, buyInCents: number): Promise<PlayerLifecyclePlan[]> {
+  async addBot(botId: string, name: string, buyInCents: number, catalogBotId?: string): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     if (this.deps.state.playersById.has(botId)) return plans;
 
@@ -211,6 +211,7 @@ export class PlayerLifecycleService {
     player.id = botId;
     player.userId = "";
     player.kind = "BOT";
+    player.botId = catalogBotId || botId;
     player.name = name;
     player.seat = seat;
     player.status = this.deps.state.street === "WAITING" ? "ACTIVE" : "ABANDONED";
@@ -273,7 +274,7 @@ export class PlayerLifecycleService {
 
     this.deps.state.seats[player.seat] = "";
     this.deps.state.playersById.delete(botId);
-    this.deps.holeCardsByPlayerId.delete(botId);
+    this.deps.getHoleCardsByPlayerId().delete(botId);
     this.syncBettingStateAfterRemoval();
     if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
       await this.deps.persistence.handHistory.removePlayer(botId);
@@ -319,7 +320,7 @@ export class PlayerLifecycleService {
 
       this.deps.state.seats[player.seat] = "";
       this.deps.state.playersById.delete(userId);
-      this.deps.holeCardsByPlayerId.delete(userId);
+      this.deps.getHoleCardsByPlayerId().delete(userId);
       this.syncBettingStateAfterRemoval();
       if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
         await this.deps.persistence.handHistory.removePlayer(userId);

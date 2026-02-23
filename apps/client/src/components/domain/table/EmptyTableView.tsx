@@ -7,6 +7,7 @@ import { HeroZone } from "./HeroZone";
 import { Button } from "@/components/base/Button";
 import { useTableSceneModel, type TableSceneModel } from "./hooks/useTableSceneModel";
 import { TableSceneShell } from "./TableSceneShell";
+import { TABLE_SHELL_TITLE_CLASSNAME, TABLE_SHELL_TOP_BAR_CLASSNAME } from "./constants/tableLayout.constants";
 
 export type EmptyTableViewProps = {
   snapshot: TableSnapshotPayload;
@@ -80,8 +81,8 @@ export function EmptyTableView({
       }
       bottom={canRebuy && onPressRebuy ? <Button title="Rebuy" onPress={onPressRebuy} /> : null}
       rootClassName="overflow-hidden"
-      titleSectionClassName="mb-4"
-      topBarSectionClassName="border-t border-b border-border-subtle mb-4"
+      titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
+      topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
     />
   );
 }

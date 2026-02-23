@@ -27,14 +27,24 @@ describe("voice webrtc + stun flows", () => {
   let rafCb: FrameRequestCallback | null = null;
   let analyzerMode: "loud" | "quiet" = "quiet";
 
-  const adapterFactory = (): VoiceSignalingAdapter & { sent: unknown[] } => {
+  type AdapterWithTestHelpers = VoiceSignalingAdapter & {
+    sent: unknown[];
+    deliverMessage: (msg: unknown) => void;
+  };
+  const adapterFactory = (): AdapterWithTestHelpers => {
     const sent: unknown[] = [];
+    let messageHandler: ((msg: unknown) => void) | null = null;
     return {
       sent,
       send: (msg) => {
         sent.push(msg);
       },
-      onMessage: () => undefined,
+      onMessage: (cb) => {
+        messageHandler = cb as (msg: unknown) => void;
+      },
+      deliverMessage: (msg) => {
+        messageHandler?.(msg);
+      },
     };
   };
 
@@ -174,7 +184,7 @@ describe("voice webrtc + stun flows", () => {
       },
     });
 
-    expect(adapter.sent.some((msg: any) => msg.type === "VOICE_ICE")).toBe(true);
+    expect(adapter.sent.some((msg: unknown) => (msg as { type?: string }).type === "VOICE_ICE")).toBe(true);
   });
 
   it("suspends and resumes audio context on mute and unmute", async () => {
@@ -193,5 +203,181 @@ describe("voice webrtc + stun flows", () => {
 
     sdk.setMuted(false);
     expect(audioContextResume).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispose closes all peer connections and clears map", async () => {
+    const adapter = adapterFactory();
+    const pcm = new PeerConnectionManager({
+      selfUserId: "user-a",
+      channelId: "table-1",
+      adapter,
+      localStream: { getTracks: () => [] } as unknown as MediaStream,
+    });
+
+    pcm.setPeers(["user-b"]);
+    await pcm.beginNegotiation();
+    expect(createdPcs.length).toBe(1);
+
+    await pcm.dispose();
+    expect(createdPcs[0]?.close).toHaveBeenCalledTimes(1);
+    createdPcs.length = 0;
+
+    pcm.setPeers(["user-b", "user-c"]);
+    await pcm.beginNegotiation();
+    expect(createdPcs.length).toBe(2);
+    await pcm.dispose();
+    expect(createdPcs[0]?.close).toHaveBeenCalled();
+    expect(createdPcs[1]?.close).toHaveBeenCalled();
+  });
+
+  it("leaveChannel stops local tracks and tears down PCM", async () => {
+    const trackStop = vi.fn();
+    const mockStream = {
+      getTracks: () => [{ stop: trackStop }],
+      getAudioTracks: () => [{ enabled: true, stop: trackStop }],
+    };
+    Object.defineProperty(globalThis.navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: vi.fn(async () => mockStream),
+    });
+
+    const adapter = adapterFactory();
+    const sdk = new VoiceSDK({
+      adapter,
+      selfUserId: "user-a",
+      channelId: "table-1",
+    });
+    sdk.setPeers(["user-b"]);
+
+    await sdk.joinChannel();
+    expect(createdPcs.length).toBe(1);
+
+    await sdk.leaveChannel();
+    expect(trackStop).toHaveBeenCalled();
+    expect(createdPcs[0]?.close).toHaveBeenCalled();
+
+    adapter.sent.length = 0;
+    await sdk.joinChannel();
+    expect(createdPcs.length).toBe(2);
+    await sdk.leaveChannel();
+    expect(createdPcs[1]?.close).toHaveBeenCalled();
+  });
+
+  it("ignores incoming signals for mismatched channelId", async () => {
+    const adapter = adapterFactory();
+    const sdk = new VoiceSDK({
+      adapter,
+      selfUserId: "user-a",
+      channelId: "table-1",
+    });
+
+    await sdk.joinChannel();
+    const before = adapter.sent.length;
+
+    adapter.deliverMessage({
+      type: "VOICE_OFFER",
+      channelId: "other-table",
+      fromUserId: "user-b",
+      toUserId: "user-a",
+      sdp: {},
+    });
+
+    expect(adapter.sent.length).toBe(before);
+  });
+
+  it("leaveChannel during join cleans up and does not create PCs", async () => {
+    const trackStop = vi.fn();
+    const mockStream = {
+      getTracks: () => [{ stop: trackStop }],
+      getAudioTracks: () => [{ enabled: true, stop: trackStop }],
+    };
+    let resolveGum: (v: unknown) => void = () => {};
+    const gumPromise = new Promise<typeof mockStream>((r) => {
+      resolveGum = r as (v: unknown) => void;
+    });
+    Object.defineProperty(globalThis.navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: () => gumPromise,
+    });
+
+    const adapter = adapterFactory();
+    const sdk = new VoiceSDK({
+      adapter,
+      selfUserId: "user-a",
+      channelId: "table-1",
+    });
+    sdk.setPeers(["user-b"]);
+
+    const joinPromise = sdk.joinChannel();
+    await sdk.leaveChannel();
+    resolveGum(mockStream);
+    await joinPromise.catch(() => {});
+
+    expect(createdPcs.length).toBe(0);
+    const state = sdk.getDebugState();
+    expect(state.joined).toBe(false);
+    expect(state.peerCount).toBe(0);
+    expect(state.meterRunning).toBe(false);
+  });
+
+  it("disposed SDK ignores delivered signals", async () => {
+    const adapter = adapterFactory();
+    const sdk = new VoiceSDK({
+      adapter,
+      selfUserId: "user-a",
+      channelId: "table-1",
+    });
+    sdk.setPeers(["user-b"]);
+    await sdk.joinChannel();
+    const sentAfterJoin = adapter.sent.length;
+
+    sdk.dispose();
+    await new Promise((r) => setTimeout(r, 0));
+
+    adapter.deliverMessage({
+      type: "VOICE_ANSWER",
+      channelId: "table-1",
+      fromUserId: "user-b",
+      toUserId: "user-a",
+      sdp: {},
+    });
+
+    expect(adapter.sent.length).toBe(sentAfterJoin);
+    expect(sdk.getDebugState().joined).toBe(false);
+  });
+
+  it("late VOICE_SIGNAL after leave is ignored and does not resurrect PC", async () => {
+    const trackStop = vi.fn();
+    const mockStream = {
+      getTracks: () => [{ stop: trackStop }],
+      getAudioTracks: () => [{ enabled: true, stop: trackStop }],
+    };
+    Object.defineProperty(globalThis.navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: vi.fn(async () => mockStream),
+    });
+
+    const adapter = adapterFactory();
+    const sdk = new VoiceSDK({
+      adapter,
+      selfUserId: "user-a",
+      channelId: "table-1",
+    });
+    sdk.setPeers(["user-b"]);
+    await sdk.joinChannel();
+    const sentAfterJoin = adapter.sent.length;
+    await sdk.leaveChannel();
+
+    adapter.deliverMessage({
+      type: "VOICE_ANSWER",
+      channelId: "table-1",
+      fromUserId: "user-b",
+      toUserId: "user-a",
+      sdp: {},
+    });
+
+    expect(adapter.sent.length).toBe(sentAfterJoin);
+    expect(sdk.getDebugState().peerCount).toBe(0);
+    expect(sdk.getDebugState().joined).toBe(false);
   });
 });

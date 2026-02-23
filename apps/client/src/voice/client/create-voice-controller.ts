@@ -52,6 +52,13 @@ export function createVoiceController(params: {
     notify();
   };
 
+  const dispose = () => {
+    sdk.dispose();
+    enabled = false;
+    speaking = false;
+    notify();
+  };
+
   const toggleEnabled = async (): Promise<boolean> => {
     if (enabled) {
       await leave();
@@ -78,6 +85,7 @@ export function createVoiceController(params: {
     leaveChannel: leave,
     join,
     leave,
+    dispose,
     setMuted,
     toggleEnabled,
     toggleMute,

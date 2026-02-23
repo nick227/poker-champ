@@ -84,6 +84,11 @@ export class PeerConnectionManager {
     this.pcs.clear();
   }
 
+  /** Dev-only: peer connection count for leak checks. */
+  getDebugPeerCount(): number {
+    return this.pcs.size;
+  }
+
   private isInitiator(peerId: string): boolean {
     return this.selfUserId.localeCompare(peerId) < 0;
   }
