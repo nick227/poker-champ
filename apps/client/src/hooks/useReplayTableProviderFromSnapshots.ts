@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { ReplayController, ReplayTableProvider } from "@/types/replayController";
 import { assertTableProvider } from "@/types/tableProvider";
@@ -61,29 +61,26 @@ export function useReplayTableProviderFromSnapshots(
     },
   });
 
-  const replayController = useMemo<ReplayController>(
-    () => ({
-      currentStep: safeStep,
-      totalSteps,
-      next: () => {
-        if (safeStep < totalSteps - 1) setCurrentStep((prev) => Math.min(prev + 1, totalSteps - 1));
-      },
-      prev: () => {
-        if (safeStep > 0) setCurrentStep((prev) => Math.max(prev - 1, 0));
-      },
-      goTo: (step: number) => {
-        if (step >= 0 && step < totalSteps) setCurrentStep(step);
-      },
-      play: () => setIsPlaying(true),
-      pause: () => setIsPlaying(false),
-      setSpeed: (newSpeed: number) => {
-        setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
-      },
-      isPlaying,
-      speed,
-    }),
-    [safeStep, totalSteps, isPlaying, speed],
-  );
+  const replayController: ReplayController = {
+    currentStep: safeStep,
+    totalSteps,
+    next: () => {
+      if (safeStep < totalSteps - 1) setCurrentStep((prev) => Math.min(prev + 1, totalSteps - 1));
+    },
+    prev: () => {
+      if (safeStep > 0) setCurrentStep((prev) => Math.max(prev - 1, 0));
+    },
+    goTo: (step: number) => {
+      if (step >= 0 && step < totalSteps) setCurrentStep(step);
+    },
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    setSpeed: (newSpeed: number) => {
+      setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
+    },
+    isPlaying,
+    speed,
+  };
 
   return {
     provider: { ...tableProvider, replay: replayController },

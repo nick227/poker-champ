@@ -78,7 +78,8 @@ describe("ColyseusVoiceAdapter", () => {
     });
 
     const payload = { type: "VOICE_OFFER", channelId: "t", fromUserId: "a", toUserId: "b", sdp: {} };
-    if (voiceHandler) voiceHandler(payload);
+    const handler = voiceHandler as ((p: unknown) => void) | null;
+    if (handler) handler(payload);
 
     expect(captured).toEqual(payload);
   });

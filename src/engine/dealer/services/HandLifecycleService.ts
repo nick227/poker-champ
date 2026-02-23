@@ -1,8 +1,45 @@
+/**
+ * HandLifecycleService - Core Poker Hand Management
+ * 
+ * PURPOSE:
+ * Manages the complete lifecycle of a poker hand from initialization through completion.
+ * Handles betting rounds, street transitions, showdowns, and pot distribution.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Hand initialization and player state management
+ * - Street transitions (preflop → flop → turn → river → showdown)
+ * - Pot calculation and side pot management
+ * - Winner determination and chip distribution
+ * - State invariants and financial integrity checks
+ * 
+ * DETERMINISM:
+ * All settlement logic is deterministic - no randomness in payout calculations.
+ * Uses seat order for tie-breaking to ensure reproducible results.
+ * 
+ * USAGE:
+ * const service = new HandLifecycleService(dependencies);
+ * const plans = await service.startHand();
+ * // Execute plans through Dealer execution layer
+ */
+
+// ============================================================================
+// IMPORTS - External Dependencies
+// ============================================================================
 import { newId } from "../../../lib/ids.js";
 import { logger } from "../../../lib/logger.js";
+import pokersolver from "pokersolver";
+
+// ============================================================================
+// IMPORTS - Internal Dependencies
+// ============================================================================
 import { DeckService } from "../../cards/DeckService.js";
 import { PokerError } from "../../errors.js";
 import type { PersistenceFacade } from "../../persistence/PersistenceFacade.js";
+import type { PokerState, Street } from "../../../state/PokerState.js";
+
+// ============================================================================
+// IMPORTS - Poker Rules & Game Logic
+// ============================================================================
 import {
   allRemainingPlayersAllInOrFolded,
   beginRound,
@@ -12,23 +49,48 @@ import {
   syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
 import { buildSidePots, splitPotCents } from "../../rules/SidePotManager.js";
-import type { PokerState, Street } from "../../../state/PokerState.js";
+
+// ============================================================================
+// IMPORTS - Services
+// ============================================================================
 import { SettlementService } from "./SettlementService.js";
+
+// ============================================================================
+// IMPORTS - Utilities & Helpers
+// ============================================================================
 import {
   countActiveHumanPlayers,
   findNextToActSeat,
   resolveActivePlayersForHand,
   seatOrderLeftOfDealer,
 } from "../utils/TableNavigator.js";
-import type { SnapshotReason } from "./SnapshotService.js";
-import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import pokersolver from "pokersolver";
+
+// ============================================================================
+// IMPORTS - Invariants & Validation
+// ============================================================================
 import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
 import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
 import { assertMoneyConservationTransition } from "../../invariants/assertMoneyConservation.js";
 import { shouldFailClosedMoneyPath } from "../../invariants/moneyStrictMode.js";
+
+// ============================================================================
+// IMPORTS - Constants & Timing
+// ============================================================================
 import { HAND_RESULT_HOLD_MS, RUNOUT_STAGE_DELAY_MS } from "../timing.js";
 
+// ============================================================================
+// IMPORTS - Type Definitions
+// ============================================================================
+import type { SnapshotReason } from "./SnapshotService.js";
+import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Poker solver type definition for hand evaluation
+ */
 const { Hand } = pokersolver as {
   Hand: {
     solve(cards: string[]): unknown;
@@ -36,22 +98,53 @@ const { Hand } = pokersolver as {
   };
 };
 
+/**
+ * Result type for solved poker hand
+ */
 type SolvedHand = { descr?: string; name?: string };
 
+/**
+ * Plan types for hand lifecycle execution
+ * Each plan represents an atomic operation that can be executed by the Dealer
+ */
 export type HandLifecyclePlan =
   | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
   | { kind: "DELAY"; ms: number }
   | { kind: "MAYBE_AUTOMATE_TURN" }
   | { kind: "TRANSITION_TO_WAITING" }
   | { kind: "RELEASE_PENDING_SEATS" }
-  | { kind: "SCHEDULE_NEXT_HAND"; reason: string; delayMs?: number };
+  | { kind: "SCHEDULE_NEXT_HAND"; reason: string; delayMs?: number }
+  | { kind: "HAND_ENDED"; reason: "LAST_PLAYER" | "SHOWDOWN" | "DEFENSIVE_FALLBACK"; outcome: { potCents: number; winnerId?: string; payoutsByUserId: Record<string, number> } };
 
+// ============================================================================
+// MAIN CLASS - Hand Lifecycle Management
+// ============================================================================
+
+/**
+ * HandLifecycleService - Core service for managing poker hand lifecycle
+ * 
+ * This class orchestrates the complete flow of a poker hand from start to finish.
+ * It maintains deterministic behavior for fair gameplay and provides comprehensive
+ * error handling and state validation.
+ */
 export class HandLifecycleService {
+  // ============================================================================
+  // CLASS PROPERTIES
+  // ============================================================================
+  
   /** Lifetime: one hand. Set in startHand after we have 2+ active players; cleared at start of startHand. */
   private deck: DeckService | null = null;
   /** Set in startHand when we have 2+ active players; reset at start of startHand. Meaningful only after a successful hand start. */
   private currentHandIncludesBotParticipants = false;
 
+  // ============================================================================
+  // CONSTRUCTOR & DEPENDENCIES
+  // ============================================================================
+  
+  /**
+   * Initialize HandLifecycleService with required dependencies
+   * @param deps - Service dependencies for state, persistence, and settlement
+   */
   constructor(private readonly deps: {
     state: PokerState;
     persistence: PersistenceFacade;
@@ -66,25 +159,97 @@ export class HandLifecycleService {
     setLastAction: (value: TableSnapshotPayload["lastAction"] | undefined) => void;
   }) {}
 
+  // ============================================================================
+  // UTILITY METHODS
+  // ============================================================================
+
+  /**
+   * Calculate total chips across all players
+   * @returns Sum of all player stack sizes
+   */
   private sumStacksCents(): number {
     let sum = 0;
     for (const p of this.deps.state.playersById.values()) {
-      sum += p.stackCents;
+      if (p) {
+        sum += p.stackCents;
+      }
     }
     return sum;
   }
 
+  // ============================================================================
+  // CALCULATION & VALIDATION METHODS
+  // ============================================================================
+
+  /**
+   * Calculate uncalled chips that must be returned to aggressor before final payout.
+   *
+   * PROCESS:
+   * 1. Identify all players who contributed chips (committed > 0)
+   * 2. Sort by contribution amount (highest first)
+   * 3. Calculate difference between highest and second-highest contributors
+   * 4. Only ACTIVE players can have uncalled chips (ALL_IN players commit everything)
+   *
+   * EXAMPLE:
+   * Player A bets 1000, Player B (100 chips) folds
+   * → A's 900 is uncalled and must be returned, not paid from pot
+   *
+   * @param state Current poker state
+   * @returns Object with uncalled amount and player ID, or zero if no uncalled chips
+   */
+  private calculateUncalledCents(state: PokerState): { cents: number; playerId: string | null } {
+    // Step 1: Get all contributors sorted by contribution amount
+    const contributors = [...state.playersById.values()]
+      .filter((p) => p.status !== "OUT" && p.committedCents > 0)
+      .map((p) => ({ id: p.id, committed: p.committedCents, status: p.status }))
+      .sort((a, b) => b.committed - a.committed);
+
+    // Step 2: Handle trivial case (single contributor)
+    if (contributors.length < 2) {
+      return { cents: 0, playerId: null };
+    }
+
+    // Step 3: Calculate uncalled amount for top contributor
+    const top = contributors[0]!;
+    const secondHighest = contributors[1]!.committed;
+
+    // Step 4: Only ACTIVE players can have uncalled chips
+    if (top.status !== "ACTIVE") {
+      return { cents: 0, playerId: null };
+    }
+
+    const uncalledCents = top.committed - secondHighest;
+    if (uncalledCents <= 0) return { cents: 0, playerId: null };
+
+    return { cents: uncalledCents, playerId: top.id };
+  }
+
+  /**
+   * Assert chip mass conservation throughout hand lifecycle
+   *
+   * VALIDATION RULES:
+   * 1. Total chip mass must remain constant (stacks + pot - disbursed = initial)
+   * 2. If requireFullySettled: pot must be fully disbursed and stacks restored
+   *
+   * @param state Current poker state
+   * @param context Context description for error reporting
+   * @param requireFullySettled Whether to enforce full settlement checks
+   */
   private assertHandMassOrThrow(state: PokerState, context: string, requireFullySettled = false): void {
     const { settlementService } = this.deps;
     const totalStacksCents = this.sumStacksCents();
     const disbursedCents = settlementService.getCurrentHandPotDisbursedCents();
     const effectiveMassCents = totalStacksCents + state.potCents - disbursedCents;
+    
+    // Rule 1: Total chip mass conservation
     if (effectiveMassCents !== state.initialChipMassCents) {
       throw new PokerError(
         "BAD_STATE",
         `${context}: hand chip mass mismatch (initial=${state.initialChipMassCents}, effective=${effectiveMassCents}, stacks=${totalStacksCents}, pot=${state.potCents}, disbursed=${disbursedCents}, hand=${state.handId}).`,
       );
     }
+    
+    // Rule 2: Full settlement validation (if required)
     if (requireFullySettled) {
       if (disbursedCents !== state.potCents) {
         throw new PokerError(
@@ -101,6 +266,23 @@ export class HandLifecycleService {
     }
   }
 
+  // ============================================================================
+  // HAND LIFECYCLE METHODS
+  // ============================================================================
+
+  /**
+   * Initialize and start a new poker hand
+   * 
+   * PROCESS:
+   * 1. Reset hand state and clear previous data
+   * 2. Validate minimum active players
+   * 3. Resolve active players and update dealer position
+   * 4. Initialize deck and deal hole cards
+   * 5. Post blinds and set up first action
+   * 6. Generate execution plans for Dealer
+   * 
+   * @returns Array of lifecycle plans to be executed
+   */
   async startHand(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
@@ -111,6 +293,7 @@ export class HandLifecycleService {
     state.runningSinceTs = Date.now();
 
     const handId = newId("hand");
+    state.handId = handId;
     state.handNumber += 1;
     this.deps.currentHandAutoActedUserIds.clear();
     this.deps.settlementService.resetHandCounters();
@@ -128,18 +311,12 @@ export class HandLifecycleService {
 
     resetBettingRound(state);
 
-    // Consume one-hand sit-out tokens before selecting participants for this hand.
+    // Consume one-hand sit-out tokens and reset player states in single pass
     for (const player of state.playersById.values()) {
       player.sittingOutUntilNextHand = false;
-    }
-
-    for (const player of state.playersById.values()) {
       if (player.connected && player.status === "ABANDONED" && player.stackCents > 0) {
         player.status = "ACTIVE";
       }
-    }
-
-    for (const player of state.playersById.values()) {
       player.roundBetCents = 0;
       player.committedCents = 0;
       player.needsAction = false;
@@ -202,7 +379,6 @@ export class HandLifecycleService {
         })),
       });
     }
-    state.handId = handId;
 
     const isHeadsUp = activePlayers.length === 2;
     const sbSeat = isHeadsUp ? state.dealerSeat : nextSeatFrom(state.dealerSeat);
@@ -215,6 +391,9 @@ export class HandLifecycleService {
 
     let postedSb = 0;
     let postedBb = 0;
+
+    // Assign handId (state assignment cannot throw)
+    state.handId = handId;
 
     if (sbId) {
       const sb = state.playersById.get(sbId);
@@ -244,7 +423,10 @@ export class HandLifecycleService {
     }
     state.minRaiseCents = state.bigBlindCents;
     beginRound(state);
-    state.toActSeat = findNextToActSeat(state, bbSeat);
+    // In heads-up, SB (Dealer) acts first pre-flop, BB acts first on subsequent streets
+    // In full ring, BB acts first pre-flop, action proceeds left from BB
+    const firstToActSeat = isHeadsUp ? sbSeat : bbSeat;
+    state.toActSeat = findNextToActSeat(state, firstToActSeat);
     if (state.toActSeat === -1) {
       throw new PokerError("BAD_STATE", "No seat needs action at hand start.");
     }
@@ -262,6 +444,17 @@ export class HandLifecycleService {
     return plans;
   }
 
+  /**
+   * Advance to next street or proceed to showdown
+   * 
+   * DECISION LOGIC:
+   * 1. Check if betting is complete (all-in/folded or no further betting)
+   * 2. If complete → runout to showdown
+   * 3. If not complete → deal community cards for next street
+   * 4. Set up next action and validate state
+   * 
+   * @returns Array of lifecycle plans for street transition
+   */
   async advanceStreetOrShowdown(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
@@ -326,81 +519,181 @@ export class HandLifecycleService {
     return plans;
   }
 
+  // ============================================================================
+  // HAND COMPLETION METHODS
+  // ============================================================================
+
+  /**
+   * Complete hand when only one player remains (last standing)
+   * 
+   * SCENARIOS:
+   * 1. NORMAL: One ACTIVE/ALL_IN player vs folded opponents
+   * 2. DEFENSIVE: No active players (corruption/edge case)
+   * 
+   * PROCESS:
+   * 1. Return uncalled chips to aggressor
+   * 2. Credit remaining pot to winner
+   * 3. Validate chip conservation
+   * 4. Generate hand result and cleanup plans
+   * 
+   * @returns Array of lifecycle plans for hand completion
+   */
   async finishHandByLastStanding(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
     const remaining = [...state.playersById.values()].filter(
       (p) => p.status === "ACTIVE" || p.status === "ALL_IN",
     );
+    const notFoldedOrOut = [...state.playersById.values()].filter(
+      (p) => p.status !== "FOLDED" && p.status !== "OUT",
+    );
+
+    // ── DEFENSIVE FALLBACK: no ACTIVE/ALL_IN players remain ──────────────────
+    // e.g. a sole survivor who is ABANDONED with chips.
     if (remaining.length === 0) {
-      const notFoldedOrOut = [...state.playersById.values()].filter(
-        (p) => p.status !== "FOLDED" && p.status !== "OUT",
-      );
+      let winner: typeof notFoldedOrOut[0];
+      let creditAmount: number;
+
       if (notFoldedOrOut.length === 1) {
-        // Defensive: e.g. sole survivor is ABANDONED; credit pot so it is never left uncredited.
-        const winner = notFoldedOrOut[0]!;
-        await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
-        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_POST_PAYOUT", true);
-        await this.deps.applyDisconnectedAutoActionCapForHand();
-        this.deps.setLastHandResult({
-          handId: state.handId,
-          reason: "LAST_PLAYER",
-          potCents: state.potCents,
-          winnerId: winner.id,
-          payoutsByUserId: { [winner.id]: state.potCents },
-          board: [...state.board],
-        });
-        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_PRE_FINALIZE", true);
-        await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
-        plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
-        plans.push({ kind: "TRANSITION_TO_WAITING" });
-        plans.push({ kind: "RELEASE_PENDING_SEATS" });
-        plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-        if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
-          await this.deps.persistence.assertHandBalanced(state.handId);
+        winner = notFoldedOrOut[0]!;
+      } else {
+        // Deterministic: pick earliest seat left of dealer among survivors
+        winner = seatOrderLeftOfDealer(state)
+          .map((id) => state.playersById.get(id))
+          .find((p) => p && p.status !== "FOLDED" && p.status !== "OUT")!;
+      }
+
+      // Step 1: Return any uncalled chips (prevents pot inflation)
+      const { cents: uncalledCents, playerId: uncalledPlayerId } = this.calculateUncalledCents(state);
+      if (uncalledCents > 0 && uncalledPlayerId) {
+        const uncalledPlayer = state.playersById.get(uncalledPlayerId);
+        if (uncalledPlayer) {
+          await this.deps.settlementService.creditRefundToPlayer(uncalledPlayer, uncalledCents, "UNCALLED_BET_RETURN");
         }
-        this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
-        maybeAssertStateInvariants(state);
-        return plans;
       }
-      if (notFoldedOrOut.length > 1) {
-        throw new PokerError("BAD_STATE", "finishHandByLastStanding: no ACTIVE/ALL_IN but multiple non-folded players.");
+
+      // Step 2: Disburse exactly what remains in the pot
+      const disbursedCents = this.deps.settlementService.getCurrentHandPotDisbursedCents();
+      creditAmount = state.potCents - disbursedCents;
+      await this.deps.settlementService.creditPayoutToPlayer(winner, creditAmount);
+
+      this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_POST_PAYOUT", true);
+      await this.deps.applyDisconnectedAutoActionCapForHand();
+      await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
+      this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_PRE_FINALIZE", true);
+      this.deps.setLastHandResult({
+        handId: state.handId,
+        reason: "LAST_PLAYER",
+        potCents: state.potCents,
+        winnerId: winner.id,
+        payoutsByUserId: { [winner.id]: creditAmount },
+        board: [...state.board],
+      });
+      this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
+      plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
+      plans.push({
+        kind: "HAND_ENDED",
+        reason: "DEFENSIVE_FALLBACK",
+        outcome: {
+          potCents: creditAmount,
+          winnerId: winner.id,
+          payoutsByUserId: { [winner.id]: creditAmount },
+        },
+      });
+      plans.push({ kind: "TRANSITION_TO_WAITING" });
+      plans.push({ kind: "RELEASE_PENDING_SEATS" });
+      plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
+      if (this.deps.persistence.enabled) {
+        await this.deps.persistence.assertHandBalanced(state.handId);
       }
-      state.street = "WAITING";
-      state.runoutMode = "NONE";
+      this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
+      maybeAssertStateInvariants(state);
       return plans;
+    }
+
+    if (notFoldedOrOut.length > 1) {
+      throw new PokerError("BAD_STATE", "finishHandByLastStanding: no ACTIVE/ALL_IN but multiple non-folded players.");
     }
     if (remaining.length !== 1) {
       throw new PokerError("BAD_STATE", "finishHandByLastStanding called with != 1 remaining player.");
     }
+
+    // ── NORMAL LAST-STANDING: winner is the one remaining ACTIVE/ALL_IN player ──
     const winner = remaining[0]!;
 
-    await this.deps.settlementService.creditPayoutToPlayer(winner, state.potCents);
+    // Step 1: Identify and return uncalled chips before touching the pot.
+    // Example: A bets 1000, B (100 chips) folds → A's 900 is uncalled and must be returned.
+    const { cents: uncalledCents, playerId: uncalledPlayerId } = this.calculateUncalledCents(state);
+    if (uncalledCents > 0 && uncalledPlayerId) {
+      const uncalledPlayer = state.playersById.get(uncalledPlayerId);
+      if (uncalledPlayer) {
+        logger.info(
+          { handId: state.handId, playerId: uncalledPlayerId, uncalledCents },
+          "Returning uncalled bet before last-standing payout",
+        );
+        await this.deps.settlementService.creditRefundToPlayer(uncalledPlayer, uncalledCents, "UNCALLED_BET_RETURN");
+      }
+    }
+
+    // Step 2: Disburse exactly what remains in the pot after the refund.
+    // creditRefundToPlayer increments disbursedCents, so this naturally clears the pot.
+    const disbursedCents = this.deps.settlementService.getCurrentHandPotDisbursedCents();
+    const creditAmount = state.potCents - disbursedCents;
+    await this.deps.settlementService.creditPayoutToPlayer(winner, creditAmount);
+
+    // Step 3: Assert 100% of the pot is cleared.
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_POST_PAYOUT", true);
     await this.deps.applyDisconnectedAutoActionCapForHand();
-
+    await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
+    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_PRE_FINALIZE", true);
     this.deps.setLastHandResult({
       handId: state.handId,
       reason: "LAST_PLAYER",
       potCents: state.potCents,
       winnerId: winner.id,
-      payoutsByUserId: { [winner.id]: state.potCents },
+      payoutsByUserId: { [winner.id]: creditAmount },
       board: [...state.board],
     });
-    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_PRE_FINALIZE", true);
-    await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
+    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING", true);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
+    plans.push({
+      kind: "HAND_ENDED",
+      reason: "LAST_PLAYER",
+      outcome: {
+        potCents: state.potCents,
+        winnerId: winner.id,
+        payoutsByUserId: { [winner.id]: creditAmount },
+      },
+    });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
     plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-    if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
+    maybeAssertStateInvariants(state);
+    // Step 4: Assert ledger balance — always run regardless of bot participation.
+    // Bots use the same stackCents logic as humans; skipping this hides side-pot calculation bugs.
+    if (this.deps.persistence.enabled) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
-    this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING", true);
-    maybeAssertStateInvariants(state);
     return plans;
   }
 
+  /**
+   * Complete hand with showdown and side pot distribution
+   * 
+   * PROCESS:
+   * 1. Run out community cards if not already at showdown
+   * 2. Evaluate all eligible hands using poker solver
+   * 3. Build and distribute side pots to winners
+   * 4. Reconcile any remainder chips (deterministic seat order)
+   * 5. Validate total payouts equal pot size
+   * 6. Generate hand result with hole cards for display
+   * 
+   * DETERMINISM:
+   * - Remainder chips go to earliest seat left of dealer
+   * - No randomness in any settlement calculations
+   * 
+   * @returns Array of lifecycle plans for showdown completion
+   */
   async finishHandShowdownWithSidePots(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
@@ -412,8 +705,10 @@ export class HandLifecycleService {
 
     const playersAll = [...state.playersById.values()].filter((player) => player.status !== "OUT");
     const eligible = playersAll.filter(eligibleForShowdown);
+    
+    // Guard against eligibleForShowdown bugs - this should never fire if filter is correct
     if (eligible.some((p) => p.status === "FOLDED")) {
-      throw new PokerError("BAD_STATE", "Folded player eligible for showdown.");
+      throw new PokerError("BAD_STATE", "eligibleForShowdown returned folded player - filter logic bug.");
     }
 
     if (eligible.length <= 1) {
@@ -422,6 +717,7 @@ export class HandLifecycleService {
 
     const pots = buildSidePots(playersAll, eligible);
     const board = [...state.board];
+    const playersArray = [...state.playersById.values()];
 
     const holeCards = this.deps.getHoleCardsByPlayerId();
     const solved = new Map<string, SolvedHand>();
@@ -442,11 +738,12 @@ export class HandLifecycleService {
 
       const hands = contenders.map((id) => solved.get(id)).filter(Boolean);
       const winners = Hand.winners(hands);
-
+      const winnerSet = new Set(winners);
+      
       const winnerIds: string[] = [];
       for (const id of contenders) {
         const hand = solved.get(id);
-        if (hand && winners.includes(hand)) winnerIds.push(id);
+        if (hand && winnerSet.has(hand)) winnerIds.push(id);
       }
 
       const split = splitPotCents(pot.amountCents, winnerIds, seatOrder);
@@ -461,11 +758,12 @@ export class HandLifecycleService {
       const seatOrderIndex = new Map<string, number>();
       seatOrder.forEach((id, idx) => seatOrderIndex.set(id, idx));
 
+      // Industry standard: remainder chip goes to the first eligible player
+      // to the left of the dealer button (smallest seatOrderIndex).
       const fallbackRecipient = [...eligible].sort((a, b) => {
-        if (b.committedCents !== a.committedCents) return b.committedCents - a.committedCents;
         const ai = seatOrderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER;
         const bi = seatOrderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER;
-        return ai - bi;
+        return ai - bi; // deterministic: earliest seat left of dealer gets remainder
       })[0];
 
       if (fallbackRecipient) {
@@ -518,6 +816,11 @@ export class HandLifecycleService {
       }
     }
 
+    await this.deps.applyDisconnectedAutoActionCapForHand();
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_SHOWDOWN" });
+
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
+    await this.deps.settlementService.finalizePersistedHand("SHOWDOWN");
     this.deps.setLastHandResult({
       handId: state.handId,
       reason: "SHOWDOWN",
@@ -529,29 +832,49 @@ export class HandLifecycleService {
       winnerHoleCards: primaryWinnerCards?.length === 2 ? primaryWinnerCards : undefined,
       winningHandDescr: typeof winningDescr === "string" ? winningDescr : undefined,
     });
-
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_SHOWDOWN" });
-    await this.deps.applyDisconnectedAutoActionCapForHand();
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_END" });
-
-    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_PRE_FINALIZE", true);
-    await this.deps.settlementService.finalizePersistedHand("SHOWDOWN");
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
+    plans.push({ 
+      kind: "HAND_ENDED", 
+      reason: "SHOWDOWN", 
+      outcome: { 
+        potCents: state.potCents, 
+        winnerId: displayWinnerId, 
+        payoutsByUserId: Object.fromEntries(payoutsEntries) 
+      } 
+    });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
     plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
-    if (this.deps.persistence.enabled && !this.currentHandIncludesBotParticipants) {
+    
+    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
+    maybeAssertStateInvariants(state);
+    // Assert ledger balance for all hands — bots use the same stackCents logic
+    // as humans, so including them catches side-pot calculation bugs early.
+    if (this.deps.persistence.enabled) {
       await this.deps.persistence.assertHandBalanced(state.handId);
     }
-    this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN", true);
-    maybeAssertStateInvariants(state);
     return plans;
   }
 
+  // ============================================================================
+  // HELPER METHODS - Street Transitions & Card Dealing
+  // ============================================================================
+
+  /**
+   * Draw a card from the deck
+   * @throws PokerError if deck is not initialized
+   * @returns Next card from deck
+   */
   private drawCard(): string {
-    if (!this.deck) throw new PokerError("DECK_ERROR", "Deck not initialized.");
+    if (!this.deck) throw new PokerError("BAD_STATE", "Deck not initialized.");
     return this.deck.draw();
   }
 
+  /**
+   * Determine the next street in poker sequence
+   * @param street Current street
+   * @returns Next street or throws if invalid
+   */
   private nextStreet(street: Street): Street {
     if (street === "PREFLOP") return "FLOP";
     if (street === "FLOP") return "TURN";
@@ -560,11 +883,34 @@ export class HandLifecycleService {
     throw new PokerError("BAD_STATE", `Unknown street ${street}.`);
   }
 
+  /**
+   * Deal community cards for the specified street
+   * 
+   * DEALING RULES:
+   * - FLOP: 3 cards
+   * - TURN: 1 card
+   * - RIVER: 1 card
+   * 
+   * @param street Street to deal cards for
+   */
   private dealCommunityForStreet(street: Street): void {
     if (street === "FLOP") this.deps.state.board.push(this.drawCard(), this.drawCard(), this.drawCard());
     else if (street === "TURN" || street === "RIVER") this.deps.state.board.push(this.drawCard());
   }
 
+  /**
+   * Generate staged runout plans for all-in scenarios
+   * 
+   * PROCESS:
+   * 1. Progress through remaining streets (FLOP → TURN → RIVER)
+   * 2. Deal community cards with delays between streets
+   * 3. Create snapshot and delay plans for each stage
+   * 
+   * NOTE: This mutates state while building plans
+   * Execution layer must run plans in order to maintain proper timing
+   * 
+   * @returns Array of staged runout plans
+   */
   private runoutToRiverStaged(): HandLifecyclePlan[] {
     const plans: HandLifecyclePlan[] = [];
     // NOTE: This function mutates state while constructing plans.

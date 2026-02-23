@@ -107,6 +107,10 @@ describe("dealer random walk soak", () => {
           payoutsByUser.set(args.userId, (payoutsByUser.get(args.userId) ?? 0) + args.amountCents);
           return args.currentBalance + args.amountCents;
         },
+        creditRefund: async (args: { userId: string; currentBalance: number; amountCents: number }) => {
+          payoutsByUser.set(args.userId, (payoutsByUser.get(args.userId) ?? 0) + args.amountCents);
+          return args.currentBalance + args.amountCents;
+        },
         assertHandBalanced: async () => {},
       } as any;
 

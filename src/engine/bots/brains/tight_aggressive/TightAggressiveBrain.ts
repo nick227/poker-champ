@@ -51,11 +51,11 @@ export class TightAggressiveBrain implements BotBrain {
     }
     if (!baseWeights) baseWeights = { ...actionWeights };
 
-    const action = weightedPick(actionWeights) ?? "FOLD";
+    const action = weightedPick(actionWeights, ctx.rng) ?? "FOLD";
     let chosenSizingRecipe: string | undefined;
 
     if (WAGER_ACTIONS.has(action)) {
-      const recipe = resolveSizingRecipe(sizingWeights);
+      const recipe = resolveSizingRecipe(sizingWeights, ctx.rng);
       chosenSizingRecipe = recipe;
       const amountCents = resolveWagerAmount(recipe, ctx, ctx.heroActionOptions);
       emitDecisionTraceIfEnabled(this.compiled, {

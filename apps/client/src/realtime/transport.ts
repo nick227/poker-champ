@@ -1,5 +1,6 @@
 import { Client } from "@colyseus/sdk";
 import { lobby } from "@poker-champ/sdk";
+import { RECONNECT_DELAY_MS, MAX_RECONNECT_ATTEMPTS } from "@/constants";
 
 export type RealtimeOutboundMessage = {
   type: string;
@@ -101,7 +102,7 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       connect();
-    }, 2000);
+    }, RECONNECT_DELAY_MS);
   };
 
   const connect = () => {
@@ -185,7 +186,6 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let attemptedEmptyErrorRetry = false;
   let reconnectAttempts = 0;
   let terminalJoinFailure = false;
-  const MAX_RECONNECT_ATTEMPTS = 3;
   /** Set when server sends ERROR SESSION_REPLACED; we must not reconnect on leave (avoids replace→reconnect loop). */
   let sessionReplacedByNewerConnection = false;
   const debugLog = (...args: unknown[]) => {
@@ -231,7 +231,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       void connect();
-    }, 2000);
+    }, RECONNECT_DELAY_MS);
   };
 
   const connect = async () => {

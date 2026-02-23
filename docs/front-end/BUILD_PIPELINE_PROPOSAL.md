@@ -90,8 +90,8 @@
 
 | Target   | Command / Flow | Output / Artifact |
 |----------|----------------|-------------------|
-| **Web**  | `sync-tokens-web.cjs` → `expo export --platform web` | `dist/` (Metro bundle + assets) |
-| **Desktop** | `build:web` then `tauri build` | Tauri uses `distDir: "../../dist"` (web output); native binary in Tauri target dir |
+| **Web**  | `sync-tokens-web.cjs` → `expo export --platform web --output-dir dist` | `apps/client/dist/` (Metro bundle + assets) |
+| **Desktop** | `build:web` then `tauri build` | Tauri uses `distDir: "../dist"` (web output); native binary in Tauri target dir |
 | **Android** | `eas build --platform android --profile preview` | EAS artifact (APK; preview = internal) |
 | **iOS**   | `eas build --platform ios --profile preview` | EAS artifact (simulator in preview) |
 
@@ -220,7 +220,7 @@
 
 ### 4.2 Desktop (Tauri)
 
-- **Source of truth for web bundle:** Keep `distDir: "../../dist"` so desktop always packages the same web build as deployed web (single build artifact for web + desktop content).
+- **Source of truth for web bundle:** Keep `distDir: "../dist"` so desktop always packages the same web build as deployed web (single build artifact for web + desktop content).
 - **Updater / signing:** Document or add Tauri updater and code-signing for production installers; consider CI step to produce signed artifacts.
 - **Version:** Keep `tauri.conf.json` `package.version` in sync with `app.config.ts` (or derive from one place).
 

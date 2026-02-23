@@ -1,20 +1,77 @@
+/**
+ * PlayerLifecycleService - Player State Management & Lifecycle Events
+ * 
+ * PURPOSE:
+ * Manages player lifecycle events including joining, leaving, reconnection,
+ * disconnection, abandonment, and state transitions. Handles player
+ * seating, cash operations, and automated actions.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Player seating and table management
+ * - Connection/disconnection handling
+ * - Cash-out and rebuy processing
+ * - State validation and invariants
+ * - Automated action management
+ * 
+ * CONCURRENCY SAFETY:
+ * Uses idempotency keys and tracking sets to prevent race conditions
+ * when multiple operations affect the same player simultaneously.
+ * 
+ * USAGE:
+ * const service = new PlayerLifecycleService(dependencies);
+ * const plans = await service.addPlayer(userId, name, buyInCents);
+ * // Execute plans through Dealer execution layer
+ */
+
+// ============================================================================
+// IMPORTS - External Dependencies
+// ============================================================================
 import { nanoid } from "nanoid";
+
+// ============================================================================
+// IMPORTS - Internal Dependencies
+// ============================================================================
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { PlayerState } from "../../../state/PlayerState.js";
 import { PokerError } from "../../errors.js";
 import type { PersistenceFacade } from "../../persistence/PersistenceFacade.js";
 import { CashierService } from "../../economy/CashierService.js";
+
+// ============================================================================
+// IMPORTS - Poker Rules & Game Logic
+// ============================================================================
 import {
   bettingRoundComplete,
   eligibleToAct,
   noFurtherBettingPossible,
   syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
+
+// ============================================================================
+// IMPORTS - Utilities & Helpers
+// ============================================================================
 import { countNonOutPlayers, countNotFoldedPlayers, findNextToActSeat, findOpenSeat } from "../utils/TableNavigator.js";
-import type { SnapshotReason } from "./SnapshotService.js";
+
+// ============================================================================
+// IMPORTS - Invariants & Validation
+// ============================================================================
 import { maybeAssertStateInvariants } from "../../invariants/assertState.js";
 
+// ============================================================================
+// IMPORTS - Type Definitions
+// ============================================================================
+import type { SnapshotReason } from "./SnapshotService.js";
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Plan types for player lifecycle management
+ * Each plan represents an atomic operation that can be executed by the Dealer
+ * to manage player state transitions and table events.
+ */
 export type PlayerLifecyclePlan =
   | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
   | { kind: "MAYBE_AUTOMATE_TURN" }
@@ -24,15 +81,43 @@ export type PlayerLifecyclePlan =
   | { kind: "FINISH_HAND_BY_LAST_STANDING" }
   | { kind: "ADVANCE_STREET_OR_SHOWDOWN" };
 
-/** Called by Dealer to fold a player if they are in a hand and ACTIVE; applies turn advancement. */
+/**
+ * Function type for forcing player folds during hand progression
+ * Used by Dealer to maintain game consistency when players abandon
+ */
 export type ForceFoldIfInHand = (userId: string) => Promise<void>;
 
+// ============================================================================
+// MAIN CLASS - Player Lifecycle Management
+// ============================================================================
+
+/**
+ * PlayerLifecycleService - Core service for managing player state and lifecycle events
+ * 
+ * This class handles all player-related operations including joining, leaving,
+ * reconnection, cash operations, and state transitions. It provides
+ * concurrency safety through idempotency tracking and validation.
+ */
 export class PlayerLifecycleService {
+  // ============================================================================
+  // CLASS PROPERTIES - Concurrency & State Tracking
+  // ============================================================================
+  
   /** Prevents duplicate cash-out when leave/cash-out is triggered from multiple paths. */
   private readonly cashedOutUserIds = new Set<string>();
   /** Prevents duplicate removePlayer/leave from running concurrently for the same user. */
   private readonly leaveInProgressUserIds = new Set<string>();
+  /** Prevents duplicate rebuy state mutation when the same idempotency key is replayed. */
+  private readonly appliedRebuyKeys = new Set<string>();
 
+  // ============================================================================
+  // CONSTRUCTOR & DEPENDENCIES
+  // ============================================================================
+  
+  /**
+   * Initialize PlayerLifecycleService with required dependencies
+   * @param deps - Service dependencies for state, persistence, and player management
+   */
   constructor(private readonly deps: {
     state: PokerState;
     persistence: PersistenceFacade;
@@ -45,6 +130,29 @@ export class PlayerLifecycleService {
     forceFoldIfInHand?: ForceFoldIfInHand;
   }) {}
 
+  // ============================================================================
+  // PLAYER LIFECYCLE METHODS
+  // ============================================================================
+
+  /**
+   * Add a new player to the table with buy-in
+   * 
+   * PROCESS:
+   * 1. Validate player doesn't already exist
+   * 2. Find available seat and assign to player
+   * 3. Process buy-in through cashier service
+   * 4. Update player state and persistence
+   * 5. Generate plans for table state updates
+   * 
+   * CONCURRENCY SAFETY:
+   * - Uses idempotency key for rebuy operations
+   * - Validates no duplicate player addition
+   * 
+   * @param userId Unique player identifier
+   * @param name Display name for player
+   * @param buyInCents Amount to add to player stack
+   * @returns Array of lifecycle plans for player addition
+   */
   async addPlayer(userId: string, name: string, buyInCents: number): Promise<PlayerLifecyclePlan[]> {
     logger.info({ userId, buyInCents }, 'addPlayer called');
     const plans: PlayerLifecyclePlan[] = [];
@@ -120,11 +228,19 @@ export class PlayerLifecycleService {
    * Add chips to an already-seated player (rebuy). Caller must have already run
    * CashierService.processCashGameBuyIn so ledger is updated; this only mutates in-memory state.
    */
-  async addChipsToSeatedPlayer(userId: string, amountCents: number): Promise<PlayerLifecyclePlan[]> {
+  async addChipsToSeatedPlayer(userId: string, amountCents: number, rebuyRef?: string): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     const player = this.deps.state.playersById.get(userId);
     if (!player) return plans;
     this.assertValidBuyIn(amountCents);
+    if (rebuyRef) {
+      const rebuyKey = `${userId}:${rebuyRef}`;
+      if (this.appliedRebuyKeys.has(rebuyKey)) {
+        logger.warn({ userId, rebuyRef }, "Duplicate rebuy state mutation prevented");
+        return plans;
+      }
+      this.appliedRebuyKeys.add(rebuyKey);
+    }
     player.stackCents += amountCents;
     if (this.deps.state.street !== "WAITING" && this.deps.state.initialChipMassCents > 0) {
       this.deps.state.initialChipMassCents += amountCents;
@@ -287,6 +403,24 @@ export class PlayerLifecycleService {
     return plans;
   }
 
+  /**
+   * Remove a player from the table with optional cash-out
+   * 
+   * PROCESS:
+   * 1. Check for duplicate removal/cash-out operations
+   * 2. Handle cash-out through cashier service if requested
+   * 3. Remove player from table and update state
+   * 4. Handle hand advancement if player was in current hand
+   * 5. Generate appropriate lifecycle plans
+   * 
+   * CONCURRENCY SAFETY:
+   * - Prevents duplicate removal through tracking sets
+   * - Handles hand state transitions consistently
+   * 
+   * @param userId Unique player identifier
+   * @param options Optional cash-out configuration
+   * @returns Array of lifecycle plans for player removal
+   */
   async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     if (this.cashedOutUserIds.has(userId)) {
@@ -340,6 +474,22 @@ export class PlayerLifecycleService {
     }
   }
 
+  // ============================================================================
+  // CONNECTION MANAGEMENT METHODS
+  // ============================================================================
+
+  /**
+   * Mark a player as disconnected with deadline
+   * 
+   * PROCESS:
+   * 1. Update player connection state and deadline
+   * 2. Generate snapshot and automation plans
+   * 3. Validate state invariants
+   * 
+   * @param userId Unique player identifier
+   * @param disconnectDeadlineTs Timestamp when disconnection becomes final
+   * @returns Array of lifecycle plans for disconnection
+   */
   markDisconnected(userId: string, disconnectDeadlineTs: number): PlayerLifecyclePlan[] {
     const plans: PlayerLifecyclePlan[] = [];
     const player = this.deps.state.playersById.get(userId);
@@ -421,12 +571,34 @@ export class PlayerLifecycleService {
     return plans;
   }
 
-  /** True when player is in a hand and ACTIVE; force-fold must run before abandon/remove. */
+  // ============================================================================
+  // HELPER & UTILITY METHODS
+  // ============================================================================
+
+  /**
+   * Determine if player should be force-folded before removal
+   * 
+   * LOGIC:
+   * Player must be ACTIVE and hand must be in progress
+   * This ensures hand history and pot calculations remain consistent
+   * 
+   * @param player Player state to evaluate
+   * @returns True if force-fold should be applied
+   */
   private shouldForceFold(player: PlayerState): boolean {
     return this.deps.state.street !== "WAITING" && player.status === "ACTIVE";
   }
 
-  /** After restore/seat change: if hand in progress and this player is toAct, set needsAction so invariant holds. */
+  /**
+   * Ensure player has needsAction flag set for proper turn advancement
+   * 
+   * CONTEXT:
+   * Called after seat changes or player restorations
+   * Maintains betting round invariants when player returns to active hand
+   * 
+   * @param seat Seat number where player will be positioned
+   * @param userId Unique player identifier
+   */
   private ensureToActHasNeedsActionIfNeeded(seat: number, userId: string): void {
     const { state } = this.deps;
     if (state.street === "WAITING" || state.runoutMode === "STAGED") return;
@@ -437,6 +609,17 @@ export class PlayerLifecycleService {
     player.needsAction = true;
   }
 
+  /**
+   * Validate buy-in amount against table limits
+   * 
+   * VALIDATION RULES:
+   * 1. Must be positive integer
+   * 2. Must meet minimum buy-in requirement
+   * 3. Must not exceed maximum buy-in limit
+   * 
+   * @param buyInCents Amount to validate
+   * @throws PokerError if validation fails
+   */
   private assertValidBuyIn(buyInCents: number): void {
     if (!Number.isInteger(buyInCents) || buyInCents <= 0) {
       throw new PokerError("INVALID_BUYIN", "buyInCents must be a positive integer.");
@@ -449,6 +632,21 @@ export class PlayerLifecycleService {
     }
   }
 
+  /**
+   * Process cash-out for remaining player stack
+   * 
+   * PROCESS:
+   * 1. Validate remaining stack amount
+   * 2. Check for duplicate cash-out operations
+   * 3. Process external cash-out through cashier service
+   * 4. Handle errors and maintain tracking state
+   * 
+   * IDEMPOTENCY:
+   * Uses unique external reference for transaction safety
+   * 
+   * @param userId Unique player identifier
+   * @param remainingStack Amount to cash out
+   */
   private async cashOutRemainingStack(userId: string, remainingStack: number): Promise<void> {
     if (remainingStack <= 0) return;
     if (this.cashedOutUserIds.has(userId)) {
@@ -475,6 +673,13 @@ export class PlayerLifecycleService {
     }
   }
 
+  /**
+   * Synchronize betting state after player removal to maintain consistency
+   * 
+   * PURPOSE:
+   * Ensures roundCurrentBetCents never exceeds any player's roundBetCents
+   * Prevents chip inflation and maintains betting round integrity
+   */
   private syncBettingStateAfterRemoval(): void {
     if (this.deps.state.street === "WAITING") {
       // In WAITING we only need monotonic safety: roundCurrentBet must never exceed any seat roundBet.

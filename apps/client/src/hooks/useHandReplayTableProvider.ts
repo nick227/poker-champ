@@ -5,7 +5,7 @@
  * No parallel abstractions - just another provider
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { historyService } from "@/services/history.service";
 import { storeRegistry } from "@/registry/store.registry";
@@ -133,29 +133,26 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
     },
   });
 
-  const replayController = useMemo<ReplayController>(
-    () => ({
-      currentStep,
-      totalSteps,
-      next: () => {
-        if (currentStep < totalSteps - 1) setCurrentStep((prev) => prev + 1);
-      },
-      prev: () => {
-        if (currentStep > 0) setCurrentStep((prev) => prev - 1);
-      },
-      goTo: (step: number) => {
-        if (step >= 0 && step < totalSteps) setCurrentStep(step);
-      },
-      play: () => setIsPlaying(true),
-      pause: () => setIsPlaying(false),
-      setSpeed: (newSpeed: number) => {
-        setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
-      },
-      isPlaying,
-      speed,
-    }),
-    [currentStep, totalSteps, isPlaying, speed],
-  );
+  const replayController: ReplayController = {
+    currentStep,
+    totalSteps,
+    next: () => {
+      if (currentStep < totalSteps - 1) setCurrentStep((prev) => prev + 1);
+    },
+    prev: () => {
+      if (currentStep > 0) setCurrentStep((prev) => prev - 1);
+    },
+    goTo: (step: number) => {
+      if (step >= 0 && step < totalSteps) setCurrentStep(step);
+    },
+    play: () => setIsPlaying(true),
+    pause: () => setIsPlaying(false),
+    setSpeed: (newSpeed: number) => {
+      setSpeed(Math.min(Math.max(newSpeed, 0.1), 3.0));
+    },
+    isPlaying,
+    speed,
+  };
 
   return {
     provider: { ...tableProvider, replay: replayController },

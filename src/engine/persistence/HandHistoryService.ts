@@ -132,6 +132,35 @@ export class HandHistoryService {
     });
   }
 
+  /** Record blind post so VPIP can exclude it (position-based, not "first two" by index). */
+  async recordBlindAction(params: {
+    tableId: string;
+    handId: string;
+    playerId: string;
+    seat: number;
+    blindType: "SB" | "BB";
+    amountCents: number;
+    potBeforeCents: number;
+    potAfterCents: number;
+    actionIndex: number;
+  }) {
+    this.assertTableId(params.tableId);
+    await this.prisma.handAction.create({
+      data: {
+        id: nanoid(),
+        handId: params.handId,
+        playerId: this.resolvePlayerId(params.playerId),
+        seat: params.seat,
+        actionIndex: params.actionIndex,
+        street: "PREFLOP",
+        action: params.blindType === "SB" ? "POST_SB" : "POST_BB",
+        amountCents: params.amountCents,
+        potBeforeCents: params.potBeforeCents,
+        potAfterCents: params.potAfterCents,
+      },
+    });
+  }
+
   async recordPayout(params: {
     tableId: string;
     handId: string;

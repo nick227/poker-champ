@@ -1,5 +1,6 @@
 import { request } from "@poker-champ/sdk";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { DEFAULT_HISTORY_LIMIT } from "@/constants";
 
 // Types for hand history API responses
 export interface HandHistoryListItem {
@@ -102,7 +103,7 @@ class HistoryServiceImpl implements HistoryService {
       token: input.token,
       query: {
         cursor: input.cursor,
-        limit: input.limit ?? 50,
+        limit: input.limit ?? DEFAULT_HISTORY_LIMIT,
       },
     });
 

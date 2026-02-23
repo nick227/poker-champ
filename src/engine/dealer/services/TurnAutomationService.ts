@@ -1,13 +1,77 @@
+/**
+ * TurnAutomationService - Automated Player Action Management
+ * 
+ * PURPOSE:
+ * Manages automated actions for players during poker gameplay, including
+ * bot decision making, human player automation, and turn enforcement.
+ * Handles action queuing, timing, and bot behavior logic.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Bot action selection and execution
+ * - Human player automation (timeouts, disconnections)
+ * - Action queuing with proper timing
+ * - Auto-sit-out enforcement when action limits reached
+ * - Turn advancement and action validation
+ * 
+ * BOT LOGIC:
+ * Uses configurable bot resolver to determine optimal actions
+ * based on game state, hand strength, and position.
+ * 
+ * USAGE:
+ * const service = new TurnAutomationService(dependencies);
+ * service.maybeActForBot();
+ * // Actions are queued through the service
+ * 
+ */
+
+// ============================================================================
+// IMPORTS - Type Definitions
+// ============================================================================
 import type { ActionPayload } from "../../../messages/schemas.js";
+import type { HeroActionOptions } from "@poker-champ/realtime-contract";
+
+// ============================================================================
+// IMPORTS - Internal Dependencies
+// ============================================================================
 import type { PokerState } from "../../../state/PokerState.js";
 import { getAutoActionHandCap } from "../../../config/seats.js";
 import { logger } from "../../../lib/logger.js";
+
+// ============================================================================
+// IMPORTS - Poker Rules & Game Logic
+// ============================================================================
 import { eligibleToAct } from "../../rules/BettingRound.js";
+
+// ============================================================================
+// IMPORTS - Bot Logic & AI
+// ============================================================================
 import { BotResolver } from "../../bots/BotResolver.js";
-import type { HeroActionOptions } from "@poker-champ/realtime-contract";
+
+// ============================================================================
+// IMPORTS - Constants & Timing
+// ============================================================================
 import { BOT_ACTION_DELAY_MS } from "../timing.js";
 
+// ============================================================================
+// MAIN CLASS - Turn Automation Management
+// ============================================================================
+
+/**
+ * TurnAutomationService - Core service for managing automated player actions
+ * 
+ * This class handles the automation layer for both bot and human players,
+ * ensuring proper turn progression, action timing, and rule enforcement.
+ * It provides intelligent bot behavior while maintaining fair gameplay.
+ */
 export class TurnAutomationService {
+  // ============================================================================
+  // CONSTRUCTOR & DEPENDENCIES
+  // ============================================================================
+  
+  /**
+   * Initialize TurnAutomationService with required dependencies
+   * @param deps - Service dependencies for state, bot resolution, and player management
+   */
   constructor(private readonly deps: {
     state: PokerState;
     botResolver: BotResolver;
@@ -19,6 +83,27 @@ export class TurnAutomationService {
     onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
   }) {}
 
+  // ============================================================================
+  // AUTOMATION METHODS
+  // ============================================================================
+
+  /**
+   * Attempt to execute automated action for bot player
+   * 
+   * PROCESS:
+   * 1. Validate game state (not waiting, not staged runout)
+   * 2. Identify current player and verify eligibility to act
+   * 3. Get available action options for human players
+   * 4. For bots, use bot resolver to determine optimal action
+   * 5. Queue appropriate action with proper timing
+   * 
+   * BOT BEHAVIOR:
+   * - Uses configurable bot resolver for decision making
+   * - Respects timing delays for realistic play
+   * - Handles check/fold/call/raise decisions based on game state
+   * 
+   * @returns void - Actions are queued through dependency injection
+   */
   maybeActForBot(): void {
     const state = this.deps.state;
     if (state.street === "WAITING") return;
@@ -62,6 +147,25 @@ export class TurnAutomationService {
     this.deps.enqueueAction(toActId, payload, BOT_ACTION_DELAY_MS);
   }
 
+  // ============================================================================
+  // AUTOMATION ENFORCEMENT METHODS
+  // ============================================================================
+
+  /**
+   * Apply automatic sit-out when players exceed action limits
+   * 
+   * PROCESS:
+   * 1. Get configured action cap per hand
+   * 2. Iterate through all players and check action counts
+   * 3. Mark players as ABANDONED when cap is reached
+   * 4. Trigger callback for players who hit the limit
+   * 
+   * PURPOSE:
+   * Prevents excessive bot behavior and enforces fair play
+   * Ensures human players don't face unlimited bot opponents
+   * 
+   * @returns Promise<void> - Async operation completion
+   */
   async applyDisconnectedAutoActionCapForHand(): Promise<void> {
     const cap = getAutoActionHandCap();
     if (cap <= 0) return;

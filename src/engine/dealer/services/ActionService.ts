@@ -1,7 +1,7 @@
 import type { ActionPayload } from "../../../messages/schemas.js";
 import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState } from "../../../state/PokerState.js";
-import type { TableLastAction } from "@poker-champ/realtime-contract";
+import type { HeroActionOptions, TableLastAction } from "@poker-champ/realtime-contract";
 import { PokerError } from "../../errors.js";
 import {
   allRemainingPlayersAllInOrFolded,
@@ -20,8 +20,6 @@ export type ActionDebitKind = "CALL" | "BET" | "RAISE" | "ALL_IN";
 export type AcceptedActionKind = "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN";
 type LastActionOrigin = TableLastAction["origin"];
 type LastActionStreet = TableLastAction["street"];
-
-// ActionService builds action payload fields; Dealer owns monotonic seq assignment.
 export type ActionServiceLastAction = Omit<TableLastAction, "seq">;
 
 export type ActionResult =
@@ -36,46 +34,29 @@ export type ActionExecutionResult = {
   lastAction?: ActionServiceLastAction;
 };
 
-function resolveHeroTraceUserId(): string | null {
-  const value = process.env.HERO_TRACE_USER_ID?.trim();
-  return value && value.length > 0 ? value : null;
-}
-
-function shouldTraceUser(userId: string): boolean {
-  const heroTraceUserId = resolveHeroTraceUserId();
-  return !heroTraceUserId || heroTraceUserId === userId;
-}
-
-function traceHero(event: string, payload: Record<string, unknown>): void {
-  try {
-    console.log(`[HERO_TRACE] ${event} ${JSON.stringify(payload)}`);
-  } catch {
-    console.log(`[HERO_TRACE] ${event}`);
-  }
-}
-
 export class ActionService {
-  private tracePostAction(state: PokerState, player: PlayerState, action: string, potBefore: number): void {
-    if (!shouldTraceUser(player.id)) return;
-    traceHero("ACTION_POST_STATE", {
-      tableId: state.tableId,
-      handId: state.handId,
-      userId: player.id,
-      seat: player.seat,
-      action,
-      street: state.street,
-      stackCents: player.stackCents,
-      roundBetCents: player.roundBetCents,
-      committedCents: player.committedCents,
-      status: player.status,
-      potBeforeCents: potBefore,
-      potAfterCents: state.potCents,
-      roundCurrentBetCents: state.roundCurrentBetCents,
-      minRaiseCents: state.minRaiseCents,
-      toActSeat: state.toActSeat,
-      actionCount: state.actionCount,
-      handActionSeq: state.handActionSeq,
-    });
+  constructor(private readonly deps: {
+    state: PokerState;
+    getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
+    getLastAction: () => TableLastAction | undefined;
+  }) {}
+
+  private resolveHeroTraceUserId(): string | null {
+    const value = process.env.HERO_TRACE_USER_ID?.trim();
+    return value && value.length > 0 ? value : null;
+  }
+
+  private shouldTraceUser(userId: string): boolean {
+    const heroTraceUserId = this.resolveHeroTraceUserId();
+    return !heroTraceUserId || heroTraceUserId === userId;
+  }
+
+  private traceHero(event: string, payload: Record<string, unknown>): void {
+    try {
+      console.log(`[HERO_TRACE] ${event} ${JSON.stringify(payload)}`);
+    } catch {
+      console.log(`[HERO_TRACE] ${event}`);
+    }
   }
 
   private finish(state: PokerState, result: ActionResult): ActionResult {
@@ -343,8 +324,8 @@ export class ActionService {
         const raiseTo = player.roundBetCents + needed;
         const delta = raiseTo - state.roundCurrentBetCents;
         const isAllIn = needed === player.stackCents;
-        if (shouldTraceUser(player.id)) {
-          traceHero("HERO_RAISE_MATH", {
+        if (this.shouldTraceUser(player.id)) {
+          this.traceHero("HERO_RAISE_MATH", {
             tableId: state.tableId,
             handId: state.handId,
             userId: player.id,
@@ -446,6 +427,35 @@ export class ActionService {
       result: this.resolvePostAction(state, player.kind),
       lastAction,
     };
+  }
+  private tracePostAction(
+    state: PokerState,
+    player: PlayerState,
+    action: AcceptedActionKind,
+    potBefore: number,
+  ): void {
+    if (!this.shouldTraceUser(player.id)) return;
+    this.traceHero("MONEY_EVENT", {
+      tableId: state.tableId,
+      handId: state.handId,
+      userId: player.id,
+      seat: player.seat,
+      event: action,
+      actionType: action,
+      street: state.street,
+      amountCents: state.potCents - potBefore,
+      stackAfter: player.stackCents,
+      roundBetAfter: player.roundBetCents,
+      potBefore,
+      potAfter: state.potCents,
+      committedCents: player.committedCents,
+      status: player.status,
+      roundCurrentBetCents: state.roundCurrentBetCents,
+      minRaiseCents: state.minRaiseCents,
+      toActSeat: state.toActSeat,
+      actionCount: state.actionCount,
+      handActionSeq: state.handActionSeq,
+    });
   }
 
   async executeForcedFold(params: {

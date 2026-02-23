@@ -1,5 +1,6 @@
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { BotActionContext } from "../../../BotBrain.js";
+import type { BrainRng } from "../../../BotBrain.js";
 import type { SizingRecipe, SizingWeights } from "../types.js";
 import { weightedPick } from "./weightedPick.js";
 
@@ -16,9 +17,9 @@ const RATIO_BY_RECIPE: Record<SizingRecipe, number> = {
   JAM: 1,
 };
 
-export function resolveSizingRecipe(weights: SizingWeights | undefined): SizingRecipe | undefined {
+export function resolveSizingRecipe(weights: SizingWeights | undefined, rng?: BrainRng): SizingRecipe | undefined {
   if (!weights) return undefined;
-  return weightedPick(weights);
+  return weightedPick(weights, rng);
 }
 
 export function resolveWagerAmount(

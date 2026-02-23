@@ -1,6 +1,7 @@
 import { auth, economy, lobby, request, tournaments } from "@poker-champ/sdk";
 import { withApiError } from "@/services/_helpers/withApiError";
 import type { ServiceResult } from "@/services/_helpers/serviceTypes";
+import { DEFAULT_PAGE_SIZE } from "@/constants";
 
 const serviceByKey = {
   get: {
@@ -9,7 +10,7 @@ const serviceByKey = {
     economyTransactions: (limit?: number) => withApiError(() => economy.transactions(limit ? { limit } : undefined)),
     tournaments: (status?: string) => withApiError(() => tournaments.list(status ? { status } : undefined)),
     me: () => withApiError(() => auth.me()),
-    adminUsers: (page: number = 1, limit: number = 10) =>
+    adminUsers: (page: number = 1, limit: number = DEFAULT_PAGE_SIZE) =>
       withApiError(() =>
         request<{
           users: Array<{
@@ -44,16 +45,15 @@ const serviceByKey = {
     authLogin: (input: { email: string; password: string }) => withApiError(() => auth.login(input)),
     authLogout: () => withApiError(() => auth.logout()),
     joinTable: (input: {
+      name: string;
       maxSeats: number;
-      speed: "normal" | "fast";
-      name?: string;
-      smallBlindCents?: number;
-      bigBlindCents?: number;
-      minBuyInCents?: number;
-      maxBuyInCents?: number;
-      visibility?: "PUBLIC" | "PRIVATE";
+      smallBlindCents: number;
+      bigBlindCents: number;
+      minBuyInCents: number;
+      maxBuyInCents: number;
+      visibility: "PUBLIC" | "PRIVATE";
       password?: string;
-    }) => withApiError(() => lobby.createTable(input as any)),
+    }) => withApiError(() => lobby.createTable(input)),
     deleteTable: (tableId: string) => withApiError(() => lobby.deleteTable(tableId)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>
       withApiError(() => economy.buyIn(input)),

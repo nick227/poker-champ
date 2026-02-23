@@ -55,6 +55,8 @@ export function buildSidePots(playersAll: PlayerState[], eligibleAtShowdown: Pla
 
 /**
  * Split a pot among winners, distributing odd chips by seat order starting left of dealer.
+ * Industry standard: remainder chip(s) go to winners earliest left of the dealer button.
+ * Fully deterministic — no randomness.
  */
 export function splitPotCents(
   potCents: number,
@@ -67,16 +69,24 @@ export function splitPotCents(
   const base = Math.floor(potCents / winnerIds.length);
   let remainder = potCents - base * winnerIds.length;
 
-  for (const id of winnerIds) payouts.set(id, (payouts.get(id) ?? 0) + base);
+  // Sort winners deterministically: earliest position left of dealer gets remainder first
+  const winnerSet = new Set(winnerIds);
+  const sortedWinnerIds = seatOrderFromLeftOfDealer.filter(id => winnerSet.has(id));
 
-  if (remainder > 0) {
-    const winnerSet = new Set(winnerIds);
-    for (const id of seatOrderFromLeftOfDealer) {
-      if (remainder <= 0) break;
-      if (!winnerSet.has(id)) continue;
-      payouts.set(id, (payouts.get(id) ?? 0) + 1);
-      remainder -= 1;
-    }
+  // Any winners not in seatOrder (edge case) get appended at the end
+  for (const id of winnerIds) {
+    if (!sortedWinnerIds.includes(id)) sortedWinnerIds.push(id);
+  }
+
+  for (const winnerId of sortedWinnerIds) {
+    payouts.set(winnerId, (payouts.get(winnerId) ?? 0) + base);
+  }
+
+  // Distribute remainder chips to winners in seat order (left of dealer first)
+  for (const id of sortedWinnerIds) {
+    if (remainder <= 0) break;
+    payouts.set(id, (payouts.get(id) ?? 0) + 1);
+    remainder -= 1;
   }
 
   return payouts;

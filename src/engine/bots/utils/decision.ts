@@ -1,6 +1,6 @@
 import type { ActionPayload } from "../../../messages/schemas.js";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
-import type { BotActionContext } from "../BotBrain.js";
+import type { BotActionContext } from "../botContext.js";
 
 export type LegalActionDescriptor = {
   action: ActionPayload["action"];

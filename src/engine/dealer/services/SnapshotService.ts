@@ -1,17 +1,64 @@
+/**
+ * SnapshotService - Game State Snapshots & Client Notifications
+ * 
+ * PURPOSE:
+ * Manages game state snapshots and real-time client notifications.
+ * Handles snapshot creation, validation, broadcasting, and persistence.
+ * Integrates with hand calculations and replay system.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Create and validate game state snapshots
+ * - Broadcast snapshots to connected clients
+ * - Calculate hand odds and statistics
+ * - Manage snapshot sequencing and versioning
+ * - Provide hooks for custom snapshot processing
+ * 
+ * CLIENT COMMUNICATION:
+ * - Uses Colyseus for real-time message broadcasting
+ * - Maintains client connection state
+ * - Handles message validation and routing
+ * 
+ * USAGE:
+ * const service = new SnapshotService(dependencies);
+ * await service.emitToAll("HAND_START");
+ * // Snapshots are broadcast to all connected clients
+ * 
+ */
+
+// ============================================================================
+// IMPORTS - External Dependencies
+// ============================================================================
 import { Client } from "@colyseus/core";
 import { createHash } from "node:crypto";
-import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
+
+// ============================================================================
+// IMPORTS - Internal Dependencies
+// ============================================================================
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import { HandCalculationsCoordinator } from "../../odds/HandCalculationsCoordinator.js";
 import { toFrameReason, type FrameReason } from "../../replay/FrameReason.js";
+
+// ============================================================================
+// IMPORTS - Metrics & Monitoring
+// ============================================================================
 import { snapshotMetrics } from "../metrics/snapshotMetrics.js";
 
-export type SnapshotReason = TableSnapshotPayload["reason"];
+// ============================================================================
+// IMPORTS - Type Definitions
+// ============================================================================
+import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
-const VALIDATE_SNAPSHOTS = process.env.NODE_ENV !== "production";
+// ============================================================================
+// TYPE DEFINITIONS & CONSTANTS
+// ============================================================================
 
-type SnapshotEmitHook = (args: {
+/**
+ * Snapshot emission hook for custom processing
+ * Allows external systems to intercept and process snapshots
+ * before they are broadcast to clients.
+ */
+export type SnapshotEmitHook = (args: {
   tableId: string;
   handId?: string;
   snapshotId: string;
@@ -23,11 +70,63 @@ type SnapshotEmitHook = (args: {
   schemaVersion: number;
 }) => Promise<void> | void;
 
+/**
+ * Snapshot reason type alias for cleaner imports
+ */
+export type SnapshotReason = TableSnapshotPayload["reason"];
+
+/**
+ * Environment flag for snapshot validation
+ * Enables additional validation in non-production environments
+ */
+const VALIDATE_SNAPSHOTS = process.env.NODE_ENV !== "production";
+
+// ============================================================================
+// MAIN CLASS - Snapshot Management & Broadcasting
+// ============================================================================
+
+/**
+ * SnapshotService - Core service for managing game state snapshots
+ * 
+ * This class handles the creation, validation, and broadcasting of game
+ * state snapshots to connected clients. It integrates with the hand
+ * calculation system and provides hooks for custom snapshot processing.
+ * 
+ * CLIENT INTEGRATION:
+ * - Uses Colyseus for real-time message broadcasting
+ * - Maintains client connection state and message routing
+ * - Validates outbound messages against schemas
+ * 
+ * SNAPSHOTS:
+ * - Creates comprehensive game state snapshots
+ * - Includes hand calculations, odds, and statistics
+ * - Sequences and versions snapshots for replay
+ * 
+ * USAGE:
+ * const service = new SnapshotService(dependencies);
+ * await service.emitToAll("HAND_START");
+ * // Snapshots are broadcast to all connected clients
+ */
 export class SnapshotService {
+  // ============================================================================
+  // CLASS PROPERTIES - State Management & Tracking
+  // ============================================================================
+  
+  /** Hand calculations coordinator for odds and statistics */
   private readonly handCalculations = new HandCalculationsCoordinator();
+  /** Snapshot sequence counter for unique identification */
   private snapshotSeq = 0;
+  /** Last hand key for detecting hand changes */
   private lastHandKey: string | null = null;
 
+  // ============================================================================
+  // CONSTRUCTOR & DEPENDENCIES
+  // ============================================================================
+  
+  /**
+   * Initialize SnapshotService with required dependencies
+   * @param deps - Service dependencies for state, clients, and data access
+   */
   constructor(private readonly deps: {
     state: PokerState;
     clientsByUserId: Map<string, Client>;
@@ -36,9 +135,36 @@ export class SnapshotService {
     getLastHandResult: () => TableSnapshotPayload["lastHandResult"] | undefined;
     getLastAction: () => TableSnapshotPayload["lastAction"] | undefined;
     getHeroSessionStats?: (userId: string) => TableSnapshotPayload["hero"]["playerStats"];
+    /** Optional hook for custom snapshot processing */
     emitHook?: SnapshotEmitHook;
   }) {}
 
+  // ============================================================================
+  // SNAPSHOT BROADCASTING METHODS
+  // ============================================================================
+
+  /**
+   * Emit snapshot to all connected clients
+   * 
+   * PROCESS:
+   * 1. Generate unique snapshot sequence number
+   * 2. Refresh hand calculations if needed
+   * 3. Build comprehensive snapshot payload
+   * 4. Determine current acting player for context
+   * 5. Validate snapshot integrity (development mode)
+   * 6. Apply custom emit hook if provided
+   * 7. Broadcast to all clients via Colyseus
+   * 8. Record metrics for monitoring
+   * 
+   * BROADCASTING:
+   * - Uses Colyseus room broadcast for efficiency
+   * - Validates message schema before sending
+   * - Handles connection state management
+   * 
+   * @param reason Snapshot reason for context
+   * @param actionId Optional action identifier
+   * @returns void - Async broadcast operation
+   */
   emitToAll(reason: SnapshotReason, actionId?: string): void {
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
@@ -151,11 +277,33 @@ export class SnapshotService {
     });
   }
 
+  // ============================================================================
+  // HELPER & UTILITY METHODS
+  // ============================================================================
+
+  /**
+   * Generate next snapshot sequence number
+   * 
+   * PURPOSE:
+   * Provides sequential numbering for snapshots
+   * Handles bootstrap scenario for proper initialization
+   * 
+   * @returns Next snapshot sequence number
+   */
   private nextSnapshotSeq(): number {
     this.snapshotSeq += 1;
     return this.snapshotSeq;
   }
 
+  /**
+   * Get current snapshot sequence number
+   * 
+   * PURPOSE:
+   * Returns the current snapshot sequence for validation
+   * Ensures sequence starts at 1 after bootstrap
+   * 
+   * @returns Current snapshot sequence number
+   */
   private currentSnapshotSeq(): number {
     if (this.snapshotSeq <= 0) {
       logger.warn({ tableId: this.deps.state.tableId, reason: "bootstrap" }, "TABLE_SNAPSHOT_SEQ_BOOTSTRAP_TO_ONE");
@@ -164,6 +312,20 @@ export class SnapshotService {
     return this.snapshotSeq;
   }
 
+  /**
+   * Build base snapshot payload with common fields
+   * 
+   * PROCESS:
+   * 1. Capture current game state and metadata
+   * 2. Include table configuration and player states
+   * 3. Add timing and sequence information
+   * 4. Generate state hash for integrity validation
+   * 
+   * @param reason Snapshot reason for context
+   * @param actionId Optional action identifier
+   * @param snapshotSeq Unique sequence number
+   * @returns Base snapshot payload object
+   */
   private buildBaseSnapshot(
     reason: SnapshotReason,
     actionId: string | undefined,

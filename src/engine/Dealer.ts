@@ -1,3 +1,46 @@
+/**
+ * ============================================================================
+ * Dealer - Poker Table State Machine & Action Gateway
+ * ============================================================================
+ * 
+ * Core responsibility: Manages the complete lifecycle of a poker table,
+ * from player management to hand execution and state persistence.
+ *
+ * Architecture Overview:
+ * =====================
+ * - Owns PokerState (persistent table state) and HandContext (per-hand state)
+ * - Coordinates multiple service layers for specialized functionality
+ * - Serializes all mutations through an action queue for consistency
+ * - Provides public API for client binding, player lifecycle, and actions
+ *
+ * Key Responsibilities:
+ * =====================
+ * 1. Client Management: Bind/unbind clients, manage connection state
+ * 2. Player Lifecycle: Join/leave/rebuy/bot management with persistence
+ * 3. Hand Execution: Start → betting rounds → showdown → settlement
+ * 4. Action Processing: Queue, deduplicate, and execute player actions
+ * 5. State Persistence: Hand history, player stats, and ledger management
+ * 6. Automation: Bot actions and disconnected player handling
+ *
+ * Service Layer Integration:
+ * =========================
+ * - ActionService: Action validation and execution
+ * - SettlementService: Pot distribution and chip management
+ * - HandLifecycleService: Hand progression and state transitions
+ * - TurnAutomationService: Bot and disconnected player automation
+ * - PlayerLifecycleService: Player state management
+ * - SnapshotService: State synchronization to clients
+ *
+ * Thread Safety:
+ * =============
+ * All state mutations are serialized through the action queue to prevent
+ * race conditions and ensure consistent state transitions.
+ *
+ * @author Poker Champ Team
+ * @since 1.0.0
+ * @version 2.0.0
+ */
+
 import { Client } from "@colyseus/core";
 import { logger } from "../lib/logger.js";
 import type { ActionPayload } from "../messages/schemas.js";
@@ -37,13 +80,19 @@ import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
  * - Owns PokerState, HandContext (per-hand), and service wiring.
  * - Public API: client binding, player lifecycle (join/leave/rebuy/bots), connection state, handleAction.
  * - Hand lifecycle: startHand → advanceStreetOrShowdown / finishHand* → transitionToWaiting → scheduleNextHand.
- * - All mutation is serialized through the action queue (or enqueueSerializedStateMutation for non-action paths),
- *   except fire-and-forget disconnect/reconnect paths (see TODO DEALER_REFACTOR_PROPOSAL).
+ * - All mutation is serialized through the action queue (or enqueueSerializedStateMutation for non-action paths).
  */
+/**
+ * ============================================================================
+ * DEALER CLASS - MAIN IMPLEMENTATION
+ * ============================================================================
+ */
+
 export class Dealer {
-  // -----------------------------------------------------------------------------
-  // State
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // CORE STATE & SERVICE DEPENDENCIES
+  // ---------------------------------------------------------------------------
+  // Persistent table state and service infrastructure
 
   private readonly state: PokerState;
   private readonly persistence: PersistenceFacade;
@@ -57,7 +106,7 @@ export class Dealer {
   private readonly currentHandAutoActedUserIds: Set<string> = new Set();
   private readonly onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
   private readonly snapshotService: SnapshotService;
-  private readonly actionService = new ActionService();
+  private readonly actionService: ActionService;
   private readonly settlementService: SettlementService;
   private readonly handLifecycleService: HandLifecycleService;
   private readonly turnAutomationService: TurnAutomationService;
@@ -73,9 +122,10 @@ export class Dealer {
   private readonly maxQueueDepth: number;
   private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  // -----------------------------------------------------------------------------
-  // Constructor (service wiring; hand-scoped getters see currentHand)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // CONSTRUCTOR - SERVICE WIRING & INITIALIZATION
+  // ---------------------------------------------------------------------------
+  // Initializes all service layers with proper dependency injection
 
   constructor(
     state: PokerState,
@@ -155,15 +205,21 @@ export class Dealer {
       getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
       emitHook: options?.onTableSnapshotEmitted,
     });
+    this.actionService = new ActionService({
+      state: this.state,
+      getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
+      getLastAction: () => this.currentHand?.lastAction,
+    });
     this.startDisconnectSweep();
     if (this.state.seats.length === 0) {
       for (let i = 0; i < (this.state.maxSeats || 9); i++) this.state.seats.push("");
     }
   }
 
-  // -----------------------------------------------------------------------------
-  // Public API — Client binding and snapshots
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PUBLIC API - CLIENT BINDING & SNAPSHOT MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // Client connection management and state synchronization
 
   bindClient(userId: string, client: Client) { this.clientsByUserId.set(userId, client); }
   unbindClient(userId: string) { this.clientsByUserId.delete(userId); }
@@ -181,13 +237,15 @@ export class Dealer {
     this.snapshotService.emitToAll(reason, actionId);
   }
 
-  // -----------------------------------------------------------------------------
-  // Public API — Player lifecycle (join, leave, rebuy, bots)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PUBLIC API - PLAYER LIFECYCLE MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // Player join/leave/rebuy operations and bot management
 
   async addPlayer(userId: string, name: string, buyInCents: number) {
-    const plans = await this.playerLifecycleService.addPlayer(userId, name, buyInCents);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.addPlayerInternal(userId, name, buyInCents);
+    });
   }
 
   async restorePlayerFromSession(
@@ -197,8 +255,9 @@ export class Dealer {
     stackCents: number,
     options?: { connected?: boolean; sittingOut?: boolean },
   ) {
-    const plans = await this.playerLifecycleService.restorePlayerFromSession(userId, name, seat, stackCents, options);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.restorePlayerFromSessionInternal(userId, name, seat, stackCents, options);
+    });
   }
 
   /** Serialized with applyRebuy so add-bot-after-rebuy sees updated state/ledger. */
@@ -210,45 +269,51 @@ export class Dealer {
   }
 
   async removeBot(botId: string) {
-    const plans = await this.playerLifecycleService.removeBot(botId);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.removeBotInternal(botId);
+    });
   }
 
   async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }) {
-    const plans = await this.playerLifecycleService.removePlayer(userId, options);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.removePlayerInternal(userId, options);
+    });
   }
 
   /** Add chips to seated player (rebuy). Ledger must already be updated via economy buy-in. */
-  async applyRebuy(userId: string, amountCents: number): Promise<void> {
+  async applyRebuy(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
-      const plans = await this.playerLifecycleService.addChipsToSeatedPlayer(userId, amountCents);
+      const plans = await this.playerLifecycleService.addChipsToSeatedPlayer(userId, amountCents, rebuyRef);
       await this.executePlayerLifecyclePlans(plans);
     });
   }
 
   async handleConsentedLeave(userId: string) {
-    await this.forceFoldForLeave(userId);
-    await this.removePlayer(userId, { cashOutAfterRemoval: true });
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.forceFoldForLeave(userId);
+      await this.removePlayerInternal(userId, { cashOutAfterRemoval: true });
+    });
   }
 
-  // -----------------------------------------------------------------------------
-  // Public API — Connection state (disconnect, reconnect, abandon, kick)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PUBLIC API - CONNECTION STATE MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // Handle player disconnects, reconnects, abandons, and kicks
 
   markDisconnected(userId: string, disconnectDeadlineTs: number) {
-    const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
-    this.runPlayerLifecyclePlansFireAndForget(plans);
+    void this.markDisconnectedSerialized(userId, disconnectDeadlineTs).catch((err) => {
+      logger.error({ err, userId }, "markDisconnected failed");
+    });
   }
 
   markReconnected(userId: string) {
-    const plans = this.playerLifecycleService.markReconnected(userId);
-    this.runPlayerLifecyclePlansFireAndForget(plans);
+    void this.markReconnectedSerialized(userId).catch((err) => {
+      logger.error({ err, userId }, "markReconnected failed");
+    });
   }
 
   async markAbandoned(userId: string) {
-    const plans = await this.playerLifecycleService.markAbandoned(userId);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.markAbandonedSerialized(userId);
   }
 
   async markDisconnectedSerialized(userId: string, disconnectDeadlineTs: number): Promise<void> {
@@ -267,8 +332,7 @@ export class Dealer {
 
   async markAbandonedSerialized(userId: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
-      const plans = await this.playerLifecycleService.markAbandoned(userId);
-      await this.executePlayerLifecyclePlans(plans);
+      await this.markAbandonedInternal(userId);
     });
   }
 
@@ -282,9 +346,10 @@ export class Dealer {
     await this.markAbandoned(userId);
   }
 
-  // -----------------------------------------------------------------------------
-  // Public API — Player actions (queued, deduped by HandContext)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PUBLIC API - PLAYER ACTION PROCESSING
+  // ---------------------------------------------------------------------------
+  // Action queuing, deduplication, and execution pipeline
 
   async handleAction(userId: string, msg: ActionPayload, actionId?: string) {
     if (this.pendingActionCount >= this.maxQueueDepth) {
@@ -296,44 +361,57 @@ export class Dealer {
     }
     this.pendingActionCount++;
     const currentHandIdAtEnqueue = this.state.handId ?? null;
-    return (this.actionQueue = this.actionQueue.then(async () => {
-      try {
-        // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
-        // If the hand changed in between, sameHand is false and we skip dedup (correct — no record in wrong hand).
-        const handContext = this.currentHand;
-        const sameHand = handContext && currentHandIdAtEnqueue && this.state.handId === currentHandIdAtEnqueue;
-        const actionKey =
-          actionId && currentHandIdAtEnqueue ? buildActionKey(currentHandIdAtEnqueue, userId, actionId) : null;
-        const claimKey =
-          actionId && currentHandIdAtEnqueue ? buildClaimKey(currentHandIdAtEnqueue, actionId) : null;
-        if (sameHand && claimKey) {
-          if (handContext!.recordClaimAndWarnIfCollision(claimKey, userId)) {
-            logger.warn(
-              { handId: currentHandIdAtEnqueue, actionId, firstUserId: handContext!.actionIdFirstClaimByKey.get(claimKey), userId },
-              "ACTION_ID_CROSS_USER_COLLISION",
-            );
-          }
+    const queued = this.actionQueue
+      .catch((err) => {
+        if (!this.isSkippableQueuedActionError(err)) {
+          logger.warn({ err }, "Recovering dealer queue after prior failure before player action");
         }
-        if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) return;
-        const handIdBefore = this.state.handId;
+      })
+      .then(async () => {
         try {
-          await this._handleAction(userId, msg, "PLAYER");
-          if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
-            handContext.recordProcessed(actionKey);
+          // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
+          // If the hand changed in between, sameHand is false and we skip dedup (correct — no record in wrong hand).
+          const handContext = this.currentHand;
+          const sameHand = handContext && currentHandIdAtEnqueue && this.state.handId === currentHandIdAtEnqueue;
+          const actionKey =
+            actionId && currentHandIdAtEnqueue ? buildActionKey(currentHandIdAtEnqueue, userId, actionId) : null;
+          const claimKey =
+            actionId && currentHandIdAtEnqueue ? buildClaimKey(currentHandIdAtEnqueue, actionId) : null;
+          if (sameHand && claimKey) {
+            if (handContext!.recordClaimAndWarnIfCollision(claimKey, userId)) {
+              logger.warn(
+                { handId: currentHandIdAtEnqueue, actionId, firstUserId: handContext!.actionIdFirstClaimByKey.get(claimKey), userId },
+                "ACTION_ID_CROSS_USER_COLLISION",
+              );
+            }
           }
-        } catch (err) {
-          logger.error({ err, userId, action: msg.action }, "Action failed");
-          throw err;
+          if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) return;
+          const handIdBefore = this.state.handId;
+          try {
+            await this._handleAction(userId, msg, "PLAYER");
+            if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
+              handContext.recordProcessed(actionKey);
+            }
+          } catch (err) {
+            if (err instanceof PokerError) {
+              logger.warn({ err, userId, action: msg.action, code: err.code }, "Action rejected");
+            } else {
+              logger.error({ err, userId, action: msg.action }, "Action failed");
+            }
+            throw err;
+          }
+        } finally {
+          this.pendingActionCount--;
         }
-      } finally {
-        this.pendingActionCount--;
-      }
-    }));
+      });
+    this.actionQueue = queued;
+    return queued;
   }
 
-  // -----------------------------------------------------------------------------
-  // Action handling (private: execute, lastAction, preflop stats, result application)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // ACTION HANDLING - PRIVATE IMPLEMENTATION
+  // ---------------------------------------------------------------------------
+  // Core action execution, result application, and preflop statistics
 
   private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
     const roundBetBefore = this.state.street === "PREFLOP" ? this.state.roundCurrentBetCents : 0;
@@ -403,9 +481,10 @@ export class Dealer {
     this.currentHand = null;
   }
 
-  // -----------------------------------------------------------------------------
-  // Hand lifecycle (start, advance street, finish by last standing or showdown)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // HAND LIFECYCLE MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // Hand initiation, street progression, and completion scenarios
 
   private async startHand() {
     this.currentHand = new HandContext();
@@ -439,9 +518,10 @@ export class Dealer {
     await this.executeHandLifecyclePlans(plans);
   }
 
-  // -----------------------------------------------------------------------------
-  // Plan execution (hand and player lifecycle plans)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PLAN EXECUTION ENGINE
+  // ---------------------------------------------------------------------------
+  // Execute lifecycle plans from various service layers
 
   private async executeHandLifecyclePlans(plans: HandLifecyclePlan[]): Promise<void> {
     for (const plan of plans) {
@@ -498,15 +578,10 @@ export class Dealer {
     }
   }
 
-  private runPlayerLifecyclePlansFireAndForget(plans: PlayerLifecyclePlan[]): void {
-    void this.executePlayerLifecyclePlans(plans).catch((err) => {
-      logger.error({ err }, "Player lifecycle plan execution failed");
-    });
-  }
-
-  // -----------------------------------------------------------------------------
-  // Hand lifecycle helpers (schedule next hand, release seats, force fold, apply result)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // HAND LIFECYCLE HELPER METHODS
+  // ---------------------------------------------------------------------------
+  // Support functions for hand progression, seat management, and player removal
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
     if (this.state.street === "WAITING") {
@@ -559,7 +634,7 @@ export class Dealer {
           .filter(p => p.seat >= 0 && p.status !== "OUT");
 
         if (this.state.street === "WAITING" && seated.length >= 2) {
-          this.startHand().catch((err) => {
+          this.enqueueSerializedStateMutation(() => this.startHand()).catch((err) => {
             logger.error({ err, reason }, "Failed to auto-start next hand");
           });
         } else {
@@ -574,8 +649,42 @@ export class Dealer {
     const toRelease = [...this.pendingSeatReleaseUserIds];
     this.pendingSeatReleaseUserIds.clear();
     for (const userId of toRelease) {
-      await this.removePlayer(userId);
+      await this.removePlayerInternal(userId);
     }
+  }
+
+  private async addPlayerInternal(userId: string, name: string, buyInCents: number): Promise<void> {
+    const plans = await this.playerLifecycleService.addPlayer(userId, name, buyInCents);
+    await this.executePlayerLifecyclePlans(plans);
+  }
+
+  private async restorePlayerFromSessionInternal(
+    userId: string,
+    name: string,
+    seat: number,
+    stackCents: number,
+    options?: { connected?: boolean; sittingOut?: boolean },
+  ): Promise<void> {
+    const plans = await this.playerLifecycleService.restorePlayerFromSession(userId, name, seat, stackCents, options);
+    await this.executePlayerLifecyclePlans(plans);
+  }
+
+  private async removeBotInternal(botId: string): Promise<void> {
+    const plans = await this.playerLifecycleService.removeBot(botId);
+    await this.executePlayerLifecyclePlans(plans);
+  }
+
+  private async removePlayerInternal(
+    userId: string,
+    options?: { cashOutAfterRemoval?: boolean },
+  ): Promise<void> {
+    const plans = await this.playerLifecycleService.removePlayer(userId, options);
+    await this.executePlayerLifecyclePlans(plans);
+  }
+
+  private async markAbandonedInternal(userId: string): Promise<void> {
+    const plans = await this.playerLifecycleService.markAbandoned(userId);
+    await this.executePlayerLifecyclePlans(plans);
   }
 
   private async forceFoldForLeave(userId: string): Promise<void> {
@@ -616,9 +725,10 @@ export class Dealer {
     }
   }
 
-  // -----------------------------------------------------------------------------
-  // Persistence (hand history roster, ensure player/table)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PERSISTENCE LAYER INTEGRATION
+  // ---------------------------------------------------------------------------
+  // Hand history, player data, and table state persistence
 
   private async ensurePlayerPersistence(p: PlayerState) {
     if (!this.persistence.enabled || !this.persistence.handHistory || !this.persistence.ledger) return;
@@ -631,9 +741,10 @@ export class Dealer {
     }
   }
 
-  // -----------------------------------------------------------------------------
-  // Queue and automation (bot turn, enqueue internal action, serialized mutation)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // ACTION QUEUE & AUTOMATION SYSTEM
+  // ---------------------------------------------------------------------------
+  // Bot automation, internal actions, and serialized state mutations
 
   /**
    * Automation hook for non-human turn blocking:
@@ -682,16 +793,19 @@ export class Dealer {
   private enqueueSerializedStateMutation(work: () => Promise<void>): Promise<void> {
     const queued = this.actionQueue
       .catch((err) => {
-        logger.warn({ err }, "Recovering dealer queue after prior failure");
+        if (!this.isSkippableQueuedActionError(err)) {
+          logger.warn({ err }, "Recovering dealer queue after prior failure");
+        }
       })
       .then(work);
     this.actionQueue = queued;
     return queued;
   }
 
-  // -----------------------------------------------------------------------------
-  // Disconnect sweep (periodic abandon of players past deadline)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // DISCONNECT DEADLINE MANAGEMENT
+  // ---------------------------------------------------------------------------
+  // Periodic cleanup of abandoned players and deadline enforcement
 
   private static readonly DISCONNECT_SWEEP_MS = 10_000;
 
@@ -732,9 +846,10 @@ export class Dealer {
     }
   }
 
-  // -----------------------------------------------------------------------------
-  // Snapshot delegation (internal use; single-user emits go via public emitSnapshotToUser)
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // SNAPSHOT DELEGATION - INTERNAL USE
+  // ---------------------------------------------------------------------------
+  // Internal snapshot emission (public API available for single-user emits)
 
   private sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string) {
     this.snapshotService.emitToAll(reason, actionId);

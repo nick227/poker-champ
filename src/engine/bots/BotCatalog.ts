@@ -1,4 +1,11 @@
-export type BotBrainType = "random_v1" | "weighted_v1" | "tight_aggressive_v1" | "ai_v1";
+export type BotBrainType =
+  | "random_v1"
+  | "weighted_v1"
+  | "tight_aggressive_v1"
+  | "tight_passive_v1"
+  | "loose_aggressive_v1"
+  | "loose_passive_v1"
+  | "ai_v1";
 
 export type BotCatalogEntry = {
   id: string;
@@ -14,10 +21,13 @@ export type BotSummary = {
   avatarUrl?: string;
 };
 
-const BOT_CATALOG: BotCatalogEntry[] = [
+export const BOT_CATALOG: BotCatalogEntry[] = [
   { id: "chaos_carl", name: "Chaos Carl", brainType: "random_v1", isEnabled: true },
   { id: "nash_nate", name: "Nash Nate", brainType: "tight_aggressive_v1", isEnabled: true },
   { id: "loose_lucy", name: "Loose Lucy", brainType: "random_v1", isEnabled: true },
+  { id: "foldy_fiona", name: "Fiona Foldsworth", brainType: "tight_passive_v1", isEnabled: true },
+  { id: "tiltie_trent", name: "Trent Tiltley", brainType: "loose_aggressive_v1", isEnabled: true },
+  { id: "callie_doyle", name: "Callie Doyle", brainType: "loose_passive_v1", isEnabled: true },
 ];
 
 const catalogById = new Map(BOT_CATALOG.map((bot) => [bot.id, bot] as const));

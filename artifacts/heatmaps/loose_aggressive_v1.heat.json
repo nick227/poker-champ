@@ -1,0 +1,52 @@
+{
+  "brainId": "loose_aggressive_v1",
+  "simulationsPerScenario": 5000,
+  "baseSeed": 2103,
+  "scenarios": [
+    {
+      "name": "UNOPENED_PREFLOP",
+      "actions": [
+        {
+          "action": "RAISE",
+          "count": 2523,
+          "share": 0.5046
+        },
+        {
+          "action": "CALL",
+          "count": 1310,
+          "share": 0.262
+        },
+        {
+          "action": "CHECK",
+          "count": 882,
+          "share": 0.1764
+        },
+        {
+          "action": "FOLD",
+          "count": 285,
+          "share": 0.057
+        }
+      ]
+    },
+    {
+      "name": "VS_RAISE_POSTFLOP",
+      "actions": [
+        {
+          "action": "RAISE",
+          "count": 2845,
+          "share": 0.569
+        },
+        {
+          "action": "CALL",
+          "count": 1612,
+          "share": 0.3224
+        },
+        {
+          "action": "FOLD",
+          "count": 543,
+          "share": 0.1086
+        }
+      ]
+    }
+  ]
+}

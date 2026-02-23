@@ -1,0 +1,52 @@
+{
+  "brainId": "tight_passive_v1",
+  "simulationsPerScenario": 5000,
+  "baseSeed": 2101,
+  "scenarios": [
+    {
+      "name": "UNOPENED_PREFLOP",
+      "actions": [
+        {
+          "action": "CHECK",
+          "count": 3448,
+          "share": 0.6896
+        },
+        {
+          "action": "CALL",
+          "count": 878,
+          "share": 0.1756
+        },
+        {
+          "action": "FOLD",
+          "count": 411,
+          "share": 0.0822
+        },
+        {
+          "action": "RAISE",
+          "count": 263,
+          "share": 0.0526
+        }
+      ]
+    },
+    {
+      "name": "VS_RAISE_POSTFLOP",
+      "actions": [
+        {
+          "action": "FOLD",
+          "count": 3349,
+          "share": 0.6698
+        },
+        {
+          "action": "CALL",
+          "count": 1478,
+          "share": 0.2956
+        },
+        {
+          "action": "RAISE",
+          "count": 173,
+          "share": 0.0346
+        }
+      ]
+    }
+  ]
+}

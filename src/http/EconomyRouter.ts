@@ -97,19 +97,20 @@ router.post("/buy-in", async (req, res) => {
       name: tableName,
       creatorId: room?.metadata?.creatorId ?? tableRow?.creatorId ?? undefined,
     };
+    const rebuyRef = parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}`;
 
     const result = await CashierService.processCashGameBuyIn({
       userId: req.user!.id,
       tableId: parsed.data.tableId,
       amountCents: parsed.data.amountCents,
-      externalRef: parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}`,
+      externalRef: rebuyRef,
       tableMeta,
     });
     const userId = req.user!.id;
     const { tableId, amountCents } = parsed.data;
     try {
       if (room?.roomId) {
-        await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents]);
+        await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents, rebuyRef]);
       }
     } catch (roomErr) {
       logger.warn({ err: roomErr, tableId, userId }, "applyRebuy to room failed after buy-in");

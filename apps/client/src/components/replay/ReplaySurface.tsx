@@ -15,7 +15,7 @@ export function ReplaySurface({
   balanceCents,
   controller,
 }: ReplaySurfaceProps) {
-  if (__DEV__ && sceneModel.canAct) {
+  if (process.env.NODE_ENV !== "production" && sceneModel.canAct) {
     console.warn("ReplaySurface received interactive sceneModel; actions should be disabled in replay");
   }
   return (

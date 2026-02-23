@@ -252,6 +252,7 @@ model User {
   transactions  BalanceTransaction[]
   registrations TournamentRegistration[]
   createdTables PokerTable[] @relation("TableCreator")
+  leaderboardSnapshots LeaderboardSnapshot[]
 
   @@index([usernameNormalized])
 }
@@ -262,7 +263,10 @@ model LeaderboardSnapshot {
 
   period          String
   category        String
-  userId          String
+  actorId         String   // stable identity (user id or bot externalId / "bot:..."); not a FK
+  actorType       String   // "USER" | "BOT" — filter human-only or bot-only leaderboards
+  userId          String?  // FK to User when real user; null for bots
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userDisplayName String
 
   value           String
@@ -271,12 +275,15 @@ model LeaderboardSnapshot {
   handCount       Int      @default(0)
   rank            Int
   computedAt      DateTime
+  isEmpty         Boolean  @default(false)
 
   @@index([period, category, computedAt, rank])
   @@index([period, category, computedAt])
   @@index([userId, computedAt])
+  @@index([actorId, computedAt])
+  @@index([actorType])
   @@unique([period, category, computedAt, rank])
-  @@unique([period, category, computedAt, userId])
+  @@unique([period, category, computedAt, actorId])
 }
 
 model Tournament {

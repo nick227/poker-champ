@@ -5,6 +5,12 @@ type SessionEventMap = {
 };
 
 class SessionEvents extends EventEmitter {
+  constructor() {
+    super();
+    // One listener per active PokerRoom is expected; this emitter fans out global auth events.
+    this.setMaxListeners(0);
+  }
+
   emit<K extends keyof SessionEventMap>(event: K, payload: SessionEventMap[K]): boolean {
     return super.emit(event, payload);
   }

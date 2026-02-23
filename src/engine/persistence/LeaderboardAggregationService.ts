@@ -1,3 +1,5 @@
+import type { PrismaClient } from "@prisma/client";
+import pLimit from "p-limit";
 import { nanoid } from "nanoid";
 import { getPrisma } from "../../db/prisma.js";
 import { logger } from "../../lib/logger.js";
@@ -37,10 +39,12 @@ const CATEGORIES: LeaderboardCategory[] = [
 
 /** Minimum showdown hands per user to appear in Showdown Wins. Kept low so leaderboard populates with typical play. */
 const SHOWDOWN_MIN_SAMPLES = 5;
-const VPIP_MIN_HANDS = 100;
+const VPIP_MIN_SAMPLES = 100;
 const SNAPSHOT_WRITE_CHUNK_SIZE = 500;
-/** Placeholder value for empty snapshots so we can store computedAt; excluded when reading. */
-const EMPTY_SNAPSHOT_SENTINEL_VALUE = "__empty__";
+/** Max hands per actor for streak computation to avoid memory spikes. */
+const STREAK_MAX_HANDS_PER_ACTOR = 200;
+/** Chunk size for IN (handId) to avoid MySQL packet limits. */
+const IN_CLAUSE_CHUNK_SIZE = 1000;
 
 type ActorMetadata = {
   displayName: string;
@@ -62,17 +66,44 @@ export class LeaderboardAggregationService {
     );
   }
 
-  static async recomputeHourlySnapshots(computedAt: Date = LeaderboardAggregationService.floorToHourUtc(new Date())) {
-    for (const period of PERIODS) {
-      for (const category of CATEGORIES) {
-        await LeaderboardAggregationService.recomputeSnapshot(period, category, computedAt);
+  private static readonly SNAPSHOT_CONCURRENCY = 8;
+
+  /** Returns number of category/period tasks that failed. */
+  static async recomputeHourlySnapshots(
+    computedAt: Date = LeaderboardAggregationService.floorToHourUtc(new Date()),
+  ): Promise<{ failureCount: number }> {
+    const tasks = PERIODS.flatMap((period) =>
+      CATEGORIES.map((category) => ({ period, category })),
+    );
+    const limit = pLimit(LeaderboardAggregationService.SNAPSHOT_CONCURRENCY);
+    const results = await Promise.allSettled(
+      tasks.map(({ period, category }) =>
+        limit(() =>
+          LeaderboardAggregationService.recomputeSnapshot(period, category, computedAt),
+        ),
+      ),
+    );
+    let failureCount = 0;
+    results.forEach((result, i) => {
+      if (result.status === "rejected") {
+        failureCount += 1;
+        const { period, category } = tasks[i];
+        logger.error(
+          { err: result.reason, period, category, computedAt: computedAt.toISOString() },
+          "Leaderboard snapshot category failed",
+        );
       }
-    }
+    });
+    return { failureCount };
   }
 
+  /**
+   * Reads (computeCategory) run outside the write transaction. Concurrent recomputes or hands
+   * ending mid-run can yield slightly inconsistent snapshot sets across categories; acceptable for leaderboards.
+   */
   static async recomputeSnapshot(period: LeaderboardPeriod, category: LeaderboardCategory, computedAt: Date) {
     const prisma = getPrisma();
-    const entries = await computeCategory(category, period, computedAt);
+    const entries = await computeCategory(prisma, category, period, computedAt);
 
     await prisma.$transaction(async (tx) => {
       await tx.leaderboardSnapshot.deleteMany({
@@ -94,37 +125,48 @@ export class LeaderboardAggregationService {
               id: nanoid(),
               period,
               category,
+              actorId: firstUser.id,
+              actorType: "USER",
               userId: firstUser.id,
               userDisplayName: firstUser.displayName ?? "",
-              value: EMPTY_SNAPSHOT_SENTINEL_VALUE,
+              value: "",
               valueNumerator: 0,
               valueDenominator: null,
               handCount: 0,
               rank: 0,
               computedAt,
+              isEmpty: true,
             },
           });
         }
         return;
       }
 
-      const rows = entries.map((entry) => ({
-        id: nanoid(),
-        period,
-        category,
-        userId: entry.userId,
-        userDisplayName: entry.displayName,
-        value: entry.value,
-        valueNumerator: entry.valueNumerator,
-        valueDenominator: entry.valueDenominator,
-        handCount: entry.handCount,
-        rank: entry.rank,
-        computedAt,
-      }));
+      const rows = entries.map((entry) => {
+        const actorId = entry.userId;
+        const actorType = actorId.startsWith("bot:") ? "BOT" : "USER";
+        return {
+          id: nanoid(),
+          period,
+          category,
+          actorId,
+          actorType,
+          userId: actorType === "BOT" ? null : actorId,
+          userDisplayName: entry.displayName,
+          value: entry.value,
+          valueNumerator: entry.valueNumerator,
+          valueDenominator: entry.valueDenominator,
+          handCount: entry.handCount,
+          rank: entry.rank,
+          computedAt,
+          isEmpty: false,
+        };
+      });
 
       for (let i = 0; i < rows.length; i += SNAPSHOT_WRITE_CHUNK_SIZE) {
         await tx.leaderboardSnapshot.createMany({
           data: rows.slice(i, i + SNAPSHOT_WRITE_CHUNK_SIZE),
+          skipDuplicates: true,
         });
       }
     });
@@ -153,27 +195,25 @@ export class LeaderboardAggregationService {
       period: input.period,
       category: input.category,
       computedAt,
+      isEmpty: false,
     };
-    const [allRows, totalEntries] = await Promise.all([
+    const [entriesRows, totalEntries] = await Promise.all([
       prisma.leaderboardSnapshot.findMany({
         where,
-        orderBy: { rank: "asc" },
+        orderBy: [{ rank: "asc" }, { valueNumerator: "desc" }, { handCount: "desc" }],
+        take: input.limit,
       }),
-      prisma.leaderboardSnapshot.count({
-        where: { ...where, value: { not: EMPTY_SNAPSHOT_SENTINEL_VALUE } },
-      }),
+      prisma.leaderboardSnapshot.count({ where }),
     ]);
 
-    const rows = allRows
-      .filter((row) => row.value !== EMPTY_SNAPSHOT_SENTINEL_VALUE)
-      .slice(0, input.limit);
+    const rows = entriesRows;
 
     return {
       computedAt: computedAt.toISOString(),
       totalEntries,
       entries: rows.map((row) => ({
         rank: row.rank,
-        userId: row.userId,
+        userId: row.userId ?? row.actorId,
         displayName: row.userDisplayName,
         value: row.value,
         valueNumerator: row.valueNumerator,
@@ -188,6 +228,13 @@ function getSinceForPeriod(period: LeaderboardPeriod, asOf: Date): Date | null {
   if (period === "daily") return new Date(asOf.getTime() - 24 * 60 * 60 * 1000);
   if (period === "weekly") return new Date(asOf.getTime() - 7 * 24 * 60 * 60 * 1000);
   return null;
+}
+
+/** Half-open [since, asOf) to avoid double-counting at exact boundary timestamps. */
+function handWhereForPeriod(since: Date | null, asOf: Date): { endedAt: { not: null; gte?: Date; lt: Date } } {
+  return since
+    ? { endedAt: { not: null, gte: since, lt: asOf } }
+    : { endedAt: { not: null, lt: asOf } };
 }
 
 function formatCurrencyCents(cents: number): string {
@@ -206,8 +253,7 @@ function formatPerHundred(numerator: number, denominator: number): string {
   return `${((numerator / denominator) * 100).toFixed(1)} /100`;
 }
 
-async function getUserMetadata(userIds: string[]): Promise<Map<string, ActorMetadata>> {
-  const prisma = getPrisma();
+async function getUserMetadata(prisma: PrismaClient, userIds: string[]): Promise<Map<string, ActorMetadata>> {
   if (userIds.length === 0) return new Map();
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
@@ -230,11 +276,17 @@ function compareUserTieBreak(meta: Map<string, ActorMetadata>, aUserId: string, 
   return aUserId.localeCompare(bUserId);
 }
 
-function resolveActorId(input: { userId: string | null; externalId: string; displayName?: string | null }): string {
+/** Prefer stable externalId for bots; displayName is mutable and would split historical identity. */
+function resolveActorId(input: {
+  userId: string | null;
+  externalId?: string | null;
+  displayName?: string | null;
+}): string {
   if (input.userId) return input.userId;
+  if (input.externalId) return input.externalId;
   const botName = input.displayName?.trim().toLowerCase();
   if (botName) return `bot:${botName}`;
-  return input.externalId;
+  return "unknown";
 }
 
 function withRanks(rows: Omit<LeaderboardSnapshotEntry, "rank">[]): LeaderboardSnapshotEntry[] {
@@ -247,53 +299,43 @@ function withRanks(rows: Omit<LeaderboardSnapshotEntry, "rank">[]): LeaderboardS
  * (3) for showdown_sniper, no user has >= SHOWDOWN_MIN_SAMPLES hands in the period.
  */
 async function computeCategory(
+  prisma: PrismaClient,
   category: LeaderboardCategory,
   period: LeaderboardPeriod,
   asOf: Date,
 ): Promise<LeaderboardSnapshotEntry[]> {
   switch (category) {
     case "biggest_winner":
-      return computeProfitLeaders(period, asOf, "winner");
+      return computeProfitLeaders(prisma, period, asOf, "winner");
     case "biggest_donor":
-      return computeProfitLeaders(period, asOf, "donor");
+      return computeProfitLeaders(prisma, period, asOf, "donor");
     case "showdown_sniper":
-      return computeShowdownSniper(period, asOf);
+      return computeShowdownSniper(prisma, period, asOf);
     case "all_in_maniac":
-      return computeAllInManiac(period, asOf);
+      return computeAllInManiac(prisma, period, asOf);
     case "ice_cold":
-      return computeStreaks(period, asOf, "loss");
+      return computeStreaks(prisma, period, asOf, "loss");
     case "heater":
-      return computeStreaks(period, asOf, "win");
+      return computeStreaks(prisma, period, asOf, "win");
     case "tight_rock":
-      return computeVpip(period, asOf, "tight");
+      return computeVpip(prisma, period, asOf, "tight");
     case "action_junkie":
-      return computeVpip(period, asOf, "loose");
+      return computeVpip(prisma, period, asOf, "loose");
     default:
       return [];
   }
 }
 
 async function computeProfitLeaders(
+  prisma: PrismaClient,
   period: LeaderboardPeriod,
   asOf: Date,
   mode: "winner" | "donor",
 ): Promise<LeaderboardSnapshotEntry[]> {
-  const prisma = getPrisma();
   const since = getSinceForPeriod(period, asOf);
-  const handWhere = since
-    ? { endedAt: { not: null, gte: since, lte: asOf } }
-    : { endedAt: { not: null, lte: asOf } };
+  const handWhere = handWhereForPeriod(since, asOf);
 
-  const totals = await prisma.balanceTransaction.groupBy({
-    by: ["userId"],
-    where: {
-      handId: { not: null },
-      hand: handWhere,
-    },
-    _sum: { amountCents: true },
-  });
-
-  const handRows = await prisma.balanceTransaction.groupBy({
+  const byUserAndHand = await prisma.balanceTransaction.groupBy({
     by: ["userId", "handId"],
     where: {
       handId: { not: null },
@@ -302,17 +344,19 @@ async function computeProfitLeaders(
     _sum: { amountCents: true },
   });
 
+  const totalCentsByUser = new Map<string, number>();
   const handCountByUser = new Map<string, number>();
-  for (const row of handRows) {
+  for (const row of byUserAndHand) {
+    const sum = row._sum.amountCents ?? 0;
+    totalCentsByUser.set(row.userId, (totalCentsByUser.get(row.userId) ?? 0) + sum);
     handCountByUser.set(row.userId, (handCountByUser.get(row.userId) ?? 0) + 1);
   }
 
-  const filtered = totals.filter((row) => {
-    const sum = row._sum.amountCents ?? 0;
-    return mode === "winner" ? sum > 0 : sum < 0;
-  });
+  const filtered = Array.from(totalCentsByUser.entries())
+    .map(([userId, totalCents]) => ({ userId, totalCents }))
+    .filter((row) => (mode === "winner" ? row.totalCents > 0 : row.totalCents < 0));
 
-  const userMeta = await getUserMetadata(filtered.map((row) => row.userId));
+  const userMeta = await getUserMetadata(prisma, filtered.map((row) => row.userId));
 
   // Bots don't have BalanceTransaction rows, so include them from hand stack deltas.
   const botHandRows = await prisma.handPlayer.findMany({
@@ -355,30 +399,28 @@ async function computeProfitLeaders(
     }
   }
 
+  const userIdsFromLedger = new Set(totalCentsByUser.keys());
+
   filtered.sort((a, b) => {
-    const aValue = a._sum.amountCents ?? 0;
-    const bValue = b._sum.amountCents ?? 0;
-    if (mode === "winner" && bValue !== aValue) return bValue - aValue;
-    if (mode === "donor" && aValue !== bValue) return aValue - bValue;
+    if (mode === "winner" && b.totalCents !== a.totalCents) return b.totalCents - a.totalCents;
+    if (mode === "donor" && a.totalCents !== b.totalCents) return a.totalCents - b.totalCents;
     const aHands = handCountByUser.get(a.userId) ?? 0;
     const bHands = handCountByUser.get(b.userId) ?? 0;
     if (bHands !== aHands) return bHands - aHands;
     return compareUserTieBreak(userMeta, a.userId, b.userId);
   });
 
-  const rows: Omit<LeaderboardSnapshotEntry, "rank">[] = filtered.map((row) => {
-    const value = row._sum.amountCents ?? 0;
-    return {
-      userId: row.userId,
-      displayName: userMeta.get(row.userId)?.displayName ?? row.userId,
-      value: formatCurrencyCents(value),
-      valueNumerator: value,
-      valueDenominator: null,
-      handCount: handCountByUser.get(row.userId) ?? 0,
-    };
-  });
+  const rows: Omit<LeaderboardSnapshotEntry, "rank">[] = filtered.map((row) => ({
+    userId: row.userId,
+    displayName: userMeta.get(row.userId)?.displayName ?? row.userId,
+    value: formatCurrencyCents(row.totalCents),
+    valueNumerator: row.totalCents,
+    valueDenominator: null,
+    handCount: handCountByUser.get(row.userId) ?? 0,
+  }));
 
   for (const [actorId, value] of botProfitById.entries()) {
+    if (userIdsFromLedger.has(actorId)) continue;
     const include = mode === "winner" ? value > 0 : value < 0;
     if (!include) continue;
     rows.push({
@@ -401,71 +443,98 @@ async function computeProfitLeaders(
   return withRanks(rows);
 }
 
-async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Promise<LeaderboardSnapshotEntry[]> {
-  const prisma = getPrisma();
+async function computeShowdownSniper(
+  prisma: PrismaClient,
+  period: LeaderboardPeriod,
+  asOf: Date,
+): Promise<LeaderboardSnapshotEntry[]> {
   const since = getSinceForPeriod(period, asOf);
-  const handWhere = since
-    ? { endedAt: { not: null, gte: since, lte: asOf }, reason: "SHOWDOWN" }
-    : { endedAt: { not: null, lte: asOf }, reason: "SHOWDOWN" };
+  const handWhere = { ...handWhereForPeriod(since, asOf), reason: "SHOWDOWN" as const };
 
-  const hands = await prisma.hand.findMany({
+  const handIds = await prisma.hand.findMany({
     where: handWhere,
-    select: {
-      players: {
-        select: {
-          player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
-        },
-      },
-      payouts: {
-        select: {
-          amountCents: true,
-          player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
-        },
-      },
-    },
-  });
+    select: { id: true },
+  }).then((rows) => rows.map((r) => r.id));
+  if (handIds.length === 0) return [];
+
+  const handIdChunks: string[][] = [];
+  for (let i = 0; i < handIds.length; i += IN_CLAUSE_CHUNK_SIZE) {
+    handIdChunks.push(handIds.slice(i, i + IN_CLAUSE_CHUNK_SIZE));
+  }
+  const [participationRows, payoutRows] = await Promise.all([
+    Promise.all(
+      handIdChunks.map((chunk) =>
+        prisma.handPlayer.findMany({
+          where: { handId: { in: chunk } },
+          select: {
+            handId: true,
+            player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
+          },
+        }),
+      ),
+    ).then((pages) => pages.flat()),
+    Promise.all(
+      handIdChunks.map((chunk) =>
+        prisma.handPayout.findMany({
+          where: { handId: { in: chunk } },
+          select: {
+            handId: true,
+            amountCents: true,
+            player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
+          },
+        }),
+      ),
+    ).then((pages) => pages.flat()),
+  ]);
 
   const seen = new Map<string, number>();
   const wins = new Map<string, number>();
   const actorMeta = new Map<string, ActorMetadata>();
 
-  for (const hand of hands) {
-    const usersInHand = new Set<string>();
-    for (const hp of hand.players) {
-      const actorId = resolveActorId({
-        userId: hp.player.userId,
-        externalId: hp.player.externalId,
-        displayName: hp.player.displayName,
+  const participantsByHand = new Map<string, Map<string, void>>();
+  for (const row of participationRows) {
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
       });
-      usersInHand.add(actorId);
-      if (!actorMeta.has(actorId)) {
-        actorMeta.set(actorId, {
-          displayName: hp.player.displayName || actorId,
-          createdAtMs: hp.player.createdAt.getTime(),
-        });
-      }
     }
-    for (const userId of usersInHand) {
-      seen.set(userId, (seen.get(userId) ?? 0) + 1);
+    if (!participantsByHand.has(row.handId)) participantsByHand.set(row.handId, new Map());
+    participantsByHand.get(row.handId)!.set(actorId);
+  }
+  for (const [, actorIds] of participantsByHand) {
+    for (const actorId of actorIds.keys()) {
+      seen.set(actorId, (seen.get(actorId) ?? 0) + 1);
     }
+  }
 
-    const payoutByUser = new Map<string, number>();
-    for (const payout of hand.payouts) {
-      const actorId = resolveActorId({
-        userId: payout.player.userId,
-        externalId: payout.player.externalId,
-        displayName: payout.player.displayName,
+  const payoutByHandAndActor = new Map<string, Map<string, number>>();
+  for (const row of payoutRows) {
+    const actorId = resolveActorId({
+      userId: row.player.userId,
+      externalId: row.player.externalId,
+      displayName: row.player.displayName,
+    });
+    if (!actorMeta.has(actorId)) {
+      actorMeta.set(actorId, {
+        displayName: row.player.displayName || actorId,
+        createdAtMs: row.player.createdAt.getTime(),
       });
-      payoutByUser.set(actorId, (payoutByUser.get(actorId) ?? 0) + payout.amountCents);
-      if (!actorMeta.has(actorId)) {
-        actorMeta.set(actorId, {
-          displayName: payout.player.displayName || actorId,
-          createdAtMs: payout.player.createdAt.getTime(),
-        });
-      }
     }
+    if (!payoutByHandAndActor.has(row.handId)) payoutByHandAndActor.set(row.handId, new Map());
+    const m = payoutByHandAndActor.get(row.handId)!;
+    m.set(actorId, (m.get(actorId) ?? 0) + row.amountCents);
+  }
+  // Only max-payout (main-pot) winners count; side-pot winners get smaller payouts and are excluded.
+  for (const [, payoutByUser] of payoutByHandAndActor) {
+    const maxPayoutThisHand = Math.max(0, ...payoutByUser.values());
     for (const [actorId, amount] of payoutByUser.entries()) {
-      if (amount > 0) wins.set(actorId, (wins.get(actorId) ?? 0) + 1);
+      if (amount > 0 && amount >= maxPayoutThisHand) wins.set(actorId, (wins.get(actorId) ?? 0) + 1);
     }
   }
 
@@ -495,12 +564,13 @@ async function computeShowdownSniper(period: LeaderboardPeriod, asOf: Date): Pro
   return withRanks(rows);
 }
 
-async function computeAllInManiac(period: LeaderboardPeriod, asOf: Date): Promise<LeaderboardSnapshotEntry[]> {
-  const prisma = getPrisma();
+async function computeAllInManiac(
+  prisma: PrismaClient,
+  period: LeaderboardPeriod,
+  asOf: Date,
+): Promise<LeaderboardSnapshotEntry[]> {
   const since = getSinceForPeriod(period, asOf);
-  const handWhere = since
-    ? { endedAt: { not: null, gte: since, lte: asOf } }
-    : { endedAt: { not: null, lte: asOf } };
+  const handWhere = handWhereForPeriod(since, asOf);
 
   const participationRows = await prisma.handPlayer.findMany({
     where: {
@@ -584,15 +654,13 @@ async function computeAllInManiac(period: LeaderboardPeriod, asOf: Date): Promis
 }
 
 async function computeStreaks(
+  prisma: PrismaClient,
   period: LeaderboardPeriod,
   asOf: Date,
   mode: "win" | "loss",
 ): Promise<LeaderboardSnapshotEntry[]> {
-  const prisma = getPrisma();
   const since = getSinceForPeriod(period, asOf);
-  const handWhere = since
-    ? { endedAt: { not: null, gte: since, lte: asOf } }
-    : { endedAt: { not: null, lte: asOf } };
+  const handWhere = handWhereForPeriod(since, asOf);
 
   const deltas = await prisma.handPlayer.findMany({
     where: {
@@ -602,25 +670,16 @@ async function computeStreaks(
       handId: true,
       startingStackCents: true,
       endingStackCents: true,
+      hand: { select: { endedAt: true } },
       player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
-  const handIds = Array.from(new Set(deltas.map((d) => d.handId).filter((id): id is string => Boolean(id))));
-  const hands = await prisma.hand.findMany({
-    where: { id: { in: handIds } },
-    select: { id: true, endedAt: true },
-  });
-  const endedAtByHandId = new Map<string, number>();
-  for (const hand of hands) {
-    endedAtByHandId.set(hand.id, hand.endedAt?.getTime() ?? 0);
-  }
-
-  const byUser = new Map<string, Array<{ net: number; endedAt: number }>>();
+  const byUser = new Map<string, Array<{ net: number; endedAt: number; handId: string }>>();
   const actorMeta = new Map<string, ActorMetadata>();
   for (const row of deltas) {
     if (!row.handId || row.endingStackCents == null) continue;
-    const endedAt = endedAtByHandId.get(row.handId) ?? 0;
+    const endedAt = row.hand?.endedAt?.getTime() ?? 0;
     const actorId = resolveActorId({
       userId: row.player.userId,
       externalId: row.player.externalId,
@@ -630,6 +689,7 @@ async function computeStreaks(
     byUser.get(actorId)!.push({
       net: row.endingStackCents - row.startingStackCents,
       endedAt,
+      handId: row.handId,
     });
     if (!actorMeta.has(actorId)) {
       actorMeta.set(actorId, {
@@ -643,25 +703,23 @@ async function computeStreaks(
 
   const rows: Omit<LeaderboardSnapshotEntry, "rank">[] = [];
   for (const userId of userIds) {
-    const sequence = (byUser.get(userId) ?? []).sort((a, b) => a.endedAt - b.endedAt);
-    let current = 0;
-    let best = 0;
-    for (const hand of sequence) {
-      const isMatch = mode === "win" ? hand.net > 0 : hand.net < 0;
-      if (isMatch) {
-        current += 1;
-        if (current > best) best = current;
-      } else {
-        current = 0;
-      }
+    const full = byUser.get(userId) ?? [];
+    const sequence = full
+      .sort((a, b) => a.endedAt - b.endedAt || a.handId.localeCompare(b.handId))
+      .slice(-STREAK_MAX_HANDS_PER_ACTOR);
+    let currentStreak = 0;
+    for (let i = sequence.length - 1; i >= 0; i--) {
+      const isMatch = mode === "win" ? sequence[i].net > 0 : sequence[i].net < 0;
+      if (isMatch) currentStreak += 1;
+      else break;
     }
     rows.push({
       userId,
       displayName: actorMeta.get(userId)?.displayName ?? userId,
-      value: `${best} hands`,
-      valueNumerator: best,
+      value: `${currentStreak} hands`,
+      valueNumerator: currentStreak,
       valueDenominator: null,
-      handCount: sequence.length,
+      handCount: full.length,
     });
   }
 
@@ -674,15 +732,13 @@ async function computeStreaks(
 }
 
 async function computeVpip(
+  prisma: PrismaClient,
   period: LeaderboardPeriod,
   asOf: Date,
   mode: "tight" | "loose",
 ): Promise<LeaderboardSnapshotEntry[]> {
-  const prisma = getPrisma();
   const since = getSinceForPeriod(period, asOf);
-  const handWhere = since
-    ? { endedAt: { not: null, gte: since, lte: asOf } }
-    : { endedAt: { not: null, lte: asOf } };
+  const handWhere = handWhereForPeriod(since, asOf);
 
   const participationRows = await prisma.handPlayer.findMany({
     where: {
@@ -716,31 +772,18 @@ async function computeVpip(
     where: {
       hand: handWhere,
       street: "PREFLOP",
-      action: { in: ["CALL", "BET", "RAISE", "ALL_IN"] },
+      action: { in: ["CALL", "BET", "RAISE", "ALL_IN", "POST_SB", "POST_BB"] },
     },
     select: {
       handId: true,
-      actionIndex: true,
+      action: true,
       player: { select: { userId: true, externalId: true, displayName: true, createdAt: true } },
     },
   });
 
-  const forcedBlindActionKeys = new Set<string>();
-  const vpipRowsByHand = new Map<string, typeof vpipRows>();
-  for (const row of vpipRows) {
-    if (!vpipRowsByHand.has(row.handId)) vpipRowsByHand.set(row.handId, []);
-    vpipRowsByHand.get(row.handId)!.push(row);
-  }
-  for (const [handId, rows] of vpipRowsByHand.entries()) {
-    const firstTwo = [...rows].sort((a, b) => a.actionIndex - b.actionIndex).slice(0, 2);
-    for (const row of firstTwo) {
-      forcedBlindActionKeys.add(`${handId}:${row.actionIndex}`);
-    }
-  }
-
   const vpipByUser = new Map<string, Set<string>>();
   for (const row of vpipRows) {
-    if (forcedBlindActionKeys.has(`${row.handId}:${row.actionIndex}`)) continue;
+    if (row.action === "POST_SB" || row.action === "POST_BB") continue;
     const actorId = resolveActorId({
       userId: row.player.userId,
       externalId: row.player.externalId,
@@ -770,7 +813,7 @@ async function computeVpip(
         handCount,
       } satisfies Omit<LeaderboardSnapshotEntry, "rank">;
     })
-    .filter((row) => row.handCount >= VPIP_MIN_HANDS)
+    .filter((row) => row.handCount >= VPIP_MIN_SAMPLES)
     .sort((a, b) => {
       const aRatio = a.valueDenominator ? a.valueNumerator / a.valueDenominator : 0;
       const bRatio = b.valueDenominator ? b.valueNumerator / b.valueDenominator : 0;
@@ -789,10 +832,11 @@ async function computeVpip(
 export async function recomputeLeaderboardSafely() {
   const computedAt = LeaderboardAggregationService.floorToHourUtc(new Date());
   const startedAt = Date.now();
-  try {
-    await LeaderboardAggregationService.recomputeHourlySnapshots(computedAt);
-    logger.info({ computedAt, durationMs: Date.now() - startedAt }, "Leaderboard snapshots recomputed");
-  } catch (err) {
-    logger.error({ err, computedAt, durationMs: Date.now() - startedAt }, "Leaderboard recompute failed");
+  const { failureCount } = await LeaderboardAggregationService.recomputeHourlySnapshots(computedAt);
+  const durationMs = Date.now() - startedAt;
+  if (failureCount > 0) {
+    logger.error({ computedAt, durationMs, failureCount }, "Leaderboard recompute had category failures");
+  } else {
+    logger.info({ computedAt, durationMs }, "Leaderboard snapshots recomputed");
   }
 }

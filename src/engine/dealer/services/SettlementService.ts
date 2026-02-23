@@ -270,6 +270,21 @@ export class SettlementService {
         `LEDGER_BALANCE_MISMATCH ${dump}`,
       );
     }
+    if (this.deps.persistence.handHistory) {
+      const nextIndex = this.currentHandActionIndex + 1;
+      await this.deps.persistence.handHistory.recordBlindAction({
+        tableId: this.deps.state.tableId,
+        handId: this.deps.state.handId,
+        playerId: player.id,
+        seat: player.seat,
+        blindType,
+        amountCents: postedAmount,
+        potBeforeCents: potCentsBefore,
+        potAfterCents: this.deps.state.potCents,
+        actionIndex: nextIndex,
+      });
+      this.currentHandActionIndex = nextIndex;
+    }
     return postedAmount;
   }
 

@@ -2,6 +2,7 @@ import { SDK_VERSION, auth, setApiBaseUrl, setAuthToken } from "@poker-champ/sdk
 import { preloadSounds, setSoundPlayer } from "@/lib/sound";
 import { createExpoAvPlayer } from "@/lib/soundPlayer";
 import { storeRegistry } from "@/registry/store.registry";
+import { DEFAULT_API_URL, PRELOAD_SOUNDS } from "@/constants";
 
 let booted = false;
 let bootPromise: Promise<void> | null = null;
@@ -36,7 +37,7 @@ export function bootstrapSdk() {
 
     const apiUrl =
       process.env.EXPO_PUBLIC_API_URL ||
-      "http://localhost:3000";
+      DEFAULT_API_URL;
 
     setApiBaseUrl(String(apiUrl));
 
@@ -60,7 +61,7 @@ export function bootstrapSdk() {
 
     storeRegistry.auth().markHydrated();
     setSoundPlayer(createExpoAvPlayer());
-    preloadSounds(["tap", "modalOpen", "check", "call", "bet", "cardDeal"]);
+    preloadSounds([...PRELOAD_SOUNDS]);
     void checkVersionMismatchOnce();
   })();
 

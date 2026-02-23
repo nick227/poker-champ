@@ -673,8 +673,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   /** Called after economy buy-in (e.g. from EconomyRouter) to add chips to seated player. */
-  async applyRebuy(userId: string, amountCents: number): Promise<void> {
-    await this.dealer.applyRebuy(userId, amountCents);
+  async applyRebuy(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
+    await this.dealer.applyRebuy(userId, amountCents, rebuyRef);
     if (this.persistentSeatsEnabled) {
       const seat = this.findPlayerSeat(userId);
       const stackCents = this.getPlayerStackCents(userId);

@@ -144,4 +144,24 @@ describe("rebuy", () => {
     await expect(dealer.applyRebuy("u1", 25000)).rejects.toThrow(/INVALID_BUYIN|must be <= 20000/);
     expect(p1!.stackCents).toBe(0);
   });
+
+  it("applies rebuy idempotently when the same rebuyRef is replayed", async () => {
+    const state = new PokerState();
+    state.tableId = "table_rebuy_idempotent";
+    state.maxSeats = 6;
+    state.minBuyInCents = 2000;
+    state.maxBuyInCents = 20000;
+
+    const dealer = new Dealer(state);
+    await dealer.addPlayer("u1", "Alice", 5000);
+    const p1 = state.playersById.get("u1")!;
+    p1.stackCents = 0;
+    p1.status = "OUT";
+
+    await dealer.applyRebuy("u1", 3000, "rebuy_ref_1");
+    await dealer.applyRebuy("u1", 3000, "rebuy_ref_1");
+    await dealer.applyRebuy("u1", 3000, "rebuy_ref_2");
+
+    expect(p1.stackCents).toBe(6000);
+  });
 });

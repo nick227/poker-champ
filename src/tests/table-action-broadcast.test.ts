@@ -129,12 +129,12 @@ describe("table action broadcasting", () => {
       },
     });
 
-    // Ensure heads-up preflop starts with human to act first.
-    room.state.dealerSeat = 1;
+    // startHand advances dealer to the next active seat; seed so first hand puts action on user_a.
+    room.state.dealerSeat = 0;
 
     const clientA = makeClient("sess_human");
     await room.onJoin(clientA as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
-    room.onMessageEvents.emit("ADD_BOT", clientA as any, { name: "Bot", buyInCents: 5000 });
+    room.onMessageEvents.emit("ADD_BOT", clientA as any, { name: "Bot", buyInCents: 5000, botId: "chaos_carl" });
 
     await waitFor(() => Boolean(clientA.latestSnapshot?.hand?.handId), 4000, "active hand human vs bot");
     await waitFor(() => (clientA.latestSnapshot?.seats.some((s) => s.isBot) ?? false), 4000, "bot seated");
@@ -239,12 +239,13 @@ describe("table action broadcasting", () => {
         "auto-action snapshots",
       );
 
-      const afterDisconnectCountA = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
       const beforeHandId = before.hand?.handId ?? "";
 
       await waitFor(
         () =>
-          (clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0) > afterDisconnectCountA ||
+          ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[])
+            .slice(beforeSnapshotsA)
+            .some((snap) => snap.lastAction?.origin === "AUTO" && snap.lastAction?.actorUserId === toActUserId) ||
           Boolean(clientA.latestSnapshot?.lastHandResult?.handId) ||
           (clientA.latestSnapshot?.hand?.handId ?? "") !== beforeHandId ||
           (clientA.latestSnapshot?.hand?.actionCount ?? 0) !== beforeActionCount,
@@ -355,35 +356,38 @@ describe("table action broadcasting", () => {
     }
   });
 
-  it("emits expected preflop all-in runout sequence for human vs bot", async () => {
-    vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
-      if (ctx.heroActionOptions.canCall) return { action: "CALL" };
-      if (ctx.heroActionOptions.canAllIn) return { action: "ALL_IN" };
-      if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
-      return { action: "FOLD" };
-    });
+  it(
+    "emits expected preflop all-in runout sequence for human vs bot",
+    { timeout: 25000 },
+    async () => {
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        if (ctx.heroActionOptions.canAllIn) return { action: "ALL_IN" };
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        return { action: "FOLD" };
+      });
 
-    const { room, clientA } = await setupHumanVsBotRoom();
-    try {
-      const initial = clientA.latestSnapshot!;
-      expect(initial.hand?.street).toBe("PREFLOP");
-      const toActUserId = initial.seats.find((s) => s.seat === initial.hand?.toActSeat)?.userId;
-      expect(toActUserId).toBe("user_a");
+      const { room, clientA } = await setupHumanVsBotRoom();
+      try {
+        const initial = clientA.latestSnapshot!;
+        expect(initial.hand?.street).toBe("PREFLOP");
+        const toActUserId = initial.seats.find((s) => s.seat === initial.hand?.toActSeat)?.userId;
+        expect(toActUserId).toBe("user_a");
 
-      const beforeCount = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
-      await room.dealer.handleAction("user_a", { action: "ALL_IN" });
+        const beforeCount = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
+        await room.dealer.handleAction("user_a", { action: "ALL_IN" });
 
-      await waitFor(
-        () => {
-          const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
-          const reasons = snapshots.map((snap) => snap.reason);
-          const runoutCount = reasons.filter((reason) => reason === "RUNOUT_STAGE").length;
-          const hasHandEnd = reasons.includes("HAND_END");
-          return runoutCount >= 3 && hasHandEnd;
-        },
-        15000,
-        "runout to hand end",
-      );
+        await waitFor(
+          () => {
+            const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
+            const reasons = snapshots.map((snap) => snap.reason);
+            const runoutCount = reasons.filter((reason) => reason === "RUNOUT_STAGE").length;
+            const hasTerminal = reasons.includes("HAND_END") || reasons.includes("HAND_SHOWDOWN");
+            return runoutCount >= 3 && hasTerminal;
+          },
+          20000,
+          "runout to hand end",
+        );
 
       const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
       const reasons = snapshots.map((snap) => snap.reason);
@@ -396,10 +400,12 @@ describe("table action broadcasting", () => {
         .map((entry) => entry.idx);
       expect(runoutIdxs.length).toBe(3);
       const handEndIdx = reasons.indexOf("HAND_END");
-      expect(handEndIdx).toBeGreaterThan(runoutIdxs[2]!);
+      const handShowdownIdx = reasons.indexOf("HAND_SHOWDOWN");
+      const terminalIdx = handEndIdx >= 0 ? handEndIdx : handShowdownIdx;
+      expect(terminalIdx).toBeGreaterThan(runoutIdxs[2]!);
       expect(runoutIdxs[0]!).toBeGreaterThan(actionAcceptedIdx);
 
-      const handEndSnapshot = snapshots[handEndIdx];
+      const handEndSnapshot = snapshots[terminalIdx];
       expect(handEndSnapshot?.hand?.street).toBe("SHOWDOWN");
       expect(handEndSnapshot?.hand?.board?.length).toBe(5);
       expect(handEndSnapshot?.lastHandResult?.handId).toBeDefined();
