@@ -15,10 +15,10 @@ CREATE INDEX `PokerPlayer_tableId_idx` ON `PokerPlayer`(`tableId`);
 DROP INDEX `PokerPlayer_tableId_seat_key` ON `PokerPlayer`;
 
 -- AlterTable
-ALTER TABLE `pokerplayer` ADD COLUMN `externalId` VARCHAR(191) NOT NULL;
+ALTER TABLE `PokerPlayer` ADD COLUMN `externalId` VARCHAR(191) NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX `PokerPlayer_tableId_externalId_key` ON `PokerPlayer`(`tableId`, `externalId`);
 
 -- RenameIndex
-ALTER TABLE `pokerplayer` RENAME INDEX `PokerPlayer_userId_fkey` TO `PokerPlayer_userId_idx`;
+ALTER TABLE `PokerPlayer` RENAME INDEX `PokerPlayer_userId_fkey` TO `PokerPlayer_userId_idx`;
