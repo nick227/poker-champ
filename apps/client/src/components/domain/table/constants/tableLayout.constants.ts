@@ -5,10 +5,11 @@
 
 export const LAYOUT_TITLE_HEIGHT = 80;
 export const LAYOUT_TOP_BAR_HEIGHT = 52;
-export const GAME_AREA_HEIGHT = 296;
-export const OPPONENT_STRIP_HEIGHT = 260;
+export const GAME_AREA_HEIGHT = 290;
+export const OPPONENT_STRIP_HEIGHT = 268;
 export const HERO_ZONE_HEIGHT = 200;
 export const ACTION_BAR_HEIGHT = 224;
+export const DEALER_BAR_HEIGHT = 50;
 
 /** Used when no snapshot (StatusShell); keeps placeholder player count consistent. */
 export const DEFAULT_MAX_SEATS = 6;

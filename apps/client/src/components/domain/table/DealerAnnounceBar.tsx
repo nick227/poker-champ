@@ -70,7 +70,7 @@ export function DealerAnnounceBar({
     statusMessage ?? deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
 
   return (
-    <View collapsable={false} className="relative h-9 ui-row flex-shrink-0 items-center w-full justify-center">
+    <View collapsable={false} className="relative h-9 p-4 ui-row flex-shrink-0 items-center w-full justify-center ui-surface">
       <View className="min-w-0 justify-center px-2">
         <Text variant="body" numberOfLines={1} ellipsizeMode="tail" className="text-center" allowFontScaling={false}>
           {message}

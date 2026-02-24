@@ -10,10 +10,9 @@ import {
   GAME_AREA_HEIGHT,
   ACTION_BAR_HEIGHT,
   HERO_ZONE_HEIGHT,
+  DEALER_BAR_HEIGHT,
 } from "./constants/tableLayout.constants";
 import { COMMUNITY_BOARD_HEIGHT } from "./constants/components/communityBoard.layout";
-
-const DEALER_BAR_HEIGHT = 36;
 
 export const layoutStyles = StyleSheet.create({
   root: {
