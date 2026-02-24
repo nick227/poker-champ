@@ -198,7 +198,7 @@ export class SnapshotService {
     if (!client) return;
 
     const t0 = performance.now();
-    const snapshotSeq = this.currentSnapshotSeq();
+    const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
     const base = this.buildBaseSnapshot(reason, actionId, snapshotSeq);
     const toActUserId = this.deps.state.street !== "WAITING"

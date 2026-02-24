@@ -35,6 +35,11 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
       deps.resetSnapshotStream(tableId);
     }
   }
+  if (type === "SESSION_RESTORED") {
+    // A restored session may resume from a different snapshot stream cursor.
+    // Reset local cursor so the first post-restore snapshot is always accepted.
+    deps.resetSnapshotStream(tableId);
+  }
   if (type === "TABLE_SNAPSHOT") {
     const snap = payload as
       | { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number; snapshotSeq?: number }
