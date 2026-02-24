@@ -1,5 +1,5 @@
-import { VoiceSignalMessageSchema, type VoiceSignalMessage } from "../../voice/contracts/voice-signals";
-import { logger } from "../../lib/logger";
+import { VoiceSignalMessageSchema, type VoiceSignalMessage } from "../../voice/contracts/voice-signals.js";
+import { logger } from "../../lib/logger.js";
 
 const strict = process.env.VOICE_STRICT === "1";
 

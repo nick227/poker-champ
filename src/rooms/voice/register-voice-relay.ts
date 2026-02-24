@@ -1,11 +1,11 @@
 import type { Room } from "@colyseus/core";
-import { VOICE_SIGNAL_TYPE } from "../../voice/contracts/voice-signals";
-import { parseVoiceSignalMessage } from "./voice-signal-schema";
-import { getClientUserId } from "./voice-client-identity";
-import { shouldAllowVoiceRelay } from "./voice-feature-flag";
-import { createVoiceRateLimiter } from "./voice-rate-limit";
-import { getMessageByteSize } from "./voice-size-guard";
-import { logger } from "../../lib/logger";
+import { VOICE_SIGNAL_TYPE } from "../../voice/contracts/voice-signals.js";
+import { parseVoiceSignalMessage } from "./voice-signal-schema.js";
+import { getClientUserId } from "./voice-client-identity.js";
+import { shouldAllowVoiceRelay } from "./voice-feature-flag.js";
+import { createVoiceRateLimiter } from "./voice-rate-limit.js";
+import { getMessageByteSize } from "./voice-size-guard.js";
+import { logger } from "../../lib/logger.js";
 
 /**
  * register -> voice relay
