@@ -338,6 +338,7 @@ export class LobbyRoom extends Room<LobbyState> {
         minBuyInCents: (m.minBuyInCents as number) ?? 2000,
         maxBuyInCents: (m.maxBuyInCents as number) ?? 20000,
         visibility: (m.visibility as "PUBLIC" | "PRIVATE") ?? "PUBLIC",
+        showStats: (m.showStats as boolean) ?? true,
         speed: (m.speed as "normal" | "fast") ?? "normal",
         runningSince: m.runningSince as number | undefined,
         createdAt: (m.createdAt as number) ?? Date.now(),

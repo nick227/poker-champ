@@ -394,6 +394,7 @@ export class SnapshotService {
         bigBlindCents: state.bigBlindCents,
         minBuyInCents: state.minBuyInCents,
         maxBuyInCents: state.maxBuyInCents,
+        showStats: state.showStats,
       },
       hand,
       seats,

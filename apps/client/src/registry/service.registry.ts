@@ -74,6 +74,7 @@ const serviceByKey = {
       maxBuyInCents: number;
       visibility: "PUBLIC" | "PRIVATE";
       password?: string;
+      showStats?: boolean;
     }) => withApiError(() => lobby.createTable(input)),
     deleteTable: (tableId: string) => withApiError(() => lobby.deleteTable(tableId)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>

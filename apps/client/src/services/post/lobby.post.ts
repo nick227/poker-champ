@@ -9,6 +9,7 @@ type CreateTableInput = {
   maxBuyInCents: number;
   visibility?: "PUBLIC" | "PRIVATE";
   password?: string;
+  showStats?: boolean;
 };
 
 export async function postCreateTable(input: CreateTableInput) {
@@ -21,6 +22,7 @@ export async function postCreateTable(input: CreateTableInput) {
     maxBuyInCents: input.maxBuyInCents,
     visibility: input.visibility ?? "PUBLIC",
     password: input.visibility === "PRIVATE" ? input.password : undefined,
+    showStats: input.showStats ?? true,
     speed: "normal" as const,
   };
 

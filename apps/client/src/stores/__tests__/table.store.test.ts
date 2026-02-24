@@ -31,6 +31,7 @@ describe('Table Store - Snapshot Sequence Validation', () => {
       bigBlindCents: 100,
       minBuyInCents: 1000,
       maxBuyInCents: 10000,
+      showStats: true,
     },
     seats: [],
     hero: {

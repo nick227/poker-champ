@@ -21,6 +21,7 @@ function makeSnapshot(seq: number, tableId = "t1"): TableSnapshotPayload {
       bigBlindCents: 100,
       minBuyInCents: 1000,
       maxBuyInCents: 10000,
+      showStats: true,
     },
     hero: {
       userId: "u1",

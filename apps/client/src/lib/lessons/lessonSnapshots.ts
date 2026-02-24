@@ -44,6 +44,7 @@ function createPreflopRaiseDecisionLesson(): TableSnapshotPayload {
       bigBlindCents: 200,
       minBuyInCents: 2000,
       maxBuyInCents: 200000,
+      showStats: true,
     },
     hand: {
       handId: "lesson-hand-1",
@@ -214,6 +215,7 @@ function createContinuationBetLesson(): TableSnapshotPayload {
       bigBlindCents: 200,
       minBuyInCents: 2000,
       maxBuyInCents: 200000,
+      showStats: true,
     },
     hand: {
       handId: "lesson-hand-2",

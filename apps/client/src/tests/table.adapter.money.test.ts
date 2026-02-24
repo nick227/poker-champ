@@ -20,6 +20,7 @@ function makeSnapshot(): TableSnapshotPayload {
       bigBlindCents: 100,
       minBuyInCents: 1000,
       maxBuyInCents: 10000,
+      showStats: true,
     },
     seats: [
       {

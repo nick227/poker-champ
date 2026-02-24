@@ -40,6 +40,7 @@ type TableConfig = {
   minBuyInCents: number;
   maxBuyInCents: number;
   visibility: "PUBLIC" | "PRIVATE";
+  showStats: boolean;
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
@@ -55,6 +56,7 @@ type PokerRoomMetadata = {
   minBuyInCents: number;
   maxBuyInCents: number;
   visibility: "PUBLIC" | "PRIVATE";
+  showStats: boolean;
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
@@ -103,6 +105,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.state.bigBlindCents = cfg?.bigBlindCents ?? this.state.bigBlindCents;
     this.state.minBuyInCents = cfg?.minBuyInCents ?? this.state.minBuyInCents;
     this.state.maxBuyInCents = cfg?.maxBuyInCents ?? this.state.maxBuyInCents;
+    this.state.showStats = cfg?.showStats ?? true;
 
     this.maxClients = this.state.maxSeats;
 
@@ -157,6 +160,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       minBuyInCents: this.state.minBuyInCents,
       maxBuyInCents: this.state.maxBuyInCents,
       visibility: this.state.visibility,
+      showStats: this.state.showStats,
       passwordHash: cfg?.passwordHash,
       speed: cfg?.speed ?? "normal",
       createdAt: this.state.createdAtTs,

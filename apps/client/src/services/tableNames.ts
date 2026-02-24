@@ -26,11 +26,7 @@ const ADJECTIVES = [
 ];
 
 const NOUNS = [
-  "Penguin", "Shark", "Fish", "Whale", "Donkey", "Eagle", "Tiger", "Lion", "Bear",
-  "Wolf", "Fox", "Rabbit", "Turtle", "Snake", "Monkey", "Elephant", "Giraffe", "Zebra",
-  "Hippo", "Rhino", "Crocodile", "Dolphin", "Octopus", "Spider", "Butterfly", "Bee",
-  "Ant", "Ladybug", "Caterpillar", "Snail", "Crab", "Lobster", "Shrimp", "Clam", 
-  "Alley", "Basement", "MeatLocker", "Warehouse", "Slaughterhouse", "Tenement",
+  "Penguin", "Shark", "Fish", "Whale", "Donkey", "Eagle",
   "Tunnel", "Backroom", "Stairwell", "Bathroom", "Rooftop", "BoilerRoom", "Dumpster",
   "Subway", "Crackhouse", "Flophouse", "Motel", "Pawnshop", "Garage", "ChopShop",
   "Bunker", "Cellar", "LoadingDock", "KillRoom", "Safehouse", "Dogfight",
@@ -51,7 +47,7 @@ const POKER_TERMS = [
   "Detox", "Collapse", "Break", "Burn", "Numbness",
   "Drift", "Blur", "Slip", "Disappear", "Wander",
   "Ramble", "Ramshackle Night", "Lost Weekend",
-  "Chemical Dream", "Slow Suicide"
+  "Chemical Dream", "Hallucination"
 ];
 
 const ACTIONS = [
@@ -65,7 +61,7 @@ const ACTIONS = [
   "Blast", "Bonanza", "Adventure", "Quest", "Journey",
   "Extravaganza", "Showtime", "Parade", "Fireworks",
   "DanceOff", "JamSession", "Hangout", "Picnic",
-  "TreasureHunt", "VictoryLap", "FunRun", "Joyride"
+  "TreasureHunt", "VictoryLap", "FunRun", "Joyride", "Shitburg"
 ];
 
 /**
@@ -78,10 +74,30 @@ export function generateFunnyTableName(): string {
   const patterns: (() => string)[] = [
     () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(NOUNS)} ${getRandomElement(POKER_TERMS)}`,
     () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
-    () => `${getRandomElement(NOUNS)}'s ${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)}`,
-    () => `The ${getRandomElement(ADJECTIVES)} ${getRandomElement(NOUNS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)} ${getRandomElement(ADJECTIVES)} `,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(NOUNS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(NOUNS)} ${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)}`,
     () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(NOUNS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(POKER_TERMS)}`,
     () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(ADJECTIVES)} ${getRandomElement(NOUNS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ACTIONS)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ADJECTIVES)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(ADJECTIVES)}`,
+    () => `${getRandomElement(POKER_TERMS)} ${getRandomElement(POKER_TERMS)}`,
   ];
   
   const selectedPattern = getRandomElement(patterns);

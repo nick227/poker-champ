@@ -340,6 +340,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lobby/tables/{tableId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["lobbyDeleteTable"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lobby/chat/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["lobbyChatMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bots": {
         parameters: {
             query?: never;
@@ -526,11 +558,21 @@ export interface components {
             visibility: "PUBLIC" | "PRIVATE";
             runningSince: number | null;
             createdAt: number;
+            showStats: boolean;
         };
         BotSummary: {
             id: string;
             name: string;
             avatarUrl?: string | null;
+        };
+        LobbyChatMessage: {
+            id: string;
+            /** @default lobby */
+            scope: string;
+            senderUserId: string;
+            senderName: string;
+            text: string;
+            createdAtTs: number;
         };
     };
     responses: never;
@@ -1385,6 +1427,7 @@ export interface operations {
                     /** @enum {string} */
                     visibility: "PUBLIC" | "PRIVATE";
                     password?: string;
+                    showStats?: boolean;
                 };
             };
         };
@@ -1403,6 +1446,98 @@ export interface operations {
             };
             /** @description Invalid request */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    lobbyDeleteTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tableId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Table deleted or already gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing tableId or auth */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Only the table creator can delete this table */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Table still has connected human players */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    lobbyChatMessages: {
+        parameters: {
+            query?: {
+                scope?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated lobby chat history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        messages: components["schemas"]["LobbyChatMessage"][];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            /** @description Invalid query parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

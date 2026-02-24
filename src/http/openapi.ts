@@ -984,6 +984,7 @@ export const openApiSpec = {
                   maxBuyInCents: { type: "integer", minimum: 1 },
                   visibility: { type: "string", enum: ["PUBLIC", "PRIVATE"] },
                   password: { type: "string" },
+                  showStats: { type: "boolean" },
                 },
                 required: [
                   "name",
