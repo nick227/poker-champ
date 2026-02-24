@@ -131,6 +131,49 @@ export default [
       ],
     },
   },
+  // Guardrail: use semantic sound events at feature boundaries.
+  {
+    files: ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/sound",
+              message: "Use `import { emitSoundEvent } from \"@/sound/emitSoundEvent\"` and call emitSoundEvent(...) instead of importing '@/lib/sound' directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/sound.ts", "src/sound/**/*.{ts,tsx}", "src/bootstrap/sdk.ts", "src/tests/sound.policy.test.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  {
+    files: ["src/components/domain/table/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/registry/store.registry",
+              message: "Use route/container orchestration and pass data via props or scene contract.",
+            },
+            {
+              name: "@/lib/sound",
+              message: "Use `import { emitSoundEvent } from \"@/sound/emitSoundEvent\"` and call emitSoundEvent(...) instead of importing '@/lib/sound' directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Separate config for CommonJS files
   {
     files: ["**/*.cjs"],

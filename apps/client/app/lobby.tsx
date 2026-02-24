@@ -18,6 +18,8 @@ import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Loader } from "@/components/base/Loader";
 import { Text } from "@/components/base/Text";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
 import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtime } from "@/realtime/useLobbyRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
@@ -32,6 +34,8 @@ import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
 import { tablePath } from "@/lib/nav";
+import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
+import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 
 type SortKey = "name" | "players" | "blinds";
 
@@ -56,6 +60,13 @@ export default function LobbyScreen() {
     onlineError,
     transportState,
     lobbyVoiceParticipantIds,
+    chatMessages,
+    chatHasMore,
+    chatLoading,
+    chatLoadingMore,
+    chatLoaded,
+    loadInitialLobbyChat,
+    loadOlderLobbyChat,
   } = storeRegistry.use.lobby();
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
   const openTable = storeRegistry.use.tables((s) => s.openTable);
@@ -180,6 +191,12 @@ export default function LobbyScreen() {
     (tableId: string) => {
       confirmDeleteTable(tableId, {
         onSuccess: () => {
+          // Optimistically remove the table from the store so the row disappears immediately.
+          storeRegistry.use.lobby.setState((s) => ({
+            tables: (s.tables as Array<{ tableId?: string; id?: string }>).filter(
+              (t) => (t.tableId ?? t.id) !== tableId,
+            ),
+          }));
           refresh();
           storeRegistry.tables().closeTable(tableId);
           storeRegistry.table().clearTable(tableId);
@@ -208,17 +225,59 @@ export default function LobbyScreen() {
     handleToggleVoice();
   }, [lobbyVoiceFull, voiceEnabled, handleToggleVoice]);
 
+  const chatMessagesForOverlay = useMemo(
+    () =>
+      chatMessages.map((m) => ({
+        id: m.id,
+        sender: m.senderName,
+        text: m.text,
+        isSelf: profile.userId != null && m.senderUserId === profile.userId,
+        createdAtTs: m.createdAtTs,
+      })),
+    [chatMessages, profile.userId],
+  );
+
+  const sendLobbyChat = useCallback(
+    (text: string) => {
+      const sent = sendLobby("SEND_LOBBY_CHAT", { text });
+      if (!sent) {
+        useToastStore.getState().show("Lobby chat is offline.", "danger");
+      }
+    },
+    [sendLobby],
+  );
+
+  const chatOverlay = useChatOverlay({
+    scopeKey: "lobby:lobby",
+    messages: chatMessagesForOverlay,
+    onSend: sendLobbyChat,
+    onLoadOlder: () => {
+      void loadOlderLobbyChat();
+    },
+    hasMore: chatHasMore,
+    loadingOlder: chatLoadingMore,
+  });
+
+  const onOpenChat = useCallback(() => {
+    chatOverlay.setVisible(true);
+    if (!chatLoaded && !chatLoading) {
+      void loadInitialLobbyChat();
+    }
+  }, [chatOverlay, chatLoaded, chatLoading, loadInitialLobbyChat]);
+
+  const chatBadge = chatOverlay.unseenCount || undefined;
+
   const profileRightAction = useMemo(
     () => (
       <View className="ui-col items-end gap-1">
         <View className="ui-row items-center gap-2">
+          <IconButton variant="link" icon={<Icon name="chat" />} onPress={onOpenChat} badge={chatBadge} />
           <VoiceBarControls
             voiceEnabled={voiceEnabled}
             voiceMuted={voiceMuted}
             onToggleVoice={onLobbyToggleVoice}
             onToggleMute={handleToggleMute}
             participantCount={lobbyVoiceParticipantIds.length}
-            label="Lobby Voice"
             joinDisabled={lobbyVoiceFull}
           />
           <Button variant="link" title={onlineLabel} onPress={openOnlineSheet} />
@@ -234,6 +293,8 @@ export default function LobbyScreen() {
       lobbyVoiceFull,
       onlineLabel,
       openOnlineSheet,
+      onOpenChat,
+      chatBadge,
     ],
   );
 
@@ -306,6 +367,15 @@ export default function LobbyScreen() {
         loading={onlineBusy}
         error={onlineError}
         onRefresh={requestOnlinePlayers}
+      />
+      <ChatOverlay
+        visible={chatOverlay.visible}
+        onClose={chatOverlay.onClose}
+        messages={chatOverlay.messages}
+        onSend={chatOverlay.onSend}
+        onLoadOlder={chatOverlay.onLoadOlder}
+        hasMore={chatOverlay.hasMore}
+        loadingOlder={chatOverlay.loadingOlder}
       />
       <BottomBar active="lobby" />
     </Screen>

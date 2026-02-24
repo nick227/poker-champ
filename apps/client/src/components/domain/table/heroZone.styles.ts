@@ -12,10 +12,12 @@ export const heroZoneStyles = StyleSheet.create({
     flexDirection: "column",
     borderWidth: 2,
     borderColor: "transparent",
-    borderRadius: TABLE_TILE_RADIUS,
+    borderRadius: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
   activeTurn: {
-    borderColor: ACTIVE_TILE_BORDER,
+    borderBottomColor: ACTIVE_TILE_BORDER,
     boxShadow: [
       {
         offsetX: 0,

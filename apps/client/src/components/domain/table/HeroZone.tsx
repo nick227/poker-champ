@@ -28,6 +28,7 @@ export type HeroZoneProps = {
   isDealer?: boolean;
   isActiveTurn?: boolean;
   userName?: string;
+  showStats?: boolean;
   /** Override height when viewport is small. */
   height?: number;
 };
@@ -77,6 +78,7 @@ export function HeroZone({
   isDealer = false,
   isActiveTurn = false,
   userName,
+  showStats = true,
   height: heightProp,
 }: HeroZoneProps) {
   const layoutHeight = useTableLayoutHeight();
@@ -87,7 +89,7 @@ export function HeroZone({
   const statusLabel = getStatusLabel(heroStatus);
   const hasCalculations = hasHeroCalculations({ equity, potOdds, outs });
   // Keep calc strip visually persistent so Hero cards never shift between states.
-  const showCalculations = true;
+  const calculationsVisible = showStats;
   const calcMuted = !canAct || !hasCalculations;
 
   // Core hero panel content. This is optionally wrapped with a win-ring below.
@@ -104,7 +106,7 @@ export function HeroZone({
           vpipPct={playerStats?.vpipPct}
           pfrPct={playerStats?.pfrPct}
           statsHands={playerStats?.hands}
-          visible={showCalculations}
+          visible={calculationsVisible}
           muted={calcMuted}
         />
       </View>

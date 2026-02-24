@@ -1,8 +1,21 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
-import type { TableSnapshotPayload, ChatMessagePayload, OnlinePlayerSummary, BotSummary } from "@poker-champ/realtime-contract";
+import type {
+  TableSnapshotPayload,
+  ChatMessagePayload,
+  OnlinePlayerSummary,
+  BotSummary,
+} from "@poker-champ/realtime-contract";
 
 export type RealtimeScope = "lobby" | "table";
 export type TransportState = "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
+type LobbyChatMessagePayload = {
+  id: string;
+  scope: string;
+  senderUserId: string;
+  senderName: string;
+  text: string;
+  createdAtTs: number;
+};
 
 type LobbyMessageContext = {
   onError?: (message: string) => void;
@@ -10,6 +23,7 @@ type LobbyMessageContext = {
   onTableList?: (tables: unknown[]) => void;
   onOnlineCount?: (totalOnline: number) => void;
   onOnlinePlayers?: (payload: { totalOnline: number; generatedAt: number; players: OnlinePlayerSummary[] }) => void;
+  onLobbyChatMessage?: (payload: LobbyChatMessagePayload) => void;
   onTransportState?: (state: TransportState) => void;
 };
 
@@ -58,6 +72,11 @@ const realtimeChannelByScope: ScopeRegistryMap = {
         generatedAt: typeof p?.generatedAt === "number" ? p.generatedAt : Date.now(),
         players: Array.isArray(p?.players) ? p.players : [],
       });
+    },
+    LOBBY_CHAT_MESSAGE: (payload, context) => {
+      const p = payload as LobbyChatMessagePayload;
+      if (!p?.id) return;
+      context.onLobbyChatMessage?.(p);
     },
     CONNECTED: (_payload, context) => {
       context.onTransportState?.("CONNECTED");

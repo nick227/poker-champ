@@ -1,11 +1,35 @@
 import express from "express";
 import { matchMaker } from "@colyseus/core";
+import { z } from "zod";
 import { buildTableConfig } from "../lobby/TableManager.js";
 import { CreateTableSchema } from "../lobby/schemas.js";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
+import { getPrisma } from "../db/prisma.js";
 
 const router = express.Router();
+const LobbyChatQuerySchema = z.object({
+  scope: z.string().min(1).default("lobby"),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+function encodeLobbyChatCursor(row: { createdAt: Date; id: string }): string {
+  return `${row.createdAt.getTime()}:${row.id}`;
+}
+
+function decodeLobbyChatCursor(cursor: string | undefined): { createdAt: Date; id: string } | null {
+  if (!cursor) return null;
+  const parts = cursor.split(":");
+  if (parts.length !== 2) return null;
+  const [createdAtMsRaw, id] = parts;
+  if (!createdAtMsRaw || !id) return null;
+  const createdAtMs = Number(createdAtMsRaw);
+  if (!Number.isInteger(createdAtMs) || createdAtMs < 0) return null;
+  const createdAt = new Date(createdAtMs);
+  if (Number.isNaN(createdAt.getTime())) return null;
+  return { createdAt, id };
+}
 
 router.get("/tables", async (_req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
@@ -28,6 +52,7 @@ router.get("/tables", async (_req, res) => {
       runningSince: metadata.runningSince ?? null,
       createdAt: metadata.createdAt ?? Date.now(),
       creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
+      showStats: metadata.showStats ?? true,
       humanCount,
       connectedHumanCount,
     };
@@ -44,7 +69,7 @@ router.post("/tables", requireAuth, async (req, res) => {
 
   const { user } = req;
   const creatorId = user?.id != null ? String(user.id) : undefined;
-  const config = await buildTableConfig({ ...parsed.data, creatorId });
+  const config = await buildTableConfig({ ...parsed.data, creatorId, showStats: parsed.data.showStats });
   const created = await matchMaker.createRoom("poker", { tableConfig: config });
   const roomId =
     typeof created === "string"
@@ -128,6 +153,65 @@ router.delete("/tables/:tableId", requireAuth, async (req, res) => {
   }
 
   res.status(204).send();
+});
+
+router.get("/chat/messages", requireAuth, async (req, res) => {
+  const parsed = LobbyChatQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters", details: parsed.error.flatten() });
+    return;
+  }
+
+  const { scope, cursor, limit } = parsed.data;
+  const decodedCursor = decodeLobbyChatCursor(cursor);
+  if (cursor && !decodedCursor) {
+    res.status(400).json({ error: "Invalid cursor format" });
+    return;
+  }
+
+  try {
+    const prisma = getPrisma() as any;
+    const rows = await prisma.lobbyChatMessage.findMany({
+      where: {
+        scope,
+        ...(decodedCursor
+          ? {
+              OR: [
+                { createdAt: { lt: decodedCursor.createdAt } },
+                {
+                  AND: [{ createdAt: decodedCursor.createdAt }, { id: { lt: decodedCursor.id } }],
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+      select: {
+        id: true,
+        scope: true,
+        senderUserId: true,
+        senderName: true,
+        text: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      messages: rows.map((row: any) => ({
+        id: row.id,
+        scope: row.scope,
+        senderUserId: row.senderUserId,
+        senderName: row.senderName,
+        text: row.text,
+        createdAtTs: row.createdAt.getTime(),
+      })),
+      nextCursor: rows.length === limit ? encodeLobbyChatCursor(rows[rows.length - 1] as { createdAt: Date; id: string }) : null,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to list lobby chat messages");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export const lobbyRouter = router;

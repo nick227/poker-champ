@@ -182,6 +182,9 @@
           },
           "createdAt": {
             "type": "integer"
+          },
+          "showStats": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -196,7 +199,8 @@
           "maxBuyInCents",
           "visibility",
           "runningSince",
-          "createdAt"
+          "createdAt",
+          "showStats"
         ]
       },
       "BotSummary": {
@@ -1771,6 +1775,9 @@
                   },
                   "password": {
                     "type": "string"
+                  },
+                  "showStats": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

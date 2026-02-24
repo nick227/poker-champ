@@ -5,7 +5,7 @@ import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSc
 import type { TableSceneMode } from "@/components/domain/table/tableScene.orchestration";
 import type { Opponent } from "@/components/domain/table/TableLayout";
 import type { TableAction } from "@/components/domain/table/ActionBar";
-import type { ChatMessageForOverlay } from "@/components/domain/table/hooks/useChatOverlay";
+import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/TableLayout";
 
 export type TableSceneChromeSlots = {

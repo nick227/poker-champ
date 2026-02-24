@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { serviceRegistry } from "@/registry/service.registry";
 import { useToastStore } from "@/stores/toast.store";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
@@ -10,24 +10,31 @@ export function useRebuySheet(
 ) {
   const [visible, setVisible] = useState(false);
 
-  const hasActiveHand = Boolean(snapshot?.hand);
-  const hasSnapshot = Boolean(snapshot);
-
   useEffect(() => {
-    if (hasActiveHand || !hasSnapshot) setVisible(false);
-  }, [hasActiveHand, hasSnapshot]);
+    if (snapshot?.hand || !snapshot) setVisible(false);
+  }, [snapshot]);
 
-  const heroSeat =
-    snapshot?.hero.seat != null
-      ? snapshot.seats.find((s) => s.seat === snapshot.hero.seat)
-      : undefined;
-  const canRebuy =
-    Boolean(snapshot?.hero.youAreSeated) &&
-    (heroSeat?.stackCents ?? 0) === 0 &&
-    Number.isInteger(snapshot?.table?.minBuyInCents) &&
-    Number(snapshot?.table?.minBuyInCents) > 0 &&
-    Number.isInteger(snapshot?.table?.maxBuyInCents) &&
-    Number(snapshot?.table?.maxBuyInCents) > 0;
+  const canRebuy = useMemo(() => {
+    if (!snapshot) return false;
+    if (snapshot.hand) return false;
+    if (!snapshot.hero.youAreSeated) return false;
+
+    const heroSeat =
+      snapshot.hero.seat != null
+        ? snapshot.seats.find((s) => s.seat === snapshot.hero.seat)
+        : undefined;
+
+    if (!heroSeat) return false;
+    if (heroSeat.status !== "WAITING" && heroSeat.status !== "OUT") return false;
+    if (heroSeat.stackCents !== 0) return false;
+
+    const { minBuyInCents, maxBuyInCents } = snapshot.table;
+
+    if (!Number.isInteger(minBuyInCents) || minBuyInCents <= 0) return false;
+    if (!Number.isInteger(maxBuyInCents) || maxBuyInCents <= 0) return false;
+
+    return true;
+  }, [snapshot]);
 
   const handleRebuyApply = useCallback(
     async (buyInCents: number) => {

@@ -14,12 +14,13 @@ import { useToastStore } from "@/stores/toast.store";
 import { lobbyPath, loginPathWithNext, tablePath } from "@/lib/nav";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceStorage";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import type { SoundEvent } from "@/sound/emitSoundEvent";
 import { MODAL, TABLE } from "@/constants/copy";
 import { useResolvedBuyIn } from "@/components/domain/table/hooks/useResolvedBuyIn";
 import { useTableScene } from "@/components/domain/table/hooks/useTableScene";
 import { useActionMessages } from "@/components/domain/table/hooks/useActionMessages";
-import { useChatOverlay } from "@/components/domain/table/hooks/useChatOverlay";
+import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 import { useRebuySheet } from "@/components/domain/table/hooks/useRebuySheet";
 import { useAddBot } from "@/components/domain/table/hooks/useAddBot";
 import { useVoiceControllerLifecycle } from "@/components/domain/table/hooks/useVoiceControllerLifecycle";
@@ -37,6 +38,15 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   BET: "bet",
   RAISE: "raise",
   ALL_IN: "allIn",
+};
+
+const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
+  FOLD: "table.action.fold",
+  CHECK: "table.action.check",
+  CALL: "table.action.call",
+  BET: "table.action.bet",
+  RAISE: "table.action.raise",
+  ALL_IN: "table.action.allIn",
 };
 
 type UseTableScreenControllerParams = {
@@ -137,7 +147,11 @@ export function useTableScreenController({
     (text: string) => dispatchSendChat({ tableId, text }),
     [tableId, dispatchSendChat],
   );
-  const chatOverlay = useChatOverlay(tableId, chatMessagesForOverlay, { onSend: sendChat });
+  const chatOverlay = useChatOverlay({
+    scopeKey: `table:${tableId}`,
+    messages: chatMessagesForOverlay,
+    onSend: sendChat,
+  });
 
   const { actionMessage, handResultMessage } = useActionMessages(tableId, snapshot);
 
@@ -325,9 +339,10 @@ export function useTableScreenController({
   const sendAction = useCallback(
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
+      const soundEvent = TABLE_ACTION_TO_SOUND_EVENT[payload.type];
       const ok = dispatchTableAction({ tableId, action, amountCents: payload.amount });
       if (ok) {
-        playSound(action);
+        emitSoundEvent(soundEvent);
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
       }
@@ -374,7 +389,6 @@ export function useTableScreenController({
       handleAddBotPress,
       handleToggleVoice,
       handleToggleMute,
-      closeTableAndReturn,
       openChat,
     ],
   );

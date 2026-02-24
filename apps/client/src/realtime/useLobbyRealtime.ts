@@ -43,6 +43,16 @@ export function useLobbyRealtime(options?: UseLobbyRealtimeOptions) {
         onOnlinePlayers: ({ totalOnline, players }) => {
           storeRegistry.use.lobby.setState({ onlineTotal: totalOnline, onlinePlayers: players, onlineBusy: false, onlineError: null });
         },
+        onLobbyChatMessage: (message) => {
+          storeRegistry.lobby().appendLobbyChatRealtime({
+            id: message.id,
+            scope: message.scope,
+            senderUserId: message.senderUserId,
+            senderName: message.senderName,
+            text: message.text,
+            createdAtTs: message.createdAtTs,
+          });
+        },
         onTransportState: (state) => {
           storeRegistry.use.lobby.setState({ transportState: state });
         },

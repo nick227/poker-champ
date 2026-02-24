@@ -12,7 +12,7 @@ import { CommunityBoard } from "./CommunityBoard";
 import { HeroZone } from "./HeroZone";
 import { ActionBar, type ActionBarOnAction } from "./ActionBar";
 import { Button } from "@/components/base/Button";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import { useTableSceneModel } from "./hooks/useTableSceneModel";
 import type { TableSceneModel } from "./hooks/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "./table.types";
@@ -56,6 +56,7 @@ export function TableLayout({
   canRebuy = false,
   onPressRebuy,
 }: TableLayoutProps) {
+  const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const model = useTableSceneModel(snapshot, handResultMessage, connectionStatus);
   const {
@@ -81,6 +82,22 @@ export function TableLayout({
   } = sceneModel ?? model;
 
   useEffect(() => {
+    const handId = snapshot.hand?.handId ?? null;
+    const prevHandId = prevHandIdRef.current;
+
+    if (prevHandId === null) {
+      prevHandIdRef.current = handId;
+      return;
+    }
+
+    if (handId != null && handId !== prevHandId) {
+      emitSoundEvent("table.handStart");
+    }
+
+    prevHandIdRef.current = handId;
+  }, [snapshot.hand?.handId]);
+
+  useEffect(() => {
     const revealedCount = communityCards.reduce((count, card) => (card ? count + 1 : count), 0);
     const prev = prevRevealedBoardCardsRef.current;
 
@@ -90,7 +107,7 @@ export function TableLayout({
     }
 
     if (revealedCount > prev) {
-      playSound("cardDeal");
+      emitSoundEvent("table.boardReveal");
     }
 
     prevRevealedBoardCardsRef.current = revealedCount;
@@ -128,6 +145,7 @@ export function TableLayout({
             potOdds={heroCalculations?.potOddsPct}
             outs={heroCalculations?.outs}
             playerStats={heroPlayerStats}
+            showStats={snapshot.table?.showStats ?? true}
             isWinner={isHeroWinner}
             isDealer={isHeroDealer}
             isActiveTurn={isHeroToAct}

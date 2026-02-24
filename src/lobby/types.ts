@@ -13,6 +13,7 @@ export type TableConfig = {
   speed: "normal" | "fast";
   createdAt: number;
   creatorId?: string;
+  showStats: boolean;
 };
 
 export type LobbyTableSummary = {
@@ -30,6 +31,7 @@ export type LobbyTableSummary = {
   runningSince?: number;
   createdAt: number;
   creatorId?: string;
+  showStats: boolean;
   humanCount?: number;
   connectedHumanCount?: number;
 };

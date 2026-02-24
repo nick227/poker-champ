@@ -34,6 +34,10 @@ export function setSoundPlayer(next: SoundPlayer): void {
   player = next;
 }
 
+/**
+ * Transitional API: prefer emitSoundEvent(...) at feature boundaries.
+ * Direct playSound(...) calls remain during migration.
+ */
 export function playSound(key: SoundKey): void {
   if (!usePreferencesStore.getState().soundEnabled) return;
   const now = Date.now();

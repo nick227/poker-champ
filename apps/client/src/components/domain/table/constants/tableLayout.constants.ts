@@ -3,10 +3,10 @@
  * Only vertical band contracts and shared shell class names belong here.
  */
 
-export const LAYOUT_TITLE_HEIGHT = 80;
+export const LAYOUT_TITLE_HEIGHT = 70;
 export const LAYOUT_TOP_BAR_HEIGHT = 52;
-export const GAME_AREA_HEIGHT = 290;
-export const OPPONENT_STRIP_HEIGHT = 268;
+export const GAME_AREA_HEIGHT = 244;
+export const OPPONENT_STRIP_HEIGHT = 250;
 export const HERO_ZONE_HEIGHT = 200;
 export const ACTION_BAR_HEIGHT = 224;
 export const DEALER_BAR_HEIGHT = 50;

@@ -1,6 +1,7 @@
-import { View } from "react-native";
-import { Button } from "@/components/base/Button";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { PRESS_OPACITY } from "@/theme/animation";
 
 export type VoiceBarControlsProps = {
   voiceEnabled: boolean;
@@ -23,31 +24,48 @@ export function VoiceBarControls({
   joinDisabled = false,
 }: VoiceBarControlsProps) {
   const canJoin = !joinDisabled;
-  const title = joinDisabled && !voiceEnabled ? "\u{1F512}" : voiceEnabled ? "\u{1F508}" : "\u{1F507}";
+  const isRecording = voiceEnabled && !voiceMuted;
+
+  const handleToggle = () => {
+    if (!voiceEnabled) {
+      if (!canJoin) return;
+      emitSoundEvent("voice.toggle");
+      onToggleVoice();
+      return;
+    }
+    emitSoundEvent("voice.toggle");
+    onToggleMute();
+  };
+
   return (
-    <View className="ui-row items-center ui-inline-2">
+    <View className="ui-row items-center ui-inline-2 w-4">
       {label != null && (
         <Text variant="label" className="mr-1">
           {participantCount != null ? `${label} (${participantCount})` : label}
         </Text>
       )}
-      <Button
-        variant="link"
-        title={title}
-        onPress={onToggleVoice}
+      <Pressable
+        onPress={handleToggle}
         disabled={!voiceEnabled && !canJoin}
-      />
-      <View
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 999,
-          alignSelf: "center",
-          borderWidth: 1,
-          borderColor: "#22c55e",
-          backgroundColor: voiceEnabled ? "#22c55e" : "transparent",
-        }}
-      />
+        style={({ pressed }) => ({
+          opacity: !voiceEnabled && !canJoin ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1,
+        })}
+      >
+        {isRecording ? (
+          <View
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              backgroundColor: "#22c55e",
+            }}
+          />
+        ) : (
+          <Text variant="body" allowFontScaling={false} style={{ fontSize: 18 }}>
+            {"\u{1F3A4}"}
+          </Text>
+        )}
+      </Pressable>
     </View>
   );
 }

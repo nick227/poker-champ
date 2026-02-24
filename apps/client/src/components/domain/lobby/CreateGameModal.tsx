@@ -6,6 +6,7 @@ import { Input } from "@/components/base/Input";
 import { Text } from "@/components/base/Text";
 import { ChipButton } from "@/components/base/ChipButton";
 import { MODAL } from "@/constants/copy";
+import { getRandomTableName } from "@/services/tableNames";
 import {
   BLINDS_OPTIONS,
   getValidMinBuyInOptions,
@@ -24,6 +25,7 @@ export type CreateGameConfig = {
   maxBuyInCents: number;
   visibility: "PUBLIC" | "PRIVATE";
   password?: string;
+  showStats: boolean;
 };
 
 type CreateGameModalProps = {
@@ -33,11 +35,12 @@ type CreateGameModalProps = {
 };
 
 export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalProps) {
-  const [name, setName] = useState("New Table");
+  const [name, setName] = useState(getRandomTableName());
   const [blindsIndex, setBlindsIndex] = useState(DEFAULT_BLINDS_INDEX);
   const [seats, setSeats] = useState<3 | 6>(6);
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [password, setPassword] = useState("");
+  const [showStats, setShowStats] = useState(true);
 
   const { smallBlindCents, bigBlindCents } = BLINDS_OPTIONS[blindsIndex];
   const validMinOptions = useMemo(() => getValidMinBuyInOptions(bigBlindCents), [bigBlindCents]);
@@ -63,6 +66,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
       maxBuyInCents: getMaxBuyInCents(bigBlindCents),
       visibility,
       password: visibility === "PRIVATE" ? password : undefined,
+      showStats,
     });
     onClose();
   };
@@ -123,6 +127,14 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
           <View className="ui-row ui-inline-2 mb-8 mt-2">
             <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
             <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
+          </View>
+        </View>
+
+        <View>
+          <Text variant="label">Show Stats</Text>
+          <View className="ui-row ui-inline-2 mb-8 mt-2">
+            <ChipButton title="On" selected={showStats === true} onPress={() => setShowStats(true)} />
+            <ChipButton title="Off" selected={showStats === false} onPress={() => setShowStats(false)} />
           </View>
         </View>
 

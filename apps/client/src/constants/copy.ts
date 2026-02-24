@@ -37,7 +37,19 @@ export const TABLE = {
   reconnecting: "Reconnecting…",
   tableGone: "Table no longer exists",
   waitingForHand: "Thinking...",
-  waitingForHandStatus: "Add bot or invite player to start game | Status: ",
+  waitingForHandStatus: "Status: ",
+  waitingForYourTurn: "Waiting for your turn",
+  youFolded: "You folded this hand",
+  youAreAllIn: "You are all-in",
+  check: "Check",
+  bet: "Bet",
+  raise: "Raise",
+  allIn: "ALL IN",
+  min: "MIN",
+  halfPot: "1/2",
+  pot: "POT",
+  max: "MAX",
+  betRaise: "Bet/Raise",
 } as const;
 
 export const PASSWORD_INPUT = {

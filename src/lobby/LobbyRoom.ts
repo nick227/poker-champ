@@ -1,5 +1,6 @@
 import { Room } from "@colyseus/core";
 import { matchMaker } from "@colyseus/core";
+import { z } from "zod";
 import { CreateTableSchema, JoinTableSchema } from "./schemas.js";
 import { buildTableConfig, isPasswordValid } from "./TableManager.js";
 import type { LobbyTableSummary } from "./types.js";
@@ -7,6 +8,8 @@ import { LobbyInboundMessageSchema, LobbyOutboundMessageSchema } from "@poker-ch
 import { logger } from "../lib/logger.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import { presenceIndex } from "./PresenceIndex.js";
+import { getPrisma } from "../db/prisma.js";
+import { nanoid } from "nanoid";
 
 type LobbyState = any;
 
@@ -14,13 +17,19 @@ type LobbyAuth = { userId: string; displayName: string } | Record<string, never>
 
 const LOBBY_VOICE_CHANNEL_ID = "lobby";
 const LOBBY_VOICE_CAP = 8;
+const LOBBY_CHAT_SEND_SCHEMA = z.object({
+  text: z.string().transform((s) => s.trim()).pipe(z.string().min(1).max(500)),
+});
 
 export class LobbyRoom extends Room<LobbyState> {
   private readonly userIdBySessionId = new Map<string, string>();
   private readonly sessionIdByUserId = new Map<string, string>();
+  private readonly displayNameByUserId = new Map<string, string>();
   private readonly lobbyVoiceParticipants = new Set<string>();
   private unsubscribePresence?: () => void;
   private onlineCountBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly lobbyChatLastSendAtByUserId = new Map<string, number>();
+  private readonly lobbyChatBurstByUserId = new Map<string, number[]>();
 
   async onAuth(
     _client: { sessionId: string },
@@ -45,6 +54,9 @@ export class LobbyRoom extends Room<LobbyState> {
     const displayName = auth && "displayName" in auth ? auth.displayName : undefined;
     this.userIdBySessionId.set(client.sessionId, userId);
     this.sessionIdByUserId.set(userId, client.sessionId);
+    if (typeof displayName === "string" && displayName.length > 0) {
+      this.displayNameByUserId.set(userId, displayName);
+    }
     presenceIndex.add(userId, { kind: "LOBBY" }, displayName);
     this.sendLobbyMessage(client, "ONLINE_COUNT", {
       totalOnline: presenceIndex.getTotalOnline(),
@@ -56,6 +68,9 @@ export class LobbyRoom extends Room<LobbyState> {
     this.userIdBySessionId.delete(client.sessionId);
     if (userId) {
       this.sessionIdByUserId.delete(userId);
+      this.displayNameByUserId.delete(userId);
+      this.lobbyChatLastSendAtByUserId.delete(userId);
+      this.lobbyChatBurstByUserId.delete(userId);
       this.lobbyVoiceParticipants.delete(userId);
       this.broadcastLobbyVoiceParticipants();
       presenceIndex.remove(userId, { kind: "LOBBY" });
@@ -183,6 +198,62 @@ export class LobbyRoom extends Room<LobbyState> {
       this.broadcastLobbyVoiceParticipants();
     });
 
+    this.onMessage("SEND_LOBBY_CHAT", async (client, message) => {
+      const parsedPayload = LOBBY_CHAT_SEND_SCHEMA.safeParse(message);
+      if (!parsedPayload.success) {
+        this.sendLobbyMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsedPayload.error.flatten() });
+        return;
+      }
+
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) {
+        this.sendLobbyMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Authentication required." });
+        return;
+      }
+
+      const now = Date.now();
+      if (!this.canSendLobbyChat(userId, now)) {
+        this.sendLobbyMessage(client, "ERROR", { code: "RATE_LIMITED", message: "Too many messages. Slow down." });
+        return;
+      }
+
+      const text = parsedPayload.data.text.trim();
+      const senderName = this.displayNameByUserId.get(userId) ?? `Player-${userId.slice(0, 4)}`;
+
+      try {
+        const prisma = getPrisma() as any;
+        const row = await prisma.lobbyChatMessage.create({
+          data: {
+            id: nanoid(),
+            scope: "lobby",
+            senderUserId: userId,
+            senderName,
+            text,
+          },
+          select: {
+            id: true,
+            scope: true,
+            senderUserId: true,
+            senderName: true,
+            text: true,
+            createdAt: true,
+          },
+        });
+
+        this.broadcastLobbyMessage("LOBBY_CHAT_MESSAGE", {
+          id: row.id,
+          scope: row.scope,
+          senderUserId: row.senderUserId,
+          senderName: row.senderName,
+          text: row.text,
+          createdAtTs: row.createdAt.getTime(),
+        });
+      } catch (err) {
+        logger.error({ err, userId }, "Failed to persist lobby chat message");
+        this.sendLobbyMessage(client, "ERROR", { code: "CHAT_PERSIST_FAILED", message: "Failed to send message." });
+      }
+    });
+
     this.onMessage("VOICE_SIGNAL", (client, payload: unknown) => {
       const msg = payload as Record<string, unknown> | null;
       if (!msg || msg.channelId !== LOBBY_VOICE_CHANNEL_ID) {
@@ -225,6 +296,10 @@ export class LobbyRoom extends Room<LobbyState> {
       presenceIndex.remove(userId, { kind: "LOBBY" });
     }
     this.userIdBySessionId.clear();
+    this.sessionIdByUserId.clear();
+    this.displayNameByUserId.clear();
+    this.lobbyChatLastSendAtByUserId.clear();
+    this.lobbyChatBurstByUserId.clear();
   }
 
   private sendLobbyMessage(client: { send: (type: string, payload: unknown) => void }, type: string, payload: unknown) {
@@ -273,5 +348,20 @@ export class LobbyRoom extends Room<LobbyState> {
       if (includePrivateHash) summary.passwordHash = m.passwordHash as string | undefined;
       return summary;
     }).sort((a, b) => (b.players - a.players) || (b.createdAt - a.createdAt));
+  }
+
+  private canSendLobbyChat(userId: string, nowTs: number): boolean {
+    const minIntervalMs = 800;
+    const burstWindowMs = 10_000;
+    const burstLimit = 5;
+    const lastSendAt = this.lobbyChatLastSendAtByUserId.get(userId) ?? 0;
+    if (nowTs - lastSendAt < minIntervalMs) return false;
+
+    const recent = (this.lobbyChatBurstByUserId.get(userId) ?? []).filter((ts) => nowTs - ts <= burstWindowMs);
+    if (recent.length >= burstLimit) return false;
+    recent.push(nowTs);
+    this.lobbyChatBurstByUserId.set(userId, recent);
+    this.lobbyChatLastSendAtByUserId.set(userId, nowTs);
+    return true;
   }
 }

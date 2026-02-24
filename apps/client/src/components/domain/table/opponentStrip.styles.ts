@@ -158,10 +158,11 @@ export const opponentStripStyles = StyleSheet.create({
   },
   dealerBadge: {
     position: "absolute",
-    bottom: -33,
+    bottom: 10,
     left: "50%",
-    marginLeft: -12,
+    right: 10,
     zIndex: 1,
+    alignItems: "flex-end",
   },
 });
 

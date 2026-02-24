@@ -5,7 +5,7 @@ import { Text } from "@/components/base/Text";
 import { DURATION, PRESS_OPACITY } from "@/theme/animation";
 import { BACKDROP_OVERLAY } from "@/theme/colors";
 import { MODAL } from "@/constants/copy";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
@@ -32,7 +32,7 @@ export function ModalSheet({
   useEffect(() => {
     const prevVisible = prevVisibleRef.current;
     if (!prevVisible && visible) {
-      playSound("modalOpen");
+      emitSoundEvent("ui.modalOpen");
     }
     prevVisibleRef.current = visible;
   }, [visible]);
@@ -78,7 +78,7 @@ export function ModalSheet({
 
   const handleClose = () => {
     if (!visible) return;
-    playSound("modalClose");
+    emitSoundEvent("ui.modalClose");
     setIsExiting(true);
     runExit();
   };

@@ -73,6 +73,7 @@ export const openApiSpec = {
           visibility: { type: "string", enum: ["PUBLIC", "PRIVATE"] },
           runningSince: { type: "integer", nullable: true },
           createdAt: { type: "integer" },
+          showStats: { type: "boolean" },
         },
         required: [
           "tableId",
@@ -87,6 +88,7 @@ export const openApiSpec = {
           "visibility",
           "runningSince",
           "createdAt",
+          "showStats",
         ],
       },
       BotSummary: {
@@ -97,6 +99,18 @@ export const openApiSpec = {
           avatarUrl: { type: "string", nullable: true },
         },
         required: ["id", "name"],
+      },
+      LobbyChatMessage: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          scope: { type: "string", default: "lobby" },
+          senderUserId: { type: "string" },
+          senderName: { type: "string" },
+          text: { type: "string" },
+          createdAtTs: { type: "integer" },
+        },
+        required: ["id", "scope", "senderUserId", "senderName", "text", "createdAtTs"],
       },
     },
   },
@@ -999,6 +1013,91 @@ export const openApiSpec = {
           },
           "400": {
             description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lobby/tables/{tableId}": {
+      delete: {
+        tags: ["lobby"],
+        operationId: "lobbyDeleteTable",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "tableId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "204": { description: "Table deleted or already gone" },
+          "400": {
+            description: "Missing tableId or auth",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "403": {
+            description: "Only the table creator can delete this table",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "409": {
+            description: "Table still has connected human players",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lobby/chat/messages": {
+      get: {
+        tags: ["lobby"],
+        operationId: "lobbyChatMessages",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "scope",
+            in: "query",
+            required: false,
+            schema: { type: "string", default: "lobby" },
+          },
+          {
+            name: "cursor",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Paginated lobby chat history",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    messages: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/LobbyChatMessage" },
+                    },
+                    nextCursor: { type: "string", nullable: true },
+                  },
+                  required: ["messages", "nextCursor"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid query parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "401": {
+            description: "Unauthorized",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

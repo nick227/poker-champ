@@ -1,6 +1,6 @@
 import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
 import { PlayerHistoryPopup } from "@/components/domain/table/PlayerHistoryPopup";
-import { ChatOverlay } from "@/components/domain/table/ChatOverlay";
+import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
 import { BotPickerSheet } from "@/components/domain/table/BotPickerSheet";
 import { ThemePickerSheet } from "@/components/domain/table/ThemePickerSheet";

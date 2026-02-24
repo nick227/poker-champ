@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
 import { Text } from "./Text";
 import { PRESS_OPACITY } from "@/theme/animation";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 export function ChipButton({
   title,
@@ -25,7 +25,7 @@ export function ChipButton({
     : "ui-surface";
   const handlePress = () => {
     if (disabled) return;
-    playSound("tap");
+    emitSoundEvent("ui.tap");
     onPress();
   };
 

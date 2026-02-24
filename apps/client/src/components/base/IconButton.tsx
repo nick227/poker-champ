@@ -2,7 +2,7 @@ import { Pressable, View } from "react-native";
 import type { ReactNode } from "react";
 import { PRESS_OPACITY } from "@/theme/animation";
 import { Text } from "./Text";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 export function IconButton({
   icon,
@@ -24,7 +24,7 @@ export function IconButton({
   const badgeLabel = showBadge ? (badge > 99 ? "99+" : String(badge)) : "";
   const handlePress = () => {
     if (disabled) return;
-    playSound("tap");
+    emitSoundEvent("ui.tap");
     onPress();
   };
 

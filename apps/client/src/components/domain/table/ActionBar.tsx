@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
@@ -8,8 +8,7 @@ import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { HeroStatus } from "./table.adapter";
-import type { ActionContext } from "./actionBar.logic";
-import { buildWagerActionPayload, resolvePrimaryWagerAction } from "./actionBar.logic";
+import { ActionContext, useWagerCalculations } from "./actionBar.logic";
 import {
   ACTION_BAR_PADDING,
   ACTION_BAR_GAP,
@@ -23,10 +22,10 @@ import { ACTION_BAR_HEIGHT } from "./constants/tableLayout.constants";
 export { ACTION_BAR_HEIGHT };
 
 const HERO_STATUS_LABEL: Record<HeroStatus, string> = {
-  ACTIVE: "Waiting for your turn",
-  FOLDED: "You folded this hand",
-  ALL_IN: "You are all-in",
-  SITTING_OUT: "Sitting out",
+  ACTIVE: TABLE.waitingForYourTurn,
+  FOLDED: TABLE.youFolded,
+  ALL_IN: TABLE.youAreAllIn,
+  SITTING_OUT: TABLE.sittingOut,
   RECONNECTING: TABLE.reconnecting,
 };
 
@@ -53,6 +52,11 @@ function parseInputToCents(input: string): number {
   return Math.round(numeric * 100);
 }
 
+type BetState = {
+  cents: number;
+  display: string;
+};
+
 export function ActionBar({
   actionContext,
   heroStatus,
@@ -60,117 +64,135 @@ export function ActionBar({
   potCents = 0,
   onAction,
 }: ActionBarProps) {
-  const [betInput, setBetInput] = useState("0.00");
-  const { showActions, showReconnectingOverlay, allowedActions } = actionContext;
+  const [betState, setBetState] = useState<BetState>({ cents: 0, display: "0.00" });
+  const { showActions, showReconnectingOverlay, allowedActions, capabilities, wager } = actionContext;
 
+  // Destructure to optimize re-render sensitivity
+  const { FOLD, CHECK, CALL, WAGER, ALL_IN } = allowedActions;
+
+  // Reset bet state when wager bounds change
+  // Note: wager is now memoized upstream, so effect only fires when bounds actually change
+  useEffect(() => {
+    if (wager) {
+      const minCents = wager.bounds.min;
+      setBetState({ cents: minCents, display: formatInputFromCents(minCents) });
+    } else {
+      setBetState({ cents: 0, display: "0.00" });
+    }
+  }, [wager]);
+
+  const wagerCalculations = useWagerCalculations(wager, potCents);
   const statusLabel = showActions ? TABLE.yourTurn : HERO_STATUS_LABEL[heroStatus];
-  const primaryWagerAction = resolvePrimaryWagerAction(actionOptions);
+  const primaryActionVerb = wager?.primaryVerb;
 
-  const foldLabel = "Fold";
-  const checkCallLabel = actionOptions?.canCheck
-    ? "Check"
-    : actionOptions?.canCall
-      ? `Call ${formatCents(actionOptions.callAmount ?? 0)}`
-      : "Check/Call";
+  const checkCallLabel = capabilities.canCheck
+    ? TABLE.check
+    : capabilities.canCall
+      ? `Call ${formatCents(actionOptions?.callAmount ?? 0)}`
+      : `${TABLE.check}/${TABLE.bet}`;
 
-  const betMin = actionOptions?.minRaiseTo;
-  const betMax = actionOptions?.maxRaiseTo;
-  const canShowBetInput =
-    showActions &&
-    typeof betMin === "number" &&
-    typeof betMax === "number" &&
-    allowedActions.WAGER;
+  const canShowBetInput = showActions && wager && WAGER;
 
   const submitWager = useCallback(
     (rawAmount: number) => {
-      if (!actionOptions) return;
-      const min = actionOptions.minRaiseTo;
-      const max = actionOptions.maxRaiseTo;
-      if (typeof min !== "number" || typeof max !== "number" || max <= 0) return;
-
-      // Clamp to server-authoritative bounds to avoid INVALID_ACTION / INSUFFICIENT_STACK noise.
-      const clamped = Math.max(min, Math.min(rawAmount, max));
-      const payload = buildWagerActionPayload(actionOptions, clamped);
-      if (payload) onAction(payload);
+      if (!wager) return;
+      try {
+        const resolvedAmount = wager.resolveAmount(rawAmount);
+        const payload = wager.buildPayload(resolvedAmount);
+        if (payload) onAction(payload);
+      } catch (error) {
+        console.error('Error submitting wager:', error);
+        // Could show user feedback here
+      }
     },
-    [actionOptions, onAction],
+    [wager, onAction],
   );
 
-  const clampToBounds = useCallback(
-    (rawAmount: number): number => {
-      if (betMin == null || betMax == null || betMax < betMin) return Math.max(0, rawAmount);
-      return Math.max(betMin, Math.min(rawAmount, betMax));
-    },
-    [betMax, betMin],
-  );
+  const resolvedBetCents = wager ? wager.resolveAmount(betState.cents) : 0;
 
-  const parsedBetCents = parseInputToCents(betInput);
-  const clampedBetCents = clampToBounds(parsedBetCents);
-
+  // Note: Label updates only after blur/normalize, not during typing.
+  // This prevents UI flicker from intermediate validation states.
   const normalizeBetInput = useCallback(() => {
-    const clamped = clampedBetCents;
-    setBetInput(formatInputFromCents(clamped));
-    return clamped;
-  }, [clampedBetCents]);
+    if (!wager) return 0;
+    try {
+      const parsed = parseInputToCents(betState.display);
+      const resolved = wager.resolveAmount(parsed);
+      setBetState({ cents: resolved, display: formatInputFromCents(resolved) });
+      return resolved;
+    } catch (error) {
+      console.error('Invalid bet input:', error);
+      // Reset to min on error
+      const minCents = wager.bounds.min;
+      setBetState({ cents: minCents, display: formatInputFromCents(minCents) });
+      return minCents;
+    }
+  }, [wager, betState.display]);
 
   const handleBetInputChange = useCallback((text: string) => {
-    const sanitized = text.replace(/[^0-9.]/g, "");
-    setBetInput(sanitized);
+    // Real-time validation: only allow numeric input with decimal point
+    const numericText = text.replace(/[^0-9.]/g, '');
+    const parts = numericText.split('.');
+    if (parts.length > 2) return; // Prevent multiple decimal points
+    
+    setBetState(prev => ({ ...prev, display: numericText }));
   }, []);
 
   const handleFold = useCallback(() => {
-    if (!allowedActions.FOLD) return;
+    if (!FOLD) return;
     onAction({ type: "FOLD" });
-  }, [allowedActions.FOLD, onAction]);
+  }, [FOLD, onAction]);
 
   const handleCheckCall = useCallback(() => {
-    if (!allowedActions.CHECK && !allowedActions.CALL) return;
-    if (actionOptions?.canCheck) onAction({ type: "CHECK" });
-    else if (actionOptions?.canCall) onAction({ type: "CALL" });
-  }, [allowedActions.CHECK, allowedActions.CALL, actionOptions, onAction]);
+    if (!CHECK && !CALL) return;
+    // Use the normalized capabilities from your context
+    if (capabilities.canCheck) onAction({ type: "CHECK" });
+    else if (capabilities.canCall) onAction({ type: "CALL" });
+  }, [CHECK, CALL, capabilities, onAction]);
 
   const handleBetRaise = useCallback(() => {
-    if (!allowedActions.WAGER) return;
+    if (!WAGER) return;
     const amount = normalizeBetInput();
     submitWager(amount);
-  }, [allowedActions.WAGER, normalizeBetInput, submitWager]);
+  }, [WAGER, normalizeBetInput, submitWager]);
 
   const handleMin = useCallback(() => {
-    if (betMin != null) {
-      setBetInput(formatInputFromCents(betMin));
+    if (wager) {
+      const minCents = wager.bounds.min;
+      setBetState({ cents: minCents, display: formatInputFromCents(minCents) });
     }
-  }, [betMin]);
+  }, [wager]);
 
   const handleHalfPot = useCallback(() => {
-    const amount = Math.max(0, Math.floor(potCents / 2 / 100) * 100);
-    const next = clampToBounds(amount);
-    setBetInput(formatInputFromCents(next));
-  }, [clampToBounds, potCents]);
+    if (!wagerCalculations || !WAGER) return;
+    const amount = wagerCalculations.calculateAmount(0.5);
+    const resolved = wagerCalculations.resolveAmount(amount);
+    submitWager(resolved);
+  }, [wagerCalculations, WAGER, submitWager]);
 
   const handlePot = useCallback(() => {
-    const amount = Math.max(0, Math.floor(potCents / 100) * 100);
-    const next = clampToBounds(amount);
-    setBetInput(formatInputFromCents(next));
-  }, [clampToBounds, potCents]);
+    if (!wagerCalculations || !WAGER) return;
+    const amount = wagerCalculations.calculateAmount(1);
+    const resolved = wagerCalculations.resolveAmount(amount);
+    submitWager(resolved);
+  }, [wagerCalculations, WAGER, submitWager]);
 
   const handleMax = useCallback(() => {
-    if (betMax != null) {
-      setBetInput(formatInputFromCents(betMax));
-    }
-  }, [betMax]);
+    if (!wager) return;
+    const maxCents = wager.bounds.max;
+    submitWager(maxCents);
+  }, [wager, submitWager]);
 
   const handleAllIn = useCallback(() => {
-    if (!allowedActions.ALL_IN) return;
+    if (!ALL_IN) return;
     onAction({ type: "ALL_IN" });
-  }, [allowedActions.ALL_IN, onAction]);
+  }, [ALL_IN, onAction]);
 
-  const enteredBelowMin = betMin != null && clampedBetCents < betMin;
-  const betRaiseDisabled = !allowedActions.WAGER || enteredBelowMin;
-  const hasBetBounds = betMin != null && betMax != null;
-  const selectedWagerCents = hasBetBounds
-    ? (clampedBetCents > 0 ? clampedBetCents : betMin)
-    : Math.max(0, clampedBetCents);
-  const betRaiseVerb = primaryWagerAction === "RAISE" ? "Raise" : primaryWagerAction === "BET" ? "Bet" : "Bet/Raise";
+  const enteredBelowMin = wager && resolvedBetCents < wager.bounds.min;
+  const betRaiseDisabled = !WAGER || enteredBelowMin;
+  const selectedWagerCents = wager
+    ? (resolvedBetCents > 0 ? resolvedBetCents : wager.bounds.min)
+    : 0;
+  const betRaiseVerb = primaryActionVerb === "RAISE" ? TABLE.raise : primaryActionVerb === "BET" ? TABLE.bet : TABLE.betRaise;
   const betRaiseLabel = `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`;
 
   return (
@@ -196,50 +218,54 @@ export function ActionBar({
           <View className="ui-row ui-center" style={{ gap: 12, minHeight: BUTTONS_ROW_HEIGHT }}>
             <Button
               variant="danger"
-              title={foldLabel}
+              title={TABLE.fold}
               onPress={handleFold}
               className="flex-1 min-w-0"
-              disabled={!allowedActions.FOLD}
+              disabled={!FOLD}
             />
             <Button
               variant="ghost"
               title={checkCallLabel}
               onPress={handleCheckCall}
               className="flex-1 min-w-0"
-              disabled={!allowedActions.CHECK && !allowedActions.CALL}
+              disabled={!CHECK && !CALL}
             />
             <Button
               variant="primary"
               title={betRaiseLabel}
               onPress={handleBetRaise}
               className="flex-1 min-w-0"
-              disabled={!allowedActions.WAGER || enteredBelowMin}
+              disabled={betRaiseDisabled}
             />
           </View>
           <View style={{ height: BET_INPUT_ROW_HEIGHT, justifyContent: "center" }}>
-            {canShowBetInput && betMin != null && betMax != null ? (
+            {canShowBetInput ? (
               <Input
                 iconLeft="$"
-                value={betInput}
+                value={betState.display}
                 onChangeText={handleBetInputChange}
                 onBlur={normalizeBetInput}
                 onSubmitEditing={normalizeBetInput}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                placeholder={formatInputFromCents(betMin)}
+                placeholder={wager ? formatInputFromCents(wager.bounds.min) : "0.00"}
                 selectTextOnFocus
-                editable={allowedActions.WAGER}
+                editable={WAGER}
                 allowFontScaling={false}
+                maxLength={10}
+                aria-label="Bet amount input"
+                aria-disabled={!WAGER}
               />
             ) : (
               <View collapsable={false} style={{ height: BET_INPUT_ROW_HEIGHT, width: "100%" }} />
             )}
           </View>
           <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
-            <ChipButton title="MIN" onPress={handleMin} disabled={!allowedActions.WAGER} />
-            <ChipButton title="1/2" onPress={handleHalfPot} disabled={!allowedActions.WAGER} />
-            <ChipButton title="POT" onPress={handlePot} disabled={!allowedActions.WAGER} />
-            <ChipButton title="ALL IN" onPress={handleAllIn} disabled={!allowedActions.ALL_IN} />
+            <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} />
+            <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} />
+            <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} />
+            <ChipButton title={TABLE.max} onPress={handleMax} disabled={!WAGER} />
+            <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} />
           </View>
         </View>
       </View>

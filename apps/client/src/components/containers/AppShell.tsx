@@ -1,8 +1,11 @@
 import { View } from "react-native";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { Text } from "@/components/base/Text";
 import { Toast } from "@/components/base/Toast";
 import { getRealtimeTransportMode } from "@/registry/transport.registry";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { getSoundEventForToastVariant } from "@/sound/toastSoundEvent";
 import { useToastStore } from "@/stores/toast.store";
 import { useE2EConnectionCountStore } from "@/stores/e2eConnectionCount.store";
 
@@ -13,6 +16,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const toastVariant = useToastStore((s) => s.variant);
   const toastDismiss = useToastStore((s) => s.dismiss);
   const tableConnectionCount = useE2EConnectionCountStore((s) => s.tableConnectionCount);
+  const lastToastSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      lastToastSignatureRef.current = null;
+      return;
+    }
+    const signature = `${toastVariant}:${toastMessage}`;
+    if (lastToastSignatureRef.current === signature) return;
+    emitSoundEvent(getSoundEventForToastVariant(toastVariant));
+    lastToastSignatureRef.current = signature;
+  }, [toastMessage, toastVariant]);
 
   return (
     <View className="flex-1 bg-bg min-h-full">

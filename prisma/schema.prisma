@@ -16,6 +16,7 @@ model PokerTable {
   creatorId String?
   creator   User?    @relation("TableCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   maxSeats  Int      @default(9)
+  showStats Boolean  @default(true)
 
   players   PokerPlayer[]
   hands     Hand[]
@@ -215,6 +216,18 @@ model TableSnapshotLog {
   @@index([tableId, createdAt])
   @@index([tableId, handId, createdAt])
   @@index([tableId, reason, createdAt])
+}
+
+model LobbyChatMessage {
+  id           String   @id
+  scope        String   @default("lobby")
+  createdAt    DateTime @default(now())
+  senderUserId String
+  senderName   String
+  text         String
+
+  @@index([scope, createdAt, id])
+  @@index([scope, senderUserId, createdAt])
 }
 
 enum UserRole {

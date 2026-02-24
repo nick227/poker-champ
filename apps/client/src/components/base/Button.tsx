@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { Text } from "./Text";
 import { PRESS_OPACITY } from "@/theme/animation";
-import { playSound } from "@/lib/sound";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 type Variant = "primary" | "ghost" | "danger" | "link";
 
@@ -39,7 +39,7 @@ export function Button({
   const isDisabled = disabled || loading;
   const handlePress = () => {
     if (isDisabled) return;
-    playSound("tap");
+    emitSoundEvent("ui.tap");
     onPress();
   };
 

@@ -1,0 +1,26 @@
+import type { SoundKey } from "@/registry/sound.registry";
+import type { SoundEvent } from "./soundEvents";
+
+export const SOUND_EVENT_MAP: Record<SoundEvent, SoundKey> = {
+  "ui.tap": "tap",
+  "ui.modalOpen": "modalOpen",
+  "ui.modalClose": "modalClose",
+  "voice.toggle": "tap",
+  "table.action.fold": "fold",
+  "table.action.check": "check",
+  "table.action.call": "call",
+  "table.action.bet": "bet",
+  "table.action.raise": "raise",
+  "table.action.allIn": "allIn",
+  "table.handStart": "cardDeal",
+  "table.boardReveal": "cardDeal",
+  "table.heroTurn": "yourTurn",
+  "table.potWin": "potWin",
+  "table.handReveal": "handReveal",
+  "table.notificationBell": "tableBell",
+  "app.toast": "toast",
+  "app.error": "error",
+  "table.reconnectStart": "toast",
+  "table.reconnectSuccess": "toast",
+  "table.reconnectFail": "error",
+};

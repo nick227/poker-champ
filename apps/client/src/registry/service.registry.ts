@@ -6,6 +6,27 @@ import { DEFAULT_PAGE_SIZE } from "@/constants";
 const serviceByKey = {
   get: {
     lobbyTables: () => withApiError(() => lobby.listTables()),
+    lobbyChatMessages: (input?: { scope?: string; cursor?: string; limit?: number }) => {
+      const params = new URLSearchParams();
+      if (input?.scope) params.set("scope", input.scope);
+      if (input?.cursor) params.set("cursor", input.cursor);
+      if (typeof input?.limit === "number") params.set("limit", String(input.limit));
+      const query = params.toString();
+      const path = query.length > 0 ? `/api/lobby/chat/messages?${query}` : "/api/lobby/chat/messages";
+      return withApiError(() =>
+        request<{
+          messages: Array<{
+            id: string;
+            scope: string;
+            senderUserId: string;
+            senderName: string;
+            text: string;
+            createdAtTs: number;
+          }>;
+          nextCursor: string | null;
+        }>("GET", path),
+      );
+    },
     economyWallet: () => withApiError(() => economy.wallet()),
     economyTransactions: (limit?: number) => withApiError(() => economy.transactions(limit ? { limit } : undefined)),
     tournaments: (status?: string) => withApiError(() => tournaments.list(status ? { status } : undefined)),
@@ -70,6 +91,7 @@ const serviceByKey = {
 
 const serviceOrdered = [
   { key: "get.lobbyTables", call: serviceByKey.get.lobbyTables },
+  { key: "get.lobbyChatMessages", call: serviceByKey.get.lobbyChatMessages },
   { key: "get.economyWallet", call: serviceByKey.get.economyWallet },
   { key: "get.economyTransactions", call: serviceByKey.get.economyTransactions },
   { key: "get.tournaments", call: serviceByKey.get.tournaments },
