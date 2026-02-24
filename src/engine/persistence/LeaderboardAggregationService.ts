@@ -41,6 +41,8 @@ const CATEGORIES: LeaderboardCategory[] = [
 const SHOWDOWN_MIN_SAMPLES = 5;
 const VPIP_MIN_SAMPLES = 100;
 const SNAPSHOT_WRITE_CHUNK_SIZE = 500;
+const SNAPSHOT_TX_MAX_RETRIES = 4;
+const SNAPSHOT_TX_BASE_BACKOFF_MS = 25;
 /** Max hands per actor for streak computation to avoid memory spikes. */
 const STREAK_MAX_HANDS_PER_ACTOR = 200;
 /** Chunk size for IN (handId) to avoid MySQL packet limits. */
@@ -52,6 +54,15 @@ type ActorMetadata = {
 };
 
 export class LeaderboardAggregationService {
+  private static async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private static isRetryableTransactionConflict(err: unknown): boolean {
+    const code = (err as { code?: unknown } | null | undefined)?.code;
+    return code === "P2034";
+  }
+
   static floorToHourUtc(input: Date): Date {
     return new Date(
       Date.UTC(
@@ -105,71 +116,95 @@ export class LeaderboardAggregationService {
     const prisma = getPrisma();
     const entries = await computeCategory(prisma, category, period, computedAt);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.leaderboardSnapshot.deleteMany({
-        where: {
-          period,
-          category,
-          computedAt,
-        },
-      });
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.leaderboardSnapshot.deleteMany({
+            where: {
+              period,
+              category,
+              computedAt,
+            },
+          });
 
-      if (entries.length === 0) {
-        const firstUser = await tx.user.findFirst({
-          orderBy: { createdAt: "asc" },
-          select: { id: true, displayName: true },
-        });
-        if (firstUser) {
-          await tx.leaderboardSnapshot.create({
-            data: {
+          if (entries.length === 0) {
+            const firstUser = await tx.user.findFirst({
+              orderBy: { createdAt: "asc" },
+              select: { id: true, displayName: true },
+            });
+            if (firstUser) {
+              await tx.leaderboardSnapshot.create({
+                data: {
+                  id: nanoid(),
+                  period,
+                  category,
+                  actorId: firstUser.id,
+                  actorType: "USER",
+                  userId: firstUser.id,
+                  userDisplayName: firstUser.displayName ?? "",
+                  value: "",
+                  valueNumerator: 0,
+                  valueDenominator: null,
+                  handCount: 0,
+                  rank: 0,
+                  computedAt,
+                  isEmpty: true,
+                },
+              });
+            }
+            return;
+          }
+
+          const rows = entries.map((entry) => {
+            const actorId = entry.userId;
+            const actorType = actorId.startsWith("bot:") ? "BOT" : "USER";
+            return {
               id: nanoid(),
               period,
               category,
-              actorId: firstUser.id,
-              actorType: "USER",
-              userId: firstUser.id,
-              userDisplayName: firstUser.displayName ?? "",
-              value: "",
-              valueNumerator: 0,
-              valueDenominator: null,
-              handCount: 0,
-              rank: 0,
+              actorId,
+              actorType,
+              userId: actorType === "BOT" ? null : actorId,
+              userDisplayName: entry.displayName,
+              value: entry.value,
+              valueNumerator: entry.valueNumerator,
+              valueDenominator: entry.valueDenominator,
+              handCount: entry.handCount,
+              rank: entry.rank,
               computedAt,
-              isEmpty: true,
-            },
+              isEmpty: false,
+            };
           });
-        }
-        return;
-      }
 
-      const rows = entries.map((entry) => {
-        const actorId = entry.userId;
-        const actorType = actorId.startsWith("bot:") ? "BOT" : "USER";
-        return {
-          id: nanoid(),
-          period,
-          category,
-          actorId,
-          actorType,
-          userId: actorType === "BOT" ? null : actorId,
-          userDisplayName: entry.displayName,
-          value: entry.value,
-          valueNumerator: entry.valueNumerator,
-          valueDenominator: entry.valueDenominator,
-          handCount: entry.handCount,
-          rank: entry.rank,
-          computedAt,
-          isEmpty: false,
-        };
-      });
-
-      for (let i = 0; i < rows.length; i += SNAPSHOT_WRITE_CHUNK_SIZE) {
-        await tx.leaderboardSnapshot.createMany({
-          data: rows.slice(i, i + SNAPSHOT_WRITE_CHUNK_SIZE),
-          skipDuplicates: true,
+          for (let i = 0; i < rows.length; i += SNAPSHOT_WRITE_CHUNK_SIZE) {
+            await tx.leaderboardSnapshot.createMany({
+              data: rows.slice(i, i + SNAPSHOT_WRITE_CHUNK_SIZE),
+              skipDuplicates: true,
+            });
+          }
         });
+        return;
+      } catch (err) {
+        const isRetryable =
+          LeaderboardAggregationService.isRetryableTransactionConflict(err) &&
+          attempt < SNAPSHOT_TX_MAX_RETRIES;
+        if (!isRetryable) throw err;
+        const jitterMs = Math.floor(Math.random() * SNAPSHOT_TX_BASE_BACKOFF_MS);
+        const backoffMs = SNAPSHOT_TX_BASE_BACKOFF_MS * 2 ** attempt + jitterMs;
+        logger.warn(
+          {
+            period,
+            category,
+            computedAt: computedAt.toISOString(),
+            attempt: attempt + 1,
+            maxAttempts: SNAPSHOT_TX_MAX_RETRIES + 1,
+            backoffMs,
+          },
+          "Leaderboard snapshot transaction conflict; retrying",
+        );
+        await LeaderboardAggregationService.sleep(backoffMs);
       }
-    });
+    }
   }
 
   static async readLatestSnapshot(input: {

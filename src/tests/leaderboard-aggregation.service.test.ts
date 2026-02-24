@@ -86,4 +86,57 @@ describe("LeaderboardAggregationService", () => {
     expect(findMany).not.toHaveBeenCalled();
     expect(count).not.toHaveBeenCalled();
   });
+
+  it("retries snapshot write transaction on Prisma P2034 conflict", async () => {
+    const userIds = ["u_1", "u_2", "u_3"];
+    const groupBy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        userIds.map((userId) => ({
+          userId,
+          _sum: { amountCents: 100 },
+        })),
+      )
+      .mockResolvedValueOnce(
+        userIds.map((userId, i) => ({
+          userId,
+          handId: `h_${i}`,
+          _sum: { amountCents: 100 },
+        })),
+      );
+    const findManyUsers = vi.fn().mockResolvedValue(
+      userIds.map((id, i) => ({
+        id,
+        displayName: `User ${i}`,
+        username: null,
+        email: `u${i}@test.local`,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      })),
+    );
+    const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const createMany = vi.fn().mockResolvedValue({ count: 3 });
+    const tx = { leaderboardSnapshot: { deleteMany, createMany } };
+    const conflictError = Object.assign(new Error("write conflict"), { code: "P2034" });
+    const transaction = vi
+      .fn()
+      .mockRejectedValueOnce(conflictError)
+      .mockImplementationOnce(async (fn: (tx: typeof tx) => Promise<void>) => fn(tx));
+
+    vi.spyOn(prismaDb, "getPrisma").mockReturnValue({
+      balanceTransaction: { groupBy },
+      handPlayer: { findMany: vi.fn().mockResolvedValue([]) },
+      user: { findMany: findManyUsers },
+      $transaction: transaction,
+    } as any);
+
+    await LeaderboardAggregationService.recomputeSnapshot(
+      "weekly",
+      "biggest_winner",
+      new Date("2026-02-18T14:00:00.000Z"),
+    );
+
+    expect(transaction).toHaveBeenCalledTimes(2);
+    expect(deleteMany).toHaveBeenCalledTimes(1);
+    expect(createMany).toHaveBeenCalledTimes(1);
+  });
 });
