@@ -101,8 +101,6 @@ export function HeroZone({
       <View style={s.calcStrip}>
         <CalculationsStrip
           equity={equity}
-          potOdds={potOdds}
-          outs={outs}
           vpipPct={playerStats?.vpipPct}
           pfrPct={playerStats?.pfrPct}
           statsHands={playerStats?.hands}

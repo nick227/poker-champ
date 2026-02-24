@@ -3,10 +3,11 @@
  * Do not introduce another shell (e.g. FooTableShell); see TABLE_SCENE_VIEWS_OVERVIEW.md guardrails.
  */
 import type { ReactNode } from "react";
-import { Platform, View } from "react-native";
+import { Platform, View, ScrollView } from "react-native";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { Text } from "@/components/base/Text";
+import { Button } from "@/components/base/Button";
 import { TableTopBar } from "./TableTopBar";
 import { OpponentStrip, type Opponent } from "./OpponentStrip";
 import { formatCents } from "@/lib/format";
@@ -24,7 +25,6 @@ export type TableSceneShellProps = {
   playerCount: number;
   maxSeats: number;
   balanceCents: number;
-  topBarLeft?: ReactNode;
   topBarRight?: ReactNode;
   opponents: Opponent[];
   winnerName?: string;
@@ -36,6 +36,7 @@ export type TableSceneShellProps = {
   rootClassName?: string;
   titleSectionClassName?: string;
   topBarSectionClassName?: string;
+  onCloseTable?: () => void;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -48,7 +49,6 @@ export function TableSceneShell({
   playerCount,
   maxSeats,
   balanceCents,
-  topBarLeft,
   topBarRight,
   opponents,
   winnerName,
@@ -56,6 +56,7 @@ export function TableSceneShell({
   dealerBar,
   board,
   hero,
+  onCloseTable,
   bottom,
   rootClassName,
   titleSectionClassName,
@@ -96,79 +97,86 @@ export function TableSceneShell({
       className={cx("table-wrapper", rootClassName)}
     >
       <TableLayoutHeightProvider heroZoneHeight={heroZoneHeight}>
-      <View
-        collapsable={false}
-        style={layoutStyles.titleSection}
-        className={cx("ui-stack-1 justify-center", titleSectionClassName)}
-      >
-        <Text style={{ fontSize: 24, textAlign: "center" }} variant="h1" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
-          {tableName}
-        </Text>
-        <View className="ui-row ui-center gap-x-3">
-          {blinds && (
-            <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
-              {formatCents(blinds.smallBlindCents)} / {formatCents(blinds.bigBlindCents)}
-            </Text>
-          )}
-          <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
-            {playerCount} / {maxSeats} players
-          </Text>
-        </View>
-      </View>
-
-      <View
-        collapsable={false}
-        style={layoutStyles.topBarSection}
-        className={cx(topBarSectionClassName)}
-      >
-        <TableTopBar userName={profile.username} balanceCents={balanceCents} left={topBarLeft} right={topBarRight} />
-      </View>
-
-      <View
-        collapsable={false}
-        style={[layoutStyles.opponentStripSection, opponentStripStyle]}
-        className="table-opponent-strip"
-      >
-        <OpponentStrip
-          opponents={opponents}
-          winnerName={winnerName}
-          onPlayerPress={onPlayerPress}
-          height={opponentStripHeight}
-        />
-      </View>
-
-      <View collapsable={false}>
-        <View collapsable={false} style={layoutStyles.gameArea}>
-          <View collapsable={false} style={layoutStyles.dealerBar}>
-            {dealerBar}
+        {onCloseTable ? (
+          <View className="absolute right-2 top-2 z-20">
+            <Button variant="link" title="X" onPress={onCloseTable} />
           </View>
-          <View collapsable={false} style={layoutStyles.feltArea}>
-            {board}
-          </View>
-        </View>
+        ) : null}
         <View
           collapsable={false}
-          style={[layoutStyles.heroSection, heroSectionStyle]}
-          className="table-hero-section"
+          style={layoutStyles.titleSection}
+          className={cx("ui-stack-1 justify-center", titleSectionClassName)}
         >
-          {hero}
+          <Text style={{ fontSize: 24, textAlign: "center", paddingHorizontal: 56 }} variant="h1" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
+            {tableName}
+          </Text>
+          <View className="ui-row ui-center gap-x-3">
+            {blinds && (
+              <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
+                {formatCents(blinds.smallBlindCents)} / {formatCents(blinds.bigBlindCents)}
+              </Text>
+            )}
+            <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
+              {playerCount} / {maxSeats} players
+            </Text>
+          </View>
         </View>
-      </View>
 
-      <View
-        collapsable={false}
-        style={[
-          layoutStyles.actionBarSection,
-          {
-            height: ACTION_BAR_HEIGHT + insets.bottom,
-            minHeight: ACTION_BAR_HEIGHT + insets.bottom,
-            paddingBottom: insets.bottom,
-          },
-        ]}
-        className="border-t border-border-subtle flex items-center justify-center"
-      >
-        {bottom}
-      </View>
+        <ScrollView>
+          <View
+            collapsable={false}
+            style={layoutStyles.topBarSection}
+            className={cx(topBarSectionClassName)}
+          >
+            <TableTopBar userName={profile.username} balanceCents={balanceCents} right={topBarRight} />
+          </View>
+
+          <View
+            collapsable={false}
+            style={[layoutStyles.opponentStripSection, opponentStripStyle]}
+            className="table-opponent-strip"
+          >
+            <OpponentStrip
+              opponents={opponents}
+              winnerName={winnerName}
+              onPlayerPress={onPlayerPress}
+              height={opponentStripHeight}
+            />
+          </View>
+
+          <View collapsable={false}>
+            <View collapsable={false} style={layoutStyles.gameArea}>
+              <View collapsable={false} style={layoutStyles.dealerBar}>
+                {dealerBar}
+              </View>
+              <View collapsable={false} style={layoutStyles.feltArea}>
+                {board}
+              </View>
+            </View>
+            <View
+              collapsable={false}
+              style={[layoutStyles.heroSection, heroSectionStyle]}
+              className="table-hero-section"
+            >
+              {hero}
+            </View>
+          </View>
+
+          <View
+            collapsable={false}
+            style={[
+              layoutStyles.actionBarSection,
+              {
+                height: ACTION_BAR_HEIGHT + insets.bottom,
+                minHeight: ACTION_BAR_HEIGHT + insets.bottom,
+                paddingBottom: insets.bottom,
+              },
+            ]}
+            className="border-t border-border-subtle flex items-center justify-center"
+          >
+            {bottom}
+          </View>
+        </ScrollView>
       </TableLayoutHeightProvider>
     </View>
   );

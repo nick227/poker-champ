@@ -75,8 +75,6 @@ export function CalculationsStrip({
 
   const pills: CalcPill[] = [
     { label: "Equity", value: typeof equity === "number" ? `${equity}%` : "--", variant: eqVariant },
-    { label: "Pot Odds", value: typeof potOdds === "number" ? `${potOdds}%` : "--", variant: poVariant },
-    { label: "Outs", value: typeof outs === "number" ? String(outs) : "--", variant: "neutral" },
     {
       label: "VPIP",
       value: typeof vpipPct === "number"

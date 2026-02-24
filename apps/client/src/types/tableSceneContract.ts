@@ -9,7 +9,6 @@ import type { ChatMessageForOverlay } from "@/components/domain/table/hooks/useC
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/TableLayout";
 
 export type TableSceneChromeSlots = {
-  topBarLeft?: ReactNode;
   topBarRight?: ReactNode;
 };
 

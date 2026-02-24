@@ -32,9 +32,9 @@ export type TableLayoutProps = {
   actionMessage?: string;
   handResultMessage?: HandResultMessage;
   sceneModel?: TableSceneModel;
-  topBarLeft?: ReactNode;
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
+  onCloseTable?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
   canRebuy?: boolean;
   onPressRebuy?: () => void;
@@ -49,9 +49,9 @@ export function TableLayout({
   actionMessage,
   handResultMessage,
   sceneModel,
-  topBarLeft,
   topBarRight,
   onAction,
+  onCloseTable,
   onPlayerPress,
   canRebuy = false,
   onPressRebuy,
@@ -103,8 +103,8 @@ export function TableLayout({
         playerCount={playerCount}
         maxSeats={maxSeats}
         balanceCents={balanceCents}
-        topBarLeft={topBarLeft}
         topBarRight={topBarRight}
+        onCloseTable={onCloseTable}
         opponents={opponents}
         winnerName={handResultMessage?.winnerName}
         onPlayerPress={onPlayerPress}

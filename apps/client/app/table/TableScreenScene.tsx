@@ -64,6 +64,7 @@ function StatusShell({
       maxSeats={DEFAULT_MAX_SEATS}
       balanceCents={renderModel.balanceCents}
       topBarRight={renderModel.tableTopBarRight}
+      onCloseTable={actions.closeTableAndReturn}
       opponents={[]}
       dealerBar={<DealerAnnounceBar statusMessage={message} />}
       board={
@@ -100,6 +101,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           tableStatus={scene.tableStatus}
           handResultMessage={renderModel.handResultMessage}
           topBarRight={renderModel.tableTopBarRight}
+          onCloseTable={actions.closeTableAndReturn}
           onPlayerPress={actions.onPlayerPress}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
@@ -116,6 +118,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           actionMessage={renderModel.actionMessage}
           handResultMessage={renderModel.handResultMessage}
           topBarRight={renderModel.tableTopBarRight}
+          onCloseTable={actions.closeTableAndReturn}
           onAction={actions.sendAction}
           onPlayerPress={actions.onPlayerPress}
           canRebuy={renderModel.canRebuy}

@@ -363,7 +363,6 @@ export function useTableScreenController({
         onOpenChat={openChat}
         onToggleVoice={handleToggleVoice}
         onToggleMute={handleToggleMute}
-        onCloseTable={closeTableAndReturn}
       />
     ),
     [

@@ -14,7 +14,6 @@ export type TableTopBarActionsProps = {
   onOpenChat: () => void;
   onToggleVoice: () => void;
   onToggleMute: () => void;
-  onCloseTable: () => void;
 };
 
 export function TableTopBarActions({
@@ -28,12 +27,11 @@ export function TableTopBarActions({
   onOpenChat,
   onToggleVoice,
   onToggleMute,
-  onCloseTable,
 }: TableTopBarActionsProps) {
   return (
     <View className="ui-row ui-inline-1">
       {showAddBot ? (
-        <Button minWidth={100} marginRight={24} marginLeft={12} variant="primary" title="+ Bot" onPress={onAddBot} loading={addBotPending} />
+        <Button minWidth={100} marginRight={14} marginLeft={33} variant="primary" title="+ Bot" onPress={onAddBot} loading={addBotPending} />
       ) : null}
       <IconButton variant="link" icon={<Icon name="theme" size={20} />} onPress={onOpenTheme} />
       <IconButton variant="link" icon={<Icon name="chat" />} onPress={onOpenChat} badge={chatBadge} />
@@ -49,10 +47,6 @@ export function TableTopBarActions({
           backgroundColor: voiceEnabled ? "#22c55e" : "transparent",
         }}
       />
-      <>
-        <Button variant="link" title={voiceMuted ? "\u{1F507}" : "\u{1F508}"} onPress={onToggleMute} />
-        <Button variant="link" title="X" onPress={onCloseTable} />
-      </>
     </View>
   );
 }
