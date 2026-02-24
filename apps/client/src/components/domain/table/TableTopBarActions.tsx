@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
+import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
 
 export type TableTopBarActionsProps = {
   showAddBot: boolean;
@@ -35,17 +36,11 @@ export function TableTopBarActions({
       ) : null}
       <IconButton variant="link" icon={<Icon name="theme" size={20} />} onPress={onOpenTheme} />
       <IconButton variant="link" icon={<Icon name="chat" />} onPress={onOpenChat} badge={chatBadge} />
-      <Button variant="link" title={voiceEnabled ? "Stop Voice" : "Join Voice"} onPress={onToggleVoice} />
-      <View
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 999,
-          alignSelf: "center",
-          borderWidth: 1,
-          borderColor: "#22c55e",
-          backgroundColor: voiceEnabled ? "#22c55e" : "transparent",
-        }}
+      <VoiceBarControls
+        voiceEnabled={voiceEnabled}
+        voiceMuted={voiceMuted}
+        onToggleVoice={onToggleVoice}
+        onToggleMute={onToggleMute}
       />
     </View>
   );

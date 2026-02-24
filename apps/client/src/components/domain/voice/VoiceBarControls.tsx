@@ -23,7 +23,7 @@ export function VoiceBarControls({
   joinDisabled = false,
 }: VoiceBarControlsProps) {
   const canJoin = !joinDisabled;
-  const title = joinDisabled && !voiceEnabled ? "Lobby voice full" : voiceEnabled ? "Stop Voice" : "Join Voice";
+  const title = joinDisabled && !voiceEnabled ? "\u{1F512}" : voiceEnabled ? "\u{1F508}" : "\u{1F507}";
   return (
     <View className="ui-row items-center ui-inline-2">
       {label != null && (
@@ -48,7 +48,6 @@ export function VoiceBarControls({
           backgroundColor: voiceEnabled ? "#22c55e" : "transparent",
         }}
       />
-      <Button variant="link" title={voiceMuted ? "\u{1F507}" : "\u{1F508}"} onPress={onToggleMute} />
     </View>
   );
 }
