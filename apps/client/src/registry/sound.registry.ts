@@ -23,7 +23,11 @@ export type SoundKey =
   | "handReveal"
   | "toast"
   | "tableBell"
-  | "error";
+  | "error"
+  | "slotPull"
+  | "slotReelSpin"
+  | "slotReelStop"
+  | "slotWin";
 
 export type SoundDefinition = {
   asset: number;
@@ -54,6 +58,10 @@ const TABLE_CHIP_BET_ASSET = require("../../assets/sounds/table/chip-bet.wav");
 const OUTCOME_POT_WIN_ASSET = require("../../assets/sounds/outcome/pot-win.wav");
 const OUTCOME_YOUR_TURN_ASSET = require("../../assets/sounds/outcome/your-turn.wav");
 const OUTCOME_HAND_REVEAL_ASSET = require("../../assets/sounds/outcome/hand-reveal.wav");
+const SLOT_PULL_ASSET = require("../../assets/sounds/click.wav");
+const SLOT_REEL_SPIN_ASSET = require("../../assets/sounds/mixkit-retro-arcade-casino-notification-211.wav");
+const SLOT_REEL_STOP_ASSET = require("../../assets/sounds/mixkit-game-click-1114.wav");
+const SLOT_WIN_ASSET = require("../../assets/sounds/mixkit-casino-bling-achievement-2067.wav");
 
 function withPlaceholder(
   category: SoundCategory,
@@ -87,6 +95,10 @@ const SOUND_MAP = {
   toast: { asset: NOTIFICATION_TOAST_ASSET, category: "notification", cooldownMs: 120, maxInstances: 1 },
   tableBell: { asset: NOTIFICATION_TABLE_BELL_ASSET, category: "notification", cooldownMs: 180, maxInstances: 1 },
   error: { asset: NOTIFICATION_ERROR_ASSET, category: "notification", cooldownMs: 200, maxInstances: 1 },
+  slotPull: { asset: SLOT_PULL_ASSET, category: "action", cooldownMs: 80, maxInstances: 1 },
+  slotReelSpin: { asset: SLOT_REEL_SPIN_ASSET, category: "action", cooldownMs: 120, maxInstances: 1 },
+  slotReelStop: { asset: SLOT_REEL_STOP_ASSET, category: "action", cooldownMs: 80, maxInstances: 1 },
+  slotWin: { asset: SLOT_WIN_ASSET, category: "outcome", cooldownMs: 180, maxInstances: 1 },
 } satisfies Record<SoundKey, SoundDefinition>;
 
 export { SOUND_MAP };

@@ -27,6 +27,7 @@ export type TableSceneShellProps = {
   balanceCents: number;
   topBarRight?: ReactNode;
   opponents: Opponent[];
+  opponentStripEmptyState?: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
   dealerBar: ReactNode;
@@ -51,6 +52,7 @@ export function TableSceneShell({
   balanceCents,
   topBarRight,
   opponents,
+  opponentStripEmptyState,
   winnerName,
   onPlayerPress,
   dealerBar,
@@ -136,12 +138,18 @@ export function TableSceneShell({
             style={[layoutStyles.opponentStripSection, opponentStripStyle]}
             className="table-opponent-strip"
           >
-            <OpponentStrip
-              opponents={opponents}
-              winnerName={winnerName}
-              onPlayerPress={onPlayerPress}
-              height={opponentStripHeight}
-            />
+            {opponents.length === 0 && opponentStripEmptyState ? (
+              <View className="px-3 py-2">
+                {opponentStripEmptyState}
+              </View>
+            ) : (
+              <OpponentStrip
+                opponents={opponents}
+                winnerName={winnerName}
+                onPlayerPress={onPlayerPress}
+                height={opponentStripHeight}
+              />
+            )}
           </View>
 
           <View collapsable={false}>

@@ -19,6 +19,7 @@ export type EmptyTableViewProps = {
   topBarRight?: ReactNode;
   onCloseTable?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
+  opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
   onPressRebuy?: () => void;
 };
@@ -33,6 +34,7 @@ export function EmptyTableView({
   topBarRight,
   onCloseTable,
   onPlayerPress,
+  opponentStripEmptyState,
   canRebuy = false,
   onPressRebuy,
 }: EmptyTableViewProps) {
@@ -59,6 +61,7 @@ export function EmptyTableView({
       topBarRight={topBarRight}
       onCloseTable={onCloseTable}
       opponents={opponents}
+      opponentStripEmptyState={opponentStripEmptyState}
       winnerName={handResultMessage?.winnerName}
       onPlayerPress={onPlayerPress}
       dealerBar={
@@ -76,7 +79,7 @@ export function EmptyTableView({
           stackCents={heroStackCents}
           canAct={false}
           heroStatus={heroStatus}
-          userName={snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name}
+          userName={snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)?.name}
         />
       }
       bottom={canRebuy && onPressRebuy ? <Button title="Rebuy" onPress={onPressRebuy} /> : null}

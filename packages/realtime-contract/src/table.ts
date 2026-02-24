@@ -269,6 +269,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
 export type TableJoinOptions = z.infer<typeof TableJoinOptionsSchema>;
 export type TableInboundMessage = z.infer<typeof TableInboundMessageSchema>;
 export type TableOutboundMessage = z.infer<typeof TableOutboundMessageSchema>;
+export type TableSeatSnapshot = z.infer<typeof TableSeatSnapshotSchema>;
 export type TableSnapshotPayload = z.infer<typeof TableSnapshotPayloadSchema>;
 export type TableLastAction = z.infer<typeof TableLastActionSchema>;
 export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;

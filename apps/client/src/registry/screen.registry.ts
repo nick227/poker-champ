@@ -1,4 +1,4 @@
-export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard";
+export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard" | "slots";
 
 type ScreenDefinition = {
   path: string;
@@ -55,11 +55,19 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     bottomBarLabel: "Leaderboard",
     componentPath: "app/leaderboard.tsx",
   },
+  slots: {
+    path: "/slots",
+    authRequired: false,
+    title: "Slots",
+    componentPath: "app/slots.tsx",
+    showInBottomBar: true,
+    bottomBarLabel: "Slots",
+  },
   settings: {
     path: "/settings",
     authRequired: true,
     title: "Settings",
-    showInBottomBar: true,
+    showInBottomBar: false,
     bottomBarLabel: "Settings",
     componentPath: "app/settings.tsx",
   },

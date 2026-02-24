@@ -36,6 +36,7 @@ export type TableLayoutProps = {
   onAction: ActionBarOnAction;
   onCloseTable?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
+  opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
   onPressRebuy?: () => void;
 };
@@ -53,6 +54,7 @@ export function TableLayout({
   onAction,
   onCloseTable,
   onPlayerPress,
+  opponentStripEmptyState,
   canRebuy = false,
   onPressRebuy,
 }: TableLayoutProps) {
@@ -123,6 +125,7 @@ export function TableLayout({
         topBarRight={topBarRight}
         onCloseTable={onCloseTable}
         opponents={opponents}
+        opponentStripEmptyState={opponentStripEmptyState}
         winnerName={handResultMessage?.winnerName}
         onPlayerPress={onPlayerPress}
         dealerBar={

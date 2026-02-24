@@ -10,11 +10,13 @@ import { sessionEvents } from "../engine/auth/SessionEvents.js";
 import {
   TableInboundMessageSchema,
   TableJoinOptionsSchema,
+  type TableOutboundMessage,
   TableOutboundMessageSchema,
   AddBotPayloadSchema,
   RemoveBotPayloadSchema,
   ChatPayloadSchema,
 } from "@poker-champ/realtime-contract";
+import type { ZodIssue } from "zod";
 import { nanoid } from "nanoid";
 import { newBotId } from "../engine/bots/botIds.js";
 import { isPersistentSeatsEnabled, isTableSnapshotLogPersistenceEnabled } from "../config/features.js";
@@ -509,7 +511,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
       const parsedJoin = TableJoinOptionsSchema.safeParse(options ?? {});
       if (!parsedJoin.success) {
-        const hasBuyInIssue = parsedJoin.error.issues.some((issue) => issue.path[0] === "buyInCents");
+        const hasBuyInIssue = parsedJoin.error.issues.some((issue: ZodIssue) => issue.path[0] === "buyInCents");
         logger.warn(
           {
             roomId: this.roomId,
@@ -730,7 +732,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       logger.warn({ room: "poker", roomId: this.roomId, type, errors: parsed.error.flatten() }, "Dropping invalid poker outbound message");
       return;
     }
-    client.send(parsed.data.type, parsed.data.payload);
+    const outbound = parsed.data as any;
+    client.send(outbound.type, outbound.payload);
   }
 
   private findPlayerSeat(userId: string): number | null {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { View } from "react-native";
+import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TableTopBarActions } from "@/components/domain/table/TableTopBarActions";
 import { getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { Opponent, ConnectionStatus } from "@/components/domain/table/TableLayout";
@@ -220,7 +221,7 @@ export function useTableScreenController({
     () =>
       openTableIds.map((oid) => {
         const s = snapshotsByTableId[oid];
-        const heroSeatForTable = s?.hero.seat != null ? s.seats.find((seat) => seat.seat === s.hero.seat) : undefined;
+        const heroSeatForTable = s?.hero.seat != null ? s.seats.find((seat: any) => seat.seat === s.hero.seat) : undefined;
         return {
           id: oid,
           potCents: s?.hand?.potCents ?? s?.lastHandResult?.potCents ?? 0,
@@ -313,7 +314,7 @@ export function useTableScreenController({
     useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
   }, []);
 
-  const heroSeat = snapshot?.hero?.seat != null ? snapshot.seats?.find((s) => s.seat === snapshot.hero.seat) : undefined;
+  const heroSeat = snapshot?.hero?.seat != null ? snapshot.seats?.find((s: any) => s.seat === snapshot.hero.seat) : undefined;
   const heroStackCents = heroSeat?.stackCents ?? -1;
   const heroStatus = heroSeat?.status ?? "";
   const heroDisplayStatus = useMemo(
@@ -429,6 +430,7 @@ export function useTableScreenController({
       tableError,
     },
     renderModel: {
+      tableId,
       openTableIds,
       activeTableId,
       profileUsername: profile.username,
@@ -471,6 +473,7 @@ export function useTableScreenController({
       },
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
+      openAddBotPicker: handleAddBotPress,
       pickBot: handleBotPick,
       sendAction,
       closeChat: chatOverlay.onClose,

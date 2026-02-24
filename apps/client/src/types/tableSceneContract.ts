@@ -37,6 +37,7 @@ export type TableScreenController = {
     tableError?: string;
   };
   renderModel: {
+    tableId: string;
     openTableIds: string[];
     activeTableId?: string | null;
     profileUsername?: string;
@@ -76,6 +77,7 @@ export type TableScreenController = {
     applyRebuy: (buyInCents: number) => void;
     closePlayerPopup: () => void;
     onPlayerPress: (opponent: Opponent) => void;
+    openAddBotPicker: () => void;
     pickBot: (botId: string) => void;
     sendAction: (payload: { type: TableAction; amount?: number }) => void;
     closeChat: () => void;

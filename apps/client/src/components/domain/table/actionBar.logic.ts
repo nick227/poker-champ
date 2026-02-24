@@ -129,9 +129,6 @@ function resolveWagerContext(options?: HeroActionOptions): ActionContext["wager"
   };
 }
 
-export function useWagerContext(options?: HeroActionOptions) {
-  return resolveWagerContext(options);
-}
 
 function isConnectionBlockingActions(status?: ActionBarConnectionStatus): boolean {
   return status === "RECONNECTING" || status === "DISCONNECTED";
@@ -144,13 +141,6 @@ function isConnectionBlockingActions(status?: ActionBarConnectionStatus): boolea
  * allowedActions = capabilities gated by UI state (connection, turn, etc.)
  * wager = betting domain logic with bounds and resolution
  */
-export function useActionContext(params: {
-  isMyTurn: boolean;
-  actionOptions?: HeroActionOptions;
-  connectionStatus?: ActionBarConnectionStatus;
-}): ActionContext {
-  return getActionContext(params);
-}
 
 export function getActionContext(params: {
   isMyTurn: boolean;

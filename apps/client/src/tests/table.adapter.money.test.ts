@@ -128,7 +128,7 @@ describe("table adapter money mapping", () => {
         potCents: 0,
         actionCount: 0,
       },
-      seats: snapshot.seats.map((seat) => ({
+      seats: snapshot.seats.map((seat: any) => ({
         ...seat,
         roundBetCents: 0,
         committedCents: 0,

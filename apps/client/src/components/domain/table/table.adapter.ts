@@ -14,14 +14,14 @@ export function decodeCard(card: string | undefined): UiCard {
 
 export function getCommunityCards(snapshot: TableSnapshotPayload): UiCard[] {
   const board = snapshot.hand?.board ?? snapshot.lastHandResult?.board ?? [];
-  const cards = board.map((c) => decodeCard(c));
+  const cards = board.map((c: string) => decodeCard(c));
   while (cards.length < 5) cards.push(null);
   return cards.slice(0, 5);
 }
 
 export function getHeroCards(snapshot: TableSnapshotPayload): UiCard[] {
   const raw = snapshot.hero.holeCards ?? [];
-  const cards = raw.map((c) => decodeCard(c));
+  const cards = raw.map((c: string) => decodeCard(c));
   while (cards.length < 2) cards.push(null);
   return cards.slice(0, 2);
 }
@@ -30,10 +30,10 @@ function getResolvedHeroSeat(snapshot: TableSnapshotPayload) {
   const bySeat =
     snapshot.hero.seat == null
       ? undefined
-      : snapshot.seats.find((s) => s.seat === snapshot.hero.seat);
+      : snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat);
   if (bySeat) return bySeat;
   if (!snapshot.hero.youAreSeated || !snapshot.hero.userId) return undefined;
-  return snapshot.seats.find((s) => s.occupied && s.userId === snapshot.hero.userId);
+  return snapshot.seats.find((s: any) => s.occupied && s.userId === snapshot.hero.userId);
 }
 
 export function getHeroStackCents(snapshot: TableSnapshotPayload): number {
@@ -143,8 +143,8 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
   const heroId = snapshot.hero.userId;
   const serverNowTs = snapshot.serverTimeTs;
   return snapshot.seats
-    .filter((seat) => seat.occupied && seat.userId && seat.userId !== heroId)
-    .map((seat) => ({
+    .filter((seat: any) => seat.occupied && seat.userId && seat.userId !== heroId)
+    .map((seat: any) => ({
       id: seat.userId!,
       name: seat.name || "Player",
       stackCents: seat.stackCents,

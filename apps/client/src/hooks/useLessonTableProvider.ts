@@ -41,7 +41,7 @@ export function useLessonTableProvider({ lessonId }: UseLessonTableProviderProps
       setEvaluation(result);
 
       // 4) Lock actions by clearing actionOptions
-      setSnapshot((prev) => {
+      setSnapshot((prev: any) => {
         if (!prev.hero?.actionOptions) return prev;
         
         return {

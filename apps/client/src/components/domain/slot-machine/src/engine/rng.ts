@@ -1,0 +1,1 @@
+export function randInt(maxExclusive:number){return Math.floor(Math.random()*maxExclusive);}

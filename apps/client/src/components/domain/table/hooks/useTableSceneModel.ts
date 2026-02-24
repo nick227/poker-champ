@@ -21,7 +21,7 @@ function mergeCallWithStack(
 ): HeroActionOptions | undefined {
   if (!actionOptions || !isMyTurn || !snapshot.hand) return actionOptions;
   const roundCurrentBetCents = snapshot.hand.roundCurrentBetCents ?? 0;
-  const heroSeat = snapshot.seats.find((s) => s.seat === snapshot.hero.seat);
+  const heroSeat = snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat);
   const heroRoundBetCents = heroSeat?.roundBetCents ?? 0;
   const rawCallAmount = Math.max(0, roundCurrentBetCents - heroRoundBetCents);
   const derivedCanCallWithStack = rawCallAmount > 0 && heroStackCents > 0;
@@ -48,11 +48,11 @@ export function buildTableSceneModel(
     heroSeat != null &&
     toActSeat != null &&
     heroSeat === toActSeat;
-  const heroName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
+  const heroName = snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)?.name;
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
   const isHeroDealer = getIsDealer(snapshot);
   const tableName = snapshot.table?.tableName ?? TABLE.defaultTableName;
-  const playerCount = snapshot.seats.filter((s) => s.occupied).length;
+  const playerCount = snapshot.seats.filter((s: any) => s.occupied).length;
   const maxSeats = snapshot.table?.maxSeats ?? snapshot.seats.length;
   const blinds = snapshot.table
     ? { smallBlindCents: snapshot.table.smallBlindCents, bigBlindCents: snapshot.table.bigBlindCents }

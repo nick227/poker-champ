@@ -21,7 +21,7 @@ export function useRebuySheet(
 
     const heroSeat =
       snapshot.hero.seat != null
-        ? snapshot.seats.find((s) => s.seat === snapshot.hero.seat)
+        ? snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)
         : undefined;
 
     if (!heroSeat) return false;

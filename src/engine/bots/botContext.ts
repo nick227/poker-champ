@@ -1,6 +1,9 @@
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { Street } from "../../state/PokerState.js";
-import type { BrainRng } from "./rng.js";
+
+export interface BotActionRng {
+  next(): number; // [0, 1)
+}
 
 export interface BotActionContext {
   heroActionOptions: HeroActionOptions;
@@ -17,5 +20,5 @@ export interface BotActionContext {
   };
   activePlayersInHand?: number;
   heroHoleCards?: string[];
-  rng?: BrainRng;
+  rng?: BotActionRng;
 }

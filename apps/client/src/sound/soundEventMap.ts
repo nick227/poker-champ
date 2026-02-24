@@ -23,4 +23,8 @@ export const SOUND_EVENT_MAP: Record<SoundEvent, SoundKey> = {
   "table.reconnectStart": "toast",
   "table.reconnectSuccess": "toast",
   "table.reconnectFail": "error",
+  "slot.pull": "slotPull",
+  "slot.reelSpin": "slotReelSpin",
+  "slot.reelStop": "slotReelStop",
+  "slot.win": "slotWin",
 };

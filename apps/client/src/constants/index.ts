@@ -15,7 +15,3 @@ export const DEFAULT_HISTORY_LIMIT = 50;
 
 // Sound preloading
 export const PRELOAD_SOUNDS = ["tap", "modalOpen", "check", "call", "bet", "cardDeal"] as const;
-
-// Voice thresholds
-export const SPEAKING_ON_THRESHOLD = 0.045;
-export const SPEAKING_OFF_THRESHOLD = 0.03;

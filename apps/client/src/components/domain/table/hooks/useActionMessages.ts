@@ -32,6 +32,8 @@ function buildActionMessage(action: TableLastAction, actorName: string): string 
         : `${actorName} raises ${formatCents(action.amountCents)}${originSuffix}`;
     case "ALL_IN":
       return `${actorName} is all-in for ${formatCents(action.amountCents)}${originSuffix}`;
+    default:
+      return "";
   }
 }
 
@@ -70,7 +72,7 @@ export function useActionMessages(
     if (key === lastShownActionKey) return;
     setLastShownActionKey(key);
     const actorName =
-      seats.find((s) => s.userId === lastAction.actorUserId)?.name ??
+      seats.find((s: any) => s.userId === lastAction.actorUserId)?.name ??
       (lastAction.actorKind === "BOT" ? "Bot" : "Player");
     setActionMessage(buildActionMessage(lastAction, actorName));
   }, [hand, lastAction, seats, lastShownActionKey]);
@@ -81,7 +83,7 @@ export function useActionMessages(
     setLastShownHandResultId(lastHandResult.handId);
     const winnerId = lastHandResult.winnerId ?? Object.keys(lastHandResult.payoutsByUserId ?? {})[0];
     const winnerName = winnerId
-      ? seats.find((s) => s.userId === winnerId)?.name ?? "Winner"
+      ? seats.find((s: any) => s.userId === winnerId)?.name ?? "Winner"
       : "Split pot";
     const amountCents =
       winnerId && lastHandResult.payoutsByUserId

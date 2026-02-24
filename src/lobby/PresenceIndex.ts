@@ -40,6 +40,8 @@ function locationRank(location: OnlinePlayerSummary["location"]): number {
       return 1;
     case "LOBBY":
       return 2;
+    default:
+      return 3;
   }
 }
 

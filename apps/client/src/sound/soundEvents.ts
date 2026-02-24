@@ -19,7 +19,11 @@ export type SoundEvent =
   | "app.error"
   | "table.reconnectStart"
   | "table.reconnectSuccess"
-  | "table.reconnectFail";
+  | "table.reconnectFail"
+  | "slot.pull"
+  | "slot.reelSpin"
+  | "slot.reelStop"
+  | "slot.win";
 
 export const SOUND_EVENT_COOLDOWN_MS: Partial<Record<SoundEvent, number>> = {
   "ui.tap": 60,
@@ -43,4 +47,8 @@ export const SOUND_EVENT_COOLDOWN_MS: Partial<Record<SoundEvent, number>> = {
   "table.reconnectStart": 300,
   "table.reconnectSuccess": 300,
   "table.reconnectFail": 300,
+  "slot.pull": 80,
+  "slot.reelSpin": 120,
+  "slot.reelStop": 80,
+  "slot.win": 180,
 };

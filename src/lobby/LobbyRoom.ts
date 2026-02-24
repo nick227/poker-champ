@@ -111,7 +111,7 @@ export class LobbyRoom extends Room<LobbyState> {
         return;
       }
 
-      const parsed = CreateTableSchema.safeParse(inbound.data.payload ?? {});
+      const parsed = CreateTableSchema.safeParse(message ?? {});
       if (!parsed.success) {
         this.sendLobbyMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
         return;
@@ -141,7 +141,7 @@ export class LobbyRoom extends Room<LobbyState> {
         return;
       }
 
-      const parsed = JoinTableSchema.safeParse(inbound.data.payload ?? {});
+      const parsed = JoinTableSchema.safeParse(message ?? {});
       if (!parsed.success) {
         this.sendLobbyMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
         return;

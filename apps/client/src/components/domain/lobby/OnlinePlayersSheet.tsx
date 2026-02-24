@@ -12,6 +12,8 @@ function locationText(location: OnlinePlayerSummary["location"]): string {
       return `Table: ${location.tableName}`;
     case "MULTI_TABLE":
       return `Multi-table (${location.tables.length})`;
+    default:
+      return "Unknown";
   }
 }
 

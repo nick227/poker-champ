@@ -1,16 +1,27 @@
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { ActionPayload } from "../../../../../messages/schemas.js";
 import { getLegalActions } from "../../../utils/decision.js";
-import type { DerivedFeatures, PostflopNodeCompiled, PreflopNodeCompiled } from "../types.js";
+import type { ActionWeights, DerivedFeatures, PostflopNodeCompiled, PreflopNodeCompiled } from "../types.js";
 
 type WeightMap = Partial<Record<ActionPayload["action"], number>>;
+type WeightedAction = keyof ActionWeights;
+
+const WEIGHTED_ACTIONS: readonly WeightedAction[] = ["FOLD", "CHECK", "CALL", "BET", "RAISE", "ALL_IN"];
+
+function isWeightedAction(action: unknown): action is WeightedAction {
+  return typeof action === "string" && WEIGHTED_ACTIONS.includes(action as WeightedAction);
+}
 
 export function resolveActionWeights(
   node: PreflopNodeCompiled | PostflopNodeCompiled,
   features: DerivedFeatures,
   options: HeroActionOptions,
 ): WeightMap {
-  const legalActions = new Set(getLegalActions(options).map((entry) => entry.action));
+  const legalActions = new Set<WeightedAction>(
+    getLegalActions(options)
+      .map((entry) => entry.action)
+      .filter(isWeightedAction),
+  );
 
   if (features.street === "PREFLOP" && "comboWeights169" in node) {
     const comboIndex = features.comboIndex ?? 0;

@@ -6,8 +6,21 @@ import { ProfileStrip } from "@/components/domain/lobby/ProfileStrip";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
+import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
+import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
+import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/auth.store";
+import { useToastStore } from "@/stores/toast.store";
+import { storeRegistry } from "@/registry/store.registry";
+import { useLobbyRealtime } from "@/realtime/useLobbyRealtime";
+import { useVoiceChannelLifecycle } from "@/hooks/useVoiceChannelLifecycle";
+import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoinPolicy";
+import { LOBBY_VOICE_CHANNEL_ID } from "@/voice/constants/channelIds";
+import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
 import {
   leaderboardService,
   type LeaderboardCategory,
@@ -57,7 +70,31 @@ export default function LeaderboardScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
+  const [lobbyRoom, setLobbyRoom] = useState<TableRealtimeRoom | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceMuted, setVoiceMuted] = useState(false);
+  const autoJoinAttemptedRef = useRef(false);
   const hasEntriesRef = useRef(false);
+
+  const {
+    onlineTotal,
+    onlinePlayers,
+    onlineBusy,
+    onlineError,
+    transportState,
+    lobbyVoiceParticipantIds,
+    chatMessages,
+    chatHasMore,
+    chatLoading,
+    chatLoadingMore,
+    chatLoaded,
+    loadInitialLobbyChat,
+    loadOlderLobbyChat,
+  } = storeRegistry.use.lobby();
+
+  const { requestOnlinePlayers, send: sendLobby } = useLobbyRealtime({ onReadyRoom: setLobbyRoom });
+  const hadJoinedLobbyVoiceRef = useRef(false);
 
   const loadLeaderboard = useCallback(async () => {
     if (!token) {
@@ -105,10 +142,157 @@ export default function LeaderboardScreen() {
     [category],
   );
 
+  const leaveLobbyVoice = useCallback(() => {
+    if (!hadJoinedLobbyVoiceRef.current) return;
+    hadJoinedLobbyVoiceRef.current = false;
+    sendLobby("LEAVE_LOBBY_VOICE", {});
+  }, [sendLobby]);
+
+  const { controllerRef: lobbyVoiceControllerRef } = useVoiceChannelLifecycle({
+    room: lobbyRoom,
+    channelId: LOBBY_VOICE_CHANNEL_ID,
+    selfUserId: profile.userId,
+    peerIds: voiceEnabled ? lobbyVoiceParticipantIds : [],
+    enabled: voiceEnabled,
+    onLeave: leaveLobbyVoice,
+    leaveOnAppBackground: true,
+    isRealtimeConnected: Boolean(lobbyRoom) && transportState === "CONNECTED",
+  });
+
+  const showVoiceError = useCallback((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err ?? "");
+    const looksPermissionDenied =
+      message.includes("MIC_PERMISSION_DENIED") ||
+      message.includes("NotAllowedError") ||
+      /notallowederror|permission denied|permission/i.test(message.toLowerCase());
+    if (looksPermissionDenied) {
+      useToastStore.getState().show("Microphone permission denied", "danger");
+      return;
+    }
+    useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
+  }, []);
+
+  const { handleToggleVoice, handleToggleMute } = useVoiceJoinPolicy({
+    controllerRef: lobbyVoiceControllerRef,
+    autoJoinAttemptedRef,
+    voiceEnabled,
+    setVoiceEnabled,
+    voiceMuted,
+    setVoiceMuted,
+    voicePrefReady: true,
+    heroIsSittingOut: false,
+    voiceRoom: lobbyRoom,
+    heroUserId: profile.userId,
+    showVoiceError,
+  });
+
+  useEffect(() => {
+    if (voiceEnabled) {
+      if (!hadJoinedLobbyVoiceRef.current) {
+        hadJoinedLobbyVoiceRef.current = true;
+        sendLobby("JOIN_LOBBY_VOICE", {});
+      }
+    } else if (hadJoinedLobbyVoiceRef.current) {
+      hadJoinedLobbyVoiceRef.current = false;
+      sendLobby("LEAVE_LOBBY_VOICE", {});
+    }
+  }, [voiceEnabled, sendLobby]);
+
+  const openOnlineSheet = useCallback(() => {
+    setOnlineSheetVisible(true);
+    requestOnlinePlayers();
+  }, [requestOnlinePlayers]);
+
+  const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
+  const LOBBY_VOICE_CAP = 8;
+  const lobbyVoiceFull = !voiceEnabled && lobbyVoiceParticipantIds.length >= LOBBY_VOICE_CAP;
+
+  const onLobbyToggleVoice = useCallback(() => {
+    if (lobbyVoiceFull && !voiceEnabled) return;
+    handleToggleVoice();
+  }, [lobbyVoiceFull, voiceEnabled, handleToggleVoice]);
+
+  const chatMessagesForOverlay = useMemo(
+    () =>
+      chatMessages.map((m) => ({
+        id: m.id,
+        sender: m.senderName,
+        text: m.text,
+        isSelf: profile.userId != null && m.senderUserId === profile.userId,
+        createdAtTs: m.createdAtTs,
+      })),
+    [chatMessages, profile.userId],
+  );
+
+  const sendLobbyChat = useCallback(
+    (text: string) => {
+      const sent = sendLobby("SEND_LOBBY_CHAT", { text });
+      if (!sent) {
+        useToastStore.getState().show("Lobby chat is offline.", "danger");
+      }
+    },
+    [sendLobby],
+  );
+
+  const chatOverlay = useChatOverlay({
+    scopeKey: "lobby:leaderboard",
+    messages: chatMessagesForOverlay,
+    onSend: sendLobbyChat,
+    onLoadOlder: () => {
+      void loadOlderLobbyChat();
+    },
+    hasMore: chatHasMore,
+    loadingOlder: chatLoadingMore,
+  });
+
+  const onOpenChat = useCallback(() => {
+    chatOverlay.setVisible(true);
+    if (!chatLoaded && !chatLoading) {
+      void loadInitialLobbyChat();
+    }
+  }, [chatOverlay, chatLoaded, chatLoading, loadInitialLobbyChat]);
+
+  const chatBadge = chatOverlay.unseenCount || undefined;
+
+  const profileRightAction = useMemo(
+    () => (
+      <View className="ui-col items-end gap-1">
+        <View className="ui-row items-center gap-2">
+          <IconButton variant="link" icon={<Icon name="chat" />} onPress={onOpenChat} badge={chatBadge} />
+          <VoiceBarControls
+            voiceEnabled={voiceEnabled}
+            voiceMuted={voiceMuted}
+            onToggleVoice={onLobbyToggleVoice}
+            onToggleMute={handleToggleMute}
+            participantCount={lobbyVoiceParticipantIds.length}
+            joinDisabled={lobbyVoiceFull}
+          />
+          <Button variant="link" title={onlineLabel} onPress={openOnlineSheet} />
+        </View>
+      </View>
+    ),
+    [
+      voiceEnabled,
+      voiceMuted,
+      onLobbyToggleVoice,
+      handleToggleMute,
+      lobbyVoiceParticipantIds.length,
+      lobbyVoiceFull,
+      onlineLabel,
+      openOnlineSheet,
+      onOpenChat,
+      chatBadge,
+    ],
+  );
+
   return (
     <Screen>
       <Masthead />
-      <ProfileStrip username={profile.username ?? "Player"} location={profile.location} />
+      <ProfileStrip
+        username={profile.username ?? "Player"}
+        location={profile.location}
+        rightAction={profileRightAction}
+      />
 
       <View className="flex-1 ui-stack-3 m-4">
         <View className="ui-stack-1 ">
@@ -172,6 +356,24 @@ export default function LeaderboardScreen() {
           )}
         </ScrollView>
       </View>
+
+      <OnlinePlayersSheet
+        visible={onlineSheetVisible}
+        onClose={() => setOnlineSheetVisible(false)}
+        players={onlinePlayers}
+        loading={onlineBusy}
+        error={onlineError}
+        onRefresh={requestOnlinePlayers}
+      />
+      <ChatOverlay
+        visible={chatOverlay.visible}
+        onClose={chatOverlay.onClose}
+        messages={chatOverlay.messages}
+        onSend={chatOverlay.onSend}
+        onLoadOlder={chatOverlay.onLoadOlder}
+        hasMore={chatOverlay.hasMore}
+        loadingOlder={chatOverlay.loadingOlder}
+      />
 
       <BottomBar active="leaderboard" />
     </Screen>

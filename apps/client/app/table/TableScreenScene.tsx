@@ -6,12 +6,14 @@ import { TableSceneShell } from "@/components/domain/table/TableSceneShell";
 import { DealerAnnounceBar } from "@/components/domain/table/DealerAnnounceBar";
 import { ConnectingCard } from "@/components/domain/table/ConnectingCard";
 import { Button } from "@/components/base/Button";
+import { Text } from "@/components/base/Text";
 import type { TableScreenController } from "@/types/tableSceneContract";
 import {
   DEFAULT_MAX_SEATS,
   TABLE_SHELL_TITLE_CLASSNAME,
   TABLE_SHELL_TOP_BAR_CLASSNAME,
 } from "@/components/domain/table/constants/tableLayout.constants";
+import { tablePath } from "@/lib/nav";
 
 /** Single source for all non-game status text. DealerAnnounceBar is the only place that shows these. */
 function statusMessageFor(
@@ -33,6 +35,16 @@ type TableScreenSceneProps = {
   renderModel: TableScreenController["renderModel"];
   actions: TableScreenController["actions"];
 };
+
+function resolveShareTableUrl(tableId: string): string {
+  const path = tablePath(tableId);
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}${path}`;
+  }
+  const origin = process.env.EXPO_PUBLIC_WEB_ORIGIN?.trim();
+  if (origin) return `${origin.replace(/\/+$/, "")}${path}`;
+  return path;
+}
 
 function statusBottom(
   mode: TableScreenController["scene"]["mode"],
@@ -86,6 +98,29 @@ function StatusShell({
 export function TableScreenScene({ scene, renderModel, actions }: TableScreenSceneProps) {
   const { snapshot } = renderModel;
   const { mode } = scene;
+  const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
+  const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
+  const emptyOpponentsState = showEmptyOpponentsState ? (
+    <View className="rounded-xl border border-border-subtle bg-panel/80 p-4 gap-y-3">
+      <Text variant="h2" className="text-lg">
+        Waiting for opponents
+      </Text>
+      <Text variant="muted">
+        Invite someone with this table link, or add a bot to start playing now.
+      </Text>
+      <View className="ui-row">
+        <Button title="Add bot" onPress={actions.openAddBotPicker} />
+      </View>
+      <View className="rounded-lg border border-border-subtle bg-panel-elevated p-3">
+        <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
+          Share this game URL
+        </Text>
+        <Text selectable className="text-xs">
+          {shareTableUrl}
+        </Text>
+      </View>
+    </View>
+  ) : null;
 
   switch (mode) {
     case "auth_loading":
@@ -103,6 +138,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           topBarRight={renderModel.tableTopBarRight}
           onCloseTable={actions.closeTableAndReturn}
           onPlayerPress={actions.onPlayerPress}
+          opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
         />
@@ -121,6 +157,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           onCloseTable={actions.closeTableAndReturn}
           onAction={actions.sendAction}
           onPlayerPress={actions.onPlayerPress}
+          opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
         />

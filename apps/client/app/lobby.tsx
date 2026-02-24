@@ -306,16 +306,12 @@ export default function LobbyScreen() {
           location={profile.location}
           rightAction={profileRightAction}
         />
-        <View className="ui-row ui-inline-2 ui-section-tight">
-          <Button variant="ghost" title="My Account" onPress={() => {}} />
+        <View className="ui-row ui-inline-2">
+          <Button variant="ghost" title="My Account" onPress={() => router.push("/settings")} />
           <Button variant="ghost" title="Deposit" onPress={handleDeposit} />
           <TableNotificationBell count={openTableIds.length} onPress={() => setActiveTablesDropdownVisible(true)} />
         </View>
         <BankrollDisplay amountCents={bankroll} />
-        <View className="ui-section-tight ui-stack-1">
-          <Text variant="label">Status</Text>
-          <Text variant="muted">{busy || bankrollLoading ? "Loading..." : bankrollError ?? error ?? "Active"}</Text>
-        </View>
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <View className="flex-1 ui-col gap-3">
         {busy ? (
