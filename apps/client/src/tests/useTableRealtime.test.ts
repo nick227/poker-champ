@@ -136,6 +136,21 @@ describe("useTableRealtime behavior", () => {
     expect(useTableStore.getState().snapshotsByTableId["t1"]?.snapshotSeq).toBe(1);
   });
 
+  it("SESSION_RESTORED resets cursor so post-restore snapshots are accepted", () => {
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(5));
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(5);
+
+    dispatchTableMessage("t1", "SESSION_RESTORED", {
+      userId: "u1",
+      deadlineTs: 0,
+      joinMode: "RESTORE",
+    });
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(4));
+
+    expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(4);
+    expect(useTableStore.getState().snapshotsByTableId["t1"]?.snapshotSeq).toBe(4);
+  });
+
   it("ignores stale snapshot sequence", () => {
     dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(3));
     dispatchTableMessage("t1", "TABLE_SNAPSHOT", makeSnapshot(2));

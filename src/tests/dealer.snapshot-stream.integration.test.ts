@@ -87,4 +87,44 @@ describe("dealer snapshot lifecycle invariants", () => {
       ).toBeGreaterThan(snapshots[i - 1]!.snapshotSeq);
     }
   });
+
+  it("keeps snapshotSeq monotonic across emitToAll -> emitToUser -> emitToAll", async () => {
+    const state = new PokerState();
+    state.tableId = "table_snapshot_emit_to_user";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("u1", "");
+    state.street = "WAITING";
+    state.playersById.set("u1", makePlayer("u1", 0, 5000));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence, {});
+    const seenSeq: number[] = [];
+    const client = {
+      send: (_type: string, payload: { snapshotSeq?: number }) => {
+        if (typeof payload?.snapshotSeq === "number") seenSeq.push(payload.snapshotSeq);
+      },
+    } as any;
+    dealer.bindClient("u1", client);
+
+    dealer.emitSnapshotsToAll("AUTO_TRANSITION");
+    dealer.emitSnapshotToUser("u1", "RECONNECT");
+    dealer.emitSnapshotsToAll("AUTO_TRANSITION");
+
+    expect(seenSeq.length).toBe(3);
+    expect(seenSeq[0]).toBe(1);
+    expect(seenSeq[1]).toBe(2);
+    expect(seenSeq[2]).toBe(3);
+  });
 });
