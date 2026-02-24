@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActionPayloadSchema } from "./action";
+import { ActionPayloadSchema } from "./action.js";
 
 const SchemaVersion = z.literal(1).default(1);
 const StreetEnum = z.enum(["WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"]);

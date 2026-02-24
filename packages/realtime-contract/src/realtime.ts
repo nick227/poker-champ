@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CreateTableSchema, JoinTableSchema, OnlinePlayerSummarySchema } from "./lobby";
+import { CreateTableSchema, JoinTableSchema, OnlinePlayerSummarySchema } from "./lobby.js";
 
 export const LobbyInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("LIST_TABLES"), payload: z.unknown().optional() }),
