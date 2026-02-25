@@ -84,7 +84,7 @@ export function SlotMachine({
   const s = useMemo(
     () =>
       makeStyles(theme, (t) => ({
-        root: { flex: 1, backgroundColor: t.colors.bg0 },
+        root: { flex: 1, backgroundColor: 'transparent' },
         safe: {
           flex: 1,
           alignItems: "center",
