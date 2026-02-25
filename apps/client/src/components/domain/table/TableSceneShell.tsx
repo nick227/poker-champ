@@ -25,6 +25,7 @@ export type TableSceneShellProps = {
   playerCount: number;
   maxSeats: number;
   balanceCents: number;
+  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
   opponents: Opponent[];
   opponentStripEmptyState?: ReactNode;
@@ -50,6 +51,7 @@ export function TableSceneShell({
   playerCount,
   maxSeats,
   balanceCents,
+  topBarCenter,
   topBarRight,
   opponents,
   opponentStripEmptyState,
@@ -130,7 +132,12 @@ export function TableSceneShell({
             style={layoutStyles.topBarSection}
             className={cx(topBarSectionClassName)}
           >
-            <TableTopBar userName={profile.username} balanceCents={balanceCents} right={topBarRight} />
+            <TableTopBar
+              userName={profile.username}
+              balanceCents={balanceCents}
+              center={topBarCenter}
+              right={topBarRight}
+            />
           </View>
 
           <View

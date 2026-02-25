@@ -9,6 +9,7 @@ import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/TableLayout";
 
 export type TableSceneChromeSlots = {
+  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
 };
 
@@ -47,6 +48,7 @@ export type TableScreenController = {
     actionMessage?: string;
     handResultMessage?: HandResultMessage;
     canRebuy: boolean;
+    tableTopBarCenter: ReactNode;
     tableTopBarRight: ReactNode;
     activeTableRows: ActiveTableRow[];
     chatMessages: ChatMessageForOverlay[];

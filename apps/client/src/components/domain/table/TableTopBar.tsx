@@ -5,12 +5,14 @@ import { formatCents } from "@/lib/format";
 
 export type TableTopBarProps = {
   balanceCents: number;
+  center?: ReactNode;
   right?: ReactNode;
   userName?: string;
 };
 
 export function TableTopBar({
   balanceCents,
+  center,
   right,
   userName,
 }: TableTopBarProps) {
@@ -30,15 +32,14 @@ export function TableTopBar({
     <View
       collapsable={false}
       style={{ flex: 1, minHeight: 44 }}
-      className="ui-row items-center ui-p-horizontal-4 px-4"
+      className="ui-row items-center justify-between ui-p-horizontal-4 px-4"
     >
-      <View collapsable={false} className="flex-1" />
       <View
         collapsable={false}
-        className="ui-col items-center ui-stack-0 px-2"
-        style={{ minHeight: 44, minWidth: 132 }}
+        className="ui-col items-start ui-stack-0 pr-2"
+        style={{ minHeight: 44, minWidth: 132, maxWidth: "44%" }}
       >
-        <Text variant="label" allowFontScaling={false}>
+        <Text variant="label" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
           {lockedUserName ?? "unknown"}
         </Text>
         <Text
@@ -50,7 +51,10 @@ export function TableTopBar({
           {formatCents(balanceCents)}
         </Text>
       </View>
-      <View collapsable={false} className="flex-1 ui-row justify-end ui-inline-4">
+      <View collapsable={false} className="flex-1 items-center ui-row justify-center px-2">
+        {center}
+      </View>
+      <View collapsable={false} className="flex-1 ui-row justify-end">
         {right}
       </View>
     </View>

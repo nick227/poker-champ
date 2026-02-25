@@ -32,6 +32,7 @@ export type TableLayoutProps = {
   actionMessage?: string;
   handResultMessage?: HandResultMessage;
   sceneModel?: TableSceneModel;
+  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
   onCloseTable?: () => void;
@@ -50,6 +51,7 @@ export function TableLayout({
   actionMessage,
   handResultMessage,
   sceneModel,
+  topBarCenter,
   topBarRight,
   onAction,
   onCloseTable,
@@ -122,6 +124,7 @@ export function TableLayout({
         playerCount={playerCount}
         maxSeats={maxSeats}
         balanceCents={balanceCents}
+        topBarCenter={topBarCenter}
         topBarRight={topBarRight}
         onCloseTable={onCloseTable}
         opponents={opponents}

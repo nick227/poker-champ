@@ -16,6 +16,7 @@ export type EmptyTableViewProps = {
   tableStatus?: string;
   handResultMessage?: { winnerName: string; amountCents: number; winningHandDescr?: string };
   sceneModel?: TableSceneModel;
+  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
   onCloseTable?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
@@ -31,6 +32,7 @@ export function EmptyTableView({
   tableStatus,
   handResultMessage,
   sceneModel,
+  topBarCenter,
   topBarRight,
   onCloseTable,
   onPlayerPress,
@@ -58,6 +60,7 @@ export function EmptyTableView({
       playerCount={playerCount}
       maxSeats={maxSeats}
       balanceCents={balanceCents}
+      topBarCenter={topBarCenter}
       topBarRight={topBarRight}
       onCloseTable={onCloseTable}
       opponents={opponents}

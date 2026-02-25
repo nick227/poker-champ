@@ -377,15 +377,26 @@ export function useTableScreenController({
     chatOverlay.setVisible(true);
   }, [chatOverlay]);
 
+  const tableTopBarCenter = useMemo(
+    () => (
+      <Button
+        minWidth={100}
+        variant="primary"
+        title="+ Bot"
+        onPress={handleAddBotPress}
+        loading={addBotPending}
+        disabled={!tableTopBarFlags.showAddBot}
+      />
+    ),
+    [tableTopBarFlags.showAddBot, addBotPending, handleAddBotPress],
+  );
+
   const tableTopBarRight = useMemo(
     () => (
       <TableTopBarActions
-        showAddBot={tableTopBarFlags.showAddBot}
-        addBotPending={addBotPending}
         chatBadge={chatOverlay.unseenCount || undefined}
         voiceEnabled={voiceEnabled}
         voiceMuted={voiceMuted}
-        onAddBot={handleAddBotPress}
         onOpenTheme={() => setThemePickerVisible(true)}
         onOpenChat={openChat}
         onToggleVoice={handleToggleVoice}
@@ -393,12 +404,9 @@ export function useTableScreenController({
       />
     ),
     [
-      tableTopBarFlags.showAddBot,
-      addBotPending,
       chatOverlay.unseenCount,
       voiceEnabled,
       voiceMuted,
-      handleAddBotPress,
       handleToggleVoice,
       handleToggleMute,
       openChat,
@@ -451,6 +459,7 @@ export function useTableScreenController({
       actionMessage: actionMessage ?? undefined,
       handResultMessage: handResultMessage ?? undefined,
       canRebuy,
+      tableTopBarCenter,
       tableTopBarRight,
       activeTableRows,
       chatMessages: chatOverlay.messages,

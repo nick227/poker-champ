@@ -75,6 +75,7 @@ function StatusShell({
       playerCount={0}
       maxSeats={DEFAULT_MAX_SEATS}
       balanceCents={renderModel.balanceCents}
+      topBarCenter={renderModel.tableTopBarCenter}
       topBarRight={renderModel.tableTopBarRight}
       onCloseTable={actions.closeTableAndReturn}
       opponents={[]}
@@ -132,6 +133,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           balanceCents={renderModel.balanceCents}
           tableStatus={scene.tableStatus}
           handResultMessage={renderModel.handResultMessage}
+          topBarCenter={renderModel.tableTopBarCenter}
           topBarRight={renderModel.tableTopBarRight}
           onCloseTable={actions.closeTableAndReturn}
           onPlayerPress={actions.onPlayerPress}
@@ -150,6 +152,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           connectionStatus={scene.connectionStatus}
           actionMessage={renderModel.actionMessage}
           handResultMessage={renderModel.handResultMessage}
+          topBarCenter={renderModel.tableTopBarCenter}
           topBarRight={renderModel.tableTopBarRight}
           onCloseTable={actions.closeTableAndReturn}
           onAction={actions.sendAction}
