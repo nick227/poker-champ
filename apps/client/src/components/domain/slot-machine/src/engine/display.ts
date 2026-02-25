@@ -7,7 +7,7 @@ export function toOddsText(probability: number): string {
 
 export function outcomeLabel(kind: SlotOutcomeKind, combo: string, matchedSymbol?: SymbolKey): string {
   if (kind === "TRIPLE") return combo;
-  if (kind === "PAIR") return `Pair ${matchedSymbol ?? ""}`.trim();
+  if (kind === "PAIR") return `Pair`.trim();
   if (kind === "ANY_SEVEN") return "Any 7";
   return "No Match";
 }

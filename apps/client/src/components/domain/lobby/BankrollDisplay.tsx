@@ -12,8 +12,8 @@ export function BankrollDisplay({
   onDeposit?: () => void;
 }) {
   return (
-    <View className="ui-row items-center justify-between bankroll-container ui-surface ui-section border-gold my-4 p-4">
-      <View className="ui-stack-1">
+    <View className="ui-row items-center justify-between">
+      <View className="bankroll-container ui-surface ui-section border-gold my-4 py-2">
         <Text variant="label">{TABLE.bankroll}</Text>
         <Text variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
       </View>

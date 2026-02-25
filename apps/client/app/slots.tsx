@@ -144,9 +144,8 @@ export default function SlotsScreen() {
         onPressOnline={openOnlineSheet}
         tableNotificationCount={openTableIds.length}
         onTableNotifications={() => setActiveTablesDropdownVisible(true)}
+        amountCents={currentBankroll} onDeposit={handleDeposit}
       />
-
-      <BankrollDisplay amountCents={currentBankroll} onDeposit={handleDeposit} />
 
       <View className="flex-1">
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>

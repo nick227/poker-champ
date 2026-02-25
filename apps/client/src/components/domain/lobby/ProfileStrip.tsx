@@ -7,6 +7,8 @@ import { Icon } from "@/components/base/Icons";
 import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
 import { TableNotificationBell } from "@/components/domain/table/TableNotificationBell";
 import { router } from "expo-router";
+import { TABLE } from "@/constants/copy";
+import { formatCents } from "@/lib/format";
 
 export function ProfileStrip({
   username,
@@ -23,6 +25,8 @@ export function ProfileStrip({
   onPressOnline,
   tableNotificationCount,
   onTableNotifications,
+  amountCents,
+  onDeposit,
 }: {
   username: string;
   location?: string;
@@ -38,13 +42,15 @@ export function ProfileStrip({
   onPressOnline?: () => void;
   tableNotificationCount?: number;
   onTableNotifications?: () => void;
+  amountCents: number;
+  onDeposit?: () => void;
 }) {
   const goSettings = useCallback(() => {
     router.push("/settings");
   }, []);
 
   return (
-    <View className="pt-4 ui-row items-center justify-between ui-inline-3">
+    <View className="py-4 ui-section mb-2 ui-row items-center justify-between ui-inline-3">
       <View className="ui-row items-center ui-inline-3 flex-1">
 
         {/* Avatar */}
@@ -65,6 +71,7 @@ export function ProfileStrip({
           <Text numberOfLines={1} variant="body">
             {username}
           </Text>
+          <Text variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
           {location ? (
             <Text numberOfLines={1} variant="muted">
               {location}
@@ -74,27 +81,31 @@ export function ProfileStrip({
 
       </View>
 
+      {onDeposit ? (
+        <Button variant="ghost" title="Deposit" onPress={onDeposit} />
+      ) : null}
+
       <View className="ui-col items-end gap-1">
         <View className="ui-row items-center gap-2">
           <IconButton
             variant="link"
             icon={<Icon name="chat" />}
-            onPress={onOpenChat ?? (() => {})}
+            onPress={onOpenChat ?? (() => { })}
             disabled={!onOpenChat}
             badge={chatBadge}
           />
           <VoiceBarControls
             voiceEnabled={voiceEnabled}
             voiceMuted={voiceMuted}
-            onToggleVoice={onToggleVoice ?? (() => {})}
-            onToggleMute={onToggleMute ?? (() => {})}
+            onToggleVoice={onToggleVoice ?? (() => { })}
+            onToggleMute={onToggleMute ?? (() => { })}
             participantCount={voiceParticipantCount}
             joinDisabled={voiceJoinDisabled || !onToggleVoice}
           />
           <Button
             variant="link"
             title={onlineLabel}
-            onPress={onPressOnline ?? (() => {})}
+            onPress={onPressOnline ?? (() => { })}
             disabled={!onPressOnline}
           />
           {onTableNotifications && (

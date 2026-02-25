@@ -89,9 +89,9 @@ export function SlotMachine({
           flex: 1,
           alignItems: "center",
           justifyContent: "flex-start",
-          paddingHorizontal: t.space.lg,
-          paddingTop: t.space.md,
-          paddingBottom: t.space.lg,
+          paddingHorizontal: 0,
+          paddingTop: 0,
+          paddingBottom: 0,
         },
         stack: { width: "100%", maxWidth: 760, gap: t.space.md },
         machine: {

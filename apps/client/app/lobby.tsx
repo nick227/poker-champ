@@ -207,8 +207,9 @@ export default function LobbyScreen() {
           onPressOnline={openOnlineSheet}
           tableNotificationCount={openTableIds.length}
           onTableNotifications={() => setActiveTablesDropdownVisible(true)}
+          amountCents={bankroll} 
+          onDeposit={handleDeposit}
         />
-        <BankrollDisplay amountCents={bankroll} onDeposit={handleDeposit} />
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <View className="flex-1 ui-col gap-3">
         {busy ? (

@@ -132,7 +132,7 @@ export function useSlotSpin({
         const tierLabel = tierForProbability(probability, isJackpot, payoutTiers).label;
         const odds = toOddsText(probability);
         const outcome = outcomeLabel(outcomeKind, combo, matchedSymbol);
-        setMachineOutput(`${tierLabel}: ${outcome} pays ${formatCents(win)} (${odds})`);
+        setMachineOutput(`${outcome} pays ${formatCents(win)} (${odds})`);
         isJackpot ? cueJackpot() : cueSmallWin();
       } else {
         setMachineOutput(`No Match`);

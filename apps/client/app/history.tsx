@@ -244,9 +244,8 @@ export default function HandHistoryScreen() {
         voiceJoinDisabled={voice.voiceJoinDisabled}
         onlineLabel={onlineLabel}
         onPressOnline={openOnlineSheet}
+        amountCents={currentBankroll} onDeposit={handleDeposit}
       />
-      
-      <BankrollDisplay amountCents={currentBankroll} onDeposit={handleDeposit} />
 
       <View className="flex-1 ui-stack-3">
 
