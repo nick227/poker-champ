@@ -52,8 +52,7 @@ Actionable tasks for the studio-quality upgrade. Reference: `UI_UPGRADE_PROPOSAL
 
 ### Lobby
 - [x] Masthead (logo, nav)
-- [x] Profile strip: Avatar | Username | Location
-- [x] My Account button
+- [x] Profile strip: Avatar | Username | Location | Link to Settings
 - [x] Deposit button
 - [x] Bankroll display (prominent)
 - [x] Current status: active games | scheduled games list

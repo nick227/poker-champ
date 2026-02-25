@@ -12,9 +12,9 @@ export function GameListHeader({
   sortLabel?: string;
 }) {
   return (
-    <View className="ui-section-tight ui-row ui-inline-3 ui-p-stack-2">
-      <Button variant="ghost" title={sortLabel} onPress={onSort} />
+    <View className="ui-row ui-inline-3 ui-p-stack-2">
       <Button variant="primary" title={TABLE.createGame} onPress={onCreateGame} />
+      <Button variant="ghost" title={sortLabel} onPress={onSort} />
     </View>
   );
 }

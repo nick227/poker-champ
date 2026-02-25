@@ -10,23 +10,17 @@ import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { Button } from "@/components/base/Button";
-import { IconButton } from "@/components/base/IconButton";
-import { Icon } from "@/components/base/Icons";
-import { TableNotificationBell } from "@/components/domain/table/TableNotificationBell";
 import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
-import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { storeRegistry } from "@/registry/store.registry";
 import { tablePath } from "@/lib/nav";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
-import { useLobbyRealtime } from "@/realtime/useLobbyRealtime";
-import { useVoiceChannelLifecycle } from "@/hooks/useVoiceChannelLifecycle";
-import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoinPolicy";
-import { LOBBY_VOICE_CHANNEL_ID } from "@/voice/constants/channelIds";
+import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyVoiceControls } from "@/hooks/useLobbyVoiceControls";
 import { useToastStore } from "@/stores/toast.store";
 import { postEconomyDeposit } from "@/services/post/economy.post";
-import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
+import { LOBBY_CHAT_SCOPE, LOBBY_CHAT_SCOPE_KEY } from "@/constants/lobbyChat";
 
 export default function SlotsScreen() {
   const router = useRouter();
@@ -40,18 +34,13 @@ export default function SlotsScreen() {
   const [slotBankroll, setSlotBankroll] = useState(bankroll);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
-  const [lobbyRoom, setLobbyRoom] = useState<TableRealtimeRoom | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-  const autoJoinAttemptedRef = useRef(false);
+  const voice = useLobbyVoiceControls({ profileUserId: profile.userId });
 
   const {
     onlineTotal,
     onlinePlayers,
     onlineBusy,
     onlineError,
-    transportState,
-    lobbyVoiceParticipantIds,
     chatMessages,
     chatHasMore,
     chatLoading,
@@ -60,8 +49,7 @@ export default function SlotsScreen() {
     loadInitialLobbyChat,
     loadOlderLobbyChat,
   } = storeRegistry.use.lobby();
-  const { send: sendLobby } = useLobbyRealtime({ onReadyRoom: setLobbyRoom });
-  const hadJoinedLobbyVoiceRef = useRef(false);
+  const { requestOnlinePlayers, sendLobby } = useLobbyRealtimeBridge();
 
   useEffect(() => {
     setSlotBankroll(bankroll);
@@ -100,7 +88,7 @@ export default function SlotsScreen() {
   );
 
   const chatOverlay = useChatOverlay({
-    scopeKey: "lobby:slots",
+    scopeKey: LOBBY_CHAT_SCOPE_KEY,
     messages: chatMessagesForOverlay,
     onSend: sendLobbyChat,
     onLoadOlder: () => {
@@ -113,115 +101,16 @@ export default function SlotsScreen() {
   const onOpenChat = useCallback(() => {
     chatOverlay.setVisible(true);
     if (!chatLoaded && !chatLoading) {
-      void loadInitialLobbyChat();
+      void loadInitialLobbyChat({ scope: LOBBY_CHAT_SCOPE });
     }
   }, [chatOverlay, chatLoaded, chatLoading, loadInitialLobbyChat]);
 
-  const leaveLobbyVoice = useCallback(() => {
-    if (!hadJoinedLobbyVoiceRef.current) return;
-    hadJoinedLobbyVoiceRef.current = false;
-    sendLobby("LEAVE_LOBBY_VOICE", {});
-  }, [sendLobby]);
-
-  const { controllerRef: lobbyVoiceControllerRef } = useVoiceChannelLifecycle({
-    room: lobbyRoom,
-    channelId: LOBBY_VOICE_CHANNEL_ID,
-    selfUserId: profile.userId,
-    peerIds: voiceEnabled ? lobbyVoiceParticipantIds : [],
-    enabled: voiceEnabled,
-    onLeave: leaveLobbyVoice,
-    leaveOnAppBackground: true,
-    isRealtimeConnected: Boolean(lobbyRoom) && transportState === "CONNECTED",
-  });
-
-  const showVoiceError = useCallback((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err ?? "");
-    const looksPermissionDenied =
-      message.includes("MIC_PERMISSION_DENIED") ||
-      message.includes("NotAllowedError") ||
-      /notallowederror|permission denied|permission/i.test(message.toLowerCase());
-    if (looksPermissionDenied) {
-      useToastStore.getState().show("Microphone permission denied", "danger");
-      return;
-    }
-    useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
-  }, []);
-
-  const { handleToggleVoice, handleToggleMute } = useVoiceJoinPolicy({
-    controllerRef: lobbyVoiceControllerRef,
-    autoJoinAttemptedRef,
-    voiceEnabled,
-    setVoiceEnabled,
-    voiceMuted,
-    setVoiceMuted,
-    voicePrefReady: true,
-    heroIsSittingOut: false,
-    voiceRoom: lobbyRoom,
-    heroUserId: profile.userId,
-    showVoiceError,
-  });
-
-  useEffect(() => {
-    if (voiceEnabled) {
-      if (!hadJoinedLobbyVoiceRef.current) {
-        hadJoinedLobbyVoiceRef.current = true;
-        sendLobby("JOIN_LOBBY_VOICE", {});
-      }
-    } else if (hadJoinedLobbyVoiceRef.current) {
-      hadJoinedLobbyVoiceRef.current = false;
-      sendLobby("LEAVE_LOBBY_VOICE", {});
-    }
-  }, [voiceEnabled, sendLobby]);
-
   const openOnlineSheet = useCallback(() => {
     setOnlineSheetVisible(true);
-    // Request online players - need to implement this in slots context
-  }, []);
+    requestOnlinePlayers();
+  }, [requestOnlinePlayers]);
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
-  const LOBBY_VOICE_CAP = 8;
-  const lobbyVoiceFull = !voiceEnabled && lobbyVoiceParticipantIds.length >= LOBBY_VOICE_CAP;
-
-  const onLobbyToggleVoice = useCallback(() => {
-    if (lobbyVoiceFull && !voiceEnabled) return;
-    handleToggleVoice();
-  }, [lobbyVoiceFull, voiceEnabled, handleToggleVoice]);
-
-  const profileRightAction = useMemo(
-    () => (
-      <View className="ui-col items-end gap-1">
-        <View className="ui-row items-center gap-2">
-          <IconButton
-            variant="link"
-            icon={<Icon name="chat" />}
-            onPress={onOpenChat}
-            badge={chatOverlay.unseenCount || undefined}
-          />
-          <VoiceBarControls
-            voiceEnabled={voiceEnabled}
-            voiceMuted={voiceMuted}
-            onToggleVoice={onLobbyToggleVoice}
-            onToggleMute={handleToggleMute}
-            participantCount={lobbyVoiceParticipantIds.length}
-            joinDisabled={lobbyVoiceFull}
-          />
-          <Button variant="link" title={onlineLabel} onPress={openOnlineSheet} />
-        </View>
-      </View>
-    ),
-    [
-      chatOverlay.unseenCount,
-      onOpenChat,
-      voiceEnabled,
-      voiceMuted,
-      onLobbyToggleVoice,
-      handleToggleMute,
-      lobbyVoiceParticipantIds.length,
-      lobbyVoiceFull,
-      onlineLabel,
-      openOnlineSheet,
-    ],
-  );
 
   const activeTableRows = useMemo(
     () =>
@@ -243,16 +132,21 @@ export default function SlotsScreen() {
       <ProfileStrip
         username={profile.username ?? "Player"}
         location={profile.location}
-        rightAction={profileRightAction}
+        onOpenChat={onOpenChat}
+        chatBadge={chatOverlay.unseenCount || undefined}
+        voiceEnabled={voice.voiceEnabled}
+        voiceMuted={voice.voiceMuted}
+        onToggleVoice={voice.onToggleVoice}
+        onToggleMute={voice.onToggleMute}
+        voiceParticipantCount={voice.voiceParticipantCount}
+        voiceJoinDisabled={voice.voiceJoinDisabled}
+        onlineLabel={onlineLabel}
+        onPressOnline={openOnlineSheet}
+        tableNotificationCount={openTableIds.length}
+        onTableNotifications={() => setActiveTablesDropdownVisible(true)}
       />
 
-      <View className="ui-row ui-inline-2 ui-section-tight">
-        <Button variant="ghost" title="My Account" onPress={() => router.push("/settings")} />
-        <Button variant="ghost" title="Deposit" onPress={handleDeposit} />
-        <TableNotificationBell count={openTableIds.length} onPress={() => setActiveTablesDropdownVisible(true)} />
-      </View>
-
-      <BankrollDisplay amountCents={currentBankroll} />
+      <BankrollDisplay amountCents={currentBankroll} onDeposit={handleDeposit} />
 
       <View className="flex-1">
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
@@ -288,9 +182,10 @@ export default function SlotsScreen() {
         visible={onlineSheetVisible}
         onClose={() => setOnlineSheetVisible(false)}
         players={onlinePlayers}
+        voiceParticipantIds={voice.voiceParticipantIds}
         loading={onlineBusy}
         error={onlineError}
-        onRefresh={() => {}}
+        onRefresh={requestOnlinePlayers}
       />
 
       <BottomBar active="lobby" />

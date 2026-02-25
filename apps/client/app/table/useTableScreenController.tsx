@@ -26,6 +26,7 @@ import { useRebuySheet } from "@/components/domain/table/hooks/useRebuySheet";
 import { useAddBot } from "@/components/domain/table/hooks/useAddBot";
 import { useVoiceControllerLifecycle } from "@/components/domain/table/hooks/useVoiceControllerLifecycle";
 import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoinPolicy";
+import { showVoiceErrorToast } from "@/voice/errors";
 import { useOpenTableSync } from "@/components/domain/table/hooks/useOpenTableSync";
 import { useTableConnection } from "@/components/domain/table/hooks/useTableConnection";
 import { useTableScreenStores } from "@/hooks/useTableScreenStores";
@@ -300,20 +301,6 @@ export function useTableScreenController({
     onLifecycleReset: resetVoiceAutoJoinAttempt,
   });
 
-  const showVoiceError = useCallback((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err ?? "");
-    const looksPermissionDenied =
-      message.includes("MIC_PERMISSION_DENIED") ||
-      message.includes("NotAllowedError") ||
-      /notallowederror|permission denied|permission/i.test(message.toLowerCase());
-
-    if (looksPermissionDenied) {
-      useToastStore.getState().show("Microphone permission denied", "danger");
-      return;
-    }
-    useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
-  }, []);
-
   const heroSeat = snapshot?.hero?.seat != null ? snapshot.seats?.find((s: any) => s.seat === snapshot.hero.seat) : undefined;
   const heroStackCents = heroSeat?.stackCents ?? -1;
   const heroStatus = heroSeat?.status ?? "";
@@ -334,7 +321,7 @@ export function useTableScreenController({
     heroIsSittingOut,
     voiceRoom,
     heroUserId,
-    showVoiceError,
+    showVoiceError: showVoiceErrorToast,
   });
 
   const sendAction = useCallback(

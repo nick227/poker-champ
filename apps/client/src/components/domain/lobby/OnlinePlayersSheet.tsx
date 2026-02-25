@@ -21,6 +21,7 @@ export function OnlinePlayersSheet({
   visible,
   onClose,
   players,
+  voiceParticipantIds = [],
   loading,
   error,
   onRefresh,
@@ -28,10 +29,14 @@ export function OnlinePlayersSheet({
   visible: boolean;
   onClose: () => void;
   players: OnlinePlayerSummary[];
+  voiceParticipantIds?: string[];
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
 }) {
+  voiceParticipantIds = voiceParticipantIds ?? [];
+  const voiceParticipantSet = new Set(voiceParticipantIds);
+
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Players Online">
       <View className="ui-stack-3">
@@ -52,7 +57,12 @@ export function OnlinePlayersSheet({
                   <Text variant="label">{player.initials}</Text>
                 </View>
                 <View className="flex-1">
-                  <Text variant="body">{player.displayName}</Text>
+                  <View className="ui-row items-center gap-2">
+                    <Text variant="body">{player.displayName}</Text>
+                    <View
+                      className={`h-2.5 w-2.5 rounded-full border ${voiceParticipantSet.has(player.userId) ? "bg-green-500 border-green-500" : "bg-transparent border-border-subtle"}`}
+                    />
+                  </View>
                   <Text variant="muted">{locationText(player.location)}</Text>
                 </View>
               </View>

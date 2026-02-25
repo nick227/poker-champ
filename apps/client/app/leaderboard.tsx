@@ -6,9 +6,6 @@ import { ProfileStrip } from "@/components/domain/lobby/ProfileStrip";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
-import { IconButton } from "@/components/base/IconButton";
-import { Icon } from "@/components/base/Icons";
-import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
@@ -16,16 +13,18 @@ import { useProfile } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/auth.store";
 import { useToastStore } from "@/stores/toast.store";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtime } from "@/realtime/useLobbyRealtime";
-import { useVoiceChannelLifecycle } from "@/hooks/useVoiceChannelLifecycle";
-import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoinPolicy";
-import { LOBBY_VOICE_CHANNEL_ID } from "@/voice/constants/channelIds";
-import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
+import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyVoiceControls } from "@/hooks/useLobbyVoiceControls";
+import { LOBBY_CHAT_SCOPE, LOBBY_CHAT_SCOPE_KEY } from "@/constants/lobbyChat";
 import {
   leaderboardService,
   type LeaderboardCategory,
   type LeaderboardEntry,
 } from "@/services/leaderboard.service";
+
+import { BankrollDisplay } from "@/components/domain/lobby/BankrollDisplay";
+import { useBankroll } from "@/hooks/useBankroll";
+import { postEconomyDeposit } from "@/services/post/economy.post";
 
 const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
   { key: "biggest_winner", label: "Winners" },
@@ -71,19 +70,14 @@ export default function LeaderboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
-  const [lobbyRoom, setLobbyRoom] = useState<TableRealtimeRoom | null>(null);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceMuted, setVoiceMuted] = useState(false);
-  const autoJoinAttemptedRef = useRef(false);
   const hasEntriesRef = useRef(false);
+  const voice = useLobbyVoiceControls({ profileUserId: profile.userId });
 
   const {
     onlineTotal,
     onlinePlayers,
     onlineBusy,
     onlineError,
-    transportState,
-    lobbyVoiceParticipantIds,
     chatMessages,
     chatHasMore,
     chatLoading,
@@ -92,9 +86,7 @@ export default function LeaderboardScreen() {
     loadInitialLobbyChat,
     loadOlderLobbyChat,
   } = storeRegistry.use.lobby();
-
-  const { requestOnlinePlayers, send: sendLobby } = useLobbyRealtime({ onReadyRoom: setLobbyRoom });
-  const hadJoinedLobbyVoiceRef = useRef(false);
+  const { requestOnlinePlayers, sendLobby } = useLobbyRealtimeBridge();
 
   const loadLeaderboard = useCallback(async () => {
     if (!token) {
@@ -137,80 +129,12 @@ export default function LeaderboardScreen() {
     void loadLeaderboard();
   }, [loadLeaderboard, refreshNonce]);
 
-  const categoryLabel = useMemo(
-    () => CATEGORY_OPTIONS.find((option) => option.key === category)?.label ?? "Leaderboard",
-    [category],
-  );
-
-  const leaveLobbyVoice = useCallback(() => {
-    if (!hadJoinedLobbyVoiceRef.current) return;
-    hadJoinedLobbyVoiceRef.current = false;
-    sendLobby("LEAVE_LOBBY_VOICE", {});
-  }, [sendLobby]);
-
-  const { controllerRef: lobbyVoiceControllerRef } = useVoiceChannelLifecycle({
-    room: lobbyRoom,
-    channelId: LOBBY_VOICE_CHANNEL_ID,
-    selfUserId: profile.userId,
-    peerIds: voiceEnabled ? lobbyVoiceParticipantIds : [],
-    enabled: voiceEnabled,
-    onLeave: leaveLobbyVoice,
-    leaveOnAppBackground: true,
-    isRealtimeConnected: Boolean(lobbyRoom) && transportState === "CONNECTED",
-  });
-
-  const showVoiceError = useCallback((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err ?? "");
-    const looksPermissionDenied =
-      message.includes("MIC_PERMISSION_DENIED") ||
-      message.includes("NotAllowedError") ||
-      /notallowederror|permission denied|permission/i.test(message.toLowerCase());
-    if (looksPermissionDenied) {
-      useToastStore.getState().show("Microphone permission denied", "danger");
-      return;
-    }
-    useToastStore.getState().show("Voice unavailable. Check microphone permissions.", "danger");
-  }, []);
-
-  const { handleToggleVoice, handleToggleMute } = useVoiceJoinPolicy({
-    controllerRef: lobbyVoiceControllerRef,
-    autoJoinAttemptedRef,
-    voiceEnabled,
-    setVoiceEnabled,
-    voiceMuted,
-    setVoiceMuted,
-    voicePrefReady: true,
-    heroIsSittingOut: false,
-    voiceRoom: lobbyRoom,
-    heroUserId: profile.userId,
-    showVoiceError,
-  });
-
-  useEffect(() => {
-    if (voiceEnabled) {
-      if (!hadJoinedLobbyVoiceRef.current) {
-        hadJoinedLobbyVoiceRef.current = true;
-        sendLobby("JOIN_LOBBY_VOICE", {});
-      }
-    } else if (hadJoinedLobbyVoiceRef.current) {
-      hadJoinedLobbyVoiceRef.current = false;
-      sendLobby("LEAVE_LOBBY_VOICE", {});
-    }
-  }, [voiceEnabled, sendLobby]);
-
   const openOnlineSheet = useCallback(() => {
     setOnlineSheetVisible(true);
     requestOnlinePlayers();
   }, [requestOnlinePlayers]);
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
-  const LOBBY_VOICE_CAP = 8;
-  const lobbyVoiceFull = !voiceEnabled && lobbyVoiceParticipantIds.length >= LOBBY_VOICE_CAP;
-
-  const onLobbyToggleVoice = useCallback(() => {
-    if (lobbyVoiceFull && !voiceEnabled) return;
-    handleToggleVoice();
-  }, [lobbyVoiceFull, voiceEnabled, handleToggleVoice]);
 
   const chatMessagesForOverlay = useMemo(
     () =>
@@ -235,7 +159,7 @@ export default function LeaderboardScreen() {
   );
 
   const chatOverlay = useChatOverlay({
-    scopeKey: "lobby:leaderboard",
+    scopeKey: LOBBY_CHAT_SCOPE_KEY,
     messages: chatMessagesForOverlay,
     onSend: sendLobbyChat,
     onLoadOlder: () => {
@@ -248,42 +172,31 @@ export default function LeaderboardScreen() {
   const onOpenChat = useCallback(() => {
     chatOverlay.setVisible(true);
     if (!chatLoaded && !chatLoading) {
-      void loadInitialLobbyChat();
+      void loadInitialLobbyChat({ scope: LOBBY_CHAT_SCOPE });
     }
   }, [chatOverlay, chatLoaded, chatLoading, loadInitialLobbyChat]);
 
-  const chatBadge = chatOverlay.unseenCount || undefined;
+  const {
+    cents: bankroll,
+    refresh: refreshBankroll,
+  } = useBankroll();
+  const [slotBankroll, setSlotBankroll] = useState(bankroll);
+  
+    const handleDeposit = useCallback(async () => {
+      try {
+        await postEconomyDeposit();
+        await refreshBankroll();
+        useToastStore.getState().show("Deposited $1,000", "success");
+      } catch (e) {
+        useToastStore.getState().show((e as Error).message ?? "Deposit failed", "danger");
+      }
+    }, [refreshBankroll]);
 
-  const profileRightAction = useMemo(
-    () => (
-      <View className="ui-col items-end gap-1">
-        <View className="ui-row items-center gap-2">
-          <IconButton variant="link" icon={<Icon name="chat" />} onPress={onOpenChat} badge={chatBadge} />
-          <VoiceBarControls
-            voiceEnabled={voiceEnabled}
-            voiceMuted={voiceMuted}
-            onToggleVoice={onLobbyToggleVoice}
-            onToggleMute={handleToggleMute}
-            participantCount={lobbyVoiceParticipantIds.length}
-            joinDisabled={lobbyVoiceFull}
-          />
-          <Button variant="link" title={onlineLabel} onPress={openOnlineSheet} />
-        </View>
-      </View>
-    ),
-    [
-      voiceEnabled,
-      voiceMuted,
-      onLobbyToggleVoice,
-      handleToggleMute,
-      lobbyVoiceParticipantIds.length,
-      lobbyVoiceFull,
-      onlineLabel,
-      openOnlineSheet,
-      onOpenChat,
-      chatBadge,
-    ],
-  );
+  useEffect(() => {
+    setSlotBankroll(bankroll);
+  }, [bankroll]);
+
+  const currentBankroll = slotBankroll ?? 0;
 
   return (
     <Screen>
@@ -291,14 +204,21 @@ export default function LeaderboardScreen() {
       <ProfileStrip
         username={profile.username ?? "Player"}
         location={profile.location}
-        rightAction={profileRightAction}
+        onOpenChat={onOpenChat}
+        chatBadge={chatOverlay.unseenCount || undefined}
+        voiceEnabled={voice.voiceEnabled}
+        voiceMuted={voice.voiceMuted}
+        onToggleVoice={voice.onToggleVoice}
+        onToggleMute={voice.onToggleMute}
+        voiceParticipantCount={voice.voiceParticipantCount}
+        voiceJoinDisabled={voice.voiceJoinDisabled}
+        onlineLabel={onlineLabel}
+        onPressOnline={openOnlineSheet}
       />
+      
+      <BankrollDisplay amountCents={currentBankroll} onDeposit={handleDeposit} />
 
       <View className="flex-1 ui-stack-3 m-4">
-        <View className="ui-stack-1 ">
-          <Text variant="h2">Leaderboard</Text>
-          <Text variant="muted">{formatComputedAt(computedAt)}</Text>
-        </View>
 
           <View className="ui-row items-start gap-2 py-1 pr-2 h-[60]">
             {CATEGORY_OPTIONS.map((option) => {
@@ -314,11 +234,6 @@ export default function LeaderboardScreen() {
               );
             })}
           </View>
-
-        <View className="ui-row items-center justify-between">
-          <Text variant="label" className="mb-0">{categoryLabel}</Text>
-          <Text variant="muted">Top 20</Text>
-        </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {loading ? (
@@ -361,6 +276,7 @@ export default function LeaderboardScreen() {
         visible={onlineSheetVisible}
         onClose={() => setOnlineSheetVisible(false)}
         players={onlinePlayers}
+        voiceParticipantIds={voice.voiceParticipantIds}
         loading={onlineBusy}
         error={onlineError}
         onRefresh={requestOnlinePlayers}

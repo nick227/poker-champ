@@ -10,6 +10,8 @@ const LOBBY_VOICE_PARTICIPANTS = "LOBBY_VOICE_PARTICIPANTS";
 
 export type UseLobbyRealtimeOptions = {
   onReadyRoom?: (room: TableRealtimeRoom | null) => void;
+  enabled?: boolean;
+  authHydrated?: boolean;
 };
 
 export function useLobbyRealtime(options?: UseLobbyRealtimeOptions) {
@@ -17,6 +19,8 @@ export function useLobbyRealtime(options?: UseLobbyRealtimeOptions) {
 
   const { send } = useRealtimeChannel({
     scope: "lobby",
+    enabled: options?.enabled,
+    authHydrated: options?.authHydrated,
     onMessage: ({ type, payload }) => {
       if (type === LOBBY_VOICE_PARTICIPANTS) {
         const p = payload as { userIds?: string[]; serverNowTs?: number } | undefined;

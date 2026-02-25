@@ -3,3 +3,4 @@
  * Server must enforce: lobby room only accepts channelId === LOBBY_VOICE_CHANNEL_ID.
  */
 export const LOBBY_VOICE_CHANNEL_ID = "lobby";
+export const LOBBY_VOICE_CAP = 8;

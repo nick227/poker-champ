@@ -105,9 +105,6 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
       <Text variant="h2" className="text-lg">
         Waiting for opponents
       </Text>
-      <Text variant="muted">
-        Invite someone with this table link, or add a bot to start playing now.
-      </Text>
       <View className="ui-row">
         <Button title="Add bot" onPress={actions.openAddBotPicker} />
       </View>
@@ -115,7 +112,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
         <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
           Share this game URL
         </Text>
-        <Text selectable className="text-xs">
+        <Text numberOfLines={1} ellipsizeMode="tail" selectable className="text-xs">
           {shareTableUrl}
         </Text>
       </View>

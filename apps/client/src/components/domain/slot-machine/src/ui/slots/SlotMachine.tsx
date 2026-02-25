@@ -7,6 +7,7 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
 import { formatCents } from "../../engine/format";
 import { DEFAULT_PAYOUT_TIERS, tierForProbability } from "../../engine/tuning";
+import { normalizeReelPositions } from "../../engine/reelMath";
 import { Classic3 } from "../../games/classic3";
 import type { SlotGame, SlotOutcomeKind, SymbolKey } from "../../games/types";
 
@@ -14,6 +15,7 @@ import { useControlledBankroll } from "../../hooks/useControlledBankroll";
 import { useBetTier } from "../../hooks/useBetTier";
 import { useSlotEngine } from "../../hooks/useSlotEngine";
 import { useSpinLock } from "../../hooks/useSpinLock";
+import { useSlotSpin } from "../../hooks/useSlotSpin";
 
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import { Chip } from "../components/Chip";
@@ -160,13 +162,14 @@ export function SlotMachine({
   const engine = useSlotEngine(game);
   const payoutTiers = useMemo(() => game.payoutTiers ?? DEFAULT_PAYOUT_TIERS, [game]);
   const reelLens = useMemo(
-    () => [game.reels[0].length, game.reels[1].length, game.reels[2].length] as const,
-    [game],
+    () => {
+      const lens = [game.reels[0].length, game.reels[1].length, game.reels[2].length] as const;
+      return Object.freeze(lens);
+    },
+    [game.reels[0].length, game.reels[1].length, game.reels[2].length],
   );
 
   const symbols = useMemo(() => ({ ...ASSETS.symbols, ...(symbolMap ?? {}) }), [symbolMap]);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [machineOutput, setMachineOutput] = useState("No Match");
   const y0 = useSharedValue(0);
   const y1 = useSharedValue(0);
   const y2 = useSharedValue(0);
@@ -176,28 +179,14 @@ export function SlotMachine({
   const jackpotPulse = useSharedValue(0);
 
   const reelPosRef = React.useRef<[number, number, number]>([0, 0, 0]);
-  const prevReelLensRef = React.useRef<[number, number, number] | null>(null);
 
   React.useEffect(() => {
-    const prev = prevReelLensRef.current;
-    const sameLens =
-      prev != null &&
-      prev[0] === reelLens[0] &&
-      prev[1] === reelLens[1] &&
-      prev[2] === reelLens[2];
-    if (sameLens) return;
-
-    prevReelLensRef.current = [reelLens[0], reelLens[1], reelLens[2]];
-    const nextPos: [number, number, number] = [
-      reelPosRef.current[0] % reelLens[0],
-      reelPosRef.current[1] % reelLens[1],
-      reelPosRef.current[2] % reelLens[2],
-    ];
+    const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
     reelPosRef.current = nextPos;
     y0.value = getReelOffsetForPosition(reelLens[0], nextPos[0]);
     y1.value = getReelOffsetForPosition(reelLens[1], nextPos[1]);
     y2.value = getReelOffsetForPosition(reelLens[2], nextPos[2]);
-  }, [reelLens[0], reelLens[1], reelLens[2]]);
+  }, [reelLens, y0, y1, y2]);
 
   const reelStyle0 = useAnimatedStyle(() => ({ transform: [{ translateY: y0.value }] }));
   const reelStyle1 = useAnimatedStyle(() => ({ transform: [{ translateY: y1.value }] }));
@@ -207,14 +196,8 @@ export function SlotMachine({
   const winBannerStyle = useAnimatedStyle(() => ({ opacity: 0.55 + winPulse.value * 0.45, transform: [{ scale: 1 + winPulse.value * 0.02 }] }));
   const jackpotBannerStyle = useAnimatedStyle(() => ({ opacity: 0.75 + jackpotPulse.value * 0.25, transform: [{ scale: 1 + jackpotPulse.value * 0.01 }] }));
 
-  const canSpin = useMemo(() => !isSpinning && !lock.locked && bank >= betCents, [isSpinning, lock.locked, bank, betCents]);
-
-  const normalizeReelPositions = useCallback(() => {
-    const nextPos: [number, number, number] = [
-      reelPosRef.current[0] % reelLens[0],
-      reelPosRef.current[1] % reelLens[1],
-      reelPosRef.current[2] % reelLens[2],
-    ];
+  const normalizeReelPositionsCallback = useCallback(() => {
+    const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
     reelPosRef.current = nextPos;
     y0.value = getReelOffsetForPosition(reelLens[0], nextPos[0]);
     y1.value = getReelOffsetForPosition(reelLens[1], nextPos[1]);
@@ -240,7 +223,12 @@ export function SlotMachine({
         getReelOffsetForPosition(reelLens[2], startPos[2] + steps[2]),
       ] as const;
 
-      await new Promise<void>((resolve) => {
+      // MVP Rule: Add timeout safety to prevent soft-locks
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error("Animation timeout")), 2000);
+      });
+
+      const animationPromise = new Promise<void>((resolve) => {
         let completed = 0;
         const onFinish = (reel: 0 | 1 | 2) => {
           reelPosRef.current[reel] = (startPos[reel] + steps[reel]) % reelLens[reel];
@@ -258,77 +246,49 @@ export function SlotMachine({
           if (f) runOnJS(onFinish)(2);
         });
       });
+
+      try {
+        await Promise.race([animationPromise, timeoutPromise]);
+      } catch (error) {
+        console.warn("[slot] Animation timeout or error", error);
+        // Continue with spin even if animation fails
+      }
     },
     [reelLens, y0, y1, y2],
   );
 
-  const cueSmallWin = useCallback(() => {
-    winPulse.value = 0;
-    winPulse.value = withSequence(withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 220 }));
-    try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-  }, [winPulse]);
+  const { machineOutput, handleSpin } = useSlotSpin({
+    bank,
+    betCents,
+    engine,
+    lock,
+    onSpinComplete,
+    payoutTiers,
+    setBank,
+    spinTo,
+    normalizeReelPositions: normalizeReelPositionsCallback,
+    pressScale,
+    winPulse,
+    jackpotPulse,
+  });
 
-  const cueJackpot = useCallback(() => {
-    jackpotPulse.value = 0;
-    winPulse.value = 0;
-    jackpotPulse.value = withSequence(withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 520, easing: Easing.inOut(Easing.quad) }));
-    winPulse.value = withSequence(withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 480 }));
-    try {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
-  }, [jackpotPulse, winPulse]);
+  const canSpin = useMemo(() => !lock.locked && bank >= betCents, [lock.locked, bank, betCents]);
 
-  const handleSpin = useCallback(async () => {
-    if (isSpinning || lock.locked || bank < betCents) return;
-
-    setIsSpinning(true);
-    lock.lock();
-    setMachineOutput("Spinning...");
-    normalizeReelPositions();
-
-    emitSoundEvent("slot.pull");
-    emitSoundEvent("slot.reelSpin");
-
-    try {
-      void Haptics.selectionAsync();
-    } catch {}
-    pressScale.value = withSequence(withTiming(0.97, { duration: 50, easing: Easing.out(Easing.quad) }), withTiming(1.0, { duration: 90, easing: Easing.out(Easing.quad) }));
-
-    try {
-      const { stops, result, winUnits, isJackpot, outcomeKind, matchedSymbol, probability } = engine.spin();
-      await spinTo(stops);
-      emitSoundEvent("slot.reelStop");
-
-      const win = winUnits * betCents;
-      setBank((b) => Math.max(0, b - betCents + win));
-      const combo = result.join("-");
-      if (win > 0) {
-        emitSoundEvent("slot.win");
-        const tierLabel = tierForProbability(probability, isJackpot, payoutTiers).label;
-        const odds = toOddsText(probability);
-        const outcome = outcomeLabel(outcomeKind, combo, matchedSymbol);
-        setMachineOutput(`${tierLabel}: ${outcome} pays ${formatCents(win)} (${odds})`);
-        isJackpot ? cueJackpot() : cueSmallWin();
-      } else {
-        setMachineOutput(`No Match`);
-      }
-
-      if (onSpinComplete) onSpinComplete(win);
-    } catch (error) {
-      console.warn("[slot] spin aborted", error);
-      setMachineOutput("Spin Failed");
-    } finally {
-      setIsSpinning(false);
-      lock.unlock();
+  const jackpotValueCents = useMemo(() => {
+    if (jackpotBannerCents !== undefined) return jackpotBannerCents;
+    
+    const jackpotKey = game.jackpotKey;
+    const paytable = game.paytable;
+    
+    if (!jackpotKey || !paytable || !(jackpotKey in paytable)) {
+      console.warn(`[slot] Jackpot key "${jackpotKey}" not found in paytable`);
+      return 0;
     }
-  }, [bank, betCents, cueJackpot, cueSmallWin, engine, isSpinning, lock, normalizeReelPositions, onSpinComplete, payoutTiers, pressScale, setBank, spinTo]);
-
-  const jackpotValueCents = useMemo(
-    () => jackpotBannerCents ?? (game.paytable[game.jackpotKey] ?? 0) * betCents,
-    [betCents, game.jackpotKey, game.paytable, jackpotBannerCents],
-  );
+    
+    // MVP Rule: paytable[jackpotKey] is a multiplier (e.g., 100x bet)
+    const jackpotMultiplier = paytable[jackpotKey];
+    return jackpotMultiplier * betCents;
+  }, [betCents, game.jackpotKey, game.paytable, jackpotBannerCents]);
 
   return (
     <View style={s.root}>
@@ -337,7 +297,7 @@ export function SlotMachine({
           <View style={s.machine}>
             <JackpotBanner title="777 Jackpot" value={formatCents(jackpotValueCents)} animatedStyle={jackpotBannerStyle} />
 
-            <MarqueeLights active={isSpinning} />
+            <MarqueeLights active={lock.locked} />
 
             <View style={s.reelShell}>
               <View style={s.reelsRow}>
@@ -354,7 +314,7 @@ export function SlotMachine({
 
             </View>
 
-            <MarqueeLights active={isSpinning} />
+            <MarqueeLights active={lock.locked} />
 
             <WinBanner text={machineOutput} animatedStyle={winBannerStyle} />
 

@@ -24,8 +24,6 @@
 ├────────────────────────────┤
 │ Avatar | Username | Location│  — profile strip
 ├────────────────────────────┤
-│ [My Account] [Deposit]      │  — primary CTAs
-├────────────────────────────┤
 │ Bankroll*                  │  — prominent balance
 ├────────────────────────────┤
 │ Current Status             │  — active games | scheduled games list

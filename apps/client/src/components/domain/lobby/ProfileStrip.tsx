@@ -1,28 +1,110 @@
-import { View } from "react-native";
-import type { ReactNode } from "react";
+import { View, Pressable } from "react-native";
+import { useCallback } from "react";
 import { Text } from "@/components/base/Text";
+import { Button } from "@/components/base/Button";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
+import { VoiceBarControls } from "@/components/domain/voice/VoiceBarControls";
+import { TableNotificationBell } from "@/components/domain/table/TableNotificationBell";
+import { router } from "expo-router";
 
 export function ProfileStrip({
   username,
   location,
-  rightAction,
+  onOpenChat,
+  chatBadge,
+  voiceEnabled = false,
+  voiceMuted = false,
+  onToggleVoice,
+  onToggleMute,
+  voiceParticipantCount = 0,
+  voiceJoinDisabled = false,
+  onlineLabel = "Online",
+  onPressOnline,
+  tableNotificationCount,
+  onTableNotifications,
 }: {
   username: string;
   location?: string;
-  rightAction?: ReactNode;
+  onOpenChat?: () => void;
+  chatBadge?: number;
+  voiceEnabled?: boolean;
+  voiceMuted?: boolean;
+  onToggleVoice?: () => void;
+  onToggleMute?: () => void;
+  voiceParticipantCount?: number;
+  voiceJoinDisabled?: boolean;
+  onlineLabel?: string;
+  onPressOnline?: () => void;
+  tableNotificationCount?: number;
+  onTableNotifications?: () => void;
 }) {
+  const goSettings = useCallback(() => {
+    router.push("/settings");
+  }, []);
+
   return (
-    <View className="ui-section ui-row items-center justify-between ui-inline-3">
+    <View className="pt-4 ui-row items-center justify-between ui-inline-3">
       <View className="ui-row items-center ui-inline-3 flex-1">
-        <View className="h-10 w-10 rounded-full ui-surface ui-center border border-border-subtle">
-          <Text numberOfLines={1} variant="body">{username.slice(0, 1).toUpperCase()}</Text>
-        </View>
-        <View className="flex-1">
-          <Text numberOfLines={1} variant="body">{username}</Text>
-          {location ? <Text numberOfLines={1} variant="muted">{location}</Text> : null}
+
+        {/* Avatar */}
+        <Pressable
+          onPress={goSettings}
+          className="h-10 w-10 rounded-full ui-surface ui-center border border-border-subtle"
+        >
+          <Text numberOfLines={1} variant="body">
+            {username.slice(0, 1).toUpperCase()}
+          </Text>
+        </Pressable>
+
+        {/* Username + Location */}
+        <Pressable
+          onPress={goSettings}
+          className="flex-1"
+        >
+          <Text numberOfLines={1} variant="body">
+            {username}
+          </Text>
+          {location ? (
+            <Text numberOfLines={1} variant="muted">
+              {location}
+            </Text>
+          ) : null}
+        </Pressable>
+
+      </View>
+
+      <View className="ui-col items-end gap-1">
+        <View className="ui-row items-center gap-2">
+          <IconButton
+            variant="link"
+            icon={<Icon name="chat" />}
+            onPress={onOpenChat ?? (() => {})}
+            disabled={!onOpenChat}
+            badge={chatBadge}
+          />
+          <VoiceBarControls
+            voiceEnabled={voiceEnabled}
+            voiceMuted={voiceMuted}
+            onToggleVoice={onToggleVoice ?? (() => {})}
+            onToggleMute={onToggleMute ?? (() => {})}
+            participantCount={voiceParticipantCount}
+            joinDisabled={voiceJoinDisabled || !onToggleVoice}
+          />
+          <Button
+            variant="link"
+            title={onlineLabel}
+            onPress={onPressOnline ?? (() => {})}
+            disabled={!onPressOnline}
+          />
+          {onTableNotifications && (
+            <TableNotificationBell
+              count={tableNotificationCount || 0}
+              onPress={onTableNotifications}
+            />
+          )}
         </View>
       </View>
-      {rightAction ? <View>{rightAction}</View> : null}
     </View>
   );
 }
