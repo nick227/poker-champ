@@ -271,7 +271,7 @@ export function ActionBar({
       </View>
       {showReconnectingOverlay && (
         <View pointerEvents="auto" className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg">
-          <Text variant="body" className="text-white text-center" allowFontScaling={false}>{TABLE.reconnecting}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" variant="body" className="text-white text-center" allowFontScaling={false}>{TABLE.reconnecting}</Text>
         </View>
       )}
     </View>

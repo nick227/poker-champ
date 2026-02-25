@@ -177,6 +177,20 @@ export class HandLifecycleService {
     return sum;
   }
 
+  private assertHandResultPayoutsOrThrow(
+    payoutsByUserId: Record<string, number>,
+    potCents: number,
+    context: string,
+  ): void {
+    const payoutSum = Object.values(payoutsByUserId).reduce((sum, amount) => sum + amount, 0);
+    if (payoutSum !== potCents) {
+      throw new PokerError(
+        "BAD_STATE",
+        `${context}: HAND_RESULT_PAYOUTS_MUST_EQUAL_POT (payouts=${payoutSum}, pot=${potCents}, hand=${this.deps.state.handId}).`,
+      );
+    }
+  }
+
   private shouldAssertLedgerForCurrentHand(): boolean {
     return !this.currentHandIncludesBotParticipants;
   }
@@ -499,7 +513,10 @@ export class HandLifecycleService {
     beginRound(state);
     state.toActSeat = findNextToActSeat(state, state.dealerSeat);
     if (state.toActSeat === -1) {
-      throw new PokerError("BAD_STATE", "No seat needs action after street transition.");
+      // Churn windows can transition streets with no actionable seat (all-in/folded/abandoned mix).
+      // In this case run out directly to showdown instead of surfacing BAD_STATE.
+      state.runoutMode = "STAGED";
+      return this.finishHandShowdownWithSidePots();
     }
 
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });
@@ -549,7 +566,7 @@ export class HandLifecycleService {
       (p) => p.status === "ACTIVE" || p.status === "ALL_IN",
     );
     const notFoldedOrOut = [...state.playersById.values()].filter(
-      (p) => p.status !== "FOLDED" && p.status !== "OUT",
+      (p) => p.status !== "FOLDED" && p.status !== "OUT" && p.status !== "ABANDONED",
     );
 
     // ── DEFENSIVE FALLBACK: no ACTIVE/ALL_IN players remain ──────────────────
@@ -557,6 +574,7 @@ export class HandLifecycleService {
     if (remaining.length === 0) {
       let winner: typeof notFoldedOrOut[0];
       let creditAmount: number;
+      const payoutsByUserId: Record<string, number> = {};
 
       if (notFoldedOrOut.length === 1) {
         winner = notFoldedOrOut[0]!;
@@ -564,7 +582,7 @@ export class HandLifecycleService {
         // Deterministic: pick earliest seat left of dealer among survivors
         winner = seatOrderLeftOfDealer(state)
           .map((id) => state.playersById.get(id))
-          .find((p) => p && p.status !== "FOLDED" && p.status !== "OUT")!;
+          .find((p) => p && p.status !== "FOLDED" && p.status !== "OUT" && p.status !== "ABANDONED")!;
       }
 
       // Step 1: Return any uncalled chips (prevents pot inflation)
@@ -573,6 +591,7 @@ export class HandLifecycleService {
         const uncalledPlayer = state.playersById.get(uncalledPlayerId);
         if (uncalledPlayer) {
           await this.deps.settlementService.creditRefundToPlayer(uncalledPlayer, uncalledCents, "UNCALLED_BET_RETURN");
+          payoutsByUserId[uncalledPlayer.id] = (payoutsByUserId[uncalledPlayer.id] ?? 0) + uncalledCents;
         }
       }
 
@@ -580,17 +599,19 @@ export class HandLifecycleService {
       const disbursedCents = this.deps.settlementService.getCurrentHandPotDisbursedCents();
       creditAmount = state.potCents - disbursedCents;
       await this.deps.settlementService.creditPayoutToPlayer(winner, creditAmount);
+      payoutsByUserId[winner.id] = (payoutsByUserId[winner.id] ?? 0) + creditAmount;
 
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_POST_PAYOUT", true);
       await this.deps.applyDisconnectedAutoActionCapForHand();
       await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_PRE_FINALIZE", true);
+      this.assertHandResultPayoutsOrThrow(payoutsByUserId, state.potCents, "HAND_END_LAST_STANDING_DEFENSIVE");
       this.deps.setLastHandResult({
         handId: state.handId,
         reason: "LAST_PLAYER",
         potCents: state.potCents,
         winnerId: winner.id,
-        payoutsByUserId: { [winner.id]: creditAmount },
+        payoutsByUserId,
         board: [...state.board],
       });
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE", true);
@@ -599,9 +620,9 @@ export class HandLifecycleService {
         kind: "HAND_ENDED",
         reason: "DEFENSIVE_FALLBACK",
         outcome: {
-          potCents: creditAmount,
+          potCents: state.potCents,
           winnerId: winner.id,
-          payoutsByUserId: { [winner.id]: creditAmount },
+          payoutsByUserId,
         },
       });
       plans.push({ kind: "TRANSITION_TO_WAITING" });
@@ -624,6 +645,7 @@ export class HandLifecycleService {
 
     // ── NORMAL LAST-STANDING: winner is the one remaining ACTIVE/ALL_IN player ──
     const winner = remaining[0]!;
+    const payoutsByUserId: Record<string, number> = {};
 
     // Step 1: Identify and return uncalled chips before touching the pot.
     // Example: A bets 1000, B (100 chips) folds → A's 900 is uncalled and must be returned.
@@ -636,6 +658,7 @@ export class HandLifecycleService {
           "Returning uncalled bet before last-standing payout",
         );
         await this.deps.settlementService.creditRefundToPlayer(uncalledPlayer, uncalledCents, "UNCALLED_BET_RETURN");
+        payoutsByUserId[uncalledPlayer.id] = (payoutsByUserId[uncalledPlayer.id] ?? 0) + uncalledCents;
       }
     }
 
@@ -644,18 +667,20 @@ export class HandLifecycleService {
     const disbursedCents = this.deps.settlementService.getCurrentHandPotDisbursedCents();
     const creditAmount = state.potCents - disbursedCents;
     await this.deps.settlementService.creditPayoutToPlayer(winner, creditAmount);
+    payoutsByUserId[winner.id] = (payoutsByUserId[winner.id] ?? 0) + creditAmount;
 
     // Step 3: Assert 100% of the pot is cleared.
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_POST_PAYOUT", true);
     await this.deps.applyDisconnectedAutoActionCapForHand();
     await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_PRE_FINALIZE", true);
+    this.assertHandResultPayoutsOrThrow(payoutsByUserId, state.potCents, "HAND_END_LAST_STANDING");
     this.deps.setLastHandResult({
       handId: state.handId,
       reason: "LAST_PLAYER",
       potCents: state.potCents,
       winnerId: winner.id,
-      payoutsByUserId: { [winner.id]: creditAmount },
+      payoutsByUserId,
       board: [...state.board],
     });
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING", true);
@@ -666,7 +691,7 @@ export class HandLifecycleService {
       outcome: {
         potCents: state.potCents,
         winnerId: winner.id,
-        payoutsByUserId: { [winner.id]: creditAmount },
+        payoutsByUserId,
       },
     });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
@@ -823,12 +848,14 @@ export class HandLifecycleService {
 
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
     await this.deps.settlementService.finalizePersistedHand("SHOWDOWN");
+    const payoutsByUserId = Object.fromEntries(payoutsEntries);
+    this.assertHandResultPayoutsOrThrow(payoutsByUserId, state.potCents, "HAND_END_SHOWDOWN");
     this.deps.setLastHandResult({
       handId: state.handId,
       reason: "SHOWDOWN",
       potCents: state.potCents,
       winnerId: displayWinnerId,
-      payoutsByUserId: Object.fromEntries(payoutsEntries),
+      payoutsByUserId,
       board,
       showdownHoleCardsByUserId,
       winnerHoleCards: primaryWinnerCards?.length === 2 ? primaryWinnerCards : undefined,
@@ -841,7 +868,7 @@ export class HandLifecycleService {
       outcome: { 
         potCents: state.potCents, 
         winnerId: displayWinnerId, 
-        payoutsByUserId: Object.fromEntries(payoutsEntries) 
+        payoutsByUserId
       } 
     });
     plans.push({ kind: "TRANSITION_TO_WAITING" });

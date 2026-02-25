@@ -19,7 +19,7 @@ export type SidePot = {
 export function buildSidePots(playersAll: PlayerState[], eligibleAtShowdown: PlayerState[]): SidePot[] {
   const contributors = playersAll
     .filter(p => p.committedCents > 0 && p.status !== "OUT")
-    .map(p => ({ id: p.id, committed: p.committedCents, folded: p.status === "FOLDED" || p.status === "ABANDONED" }))
+    .map(p => ({ id: p.id, committed: p.committedCents }))
     .sort((a, b) => a.committed - b.committed);
 
   if (contributors.length === 0) return [];
@@ -40,6 +40,13 @@ export function buildSidePots(playersAll: PlayerState[], eligibleAtShowdown: Pla
     const eligibleIds = inThisAndAbove
       .map(c => c.id)
       .filter(id => eligibleSet.has(id));
+    if (eligibleIds.length === 0) {
+      throw new Error(
+        `SIDE_POT_WITH_NO_ELIGIBLE_WINNERS level=${level} amount=${slice} contributors=${inThisAndAbove
+          .map(c => c.id)
+          .join(",")}`,
+      );
+    }
 
     pots.push({
       levelCents: level,

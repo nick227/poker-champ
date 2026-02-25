@@ -74,6 +74,34 @@ import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
 import { HandContext } from "./dealer/HandContext.js";
 import { NEXT_HAND_DELAY_MS } from "./dealer/timing.js";
 import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
+
+export type DealerDiagnosticType =
+  | "QUEUE_RECOVERY_AFTER_FAILURE"
+  | "ACTION_REJECTED"
+  | "ACTION_FAILED"
+  | "LIFECYCLE_DEFERRED_REMOVAL"
+  | "STALL_NO_ELIGIBLE_ACTOR"
+  | "QUEUED_AUTO_ACTION_STALE_DISCARDED"
+  | "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED"
+  | "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED"
+  | "QUEUED_AUTO_ACTION_FAILED";
+
+export type DealerDiagnosticEvent = {
+  level: "warn" | "error";
+  type: DealerDiagnosticType;
+  message: string;
+  code?: string;
+  context?: Record<string, unknown>;
+};
+
+type QueuedTurnToken = {
+  handId: string;
+  street: PokerState["street"];
+  handActionSeq: number;
+  toActSeat: number;
+  toActUserId: string;
+  actorSeat: number;
+};
 /**
  * Dealer: table state machine and action gateway.
  *
@@ -89,6 +117,33 @@ import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
  */
 
 export class Dealer {
+  private diagnosticListeners: Set<(event: DealerDiagnosticEvent) => void> = new Set();
+
+  addDiagnosticListener(
+    listener: (event: DealerDiagnosticEvent) => void,
+  ): () => void {
+    this.diagnosticListeners.add(listener);
+    return () => this.diagnosticListeners.delete(listener);
+  }
+
+  private emitDiagnostic(event: DealerDiagnosticEvent): void {
+    for (const listener of this.diagnosticListeners) {
+      try {
+        listener(event);
+      } catch {}
+    }
+  }
+
+  private buildDiagnosticContext(context?: Record<string, unknown>): Record<string, unknown> {
+    return {
+      handId: this.state.handId ?? null,
+      street: this.state.street,
+      toActSeat: this.state.toActSeat,
+      handActionSeq: this.state.handActionSeq,
+      ...context,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // CORE STATE & SERVICE DEPENDENCIES
   // ---------------------------------------------------------------------------
@@ -121,6 +176,7 @@ export class Dealer {
   private pendingActionCount = 0;
   private readonly maxQueueDepth: number;
   private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
+  private disposed = false;
 
   // ---------------------------------------------------------------------------
   // CONSTRUCTOR - SERVICE WIRING & INITIALIZATION
@@ -290,7 +346,6 @@ export class Dealer {
 
   async handleConsentedLeave(userId: string) {
     await this.enqueueSerializedStateMutation(async () => {
-      await this.forceFoldForLeave(userId);
       await this.removePlayerInternal(userId, { cashOutAfterRemoval: true });
     });
   }
@@ -336,6 +391,25 @@ export class Dealer {
     });
   }
 
+  /**
+   * Test-only hook to advance WAITING -> next hand using the normal start-hand pathway.
+   * Guarded so production callers cannot trigger it.
+   */
+  async forceAdvanceToNextHandForTest(): Promise<void> {
+    const enabled = process.env.NODE_ENV === "test" || process.env.ENABLE_DEALER_TEST_HOOKS === "1";
+    if (!enabled) {
+      throw new Error("forceAdvanceToNextHandForTest is disabled outside test mode");
+    }
+    await this.enqueueSerializedStateMutation(async () => {
+      if (this.state.street !== "WAITING") {
+        throw new Error(`forceAdvanceToNextHandForTest requires terminal hand state (street=WAITING, got=${this.state.street})`);
+      }
+      this.nextHandScheduled = false;
+      this.state.nextHandAtTs = 0;
+      await this.startHand();
+    });
+  }
+
   async kickUser(userId: string, reason: string) {
     const client = this.clientsByUserId.get(userId);
     if (client) {
@@ -365,6 +439,12 @@ export class Dealer {
       .catch((err) => {
         if (!this.isSkippableQueuedActionError(err)) {
           logger.warn({ err }, "Recovering dealer queue after prior failure before player action");
+          this.emitDiagnostic({
+            level: "warn",
+            type: "QUEUE_RECOVERY_AFTER_FAILURE",
+            message: "Recovering dealer queue after prior failure before player action",
+            context: this.buildDiagnosticContext(),
+          });
         }
       })
       .then(async () => {
@@ -395,8 +475,21 @@ export class Dealer {
           } catch (err) {
             if (err instanceof PokerError) {
               logger.warn({ err, userId, action: msg.action, code: err.code }, "Action rejected");
+              this.emitDiagnostic({
+                level: "warn",
+                type: "ACTION_REJECTED",
+                message: "Action rejected",
+                code: err.code,
+                context: this.buildDiagnosticContext({ userId, action: msg.action }),
+              });
             } else {
               logger.error({ err, userId, action: msg.action }, "Action failed");
+              this.emitDiagnostic({
+                level: "error",
+                type: "ACTION_FAILED",
+                message: "Action failed",
+                context: this.buildDiagnosticContext({ userId, action: msg.action }),
+              });
             }
             throw err;
           }
@@ -546,6 +639,10 @@ export class Dealer {
         case "SCHEDULE_NEXT_HAND":
           this.scheduleNextHand(plan.reason, plan.delayMs ?? 0);
           break;
+        case "HAND_ENDED":
+          // Currently no action needed - outcome data is already in lastHandResult
+          // This case exists for future extensibility and to prevent silent ignoring
+          break;
       }
     }
   }
@@ -555,6 +652,14 @@ export class Dealer {
       switch (plan.kind) {
         case "EMIT_SNAPSHOT":
           this.sendTableSnapshotToAll(plan.reason, plan.actionId);
+          break;
+        case "LIFECYCLE_DEFERRED_REMOVAL":
+          this.emitDiagnostic({
+            level: "warn",
+            type: "LIFECYCLE_DEFERRED_REMOVAL",
+            message: "Lifecycle removal deferred until safe boundary",
+            context: this.buildDiagnosticContext({ userId: plan.userId, reason: plan.reason }),
+          });
           break;
         case "MAYBE_AUTOMATE_TURN":
           this.maybeActForBot();
@@ -627,18 +732,24 @@ export class Dealer {
       this.sendTableSnapshotToAll("AUTO_TRANSITION");
 
       setTimeout(() => {
-        this.nextHandScheduled = false;
+        if (this.disposed) return;
+        
         this.state.nextHandAtTs = 0;
 
         const seated = [...this.state.playersById.values()]
           .filter(p => p.seat >= 0 && p.status !== "OUT");
 
         if (this.state.street === "WAITING" && seated.length >= 2) {
-          this.enqueueSerializedStateMutation(() => this.startHand()).catch((err) => {
+          this.enqueueSerializedStateMutation(() => {
+            this.nextHandScheduled = false;
+            return this.startHand();
+          }).catch((err) => {
+            this.nextHandScheduled = false;
             logger.error({ err, reason }, "Failed to auto-start next hand");
           });
         } else {
           // If we still cannot start (e.g. players left), ensure clients know we are WAITING
+          this.nextHandScheduled = false;
           this.sendTableSnapshotToAll("AUTO_TRANSITION");
         }
       }, countdownMs);
@@ -756,29 +867,135 @@ export class Dealer {
   }
 
   private enqueueInternalAction(userId: string, payload: ActionPayload, delayMs = 0): void {
+    const turnToken = this.captureTurnToken(userId);
     this.actionQueue = this.actionQueue.then(async () => {
       if (delayMs > 0) {
         await new Promise((r) => setTimeout(r, delayMs));
+      }
+
+      const staleReason = this.getQueuedTurnTokenStaleReason(turnToken);
+      if (staleReason) {
+        this.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+          message: "Queued auto-action discarded due to stale turn token",
+          context: this.buildDiagnosticContext({
+            userId,
+            action: payload.action,
+            staleReason,
+            token: turnToken ?? null,
+          }),
+        });
+        return;
       }
 
       // Skip auto-action if a human reconnected in the meantime
       const p = this.state.playersById.get(userId);
       if (p && p.kind !== "BOT" && p.connected) {
         logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
+        this.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
+          message: "Queued auto-action skipped because player reconnected",
+          context: this.buildDiagnosticContext({ userId, action: payload.action }),
+        });
         return;
       }
 
-      await this._handleAction(userId, payload, "AUTO");
+      const eligibilityError = this.getQueuedAutoActionIneligibleReason(userId);
+      if (eligibilityError) {
+        this.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
+          message: "Queued auto-action discarded because actor is ineligible",
+          context: this.buildDiagnosticContext({
+            userId,
+            action: payload.action,
+            reason: eligibilityError,
+          }),
+        });
+        return;
+      }
+
+      const normalized = this.normalizeQueuedAutoAction(userId, payload);
+      if (!normalized) {
+        this.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
+          message: "Queued auto-action discarded because no legal action options were available",
+          context: this.buildDiagnosticContext({ userId, action: payload.action }),
+        });
+        return;
+      }
+      await this._handleAction(userId, normalized, "AUTO");
     }).catch((err) => {
       if (this.isSkippableQueuedActionError(err)) {
         logger.warn(
           { err, userId, action: payload.action, street: this.state.street },
           "Queued auto-action skipped after state changed",
         );
+        const code = err instanceof PokerError ? err.code : undefined;
+        this.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+          message: "Queued auto-action skipped after state changed",
+          code,
+          context: this.buildDiagnosticContext({ userId, action: payload.action }),
+        });
         return;
       }
       logger.error({ err, userId, action: payload.action }, "Queued auto-action failed");
+      const code = err instanceof PokerError ? err.code : undefined;
+      this.emitDiagnostic({
+        level: "error",
+        type: "QUEUED_AUTO_ACTION_FAILED",
+        message: "Queued auto-action failed",
+        code,
+        context: this.buildDiagnosticContext({ userId, action: payload.action }),
+      });
     });
+  }
+
+  private captureTurnToken(userId: string): QueuedTurnToken | null {
+    const handId = this.state.handId;
+    const toActSeat = this.state.toActSeat;
+    const toActUserId = this.state.seats[toActSeat];
+    const actor = this.state.playersById.get(userId);
+    if (!handId || !toActUserId || !actor) return null;
+    return {
+      handId,
+      street: this.state.street,
+      handActionSeq: this.state.handActionSeq,
+      toActSeat,
+      toActUserId,
+      actorSeat: actor.seat,
+    };
+  }
+
+  private getQueuedTurnTokenStaleReason(token: QueuedTurnToken | null): string | null {
+    if (!token) return "MISSING_ENQUEUE_TURN_TOKEN";
+    if (this.state.handId !== token.handId) return "HAND_ID_CHANGED";
+    if (this.state.street !== token.street) return "STREET_CHANGED";
+    if (this.state.handActionSeq !== token.handActionSeq) return "HAND_ACTION_SEQ_CHANGED";
+    if (this.state.toActSeat !== token.toActSeat) return "TO_ACT_SEAT_CHANGED";
+    const currentToActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    if (currentToActUserId !== token.toActUserId) return "TO_ACT_USER_CHANGED";
+    return null;
+  }
+
+  private getQueuedAutoActionIneligibleReason(userId: string): string | null {
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") {
+      return `STREET_NOT_ACTIONABLE:${this.state.street}`;
+    }
+    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+      return "BETTING_ROUND_CLOSED";
+    }
+    const player = this.state.playersById.get(userId);
+    if (!player) return "PLAYER_NOT_FOUND";
+    if (player.status !== "ACTIVE") return `PLAYER_NOT_ACTIVE:${player.status}`;
+    if (!player.needsAction) return "PLAYER_DOES_NOT_NEED_ACTION";
+    if (player.seat !== this.state.toActSeat) return `PLAYER_NOT_TO_ACT:seat=${player.seat};toAct=${this.state.toActSeat}`;
+    return null;
   }
 
   private isSkippableQueuedActionError(err: unknown): boolean {
@@ -795,9 +1012,18 @@ export class Dealer {
       .catch((err) => {
         if (!this.isSkippableQueuedActionError(err)) {
           logger.warn({ err }, "Recovering dealer queue after prior failure");
+          this.emitDiagnostic({
+            level: "warn",
+            type: "QUEUE_RECOVERY_AFTER_FAILURE",
+            message: "Recovering dealer queue after prior failure",
+            context: this.buildDiagnosticContext(),
+          });
         }
       })
-      .then(work);
+      .then(() => {
+        if (this.disposed) return;
+        return work();
+      });
     this.actionQueue = queued;
     return queued;
   }
@@ -823,6 +1049,12 @@ export class Dealer {
     }
   }
 
+  /** Call when room is being destroyed to prevent timeout callbacks on dead instances */
+  dispose(): void {
+    this.disposed = true;
+    this.stopDisconnectSweep();
+  }
+
   private async sweepDisconnectDeadlines(): Promise<void> {
     const now = Date.now();
     const toAbandon: string[] = [];
@@ -839,6 +1071,9 @@ export class Dealer {
     }
     for (const userId of toAbandon) {
       try {
+        // Note: markAbandoned calls enqueueSerializedStateMutation which chains onto this.actionQueue.
+        // This works correctly because the new work runs after the current sweep completes.
+        // Do not "simplify" this to a direct call or it could introduce a deadlock.
         await this.markAbandoned(userId);
       } catch (err) {
         logger.warn({ err, userId }, "disconnect sweep markAbandoned failed");
@@ -853,6 +1088,52 @@ export class Dealer {
 
   private sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string) {
     this.snapshotService.emitToAll(reason, actionId);
+  }
+
+  private normalizeQueuedAutoAction(userId: string, payload: ActionPayload): ActionPayload | null {
+    const options = this.actionOptionsService.buildHeroActionOptions(this.state, userId);
+    if (!options) return null;
+
+    const normalizedRaiseAmount = (inputAmount: number | undefined): number => {
+      const min = options.minRaiseTo ?? options.maxRaiseTo ?? 0;
+      const max = options.maxRaiseTo ?? min;
+      const proposed = inputAmount ?? min;
+      return Math.max(min, Math.min(max, proposed));
+    };
+
+    const isLegal = (() => {
+      switch (payload.action) {
+        case "FOLD":
+          return options.canFold;
+        case "CHECK":
+          return options.canCheck;
+        case "CALL":
+          return options.canCall;
+        case "ALL_IN":
+          return options.canAllIn;
+        case "BET":
+          return options.canBet;
+        case "RAISE":
+          return options.canRaise;
+        default:
+          return false;
+      }
+    })();
+
+    if (isLegal) {
+      if (payload.action === "BET" || payload.action === "RAISE") {
+        return { action: payload.action, amountCents: normalizedRaiseAmount(payload.amountCents) };
+      }
+      return payload;
+    }
+
+    if (options.canCheck) return { action: "CHECK" };
+    if (options.canCall) return { action: "CALL" };
+    if (options.canFold) return { action: "FOLD" };
+    if (options.canAllIn) return { action: "ALL_IN" };
+    if (options.canBet) return { action: "BET", amountCents: normalizedRaiseAmount(undefined) };
+    if (options.canRaise) return { action: "RAISE", amountCents: normalizedRaiseAmount(undefined) };
+    return null;
   }
 
 }

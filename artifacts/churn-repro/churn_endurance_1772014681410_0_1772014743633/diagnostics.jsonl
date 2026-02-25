@@ -1,0 +1,1 @@
+{"seq":20,"t":29826,"type":"LIFECYCLE_DEFERRED_REMOVAL","level":"warn","code":null,"message":"Lifecycle removal deferred until safe boundary","context":{"handId":"hand_Yney-d1enI","street":"PREFLOP","toActSeat":0,"handActionSeq":1,"userId":"u2","reason":"LEAVE"}}

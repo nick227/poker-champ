@@ -187,4 +187,20 @@ describe("side-pot builder cases", () => {
     expect(pots[1].eligiblePlayerIds.sort()).toEqual(["B", "C"]);
     assertAllInvariants([A, B, C], [A, B, C], pots);
   });
+
+  it("throws when a money-bearing side pot has no eligible winners", () => {
+    const A = p("A", 100, "ALL_IN");
+    const B = p("B", 200, "ALL_IN");
+    const C = p("C", 200, "ALL_IN");
+
+    expect(() => buildSidePots([A, B, C], [A])).toThrow(/SIDE_POT_WITH_NO_ELIGIBLE_WINNERS/);
+  });
+
+  it("throws when eligibleAtShowdown is empty but committed chips exist", () => {
+    const A = p("A", 100, "ALL_IN");
+    const B = p("B", 200, "ALL_IN");
+    const C = p("C", 300, "ALL_IN");
+
+    expect(() => buildSidePots([A, B, C], [])).toThrow(/SIDE_POT_WITH_NO_ELIGIBLE_WINNERS/);
+  });
 });

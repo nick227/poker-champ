@@ -103,7 +103,7 @@ export function countActiveHumanPlayers(state: PokerState): number {
 export function countNotFoldedPlayers(state: PokerState): number {
   let count = 0;
   for (const player of state.playersById.values()) {
-    if (player.status !== "FOLDED" && player.status !== "OUT") count++;
+    if (player.status !== "FOLDED" && player.status !== "OUT" && player.status !== "ABANDONED") count++;
   }
   return count;
 }

@@ -101,7 +101,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
   const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
   const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
   const emptyOpponentsState = showEmptyOpponentsState ? (
-    <View className="rounded-xl border border-border-subtle bg-panel/80 p-4 gap-y-3">
+    <View className="p-4 gap-y-3 mt-2">
       <Text variant="h2" className="text-lg">
         Waiting for opponents
       </Text>

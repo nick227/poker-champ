@@ -107,7 +107,7 @@ export function TableSceneShell({
         <View
           collapsable={false}
           style={layoutStyles.titleSection}
-          className={cx("ui-stack-1 justify-center", titleSectionClassName)}
+          className={cx("ui-stack-1 justify-center align-items", titleSectionClassName)}
         >
           <Text style={{ fontSize: 24, textAlign: "center", paddingHorizontal: 56 }} variant="h1" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
             {tableName}
@@ -139,7 +139,7 @@ export function TableSceneShell({
             className="table-opponent-strip"
           >
             {opponents.length === 0 && opponentStripEmptyState ? (
-              <View className="px-3 py-2">
+              <View className="opponent-strip-empty-state">
                 {opponentStripEmptyState}
               </View>
             ) : (

@@ -1,5 +1,8 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { CardBackPattern } from "./CardBackPatterns";
+import { DEFAULT_CARD_DIMENSIONS, CARD_SCALES } from "./constants/cardDimensions.constants";
 
 const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 const RANKS: Record<string, string> = {
@@ -9,13 +12,9 @@ const RANKS: Record<string, string> = {
 
 const isRedSuit = (suit: string) => suit === "h" || suit === "d";
 
-/** Fixed size so cards align consistently in community and hero areas. */
-const CARD_WIDTH = 60;
-const CARD_HEIGHT = 80;
-
 const cardStyle = {
-  width: CARD_WIDTH,
-  height: CARD_HEIGHT,
+  width: DEFAULT_CARD_DIMENSIONS.width,
+  height: DEFAULT_CARD_DIMENSIONS.height,
   borderWidth: 1,
 } as const;
 
@@ -35,17 +34,20 @@ export function PlayingCard({
   suit?: string;
   faceDown?: boolean;
 }) {
+  const { cardBackPattern, cardBackHue, cardBackSaturation, cardBackLightness } = usePreferencesStore();
+  
   const normalizedSuit = suit?.toLowerCase();
   const normalizedRank = rank?.toUpperCase();
   if (faceDown) {
     return (
-      <View
-        renderToHardwareTextureAndroid
-        style={[cardStyle, { justifyContent: "center", alignItems: "center" }]}
-        className="rounded-card border border-border-subtle bg-card-back"
-      >
-        <Text variant="muted" className="text-base" allowFontScaling={false}>?</Text>
-      </View>
+      <CardBackPattern
+        pattern={cardBackPattern}
+        hue={cardBackHue}
+        saturation={cardBackSaturation}
+        lightness={cardBackLightness}
+        width={DEFAULT_CARD_DIMENSIONS.width}
+        height={DEFAULT_CARD_DIMENSIONS.height}
+      />
     );
   }
   const r = normalizedRank ? RANKS[normalizedRank] ?? normalizedRank : "?";

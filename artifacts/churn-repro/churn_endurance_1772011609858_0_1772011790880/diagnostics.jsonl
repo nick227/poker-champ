@@ -1,0 +1,2 @@
+{"seq":15,"t":55773,"type":"LIFECYCLE_DEFERRED_REMOVAL","level":"warn","code":null,"message":"Lifecycle removal deferred until safe boundary","context":{"handId":"hand_MbfbkwNxVw","street":"PREFLOP","toActSeat":0,"handActionSeq":0,"userId":"u4","reason":"LEAVE"}}
+{"seq":24,"t":95607,"type":"LIFECYCLE_DEFERRED_REMOVAL","level":"warn","code":null,"message":"Lifecycle removal deferred until safe boundary","context":{"handId":"hand_ZD1DRGmE_R","street":"PREFLOP","toActSeat":0,"handActionSeq":1,"userId":"u3","reason":"LEAVE"}}

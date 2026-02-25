@@ -3,6 +3,7 @@ import {
   CALC_STRIP_HEIGHT,
   HERO_CARD_GAP,
   DEALER_BUTTON_SLOT_SIZE,
+  CARD_ROW_HEIGHT,
 } from "./constants/components/heroZone.layout";
 import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
 import { ACTIVE_TILE_BORDER } from "./constants/style/tableColors";
@@ -23,7 +24,7 @@ export const heroZoneStyles = StyleSheet.create({
         offsetX: 0,
         offsetY: 0,
         blurRadius: 8,
-        color: "hsla(158, 52%, 42%, 0.35)",
+        color: "hsla(158, 100%, 50%, 1.00)",
       },
     ] as const,
     elevation: 6,
@@ -45,7 +46,7 @@ export const heroZoneStyles = StyleSheet.create({
     justifyContent: "center",
   },
   cardRow: {
-    height: 72,
+    height: CARD_ROW_HEIGHT,
     gap: HERO_CARD_GAP,
     alignItems: "center",
     justifyContent: "center",

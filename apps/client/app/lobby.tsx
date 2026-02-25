@@ -215,7 +215,7 @@ export default function LobbyScreen() {
         {busy ? (
           <Loader />
         ) : error ? (
-          <View className="ui-stack-2 ui-p-4">
+          <View className="ui-stack-2 py-8">
             <Button title={`Retry: ${error}`} onPress={refresh} />
           </View>
         ) : sortedTables.length === 0 ? (

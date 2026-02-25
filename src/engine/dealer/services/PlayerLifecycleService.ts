@@ -74,6 +74,7 @@ import type { SnapshotReason } from "./SnapshotService.js";
  */
 export type PlayerLifecyclePlan =
   | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
+  | { kind: "LIFECYCLE_DEFERRED_REMOVAL"; userId: string; reason: string }
   | { kind: "MAYBE_AUTOMATE_TURN" }
   | { kind: "START_HAND" }
   | { kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL"; removedSeat: number }
@@ -377,6 +378,11 @@ export class PlayerLifecycleService {
     let player = this.deps.state.playersById.get(botId);
     if (!player) return plans;
 
+    if (this.deps.state.street !== "WAITING") {
+      this.deferRemovalDuringActiveHand(player, "BOT_AUTO_REMOVE", plans);
+      return plans;
+    }
+
     const seat = player.seat;
     if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
       await this.deps.forceFoldIfInHand(botId);
@@ -435,6 +441,11 @@ export class PlayerLifecycleService {
     try {
       let player = this.deps.state.playersById.get(userId);
       if (!player) return plans;
+
+      if (this.deps.state.street !== "WAITING") {
+        this.deferRemovalDuringActiveHand(player, "LEAVE", plans);
+        return plans;
+      }
 
       const seat = player.seat;
       if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
@@ -536,6 +547,8 @@ export class PlayerLifecycleService {
     player.disconnectDeadlineTs = 0;
     player.status = "ABANDONED";
     player.needsAction = false;
+    player.pendingLeave = true;
+    player.pendingRemovalReason = "DISCONNECT_TIMEOUT";
     this.deps.pendingSeatReleaseUserIds.add(userId);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
 
@@ -587,6 +600,50 @@ export class PlayerLifecycleService {
    */
   private shouldForceFold(player: PlayerState): boolean {
     return this.deps.state.street !== "WAITING" && player.status === "ACTIVE";
+  }
+
+  private deferRemovalDuringActiveHand(
+    player: PlayerState,
+    reason: "LEAVE" | "DISCONNECT_TIMEOUT" | "BOT_AUTO_REMOVE",
+    plans: PlayerLifecyclePlan[],
+  ): void {
+    player.connected = false;
+    player.disconnectDeadlineTs = 0;
+    player.status = "ABANDONED";
+    player.needsAction = false;
+    player.pendingLeave = true;
+    player.pendingRemovalReason = reason;
+    this.deps.pendingSeatReleaseUserIds.add(player.id);
+    this.deps.autoActionsByUserId.delete(player.id);
+    this.deps.currentHandAutoActedUserIds.delete(player.id);
+    this.syncBettingStateAfterRemoval();
+
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    plans.push({ kind: "LIFECYCLE_DEFERRED_REMOVAL", userId: player.id, reason });
+
+    if (countNotFoldedPlayers(this.deps.state) <= 1) {
+      plans.push({ kind: "FINISH_HAND_BY_LAST_STANDING" });
+      maybeAssertStateInvariants(this.deps.state);
+      return;
+    }
+
+    if (this.deps.state.toActSeat === player.seat) {
+      if (bettingRoundComplete(this.deps.state) || noFurtherBettingPossible(this.deps.state)) {
+        plans.push({ kind: "ADVANCE_STREET_OR_SHOWDOWN" });
+      } else {
+        const nextSeat = findNextToActSeat(this.deps.state, player.seat);
+        if (nextSeat === -1) {
+          plans.push({ kind: "ADVANCE_STREET_OR_SHOWDOWN" });
+          maybeAssertStateInvariants(this.deps.state);
+          return;
+        }
+        this.deps.state.toActSeat = nextSeat;
+        plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+      }
+    } else {
+      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    }
+    maybeAssertStateInvariants(this.deps.state);
   }
 
   /**

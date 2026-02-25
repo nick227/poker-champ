@@ -992,6 +992,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   /** Remove all bots when zero seated humans remain (humanCount === 0, not connectedHumanCount). */
   private async maybeRemoveBotsIfNoHumans(): Promise<void> {
     if (this.computeHumanCount() !== 0) return;
+    // Avoid lifecycle/remove races while a hand is still active.
+    if (this.state.street !== "WAITING") return;
     const botIds = [...this.state.playersById.values()].filter((p) => p.kind === "BOT").map((p) => p.id);
     for (const botId of botIds) {
       try {

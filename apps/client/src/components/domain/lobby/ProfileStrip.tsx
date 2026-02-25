@@ -68,10 +68,10 @@ export function ProfileStrip({
           onPress={goSettings}
           className="flex-1"
         >
-          <Text numberOfLines={1} ellipsizeMode="tail" variant="body">
+          <Text numberOfLines={1} variant="body">
             {username}
           </Text>
-          <Text numberOfLines={1} ellipsizeMode="tail" variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
+          <Text numberOfLines={1} variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
           {location ? (
             <Text numberOfLines={1} ellipsizeMode="tail" variant="muted">
               {location}
@@ -82,7 +82,7 @@ export function ProfileStrip({
       </View>
 
       {onDeposit ? (
-        <Button variant="ghost" title="Deposit" onPress={onDeposit} />
+        <Button variant="ghost" title="💰" onPress={onDeposit} />
       ) : null}
 
       <View className="ui-col items-end gap-1">

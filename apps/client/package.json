@@ -15,6 +15,7 @@
     "e2e": "node node_modules/@playwright/test/cli.js test",
     "e2e:stack": "node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
     "e2e:stack:ci": "set CI=1&& node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
+    "e2e:churn": "node node_modules/@playwright/test/cli.js test e2e/churn-seat-dealin.spec.ts",
     "e2e:ui": "node node_modules/@playwright/test/cli.js test --ui",
     "e2e:install": "node node_modules/@playwright/test/cli.js install chromium",
     "typecheck": "tsc -p tsconfig.json --noEmit",

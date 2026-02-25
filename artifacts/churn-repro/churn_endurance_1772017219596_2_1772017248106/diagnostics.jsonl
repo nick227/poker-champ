@@ -1,0 +1,1 @@
+{"seq":13,"t":28502,"type":"QUEUED_AUTO_ACTION_FAILED","level":"error","code":null,"message":"Queued auto-action failed","context":{"handId":"hand_Yq2wfTig7U","street":"PREFLOP","toActSeat":5,"handActionSeq":6,"userId":"bot_CVPBHU95ag","action":"ALL_IN"}}

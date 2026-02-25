@@ -34,4 +34,10 @@ export class PlayerState extends Schema {
 
   /** True when player joined mid-hand; cleared on next startHand so they are dealt in next hand only. */
   @type("boolean") sittingOutUntilNextHand: boolean = false;
+
+  /** True when removal was requested during an active hand and must be finalized at a safe boundary. */
+  @type("boolean") pendingLeave: boolean = false;
+
+  /** Reason string for deferred lifecycle removal. */
+  @type("string") pendingRemovalReason: string = "";
 }

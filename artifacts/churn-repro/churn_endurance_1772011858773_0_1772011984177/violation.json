@@ -1,0 +1,1080 @@
+{
+  "cause": "diagnostic denylist match: type=ACTION_FAILED level=error code=none",
+  "originalError": "strict invariant failure: diagnostic denylist match: type=ACTION_FAILED level=error code=none",
+  "scenario": "endurance",
+  "seed": 20260225,
+  "hands": 12,
+  "iterations": 1,
+  "invariantMode": "strict",
+  "strictInvariantFailure": "diagnostic denylist match: type=ACTION_FAILED level=error code=none",
+  "stateDump": {
+    "handId": "hand_mn_kh7aemC",
+    "street": "PREFLOP",
+    "toActSeat": 0,
+    "potCents": 8444,
+    "roundCurrentBetCents": 4994,
+    "seats": [
+      {
+        "seat": 0,
+        "userId": "u1",
+        "occupied": true,
+        "status": "ALL_IN",
+        "needsAction": false,
+        "stackCents": 0,
+        "committedCents": 4994,
+        "roundBetCents": 4994,
+        "pendingLeave": false,
+        "pendingRemovalReason": ""
+      },
+      {
+        "seat": 1,
+        "userId": "u2",
+        "occupied": true,
+        "status": "ACTIVE",
+        "needsAction": false,
+        "stackCents": 8008,
+        "committedCents": 3450,
+        "roundBetCents": 3450,
+        "pendingLeave": false,
+        "pendingRemovalReason": ""
+      },
+      {
+        "seat": 2,
+        "userId": null,
+        "occupied": false,
+        "status": null,
+        "needsAction": null,
+        "stackCents": null,
+        "committedCents": null,
+        "roundBetCents": null,
+        "pendingLeave": null,
+        "pendingRemovalReason": null
+      },
+      {
+        "seat": 3,
+        "userId": null,
+        "occupied": false,
+        "status": null,
+        "needsAction": null,
+        "stackCents": null,
+        "committedCents": null,
+        "roundBetCents": null,
+        "pendingLeave": null,
+        "pendingRemovalReason": null
+      },
+      {
+        "seat": 4,
+        "userId": "bot_VGHC5Ijt9c",
+        "occupied": true,
+        "status": "OUT",
+        "needsAction": false,
+        "stackCents": 0,
+        "committedCents": 0,
+        "roundBetCents": 0,
+        "pendingLeave": false,
+        "pendingRemovalReason": ""
+      },
+      {
+        "seat": 5,
+        "userId": "bot_Wvqg3m6bNP",
+        "occupied": true,
+        "status": "OUT",
+        "needsAction": false,
+        "stackCents": 0,
+        "committedCents": 0,
+        "roundBetCents": 0,
+        "pendingLeave": false,
+        "pendingRemovalReason": ""
+      }
+    ]
+  },
+  "stateDigest": {
+    "actionable": false,
+    "eligibleActors": 1,
+    "needsAction": 0,
+    "contenders": 2,
+    "potCents": 8444,
+    "totalCommittedCents": 8444,
+    "toActSeat": 0,
+    "toActUserId": "u1",
+    "toActStatus": "ALL_IN",
+    "toActNeedsAction": false
+  },
+  "digestDeltaFromPrevious": {
+    "actionable": {
+      "from": true,
+      "to": false
+    },
+    "eligibleActors": {
+      "from": 2,
+      "to": 1
+    },
+    "needsAction": {
+      "from": 1,
+      "to": 0
+    },
+    "potCents": {
+      "from": 150,
+      "to": 8444
+    },
+    "totalCommittedCents": {
+      "from": 150,
+      "to": 8444
+    },
+    "toActSeat": {
+      "from": 1,
+      "to": 0
+    },
+    "toActUserId": {
+      "from": "u2",
+      "to": "u1"
+    },
+    "toActStatus": {
+      "from": "ACTIVE",
+      "to": "ALL_IN"
+    },
+    "toActNeedsAction": {
+      "from": true,
+      "to": false
+    }
+  },
+  "firstActionableInvalid": null,
+  "lastEvents": [
+    {
+      "seq": 1,
+      "t": 0,
+      "kind": "HUMAN_JOIN",
+      "handId": "",
+      "street": "WAITING",
+      "toActSeat": 0,
+      "targetUserId": "u1",
+      "payload": {
+        "buyInCents": 5000
+      },
+      "digest": {
+        "actionable": false,
+        "eligibleActors": 0,
+        "needsAction": 0,
+        "contenders": 0,
+        "potCents": 0,
+        "totalCommittedCents": 0,
+        "toActSeat": 0,
+        "toActUserId": "",
+        "toActStatus": null,
+        "toActNeedsAction": null
+      }
+    },
+    {
+      "seq": 2,
+      "t": 5,
+      "kind": "HUMAN_JOIN",
+      "handId": "",
+      "street": "WAITING",
+      "toActSeat": 0,
+      "targetUserId": "u2",
+      "payload": {
+        "buyInCents": 5000
+      },
+      "digest": {
+        "actionable": false,
+        "eligibleActors": 1,
+        "needsAction": 0,
+        "contenders": 1,
+        "potCents": 0,
+        "totalCommittedCents": 0,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": false
+      }
+    },
+    {
+      "seq": 3,
+      "t": 980,
+      "kind": "HUMAN_JOIN",
+      "handId": "hand_cEFPL438H4",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "targetUserId": "u3",
+      "payload": {
+        "buyInCents": 4000
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 4,
+      "t": 982,
+      "kind": "HUMAN_JOIN",
+      "handId": "hand_cEFPL438H4",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "targetUserId": "u4",
+      "payload": {
+        "buyInCents": 4000
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 5,
+      "t": 983,
+      "kind": "BOT_JOIN",
+      "handId": "hand_cEFPL438H4",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "botId": "chaos_carl",
+        "buyInCents": 5000
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 6,
+      "t": 983,
+      "kind": "BOT_JOIN",
+      "handId": "hand_cEFPL438H4",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "botId": "nash_nate",
+        "buyInCents": 5000
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 7,
+      "t": 983,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_cEFPL438H4",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 8,
+      "t": 18770,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_R32ILSevMe",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 6,
+        "needsAction": 5,
+        "contenders": 6,
+        "potCents": 2270,
+        "totalCommittedCents": 2270,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 9,
+      "t": 30104,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_R32ILSevMe",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 5,
+        "needsAction": 4,
+        "contenders": 5,
+        "potCents": 2270,
+        "totalCommittedCents": 2270,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 10,
+      "t": 30189,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_R32ILSevMe",
+      "street": "PREFLOP",
+      "toActSeat": 2,
+      "actorUserId": "u3",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 5,
+        "needsAction": 3,
+        "contenders": 5,
+        "potCents": 4390,
+        "totalCommittedCents": 4390,
+        "toActSeat": 2,
+        "toActUserId": "u3",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 11,
+      "t": 39778,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_R32ILSevMe",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 4,
+        "needsAction": 2,
+        "contenders": 4,
+        "potCents": 4390,
+        "totalCommittedCents": 4390,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 12,
+      "t": 41435,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_R32ILSevMe",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 1,
+        "needsAction": 1,
+        "contenders": 4,
+        "potCents": 17120,
+        "totalCommittedCents": 17120,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 13,
+      "t": 56223,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_JanNnXf2d9",
+      "street": "PREFLOP",
+      "toActSeat": 2,
+      "actorUserId": "u3",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 4,
+        "needsAction": 3,
+        "contenders": 4,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 2,
+        "toActUserId": "u3",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 14,
+      "t": 56318,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_JanNnXf2d9",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 3,
+        "contenders": 4,
+        "potCents": 5150,
+        "totalCommittedCents": 5150,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 15,
+      "t": 56403,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_JanNnXf2d9",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 2,
+        "contenders": 4,
+        "potCents": 10150,
+        "totalCommittedCents": 10150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 16,
+      "t": 63225,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_JanNnXf2d9",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 1,
+        "contenders": 3,
+        "potCents": 10150,
+        "totalCommittedCents": 10150,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 17,
+      "t": 73389,
+      "kind": "CONSENTED_LEAVE",
+      "handId": "hand_7R-m56OmMy",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "targetUserId": "u3",
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 4,
+        "needsAction": 3,
+        "contenders": 4,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 19,
+      "t": 73392,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 3,
+        "contenders": 3,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 20,
+      "t": 77082,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 2,
+        "contenders": 3,
+        "potCents": 200,
+        "totalCommittedCents": 200,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 21,
+      "t": 77170,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 1,
+        "contenders": 3,
+        "potCents": 250,
+        "totalCommittedCents": 250,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 22,
+      "t": 77355,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "FLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "BET",
+        "amountCents": 1892
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 250,
+        "totalCommittedCents": 250,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 23,
+      "t": 77438,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "FLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 2142,
+        "totalCommittedCents": 2142,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 24,
+      "t": 77533,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_7R-m56OmMy",
+      "street": "TURN",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 4034,
+        "totalCommittedCents": 4034,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 25,
+      "t": 85183,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_cMRc9FWiL-",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "FOLD"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 2,
+        "contenders": 3,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 26,
+      "t": 90105,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_cMRc9FWiL-",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 27,
+      "t": 90251,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_cMRc9FWiL-",
+      "street": "FLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 200,
+        "totalCommittedCents": 200,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 28,
+      "t": 90339,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_cMRc9FWiL-",
+      "street": "FLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 1,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 10278,
+        "totalCommittedCents": 10278,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 29,
+      "t": 98646,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_ECmlpX-kue",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 2,
+        "contenders": 3,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 30,
+      "t": 98734,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_ECmlpX-kue",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 1,
+        "contenders": 3,
+        "potCents": 250,
+        "totalCommittedCents": 250,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 31,
+      "t": 98833,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_ECmlpX-kue",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 3,
+        "potCents": 14084,
+        "totalCommittedCents": 14084,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 32,
+      "t": 98921,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_ECmlpX-kue",
+      "street": "PREFLOP",
+      "toActSeat": 3,
+      "actorUserId": "u4",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 1,
+        "needsAction": 1,
+        "contenders": 3,
+        "potCents": 22924,
+        "totalCommittedCents": 22924,
+        "toActSeat": 3,
+        "toActUserId": "u4",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 33,
+      "t": 112088,
+      "kind": "CONSENTED_LEAVE",
+      "handId": "hand_jn01fl3jly",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "targetUserId": "u4",
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 3,
+        "needsAction": 2,
+        "contenders": 3,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 35,
+      "t": 112088,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_jn01fl3jly",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 36,
+      "t": 117311,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_jn01fl3jly",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "CALL"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 1,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 5094,
+        "totalCommittedCents": 5094,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 37,
+      "t": 125127,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_mn_kh7aemC",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "CHECK"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 2,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 38,
+      "t": 125209,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_mn_kh7aemC",
+      "street": "PREFLOP",
+      "toActSeat": 1,
+      "actorUserId": "u2",
+      "payload": {
+        "action": "RAISE",
+        "amountCents": 3450
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 150,
+        "totalCommittedCents": 150,
+        "toActSeat": 1,
+        "toActUserId": "u2",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    },
+    {
+      "seq": 39,
+      "t": 125304,
+      "kind": "HANDLE_ACTION",
+      "handId": "hand_mn_kh7aemC",
+      "street": "PREFLOP",
+      "toActSeat": 0,
+      "actorUserId": "u1",
+      "payload": {
+        "action": "ALL_IN"
+      },
+      "digest": {
+        "actionable": true,
+        "eligibleActors": 2,
+        "needsAction": 1,
+        "contenders": 2,
+        "potCents": 3550,
+        "totalCommittedCents": 3550,
+        "toActSeat": 0,
+        "toActUserId": "u1",
+        "toActStatus": "ACTIVE",
+        "toActNeedsAction": true
+      }
+    }
+  ],
+  "lastDiagnostics": [
+    {
+      "seq": 18,
+      "t": 73392,
+      "type": "LIFECYCLE_DEFERRED_REMOVAL",
+      "level": "warn",
+      "code": null,
+      "message": "Lifecycle removal deferred until safe boundary",
+      "context": {
+        "handId": "hand_7R-m56OmMy",
+        "street": "PREFLOP",
+        "toActSeat": 3,
+        "handActionSeq": 0,
+        "userId": "u3",
+        "reason": "LEAVE"
+      }
+    },
+    {
+      "seq": 34,
+      "t": 112088,
+      "type": "LIFECYCLE_DEFERRED_REMOVAL",
+      "level": "warn",
+      "code": null,
+      "message": "Lifecycle removal deferred until safe boundary",
+      "context": {
+        "handId": "hand_jn01fl3jly",
+        "street": "PREFLOP",
+        "toActSeat": 0,
+        "handActionSeq": 0,
+        "userId": "u4",
+        "reason": "LEAVE"
+      }
+    },
+    {
+      "seq": 40,
+      "t": 125325,
+      "type": "ACTION_FAILED",
+      "level": "error",
+      "code": null,
+      "message": "Action failed",
+      "context": {
+        "handId": "hand_mn_kh7aemC",
+        "street": "PREFLOP",
+        "toActSeat": 0,
+        "handActionSeq": 2,
+        "userId": "u1",
+        "action": "ALL_IN"
+      }
+    }
+  ]
+}

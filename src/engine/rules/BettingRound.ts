@@ -90,6 +90,11 @@ export function noFurtherBettingPossible(state: PokerState): boolean {
     const hasPendingDecision = onlyActive.needsAction || onlyActive.roundBetCents < state.roundCurrentBetCents;
     if (!hasPendingDecision) return true;
   }
+  // Short all-in can increase roundCurrentBetCents without reopening action for players that already acted.
+  // If at least one contender is all-in and no ACTIVE player has needsAction, betting is closed.
+  if (allIn.length >= 1 && active.length >= 1 && active.every((p) => !p.needsAction)) {
+    return true;
+  }
   return false;
 }
 

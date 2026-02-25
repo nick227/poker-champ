@@ -51,7 +51,7 @@ export function Button({
       className={className}
     >
       <View className={`${base} ${variants[variant]} ${className}`} style={{ minHeight: 44, minWidth: minWidth, marginRight: marginRight, marginLeft: marginLeft }}>
-        <Text variant="body" allowFontScaling={false}>
+        <Text numberOfLines={1} variant="body" allowFontScaling={false}>
         {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : title}
         </Text>
       </View>

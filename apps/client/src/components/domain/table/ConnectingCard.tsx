@@ -28,7 +28,7 @@ export function ConnectingCard({ message, action }: ConnectingCardProps) {
         }),
         { height: COMMUNITY_BOARD_HEIGHT, minHeight: COMMUNITY_BOARD_HEIGHT },
       ]}
-      className="mx-3 justify-center rounded-table border border-black/20 bg-felt"
+      className="justify-center bg-felt"
       collapsable={false}
     >
       <View
