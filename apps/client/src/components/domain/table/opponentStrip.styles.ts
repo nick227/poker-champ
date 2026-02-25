@@ -74,8 +74,8 @@ export const opponentStripStyles = StyleSheet.create({
       {
         offsetX: 0,
         offsetY: 0,
-        blurRadius: 8,
-        color: "hsla(158, 52%, 42%, 0.35)",
+        blurRadius: 28,
+        color: "hsla(0, 100%, 100%, 0.8)",
       },
     ] as const,
     elevation: 6,

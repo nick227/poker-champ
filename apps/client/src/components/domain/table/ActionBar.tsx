@@ -209,7 +209,7 @@ export function ActionBar({
           gap: ACTION_BAR_GAP,
           flexDirection: "column",
         }}
-        className="ui-action-bar"
+        className="ui-action-bar mt-4"
       >
         <View style={{ height: STATUS_ROW_HEIGHT }} className="ui-center justify-center">
           <Text variant="label" allowFontScaling={false}>{statusLabel}</Text>
@@ -238,7 +238,12 @@ export function ActionBar({
               disabled={betRaiseDisabled}
             />
           </View>
-          <View style={{ height: BET_INPUT_ROW_HEIGHT, justifyContent: "center" }}>
+          <View className="ui-row justify-between" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
+            <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} />
+            <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} />
+            <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} />
+            <ChipButton title={TABLE.max} onPress={handleMax} disabled={!WAGER} />
+            <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} />
             {canShowBetInput ? (
               <Input
                 iconLeft="$"
@@ -259,13 +264,6 @@ export function ActionBar({
             ) : (
               <View collapsable={false} style={{ height: BET_INPUT_ROW_HEIGHT, width: "100%" }} />
             )}
-          </View>
-          <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
-            <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} />
-            <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} />
-            <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} />
-            <ChipButton title={TABLE.max} onPress={handleMax} disabled={!WAGER} />
-            <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} />
           </View>
         </View>
       </View>

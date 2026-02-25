@@ -49,7 +49,7 @@ export const TABLE = {
   halfPot: "1/2",
   pot: "POT",
   max: "MAX",
-  betRaise: "Bet/Raise",
+  betRaise: "Bet",
 } as const;
 
 export const PASSWORD_INPUT = {
