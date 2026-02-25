@@ -68,12 +68,12 @@ export function ProfileStrip({
           onPress={goSettings}
           className="flex-1"
         >
-          <Text numberOfLines={1} variant="body">
+          <Text numberOfLines={1} ellipsizeMode="tail" variant="body">
             {username}
           </Text>
-          <Text variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" variant="h2" className="font-semibold">{formatCents(amountCents)}</Text>
           {location ? (
-            <Text numberOfLines={1} variant="muted">
+            <Text numberOfLines={1} ellipsizeMode="tail" variant="muted">
               {location}
             </Text>
           ) : null}
