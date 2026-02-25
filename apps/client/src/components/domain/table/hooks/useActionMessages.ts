@@ -61,7 +61,15 @@ export function useActionMessages(
   const hand = snapshot?.hand;
   const lastAction = snapshot?.lastAction;
   const lastHandResult = snapshot?.lastHandResult;
-  const seats = useMemo(() => snapshot?.seats ?? [], [snapshot?.seats]);
+  const nameByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const seat of snapshot?.seats ?? []) {
+      if (seat.userId != null) {
+        map.set(String(seat.userId), seat.name ?? "Player");
+      }
+    }
+    return map;
+  }, [snapshot?.seats]);
 
   useEffect(() => {
     if (!hand || !lastAction) {
@@ -71,20 +79,16 @@ export function useActionMessages(
     const key = `${lastAction.handId}:${lastAction.seq}`;
     if (key === lastShownActionKey) return;
     setLastShownActionKey(key);
-    const actorName =
-      seats.find((s: any) => s.userId === lastAction.actorUserId)?.name ??
-      (lastAction.actorKind === "BOT" ? "Bot" : "Player");
+    const actorName = nameByUserId.get(String(lastAction.actorUserId)) ?? (lastAction.actorKind === "BOT" ? "Bot" : "Player");
     setActionMessage(buildActionMessage(lastAction, actorName));
-  }, [hand, lastAction, seats, lastShownActionKey]);
+  }, [hand, lastAction, nameByUserId, lastShownActionKey]);
 
   useEffect(() => {
-    if (!lastHandResult || !snapshot) return;
+    if (!lastHandResult) return;
     if (lastHandResult.handId === lastShownHandResultId) return;
     setLastShownHandResultId(lastHandResult.handId);
     const winnerId = lastHandResult.winnerId ?? Object.keys(lastHandResult.payoutsByUserId ?? {})[0];
-    const winnerName = winnerId
-      ? seats.find((s: any) => s.userId === winnerId)?.name ?? "Winner"
-      : "Split pot";
+    const winnerName = winnerId ? nameByUserId.get(String(winnerId)) ?? "Winner" : "Split pot";
     const amountCents =
       winnerId && lastHandResult.payoutsByUserId
         ? lastHandResult.payoutsByUserId[winnerId] ?? lastHandResult.potCents
@@ -96,7 +100,7 @@ export function useActionMessages(
     });
     const t = setTimeout(() => setHandResultMessage(null), HAND_RESULT_DURATION_MS);
     return () => clearTimeout(t);
-  }, [lastHandResult, snapshot, seats, lastShownHandResultId]);
+  }, [lastHandResult, nameByUserId, lastShownHandResultId]);
 
   useEffect(() => {
     const activeHandId = hand?.handId;

@@ -1,6 +1,13 @@
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
 export type UiCard = { rank: string; suit: string } | null;
+type SeatLike = TableSnapshotPayload["seats"][number];
+
+export type SeatContext = {
+  heroSeat?: SeatLike;
+  occupiedCount: number;
+  nameByUserId: Map<string, string>;
+};
 
 export function decodeCard(card: string | undefined): UiCard {
   if (!card || card.length < 2) return null;
@@ -26,18 +33,51 @@ export function getHeroCards(snapshot: TableSnapshotPayload): UiCard[] {
   return cards.slice(0, 2);
 }
 
-function getResolvedHeroSeat(snapshot: TableSnapshotPayload) {
-  const bySeat =
-    snapshot.hero.seat == null
-      ? undefined
-      : snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat);
-  if (bySeat) return bySeat;
-  if (!snapshot.hero.youAreSeated || !snapshot.hero.userId) return undefined;
-  return snapshot.seats.find((s: any) => s.occupied && s.userId === snapshot.hero.userId);
+export function buildSeatContext(snapshot: TableSnapshotPayload): SeatContext {
+  const nameByUserId = new Map<string, string>();
+  let heroSeatBySeat: SeatLike | undefined;
+  let heroSeatByUserId: SeatLike | undefined;
+  let occupiedCount = 0;
+  const heroSeatNo = snapshot.hero.seat;
+  const heroUserId = snapshot.hero.userId;
+  const shouldResolveByUserId = Boolean(snapshot.hero.youAreSeated && heroUserId != null);
+
+  for (const seat of snapshot.seats) {
+    if (seat.occupied) occupiedCount += 1;
+
+    if (seat.userId != null) {
+      nameByUserId.set(String(seat.userId), seat.name || "Player");
+    }
+
+    if (heroSeatNo != null && seat.seat === heroSeatNo) {
+      heroSeatBySeat = seat;
+    }
+
+    if (
+      !heroSeatByUserId &&
+      shouldResolveByUserId &&
+      seat.occupied &&
+      seat.userId != null &&
+      seat.userId === heroUserId
+    ) {
+      heroSeatByUserId = seat;
+    }
+  }
+
+  return {
+    heroSeat: heroSeatBySeat ?? heroSeatByUserId,
+    occupiedCount,
+    nameByUserId,
+  };
 }
 
-export function getHeroStackCents(snapshot: TableSnapshotPayload): number {
-  const seat = getResolvedHeroSeat(snapshot);
+function getResolvedHeroSeat(snapshot: TableSnapshotPayload, seatContext?: SeatContext) {
+  if (seatContext?.heroSeat) return seatContext.heroSeat;
+  return buildSeatContext(snapshot).heroSeat;
+}
+
+export function getHeroStackCents(snapshot: TableSnapshotPayload, seatContext?: SeatContext): number {
+  const seat = getResolvedHeroSeat(snapshot, seatContext);
   return seat?.stackCents ?? 0;
 }
 
@@ -102,8 +142,8 @@ export type Opponent = {
 };
 
 /** Hero display status: uses connected + disconnectDeadlineTs for Reconnecting… vs Sitting out. */
-export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDisplayStatus {
-  const heroSeat = getResolvedHeroSeat(snapshot);
+export function getHeroDisplayStatus(snapshot: TableSnapshotPayload, seatContext?: SeatContext): SeatDisplayStatus {
+  const heroSeat = getResolvedHeroSeat(snapshot, seatContext);
   if (!heroSeat) return "SITTING_OUT";
   if (!heroSeat.connected) {
     const s = heroSeat.status;
@@ -120,16 +160,16 @@ export function getHeroDisplayStatus(snapshot: TableSnapshotPayload): SeatDispla
   return s as SeatDisplayStatus;
 }
 
-export function getIsMyTurn(snapshot: TableSnapshotPayload): boolean {
+export function getIsMyTurn(snapshot: TableSnapshotPayload, seatContext?: SeatContext): boolean {
   const hand = snapshot.hand;
-  const heroSeat = getResolvedHeroSeat(snapshot);
+  const heroSeat = getResolvedHeroSeat(snapshot, seatContext);
   if (!hand || !heroSeat) return false;
   return hand.toActSeat === heroSeat.seat;
 }
 
-export function getIsDealer(snapshot: TableSnapshotPayload): boolean {
+export function getIsDealer(snapshot: TableSnapshotPayload, seatContext?: SeatContext): boolean {
   if (!snapshot.hand) return false;
-  const heroSeat = getResolvedHeroSeat(snapshot);
+  const heroSeat = getResolvedHeroSeat(snapshot, seatContext);
   if (!heroSeat) return false;
   return heroSeat.seat === snapshot.hand.dealerSeat;
 }
@@ -139,35 +179,38 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
     snapshot.lastHandResult?.reason === "SHOWDOWN"
       ? snapshot.lastHandResult.showdownHoleCardsByUserId
       : undefined;
-
   const heroId = snapshot.hero.userId;
   const serverNowTs = snapshot.serverTimeTs;
-  return snapshot.seats
-    .filter((seat: any) => seat.occupied && seat.userId && seat.userId !== heroId)
-    .map((seat: any) => ({
-      id: seat.userId!,
+  const opponents: Opponent[] = [];
+  for (const seat of snapshot.seats) {
+    if (!seat.occupied || !seat.userId || seat.userId === heroId) continue;
+
+    let cards: Opponent["cards"] | undefined;
+    if (snapshot.hand) {
+      const isInHand = seat.status === "ACTIVE" || seat.status === "FOLDED" || seat.status === "ALL_IN";
+      if (isInHand) cards = { faceDown: true, visible: true };
+    } else {
+      const showdownCards = showdownHoleCardsByUserId?.[seat.userId];
+      if (showdownCards) {
+        cards = {
+          left: decodeCard(showdownCards[0]),
+          right: decodeCard(showdownCards[1]),
+          faceDown: false,
+          visible: true,
+        };
+      }
+    }
+
+    opponents.push({
+      id: seat.userId,
       name: seat.name || "Player",
       stackCents: seat.stackCents,
       isDealer: seat.seat === snapshot.hand?.dealerSeat,
       isActive: seat.isToAct,
       isBot: seat.isBot ?? false,
       status: getSeatOpponentStatus(seat, serverNowTs),
-      cards: (() => {
-        if (snapshot.hand) {
-          const isInHand = seat.status === "ACTIVE" || seat.status === "FOLDED" || seat.status === "ALL_IN";
-          if (!isInHand) return undefined;
-          return { faceDown: true, visible: true };
-        }
-
-        const showdownCards = showdownHoleCardsByUserId?.[seat.userId!];
-        if (!showdownCards) return undefined;
-
-        return {
-          left: decodeCard(showdownCards[0]),
-          right: decodeCard(showdownCards[1]),
-          faceDown: false,
-          visible: true,
-        };
-      })(),
-    }));
+      cards,
+    });
+  }
+  return opponents;
 }

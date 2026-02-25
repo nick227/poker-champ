@@ -33,11 +33,11 @@ export function useTableScreenStores(tableId: string | undefined) {
   const tableSlice = storeRegistry.use.table(
     useShallow((s) => ({
       snapshotsByTableId: s.snapshotsByTableId,
-      chatMessagesByTableId: s.chatMessagesByTableId,
-      botSummariesByTableId: s.botSummariesByTableId,
-      botSummariesUpdatedAtByTableId: s.botSummariesUpdatedAtByTableId,
-      connectionStatusByTableId: s.connectionStatusByTableId,
-      errorByTableId: s.errorByTableId,
+      chatMessagesForTable: id ? (s.chatMessagesByTableId[id] ?? []) : [],
+      botSummariesForTable: id ? (s.botSummariesByTableId[id] ?? []) : [],
+      botSummariesUpdatedAtForTable: id ? s.botSummariesUpdatedAtByTableId[id] : undefined,
+      connectionStatusForTable: id ? s.connectionStatusByTableId[id] : undefined,
+      errorForTable: id ? s.errorByTableId[id] : undefined,
     }))
   );
 

@@ -6,7 +6,7 @@ import type { LobbyTableRow } from "@/lib/lobbyTables";
 type UseTableConnectionOptions = {
   tableId: string;
   persistedRoomId?: string;
-  normalizedLobbyTables: LobbyTableRow[];
+  tableById: Map<string, LobbyTableRow>;
   buyInCents?: number;
   authHydrated: boolean;
   hasAuthToken: boolean;
@@ -18,7 +18,7 @@ type UseTableConnectionOptions = {
 export function useTableConnection({
   tableId,
   persistedRoomId,
-  normalizedLobbyTables,
+  tableById,
   buyInCents,
   authHydrated,
   hasAuthToken,
@@ -31,10 +31,10 @@ export function useTableConnection({
 } {
   const realtimeRoomId = useMemo(() => {
     if (persistedRoomId && persistedRoomId.length > 0) return persistedRoomId;
-    const byTableId = normalizedLobbyTables.find((t) => t.tableId === tableId || t.id === tableId);
+    const byTableId = tableById.get(tableId);
     if (byTableId?.roomId && byTableId.roomId.length > 0) return byTableId.roomId;
     return tableId;
-  }, [persistedRoomId, normalizedLobbyTables, tableId]);
+  }, [persistedRoomId, tableById, tableId]);
 
   const hasValidBuyIn = Number.isInteger(buyInCents) && Number(buyInCents) > 0;
   const shouldConnectRealtime = authHydrated && hasAuthToken && Boolean(tableId);

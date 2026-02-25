@@ -1,12 +1,12 @@
 import { useMemo } from "react";
-import { normalizeTable } from "@/lib/lobbyTables";
+import type { LobbyTableRow } from "@/lib/lobbyTables";
 
 export type ResolvedBuyInParams = {
   tableId: string;
   buyInCentsParam: string | string[] | undefined;
   joinStateBuyInCents: number | undefined;
   persistedBuyInCents: number | undefined;
-  lobbyTables: unknown[];
+  tableById: Map<string, LobbyTableRow>;
 };
 
 function parseRouteBuyIn(buyInCentsParam: string | string[] | undefined): number | undefined {
@@ -26,7 +26,7 @@ export function useResolvedBuyIn(params: ResolvedBuyInParams): {
   buyInCents: number | undefined;
   routeBuyInCents: number | undefined;
 } {
-  const { tableId, buyInCentsParam, joinStateBuyInCents, persistedBuyInCents, lobbyTables } = params;
+  const { tableId, buyInCentsParam, joinStateBuyInCents, persistedBuyInCents, tableById } = params;
 
   const routeBuyInCents = useMemo(
     () => parseRouteBuyIn(buyInCentsParam),
@@ -37,12 +37,10 @@ export function useResolvedBuyIn(params: ResolvedBuyInParams): {
     if (routeBuyInCents != null) return routeBuyInCents;
     if (Number.isInteger(joinStateBuyInCents) && Number(joinStateBuyInCents) > 0) return Number(joinStateBuyInCents);
     if (Number.isInteger(persistedBuyInCents) && Number(persistedBuyInCents) > 0) return Number(persistedBuyInCents);
-    const table = lobbyTables
-      .map((t) => normalizeTable(t as Record<string, unknown>))
-      .find((t) => t.id === tableId);
+    const table = tableById.get(tableId);
     const min = table?.minBuyInCents;
     return min != null && min > 0 ? min : undefined;
-  }, [routeBuyInCents, joinStateBuyInCents, persistedBuyInCents, lobbyTables, tableId]);
+  }, [routeBuyInCents, joinStateBuyInCents, persistedBuyInCents, tableById, tableId]);
 
   return { buyInCents, routeBuyInCents };
 }

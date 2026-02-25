@@ -3,6 +3,7 @@ import type { TableSnapshotPayload, HeroActionOptions } from "@poker-champ/realt
 import type { HandResultMessage, ConnectionStatus } from "../table.types";
 import { TABLE } from "@/constants/copy";
 import {
+  buildSeatContext,
   getHeroDisplayStatus,
   getIsMyTurn,
   getCommunityCards,
@@ -18,11 +19,10 @@ function mergeCallWithStack(
   snapshot: TableSnapshotPayload,
   isMyTurn: boolean,
   heroStackCents: number,
+  heroRoundBetCents: number,
 ): HeroActionOptions | undefined {
   if (!actionOptions || !isMyTurn || !snapshot.hand) return actionOptions;
   const roundCurrentBetCents = snapshot.hand.roundCurrentBetCents ?? 0;
-  const heroSeat = snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat);
-  const heroRoundBetCents = heroSeat?.roundBetCents ?? 0;
   const rawCallAmount = Math.max(0, roundCurrentBetCents - heroRoundBetCents);
   const derivedCanCallWithStack = rawCallAmount > 0 && heroStackCents > 0;
   if (!derivedCanCallWithStack || actionOptions.canCall) return actionOptions;
@@ -36,29 +36,36 @@ export function buildTableSceneModel(
   connectionStatus?: ConnectionStatus,
 ) {
   const { hand } = snapshot;
-  const heroStatus = getHeroDisplayStatus(snapshot);
-  const isMyTurn = getIsMyTurn(snapshot);
+  const seatContext = buildSeatContext(snapshot);
+  const heroStatus = getHeroDisplayStatus(snapshot, seatContext);
+  const isMyTurn = getIsMyTurn(snapshot, seatContext);
   const communityCards = getCommunityCards(snapshot);
   const potCents = getPotCents(snapshot);
   const heroCards = getHeroCards(snapshot);
-  const heroStackCents = getHeroStackCents(snapshot);
+  const heroStackCents = getHeroStackCents(snapshot, seatContext);
   const heroSeat = snapshot.hero.seat;
   const toActSeat = snapshot.hand?.toActSeat;
   const isHeroToAct =
     heroSeat != null &&
     toActSeat != null &&
     heroSeat === toActSeat;
-  const heroName = snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)?.name;
+  const heroName = seatContext.heroSeat?.name;
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
-  const isHeroDealer = getIsDealer(snapshot);
+  const isHeroDealer = getIsDealer(snapshot, seatContext);
   const tableName = snapshot.table?.tableName ?? TABLE.defaultTableName;
-  const playerCount = snapshot.seats.filter((s: any) => s.occupied).length;
+  const playerCount = seatContext.occupiedCount;
   const maxSeats = snapshot.table?.maxSeats ?? snapshot.seats.length;
   const blinds = snapshot.table
     ? { smallBlindCents: snapshot.table.smallBlindCents, bigBlindCents: snapshot.table.bigBlindCents }
     : undefined;
   const handSummary = hand ? { street: hand.street, potCents: hand.potCents } : undefined;
-  const heroActionOptions = mergeCallWithStack(snapshot.hero.actionOptions, snapshot, isMyTurn, heroStackCents);
+  const heroActionOptions = mergeCallWithStack(
+    snapshot.hero.actionOptions,
+    snapshot,
+    isMyTurn,
+    heroStackCents,
+    seatContext.heroSeat?.roundBetCents ?? 0,
+  );
   const actionContext = getActionContext({
     isMyTurn,
     actionOptions: heroActionOptions,

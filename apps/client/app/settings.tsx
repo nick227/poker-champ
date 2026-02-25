@@ -14,6 +14,7 @@ import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet
 import { useAuthStore } from "@/stores/auth.store";
 import { postAuthLogout } from "@/services/post/auth.post";
 import { useProfile } from "@/hooks/useProfile";
+import { useBankroll } from "@/hooks/useBankroll";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useToastStore } from "@/stores/toast.store";
 import { storeRegistry } from "@/registry/store.registry";
@@ -25,6 +26,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
   const profile = useProfile();
+  const bankroll = useBankroll();
   const soundEnabled = usePreferencesStore((s) => s.soundEnabled);
   const setSoundEnabled = usePreferencesStore((s) => s.setSoundEnabled);
   const notificationsEnabled = usePreferencesStore((s) => s.notificationsEnabled);
@@ -106,6 +108,7 @@ export default function SettingsScreen() {
       <ProfileStrip
         username={profile.username ?? "Player"}
         location={profile.location}
+        amountCents={bankroll.cents}
         onOpenChat={onOpenChat}
         chatBadge={chatOverlay.unseenCount || undefined}
         voiceEnabled={voice.voiceEnabled}

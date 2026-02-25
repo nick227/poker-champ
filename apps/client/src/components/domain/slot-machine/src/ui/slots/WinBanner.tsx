@@ -28,7 +28,7 @@ export function WinBanner({ text, animatedStyle }: { text: string; animatedStyle
   }));
   return (
     <Animated.View style={[s.wrap, animatedStyle]}>
-      <Text style={s.text}>{text}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={s.text}>{text}</Text>
     </Animated.View>
   );
 }

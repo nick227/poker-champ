@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TableTopBarActions } from "@/components/domain/table/TableTopBarActions";
-import { getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
+import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { Opponent, ConnectionStatus } from "@/components/domain/table/TableLayout";
 import type { TableAction } from "@/components/domain/table/ActionBar";
 import { Button } from "@/components/base/Button";
@@ -50,6 +50,7 @@ const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
   RAISE: "table.action.raise",
   ALL_IN: "table.action.allIn",
 };
+const MAX_CHAT_OVERLAY_MESSAGES = 100;
 
 type UseTableScreenControllerParams = {
   id?: string;
@@ -79,11 +80,11 @@ export function useTableScreenController({
     joinState,
     lobbyTables,
     snapshotsByTableId,
-    chatMessagesByTableId,
-    botSummariesByTableId,
-    botSummariesUpdatedAtByTableId,
-    connectionStatusByTableId: tableStatusByTableId,
-    errorByTableId: tableErrorByTableId,
+    chatMessagesForTable,
+    botSummariesForTable,
+    botSummariesUpdatedAtForTable,
+    connectionStatusForTable,
+    errorForTable,
     hydrated: authHydrated,
     token: authToken,
   } = useTableScreenStores(tableId);
@@ -92,20 +93,28 @@ export function useTableScreenController({
     () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)) as LobbyTableRow[],
     [lobbyTables],
   );
+  const tableById = useMemo(() => {
+    const map = new Map<string, LobbyTableRow>();
+    for (const table of normalizedLobbyTables) {
+      map.set(table.id, table);
+      map.set(table.tableId, table);
+    }
+    return map;
+  }, [normalizedLobbyTables]);
 
   const { buyInCents, routeBuyInCents } = useResolvedBuyIn({
     tableId,
     buyInCentsParam,
     joinStateBuyInCents: joinState?.buyInCents,
     persistedBuyInCents,
-    lobbyTables,
+    tableById,
   });
 
   const { cents: balanceCents, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const lobbyTable = useMemo(
-    () => normalizedLobbyTables.find((t) => t.id === tableId),
-    [normalizedLobbyTables, tableId],
+    () => tableById.get(tableId),
+    [tableById, tableId],
   );
   const canDeleteTable =
     Boolean(profile.userId && lobbyTable?.creatorId === profile.userId && (lobbyTable?.connectedHumanCount ?? 0) === 0);
@@ -130,20 +139,27 @@ export function useTableScreenController({
 
   const snapshot = snapshotsByTableId[tableId];
   const snapshotSeats = snapshot?.seats;
-  const tableStatus = tableStatusByTableId[tableId] ?? "DISCONNECTED";
+  const tableStatus = connectionStatusForTable ?? "DISCONNECTED";
   const connectionStatus = tableStatus as ConnectionStatus;
-  const tableError = tableErrorByTableId[tableId];
+  const tableError = errorForTable;
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
+  const seatContext = useMemo(
+    () => (snapshot ? buildSeatContext(snapshot) : undefined),
+    [snapshot?.seats, snapshot?.hero?.seat, snapshot?.hero?.userId, snapshot?.hero?.youAreSeated],
+  );
   const heroUserId = snapshot?.hero?.userId;
   const chatMessagesForOverlay = useMemo(() => {
-    const list = chatMessagesByTableId[tableId] ?? [];
+    const list =
+      chatMessagesForTable.length > MAX_CHAT_OVERLAY_MESSAGES
+        ? chatMessagesForTable.slice(-MAX_CHAT_OVERLAY_MESSAGES)
+        : chatMessagesForTable;
     return list.map((m) => ({
       id: m.id,
       sender: m.senderName,
       text: m.text,
       isSelf: heroUserId != null && m.senderUserId === heroUserId,
     }));
-  }, [chatMessagesByTableId, tableId, heroUserId]);
+  }, [chatMessagesForTable, heroUserId]);
 
   const sendChat = useCallback(
     (text: string) => dispatchSendChat({ tableId, text }),
@@ -178,8 +194,8 @@ export function useTableScreenController({
     buyInCents,
     dispatchAddBot,
     dispatchListBots,
-    botSummaries: botSummariesByTableId[tableId] ?? [],
-    botSummariesUpdatedAtTs: botSummariesUpdatedAtByTableId[tableId],
+    botSummaries: botSummariesForTable,
+    botSummariesUpdatedAtTs: botSummariesUpdatedAtForTable,
     snapshot,
   });
 
@@ -222,7 +238,15 @@ export function useTableScreenController({
     () =>
       openTableIds.map((oid) => {
         const s = snapshotsByTableId[oid];
-        const heroSeatForTable = s?.hero.seat != null ? s.seats.find((seat: any) => seat.seat === s.hero.seat) : undefined;
+        let heroSeatForTable: TableSnapshotPayload["seats"][number] | undefined;
+        if (s?.hero.seat != null) {
+          for (const seat of s.seats) {
+            if (seat.seat === s.hero.seat) {
+              heroSeatForTable = seat;
+              break;
+            }
+          }
+        }
         return {
           id: oid,
           potCents: s?.hand?.potCents ?? s?.lastHandResult?.potCents ?? 0,
@@ -280,7 +304,7 @@ export function useTableScreenController({
   const { hasValidBuyIn } = useTableConnection({
     tableId,
     persistedRoomId,
-    normalizedLobbyTables,
+    tableById,
     buyInCents,
     authHydrated,
     hasAuthToken: Boolean(authToken),
@@ -301,12 +325,12 @@ export function useTableScreenController({
     onLifecycleReset: resetVoiceAutoJoinAttempt,
   });
 
-  const heroSeat = snapshot?.hero?.seat != null ? snapshot.seats?.find((s: any) => s.seat === snapshot.hero.seat) : undefined;
+  const heroSeat = seatContext?.heroSeat;
   const heroStackCents = heroSeat?.stackCents ?? -1;
   const heroStatus = heroSeat?.status ?? "";
   const heroDisplayStatus = useMemo(
-    () => (snapshot ? getHeroDisplayStatus(snapshot) : "SITTING_OUT"),
-    [snapshot],
+    () => (snapshot ? getHeroDisplayStatus(snapshot, seatContext) : "SITTING_OUT"),
+    [snapshot, seatContext],
   );
   const heroIsSittingOut = heroDisplayStatus === "SITTING_OUT";
 
@@ -431,7 +455,7 @@ export function useTableScreenController({
       activeTableRows,
       chatMessages: chatOverlay.messages,
       chatVisible: chatOverlay.visible,
-      botSummaries: botSummariesByTableId[tableId] ?? [],
+      botSummaries: botSummariesForTable,
     },
     uiState: {
       activeTablesDropdownVisible,

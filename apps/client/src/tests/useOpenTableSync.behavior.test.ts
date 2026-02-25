@@ -82,4 +82,26 @@ describe("useOpenTableSync", () => {
     expect(setActive).toHaveBeenCalledWith("t3");
     expect(refreshLobby).not.toHaveBeenCalled();
   });
+
+  it("does not re-open an already open table just to persist route buy-in", () => {
+    const refreshLobby = vi.fn();
+    const openTable = vi.fn();
+    const setActive = vi.fn();
+
+    useOpenTableSync({
+      tableId: "t7",
+      routeBuyInCents: 8000,
+      joinStateBuyInCents: 2000,
+      openTableIds: ["t7"],
+      activeTableId: "t7",
+      openTable,
+      setActive,
+      lobbyTableCount: 2,
+      refreshLobby,
+    });
+
+    expect(openTable).not.toHaveBeenCalled();
+    expect(setActive).not.toHaveBeenCalled();
+    expect(refreshLobby).not.toHaveBeenCalled();
+  });
 });

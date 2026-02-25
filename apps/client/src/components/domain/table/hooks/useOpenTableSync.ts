@@ -36,15 +36,13 @@ export function useOpenTableSync({
   useEffect(() => {
     if (!tableId) return;
     const hasOpenTable = openTableIds.includes(tableId);
-    const shouldPersistRouteBuyIn =
+    const shouldUseRouteBuyInOnOpen =
       Number.isInteger(routeBuyInCents) &&
       Number(routeBuyInCents) > 0 &&
       routeBuyInCents !== joinStateBuyInCents;
 
     if (!hasOpenTable) {
-      openTable(tableId, shouldPersistRouteBuyIn ? { buyInCents: routeBuyInCents as number } : undefined);
-    } else if (shouldPersistRouteBuyIn) {
-      openTable(tableId, { buyInCents: routeBuyInCents as number });
+      openTable(tableId, shouldUseRouteBuyInOnOpen ? { buyInCents: routeBuyInCents as number } : undefined);
     }
 
     if (activeTableId !== tableId) setActive(tableId);
