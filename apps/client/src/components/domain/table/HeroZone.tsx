@@ -138,7 +138,6 @@ export function HeroZone({
           {userName ? (
             <Text variant="label" numberOfLines={1} className="text-center" allowFontScaling={false}>{userName}</Text>
           ) : null}
-          <Text variant="label" allowFontScaling={false}>Stack</Text>
           <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
         </View>
 
