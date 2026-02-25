@@ -9,7 +9,10 @@ export default {
     orientation: "portrait",
     platforms: ["ios", "android", "web"],
     userInterfaceStyle: "dark",
-    web: { bundler: "metro" },
+    web: {
+      bundler: "metro",
+      favicon: "./assets/images/spades.png",
+    },
     plugins: ["expo-router"],
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL,
