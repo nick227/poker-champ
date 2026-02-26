@@ -37,7 +37,7 @@ export function TableTopBar({
       <View
         collapsable={false}
         className="ui-col items-start ui-stack-0 pr-2"
-        style={{ minHeight: 44, minWidth: 132, maxWidth: "44%" }}
+        style={{ minHeight: 44, width: "33%" }}
       >
         <Text variant="label" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
           {lockedUserName ?? "unknown"}
@@ -51,10 +51,10 @@ export function TableTopBar({
           {formatCents(balanceCents)}
         </Text>
       </View>
-      <View collapsable={false} className="flex-1 items-center ui-row justify-center px-2">
+      <View collapsable={false} className="flex-1 items-center ui-row justify-center px-2" style={{ width: "33%" }}>
         {center}
       </View>
-      <View collapsable={false} className="flex-1 ui-row justify-end">
+      <View collapsable={false} className="flex-1 ui-row justify-end" style={{ width: "33%" }}>
         {right}
       </View>
     </View>
