@@ -42,6 +42,11 @@ type RestorableSeatSession = {
   lastSeenAt: Date;
 };
 
+type SittingOutSessionTimestamp = {
+  userId: string;
+  disconnectAt: Date | null;
+};
+
 export class TableSeatSessionService {
   static async listRestorableSessionsForTable(params: {
     tableId: string;
@@ -243,6 +248,7 @@ export class TableSeatSessionService {
   static async markLeft(params: {
     tableId: string;
     userId: string;
+    reason?: string;
     stackCentsSnapshot?: number;
     handIdSnapshot?: string;
   }): Promise<void> {
@@ -257,6 +263,26 @@ export class TableSeatSessionService {
         ...(params.handIdSnapshot ? { handIdSnapshot: params.handIdSnapshot } : {}),
       },
     });
+  }
+
+  static async listSittingOutDisconnectTimesForUsers(params: {
+    tableId: string;
+    userIds: string[];
+  }): Promise<SittingOutSessionTimestamp[]> {
+    if (params.userIds.length === 0) return [];
+    const prisma = getPrisma() as any;
+    const rows: SittingOutSessionTimestamp[] = await prisma.tableSeatSession.findMany({
+      where: {
+        tableId: params.tableId,
+        userId: { in: params.userIds },
+        state: "SEATED_SITTING_OUT",
+      },
+      select: {
+        userId: true,
+        disconnectAt: true,
+      },
+    });
+    return rows;
   }
 
   /** Mark all seat sessions for a table as LEFT. Used when table is deleted. */

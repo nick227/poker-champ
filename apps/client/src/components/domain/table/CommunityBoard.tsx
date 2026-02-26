@@ -5,9 +5,7 @@ import type { UiCard } from "./table.adapter";
 import {
   COMMUNITY_BOARD_HEIGHT,
   COMMUNITY_CARD_GAP,
-  COMMUNITY_CARD_ROW_HEIGHT,
   COMMUNITY_CARD_SCALE,
-  POT_ROW_MIN_HEIGHT,
 } from "./constants/components/communityBoard.layout";
 
 /** Stable keys for 5 community card slots. */
@@ -22,7 +20,7 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
     >
       <View
         collapsable={false}
-        className="px-4 py-5 ui-stack-4"
+        className="ui-stack-4"
         style={{
           flexDirection: "column",
           flexGrow: 0,
@@ -34,7 +32,6 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
           className="ui-row ui-center"
           style={{
             gap: COMMUNITY_CARD_GAP,
-            minHeight: COMMUNITY_CARD_ROW_HEIGHT,
             alignItems: "center",
             justifyContent: "space-evenly",
           }}
@@ -51,13 +48,6 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
               </View>
             );
           })}
-        </View>
-        <View
-          collapsable={false}
-          style={{ minHeight: POT_ROW_MIN_HEIGHT }}
-          className="ui-row ui-center ui-stack-1 pt-1"
-        >
-          <PotChipStack amountCents={potCents} />
         </View>
       </View>
     </View>

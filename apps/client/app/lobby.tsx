@@ -3,33 +3,25 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
-import { ProfileStrip } from "@/components/domain/lobby/ProfileStrip";
-import { BankrollDisplay } from "@/components/domain/lobby/BankrollDisplay";
+import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
 import { GameTableRow } from "@/components/domain/lobby/GameTableRow";
 import { EmptyState } from "@/components/domain/lobby/EmptyState";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { CreateGameModal } from "@/components/domain/lobby/CreateGameModal";
 import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
-import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Loader } from "@/components/base/Loader";
-import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
-import { useLobbyVoiceControls } from "@/hooks/useLobbyVoiceControls";
 import { postCreateTable } from "@/services/post/lobby.post";
-import { postEconomyDeposit } from "@/services/post/economy.post";
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
 import { tablePath } from "@/lib/nav";
-import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
-import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
-import { LOBBY_CHAT_SCOPE, LOBBY_CHAT_SCOPE_KEY } from "@/constants/lobbyChat";
 
 type SortKey = "name" | "players" | "blinds";
 
@@ -52,21 +44,11 @@ export default function LobbyScreen() {
     onlinePlayers,
     onlineBusy,
     onlineError,
-    chatMessages,
-    chatHasMore,
-    chatLoading,
-    chatLoadingMore,
-    chatLoaded,
-    loadInitialLobbyChat,
-    loadOlderLobbyChat,
   } = storeRegistry.use.lobby();
-  const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
   const openTable = storeRegistry.use.tables((s) => s.openTable);
-  const setActive = storeRegistry.use.tables((s) => s.setActive);
-  const { requestOnlinePlayers, sendLobby } = useLobbyRealtimeBridge();
-  const { cents: bankroll, refresh: refreshBankroll, error: bankrollError, loading: bankrollLoading } = useBankroll();
+  const { requestOnlinePlayers } = useLobbyRealtimeBridge();
+  const { cents: bankroll } = useBankroll();
   const profile = useProfile();
-  const voice = useLobbyVoiceControls({ profileUserId: profile.userId });
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [chooseTableModal, setChooseTableModal] = useState<{
@@ -74,7 +56,6 @@ export default function LobbyScreen() {
     minBuyInCents: number;
     maxBuyInCents: number;
   } | null>(null);
-  const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -108,16 +89,6 @@ export default function LobbyScreen() {
     setChooseTableModal(null);
   }, [chooseTableModal, openTable, router]);
 
-  const handleDeposit = useCallback(async () => {
-    try {
-      await postEconomyDeposit();
-      await refreshBankroll();
-      useToastStore.getState().show("Deposited $1,000", "success");
-    } catch (e) {
-      useToastStore.getState().show((e as Error).message ?? "Deposit failed", "danger");
-    }
-  }, [refreshBankroll]);
-
   const handleDeleteTable = useCallback(
     (tableId: string) => {
       confirmDeleteTable(tableId, {
@@ -137,11 +108,6 @@ export default function LobbyScreen() {
     [refresh]
   );
 
-  const activeTableRows = useMemo(() =>
-    openTableIds.map((id) => ({ id, potCents: 1480, bankCents: 105950, betCents: 250, isYourTurn: false })),
-    [openTableIds]
-  );
-
   const openOnlineSheet = useCallback(() => {
     setOnlineSheetVisible(true);
     requestOnlinePlayers();
@@ -149,66 +115,14 @@ export default function LobbyScreen() {
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
 
-  const chatMessagesForOverlay = useMemo(
-    () =>
-      chatMessages.map((m) => ({
-        id: m.id,
-        sender: m.senderName,
-        text: m.text,
-        isSelf: profile.userId != null && m.senderUserId === profile.userId,
-        createdAtTs: m.createdAtTs,
-      })),
-    [chatMessages, profile.userId],
-  );
-
-  const sendLobbyChat = useCallback(
-    (text: string) => {
-      const sent = sendLobby("SEND_LOBBY_CHAT", { text });
-      if (!sent) {
-        useToastStore.getState().show("Lobby chat is offline.", "danger");
-      }
-    },
-    [sendLobby],
-  );
-
-  const chatOverlay = useChatOverlay({
-    scopeKey: LOBBY_CHAT_SCOPE_KEY,
-    messages: chatMessagesForOverlay,
-    onSend: sendLobbyChat,
-    onLoadOlder: () => {
-      void loadOlderLobbyChat();
-    },
-    hasMore: chatHasMore,
-    loadingOlder: chatLoadingMore,
-  });
-
-  const onOpenChat = useCallback(() => {
-    chatOverlay.setVisible(true);
-    if (!chatLoaded && !chatLoading) {
-      void loadInitialLobbyChat({ scope: LOBBY_CHAT_SCOPE });
-    }
-  }, [chatOverlay, chatLoaded, chatLoading, loadInitialLobbyChat]);
-
   return (
     <Screen>
         <Masthead />
-        <ProfileStrip
+        <AppTopNav
           username={profile.username ?? "Player"}
-          location={profile.location}
-          onOpenChat={onOpenChat}
-          chatBadge={chatOverlay.unseenCount || undefined}
-          voiceEnabled={voice.voiceEnabled}
-          voiceMuted={voice.voiceMuted}
-          onToggleVoice={voice.onToggleVoice}
-          onToggleMute={voice.onToggleMute}
-          voiceParticipantCount={voice.voiceParticipantCount}
-          voiceJoinDisabled={voice.voiceJoinDisabled}
           onlineLabel={onlineLabel}
           onPressOnline={openOnlineSheet}
-          tableNotificationCount={openTableIds.length}
-          onTableNotifications={() => setActiveTablesDropdownVisible(true)}
-          amountCents={bankroll} 
-          onDeposit={handleDeposit}
+          amountCents={bankroll}
         />
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <View className="flex-1 ui-col gap-3">
@@ -244,33 +158,13 @@ export default function LobbyScreen() {
           onApply={handleJoinApply}
         />
       )}
-      <ActiveTablesDropdown
-        visible={activeTablesDropdownVisible}
-        onClose={() => setActiveTablesDropdownVisible(false)}
-        tables={activeTableRows}
-        onSelectTable={(id) => {
-          setActive(id);
-          router.push(tablePath(id));
-          setActiveTablesDropdownVisible(false);
-        }}
-      />
       <OnlinePlayersSheet
         visible={onlineSheetVisible}
         onClose={() => setOnlineSheetVisible(false)}
         players={onlinePlayers}
-        voiceParticipantIds={voice.voiceParticipantIds}
         loading={onlineBusy}
         error={onlineError}
         onRefresh={requestOnlinePlayers}
-      />
-      <ChatOverlay
-        visible={chatOverlay.visible}
-        onClose={chatOverlay.onClose}
-        messages={chatOverlay.messages}
-        onSend={chatOverlay.onSend}
-        onLoadOlder={chatOverlay.onLoadOlder}
-        hasMore={chatOverlay.hasMore}
-        loadingOlder={chatOverlay.loadingOlder}
       />
       <BottomBar active="lobby" />
     </Screen>

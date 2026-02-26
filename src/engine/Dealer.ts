@@ -350,6 +350,12 @@ export class Dealer {
     });
   }
 
+  async setPlayerSittingOut(userId: string, sittingOut: boolean): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.setPlayerSittingOutInternal(userId, sittingOut);
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // PUBLIC API - CONNECTION STATE MANAGEMENT
   // ---------------------------------------------------------------------------
@@ -796,6 +802,77 @@ export class Dealer {
   private async markAbandonedInternal(userId: string): Promise<void> {
     const plans = await this.playerLifecycleService.markAbandoned(userId);
     await this.executePlayerLifecyclePlans(plans);
+  }
+
+  private async setPlayerSittingOutInternal(userId: string, sittingOut: boolean): Promise<void> {
+    const player = this.state.playersById.get(userId);
+    if (!player || player.kind !== "HUMAN") return;
+
+    if (sittingOut) {
+      player.sittingOutUntilNextHand = true;
+      player.disconnectDeadlineTs = 0;
+      player.needsAction = false;
+
+      if (player.stackCents <= 0) {
+        player.status = "OUT";
+        this.sendTableSnapshotToAll("SEAT_CHANGE");
+        return;
+      }
+
+      if (player.status !== "OUT") {
+        player.status = "ABANDONED";
+      }
+
+      this.sendTableSnapshotToAll("SEAT_CHANGE");
+
+      if (this.state.street === "WAITING") return;
+
+      if (countNotFoldedPlayers(this.state) <= 1) {
+        await this.finishHandByLastStanding();
+        return;
+      }
+
+      if (this.state.toActSeat === player.seat) {
+        if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+          await this.advanceStreetOrShowdown();
+          return;
+        }
+        const nextSeat = findNextToActSeat(this.state, player.seat);
+        if (nextSeat === -1) {
+          await this.advanceStreetOrShowdown();
+          return;
+        }
+        this.state.toActSeat = nextSeat;
+      }
+
+      this.maybeActForBot();
+      return;
+    }
+
+    player.sittingOutUntilNextHand = false;
+    player.disconnectDeadlineTs = 0;
+    player.needsAction = false;
+
+    if (player.stackCents <= 0) {
+      player.status = "OUT";
+      this.sendTableSnapshotToAll("SEAT_CHANGE");
+      return;
+    }
+
+    if (this.state.street === "WAITING") {
+      player.status = "ACTIVE";
+      this.sendTableSnapshotToAll("SEAT_CHANGE");
+      if (countNonOutPlayers(this.state) >= 2) {
+        await this.startHand();
+      }
+      return;
+    }
+
+    // During an active hand, rejoin means "eligible for the next hand".
+    if (player.status === "OUT") {
+      player.status = "ABANDONED";
+    }
+    this.sendTableSnapshotToAll("SEAT_CHANGE");
   }
 
   private async forceFoldForLeave(userId: string): Promise<void> {

@@ -1,74 +1,46 @@
 import { StyleSheet } from "react-native";
 import {
-  CONTAINER_PADDING,
-  TILE_WIDTH,
-  TILE_PADDING,
+  STRIP_HORIZONTAL_PADDING,
+  STRIP_VERTICAL_PADDING,
+  ROW_GAP,
   ROW_PADDING,
-  OPPONENT_ROW_GAP,
-  OPPONENT_CARD_ROW_HEIGHT,
-  OPPONENT_USERNAME_ROW_HEIGHT,
-  OPPONENT_ACTION_ROW_HEIGHT,
-  OPPONENT_AVATAR_STACK_ROW_HEIGHT,
   AVATAR_SIZE,
-  OPPONENT_TILE_HEIGHT,
+  OPPONENT_ROW_MIN_HEIGHT,
+  OPPONENT_CARDS_COL_WIDTH,
   OPPONENT_CARD_WIDTH,
   OPPONENT_CARD_HEIGHT,
   OPPONENT_CARD_GAP,
   OPPONENT_CARD_SCALE,
-  CONTAINER_HORIZONTAL_PADDING,
-  CONTAINER_VERTICAL_PADDING,
-  CONTAINER_BOTTOM_PADDING,
 } from "./constants/components/opponentStrip.layout";
 import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
 import {
   ACTIVE_TILE_BORDER,
-  ACTIVE_USERNAME_COLOR,
-  INACTIVE_USERNAME_COLOR,
   STACK_TEXT_COLOR,
 } from "./constants/style/tableColors";
-
-const ROW_BASE = ROW_PADDING * 2;
 
 export const opponentStripStyles = StyleSheet.create({
   strip: {
     width: "100%",
-    overflow: "hidden",
-  },
-  /** Fill fixed-height band without % or flex:1; alignSelf: stretch uses parent height. */
-  scrollViewFill: {
-    flexGrow: 0,
-    flexShrink: 0,
-    alignSelf: "stretch",
+    paddingHorizontal: STRIP_HORIZONTAL_PADDING,
+    paddingVertical: STRIP_VERTICAL_PADDING,
   },
   scrollContent: {
-    paddingHorizontal: CONTAINER_HORIZONTAL_PADDING,
-    paddingVertical: CONTAINER_VERTICAL_PADDING,
-    paddingTop: CONTAINER_VERTICAL_PADDING,
-    paddingBottom: CONTAINER_BOTTOM_PADDING,
-    alignItems: "stretch",
+    gap: ROW_GAP,
+    paddingBottom: 2,
   },
-  horizontalScrollContent: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    alignItems: "center",
-    flexGrow: 0,
-    flexShrink: 0,
-  },
-  opponentRow: {
-    flexDirection: "row",
-    flexWrap: "nowrap",
-    gap: OPPONENT_ROW_GAP,
-    flexShrink: 0,
-  },
-  tile: {
-    width: TILE_WIDTH,
-    height: OPPONENT_TILE_HEIGHT,
-    padding: TILE_PADDING,
-    flexDirection: "column",
+  rowPressable: {
+    position: "relative",
     borderRadius: TABLE_TILE_RADIUS,
+  },
+  rowShell: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: OPPONENT_ROW_MIN_HEIGHT,
+    borderRadius: TABLE_TILE_RADIUS,
+    borderWidth: 1,
     overflow: "hidden",
   },
-  tileActive: {
+  rowShellActive: {
     borderColor: ACTIVE_TILE_BORDER,
     boxShadow: [
       {
@@ -80,20 +52,22 @@ export const opponentStripStyles = StyleSheet.create({
     ] as const,
     elevation: 6,
   },
-  cardRow: {
-    height: OPPONENT_CARD_ROW_HEIGHT + ROW_BASE,
+  cardsCol: {
+    width: OPPONENT_CARDS_COL_WIDTH,
+    minHeight: OPPONENT_ROW_MIN_HEIGHT,
     padding: ROW_PADDING,
-    justifyContent: "center",
+    borderRightWidth: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
-  cardRowInner: {
+  cardsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: OPPONENT_CARD_GAP,
     height: OPPONENT_CARD_HEIGHT,
   },
-  card: {
+  cardSlot: {
     width: OPPONENT_CARD_WIDTH,
     height: OPPONENT_CARD_HEIGHT,
     justifyContent: "center",
@@ -105,38 +79,23 @@ export const opponentStripStyles = StyleSheet.create({
   cardPlaceholder: {
     height: OPPONENT_CARD_HEIGHT,
   },
-  usernameRow: {
-    height: OPPONENT_USERNAME_ROW_HEIGHT + ROW_BASE,
+  infoCol: {
+    flex: 1,
+    minHeight: OPPONENT_ROW_MIN_HEIGHT,
     padding: ROW_PADDING,
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
-  usernameText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: INACTIVE_USERNAME_COLOR,
-  },
-  usernameTextActive: {
-    color: ACTIVE_USERNAME_COLOR,
-  },
-  actionRow: {
-    height: OPPONENT_ACTION_ROW_HEIGHT + ROW_BASE,
-    padding: ROW_PADDING,
-    justifyContent: "center",
-  },
-  avatarStackRow: {
-    height: OPPONENT_AVATAR_STACK_ROW_HEIGHT,
-    padding: ROW_PADDING,
+  infoTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: ROW_PADDING,
+    justifyContent: "space-between",
+    gap: 6,
   },
-  avatarCol: {
+  nameWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     flex: 1,
-    maxWidth: AVATAR_SIZE,
-    minWidth: 0,
-  },
-  stackCol: {
-    flex: 3,
     minWidth: 0,
   },
   avatar: {
@@ -148,21 +107,14 @@ export const opponentStripStyles = StyleSheet.create({
     alignItems: "center",
   },
   stackText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
     color: STACK_TEXT_COLOR,
   },
-  contentWrapper: {
-    position: "relative",
-  },
-  dealerBadge: {
-    position: "absolute",
-    bottom: 10,
-    left: "50%",
-    right: 10,
-    zIndex: 1,
-    alignItems: "flex-end",
+  actionText: {
+    fontSize: 11,
+    lineHeight: 14,
   },
 });
 

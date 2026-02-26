@@ -43,6 +43,7 @@ export function useTableRealtime({
   const onErrorRef = useRef(onError);
   const onTableGoneRef = useRef(onTableGone);
   const onReadyRoomRef = useRef(onReadyRoom);
+  const realtimeSendRef = useRef<(type: string, payload?: unknown) => boolean>(() => false);
   onErrorRef.current = onError;
   onTableGoneRef.current = onTableGone;
   onReadyRoomRef.current = onReadyRoom;
@@ -98,6 +99,9 @@ export function useTableRealtime({
     },
   });
 
+  // Update the send ref whenever realtime changes
+  realtimeSendRef.current = realtime.send;
+
   useEffect(() => {
     if (roomId && roomId.length > 0) {
       const current = storeRegistry.tables().roomIdByTableId[tableId];
@@ -114,11 +118,11 @@ export function useTableRealtime({
       buyInCents: hasValidBuyIn ? Number(buyInCents) : undefined,
       hasPassword: Boolean(password),
     });
-    storeRegistry.tables().registerTableSender(tableId, realtime.send);
+    storeRegistry.tables().registerTableSender(tableId, realtimeSendRef.current);
     return () => {
       debugLog("DISPOSE", { tableId });
       storeRegistry.tables().unregisterTableSender(tableId);
       onReadyRoomRef.current?.(null);
     };
-  }, [tableId, roomId, realtime, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
+  }, [tableId, roomId, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
 }

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  LAYOUT_TITLE_HEIGHT,
-  LAYOUT_TOP_BAR_HEIGHT,
-  OPPONENT_STRIP_HEIGHT,
+  LAYOUT_GAME_TOP_BAR_HEIGHT,
   GAME_AREA_HEIGHT,
   HERO_ZONE_HEIGHT,
   ACTION_BAR_HEIGHT,
@@ -10,15 +8,13 @@ import {
 
 /** Snapshot to prevent accidental layout regressions when touching band heights. */
 const EXPECTED_TOTAL_FIXED_HEIGHT =
-  LAYOUT_TITLE_HEIGHT +
-  LAYOUT_TOP_BAR_HEIGHT +
-  OPPONENT_STRIP_HEIGHT +
+  LAYOUT_GAME_TOP_BAR_HEIGHT +
   GAME_AREA_HEIGHT +
   HERO_ZONE_HEIGHT +
   ACTION_BAR_HEIGHT;
 
 describe("tableLayout.constants", () => {
   it("sum of normal band heights snapshot unchanged (update test if intentionally changed)", () => {
-    expect(EXPECTED_TOTAL_FIXED_HEIGHT).toBe(975);
+    expect(EXPECTED_TOTAL_FIXED_HEIGHT).toBe(626);
   });
 });

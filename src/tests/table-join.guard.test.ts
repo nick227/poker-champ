@@ -3,6 +3,7 @@ import { PokerRoom } from "../rooms/PokerRoom.js";
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { Dealer } from "../engine/Dealer.js";
+import { PlayerState } from "../state/PlayerState.js";
 
 type FakeClient = {
   sessionId: string;
@@ -480,5 +481,45 @@ describe("table join guardrails", () => {
       }),
     );
     expect(markLeftSpy).toHaveBeenCalledWith({ id: "ssn_restore_mismatch" });
+  });
+
+  it("rejects joins with TABLE_GONE while room is deleting", async () => {
+    const client = makeClient("join_deleting");
+    const { room, dealer } = buildRoomWithDealerStub();
+
+    const lock = room.beginDeleteIfNoConnectedHumans();
+    expect(lock.ok).toBe(true);
+
+    await room.onJoin(
+      client as any,
+      { buyInCents: 5000 },
+      { userId: "user_delete_guard", username: "grace" },
+    );
+
+    expect(dealer.addPlayer).not.toHaveBeenCalled();
+    expect(client.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({
+        version: 1,
+        code: "TABLE_GONE",
+      }),
+    );
+    expect(client.leave).toHaveBeenCalled();
+  });
+
+  it("beginDeleteIfNoConnectedHumans denies lock when connected humans are bound", () => {
+    const { room, dealer } = buildRoomWithDealerStub();
+    const human = new PlayerState();
+    human.id = "user_connected";
+    human.userId = "user_connected";
+    human.kind = "HUMAN";
+    room.state.playersById.set(human.id, human);
+
+    dealer.getClient = vi.fn((id: string) => (id === "user_connected" ? ({ sessionId: "sess_live" } as any) : undefined));
+
+    const lock = room.beginDeleteIfNoConnectedHumans();
+    expect(lock.ok).toBe(false);
+    expect(lock.reason).toBe("CONNECTED_HUMANS_PRESENT");
+    expect(lock.connectedHumanCount).toBe(1);
   });
 });

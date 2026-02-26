@@ -74,6 +74,10 @@ export const ChatPayloadSchema = z.object({
   text: z.string().transform((s) => s.trim()).pipe(z.string().min(1).max(500)),
 });
 
+export const SetSittingOutPayloadSchema = z.object({
+  sittingOut: z.boolean(),
+});
+
 export const ChatMessagePayloadSchema = z.object({
   id: z.string().min(1),
   tableId: z.string().min(1),
@@ -89,6 +93,7 @@ export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("LIST_BOTS"), payload: ListBotsPayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
+  z.object({ type: z.literal("SET_SITTING_OUT"), payload: SetSittingOutPayloadSchema }),
 ]);
 
 export const HeroActionOptionsSchema = z.object({

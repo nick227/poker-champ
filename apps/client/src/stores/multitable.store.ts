@@ -58,6 +58,7 @@ type MultiTableState = {
   dispatchListBots: (input: { tableId: string }) => boolean;
   dispatchAddBot: (input: { tableId: string; botId?: string; name?: string; buyInCents: number }) => boolean;
   dispatchRemoveBot: (input: { tableId: string; botId: string }) => boolean;
+  dispatchSetSittingOut: (input: { tableId: string; sittingOut: boolean }) => boolean;
   closeAll: () => void;
   scheduleActionRetry: (tableId: string, retryAfterSeconds?: number) => void;
   clearPendingAction: (tableId: string) => void;
@@ -236,6 +237,13 @@ export const useMultiTableStore = create<MultiTableState>()(
         const sender = get().tableSenders[tableId];
         if (!sender) return false;
         return sender("REMOVE_BOT", { botId });
+      },
+      dispatchSetSittingOut: ({ tableId, sittingOut }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = { sittingOut };
+        if (!isValidTableInbound("SET_SITTING_OUT", payload)) return false;
+        return sender("SET_SITTING_OUT", payload);
       },
       scheduleActionRetry: (tableId, retryAfterSeconds = 2) => {
         const pending = get().pendingActionByTableId[tableId];

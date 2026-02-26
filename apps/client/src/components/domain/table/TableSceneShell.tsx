@@ -6,26 +6,21 @@ import type { ReactNode } from "react";
 import { Platform, View, ScrollView } from "react-native";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
-import { Text } from "@/components/base/Text";
-import { Button } from "@/components/base/Button";
-import { TableTopBar } from "./TableTopBar";
+import { TableGameTopBar } from "./TableGameTopBar";
 import { OpponentStrip, type Opponent } from "./OpponentStrip";
-import { formatCents } from "@/lib/format";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableLayoutHeights } from "./hooks/useTableLayoutHeights";
 import { layoutStyles } from "./tableLayout.styles";
-import { ACTION_BAR_HEIGHT } from "./constants/tableLayout.constants";
+import {
+  ACTION_BAR_HEIGHT,
+} from "./constants/tableLayout.constants";
 import { useProfile } from "@/hooks/useProfile";
-
-type Blinds = { smallBlindCents: number; bigBlindCents: number };
+import { useRouter } from "expo-router";
 
 export type TableSceneShellProps = {
   tableName: string;
-  blinds?: Blinds;
-  playerCount: number;
-  maxSeats: number;
   balanceCents: number;
-  topBarCenter?: ReactNode;
+  playerStackCents?: number;
   topBarRight?: ReactNode;
   opponents: Opponent[];
   opponentStripEmptyState?: ReactNode;
@@ -36,9 +31,6 @@ export type TableSceneShellProps = {
   hero: ReactNode;
   bottom: ReactNode;
   rootClassName?: string;
-  titleSectionClassName?: string;
-  topBarSectionClassName?: string;
-  onCloseTable?: () => void;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -47,11 +39,8 @@ function cx(...tokens: Array<string | undefined>) {
 
 export function TableSceneShell({
   tableName,
-  blinds,
-  playerCount,
-  maxSeats,
   balanceCents,
-  topBarCenter,
+  playerStackCents,
   topBarRight,
   opponents,
   opponentStripEmptyState,
@@ -60,21 +49,15 @@ export function TableSceneShell({
   dealerBar,
   board,
   hero,
-  onCloseTable,
   bottom,
   rootClassName,
-  titleSectionClassName,
-  topBarSectionClassName,
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
-  const { insets, opponentStripHeight, heroZoneHeight } = useTableLayoutHeights();
+  const { insets, heroZoneHeight } = useTableLayoutHeights();
   const profile = useProfile();
+  const router = useRouter();
 
-  const opponentStripStyle =
-    Platform.OS === "web"
-      ? { height: "var(--table-opponent-strip-height)" as unknown as number }
-      : { height: opponentStripHeight, minHeight: opponentStripHeight };
   const heroSectionStyle =
     Platform.OS === "web"
       ? { height: "var(--table-hero-zone-height)" as unknown as number }
@@ -92,7 +75,6 @@ export function TableSceneShell({
           "--c-brand": accentColor,
           "--c-bg": backgroundColor,
           "--r-table": tableRadius,
-          "--table-opponent-strip-height": `${opponentStripHeight}px`,
           "--table-hero-zone-height": `${heroZoneHeight}px`,
         }),
         layoutStyles.root,
@@ -101,48 +83,20 @@ export function TableSceneShell({
       className={cx("table-wrapper", rootClassName)}
     >
       <TableLayoutHeightProvider heroZoneHeight={heroZoneHeight}>
-        {onCloseTable ? (
-          <View className="absolute right-2 top-2 z-20">
-            <Button variant="link" title="X" onPress={onCloseTable} />
-          </View>
-        ) : null}
-        <View
-          collapsable={false}
-          style={layoutStyles.titleSection}
-          className={cx("ui-stack-1 justify-center align-items", titleSectionClassName)}
-        >
-          <Text style={{ fontSize: 24, textAlign: "center", paddingHorizontal: 56 }} variant="h1" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
-            {tableName}
-          </Text>
-          <View className="ui-row ui-center gap-x-3">
-            {blinds && (
-              <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
-                {formatCents(blinds.smallBlindCents)} / {formatCents(blinds.bigBlindCents)}
-              </Text>
-            )}
-            <Text variant="label" className="text-text-subtle" allowFontScaling={false}>
-              {playerCount} / {maxSeats} players
-            </Text>
-          </View>
+        <View collapsable={false} style={layoutStyles.titleSection}>
+          <TableGameTopBar
+            tableName={tableName}
+            userName={profile.username}
+            stackCents={playerStackCents ?? balanceCents}
+            onLogoPress={() => router.push("/")}
+            right={topBarRight}
+          />
         </View>
 
         <ScrollView>
           <View
             collapsable={false}
-            style={layoutStyles.topBarSection}
-            className={cx(topBarSectionClassName)}
-          >
-            <TableTopBar
-              userName={profile.username}
-              balanceCents={balanceCents}
-              center={topBarCenter}
-              right={topBarRight}
-            />
-          </View>
-
-          <View
-            collapsable={false}
-            style={[layoutStyles.opponentStripSection, opponentStripStyle]}
+            style={layoutStyles.opponentStripSection}
             className="table-opponent-strip"
           >
             {opponents.length === 0 && opponentStripEmptyState ? (
@@ -154,7 +108,6 @@ export function TableSceneShell({
                 opponents={opponents}
                 winnerName={winnerName}
                 onPlayerPress={onPlayerPress}
-                height={opponentStripHeight}
               />
             )}
           </View>
@@ -171,7 +124,7 @@ export function TableSceneShell({
             <View
               collapsable={false}
               style={[layoutStyles.heroSection, heroSectionStyle]}
-              className="table-hero-section mt-4"
+              className="table-hero-section"
             >
               {hero}
             </View>

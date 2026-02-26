@@ -42,4 +42,17 @@ describe("multi-table action idempotency payloads", () => {
 
     vi.useRealTimers();
   });
+
+  it("dispatches SET_SITTING_OUT with validated payload", () => {
+    const sender = vi.fn(() => true);
+    useMultiTableStore.getState().registerTableSender("t1", sender);
+
+    const ok = useMultiTableStore.getState().dispatchSetSittingOut({
+      tableId: "t1",
+      sittingOut: true,
+    });
+
+    expect(ok).toBe(true);
+    expect(sender).toHaveBeenCalledWith("SET_SITTING_OUT", { sittingOut: true });
+  });
 });

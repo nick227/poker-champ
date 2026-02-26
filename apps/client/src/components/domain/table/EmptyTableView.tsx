@@ -7,7 +7,6 @@ import { HeroZone } from "./HeroZone";
 import { Button } from "@/components/base/Button";
 import { useTableSceneModel, type TableSceneModel } from "./hooks/useTableSceneModel";
 import { TableSceneShell } from "./TableSceneShell";
-import { TABLE_SHELL_TITLE_CLASSNAME, TABLE_SHELL_TOP_BAR_CLASSNAME } from "./constants/tableLayout.constants";
 
 export type EmptyTableViewProps = {
   snapshot: TableSnapshotPayload;
@@ -16,9 +15,7 @@ export type EmptyTableViewProps = {
   tableStatus?: string;
   handResultMessage?: { winnerName: string; amountCents: number; winningHandDescr?: string };
   sceneModel?: TableSceneModel;
-  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
-  onCloseTable?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
   opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
@@ -32,9 +29,7 @@ export function EmptyTableView({
   tableStatus,
   handResultMessage,
   sceneModel,
-  topBarCenter,
   topBarRight,
-  onCloseTable,
   onPlayerPress,
   opponentStripEmptyState,
   canRebuy = false,
@@ -48,21 +43,14 @@ export function EmptyTableView({
     potCents,
     communityCards,
     tableName,
-    playerCount,
-    maxSeats,
-    blinds,
   } = sceneModel ?? model;
 
   return (
     <TableSceneShell
       tableName={tableName}
-      blinds={blinds}
-      playerCount={playerCount}
-      maxSeats={maxSeats}
       balanceCents={balanceCents}
-      topBarCenter={topBarCenter}
+      playerStackCents={heroStackCents}
       topBarRight={topBarRight}
-      onCloseTable={onCloseTable}
       opponents={opponents}
       opponentStripEmptyState={opponentStripEmptyState}
       winnerName={handResultMessage?.winnerName}
@@ -87,8 +75,6 @@ export function EmptyTableView({
       }
       bottom={canRebuy && onPressRebuy ? <Button title="Rebuy" onPress={onPressRebuy} /> : null}
       rootClassName="overflow-hidden"
-      titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
-      topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
     />
   );
 }

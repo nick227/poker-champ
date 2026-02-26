@@ -122,19 +122,39 @@ router.delete("/tables/:tableId", requireAuth, async (req, res) => {
     return;
   }
 
-  const connectedHumanCount = room.metadata?.connectedHumanCount ?? 0;
-  if (connectedHumanCount !== 0) {
+  const initialConnectedHumanCount = room.metadata?.connectedHumanCount ?? 0;
+  if (initialConnectedHumanCount !== 0) {
     res.status(409).json({ error: "Table can only be deleted when no human players are connected" });
     return;
   }
 
   const resolvedTableId = (room.metadata?.tableId as string) ?? room.roomId ?? tableId;
   const { TableSeatSessionService } = await import("../engine/seats/TableSeatSessionService.js");
+  let deleteLockAcquired = false;
   try {
+    const lockResult = await matchMaker.remoteRoomCall(
+      room.roomId,
+      "beginDeleteIfNoConnectedHumans" as never,
+      [],
+      5000,
+    ) as { ok?: boolean; reason?: string; connectedHumanCount?: number } | undefined;
+    if (!lockResult?.ok) {
+      res.status(409).json({ error: "Table can only be deleted when no human players are connected" });
+      return;
+    }
+    deleteLockAcquired = true;
+
     await TableSeatSessionService.markAllLeftForTable({ tableId: resolvedTableId });
     await matchMaker.remoteRoomCall(room.roomId, "requestDisconnect", [], 5000);
   } catch (err) {
     logger.warn({ err, tableId, roomId: room.roomId }, "requestDisconnect failed");
+    if (deleteLockAcquired) {
+      try {
+        await matchMaker.remoteRoomCall(room.roomId, "cancelDelete" as never, [], 5000);
+      } catch (cancelErr) {
+        logger.warn({ err: cancelErr, tableId, roomId: room.roomId }, "cancelDelete failed after requestDisconnect error");
+      }
+    }
     res.status(500).json({ error: "Failed to close table" });
     return;
   }

@@ -18,16 +18,6 @@ export default function TableScreen() {
 
   return (
     <Screen>
-      {(renderModel.openTableIds?.length ?? 0) > 1 && (
-        <View className="ui-p-stack-2">
-          <MultiTableTabs
-            openTableIds={renderModel.openTableIds}
-            activeTableId={renderModel.activeTableId}
-            onSelectTable={actions.selectTableTab}
-            onOpenMoreTables={actions.openMoreTables}
-          />
-        </View>
-      )}
       <TableScreenScene scene={scene} renderModel={renderModel} actions={actions} />
       <TableScreenOverlays renderModel={renderModel} uiState={uiState} actions={actions} />
       <BottomBar active="table" />

@@ -13,7 +13,7 @@ export function JackpotBanner({ title, value, animatedStyle }: { title: string; 
       borderColor: t.colors.accent1,
       backgroundColor: t.colors.bg0,
       paddingVertical: 10,
-      paddingHorizontal: 14,
+      paddingHorizontal: 4,
       gap: 4,
     },
     top: {
@@ -40,8 +40,6 @@ export function JackpotBanner({ title, value, animatedStyle }: { title: string; 
   return (
     <Animated.View style={[s.wrap, animatedStyle]}>
       <Text style={s.top}>{title}</Text>
-      <View style={s.divider} />
-      <Text style={s.value}>{value}</Text>
     </Animated.View>
   );
 }

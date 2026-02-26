@@ -14,14 +14,10 @@ export function resolveTableSceneMode(params: {
 }
 
 export function getTableTopBarFlags(params: {
-  canDeleteTable: boolean;
   canAddBot: boolean;
 }) {
   return {
-    showDelete: params.canDeleteTable,
     showAddBot: params.canAddBot,
-    showChat: true,
-    showClose: true,
   };
 }
 
@@ -32,4 +28,3 @@ export function shouldKeepOverlaysMountedAcrossModeChange(
   const interactive = new Set<TableSceneMode>(["idle", "active"]);
   return interactive.has(previousMode) && interactive.has(nextMode);
 }
-

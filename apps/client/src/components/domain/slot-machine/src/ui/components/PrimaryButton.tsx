@@ -3,8 +3,9 @@ import { Pressable, Text } from "react-native";
 import Animated from "react-native-reanimated";
 import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
+import { formatCents } from "../../engine/format";
 
-export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyle }: { title: string; subtitle?: string; disabled?: boolean; onPress?: () => void; animatedStyle?: any }) {
+export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyle, betCents }: { title: string; subtitle?: string; disabled?: boolean; onPress?: () => void; animatedStyle?: any, betCents?: number }) {
   const { theme } = useTheme();
   const s = makeStyles(theme, (t) => ({
     btn: {
@@ -36,7 +37,7 @@ export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyl
   return (
     <Animated.View style={animatedStyle}>
       <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [s.btn, pressed && !disabled && { opacity: 0.9 }]}>
-        <Text style={s.title}>{title}</Text>
+        <Text style={s.title}>{typeof betCents === 'undefined' ? '' : formatCents(betCents)}</Text>
         {!!subtitle && <Text style={s.sub}>{subtitle}</Text>}
       </Pressable>
     </Animated.View>

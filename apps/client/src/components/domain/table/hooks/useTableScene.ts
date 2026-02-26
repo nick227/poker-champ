@@ -10,15 +10,11 @@ export type TableSceneParams = {
   hasAuthToken: boolean;
   hasSnapshot: boolean;
   hasActiveHand: boolean;
-  canDeleteTable: boolean;
   canAddBot: boolean;
 };
 
 export type TableTopBarFlags = {
-  showDelete: boolean;
   showAddBot: boolean;
-  showChat: boolean;
-  showClose: boolean;
 };
 
 export function useTableScene(params: TableSceneParams): {
@@ -30,7 +26,6 @@ export function useTableScene(params: TableSceneParams): {
     hasAuthToken,
     hasSnapshot,
     hasActiveHand,
-    canDeleteTable,
     canAddBot,
   } = params;
 
@@ -46,8 +41,8 @@ export function useTableScene(params: TableSceneParams): {
   );
 
   const tableTopBarFlags = useMemo(
-    () => getTableTopBarFlags({ canDeleteTable, canAddBot }),
-    [canDeleteTable, canAddBot]
+    () => getTableTopBarFlags({ canAddBot }),
+    [canAddBot]
   );
 
   return { sceneMode, tableTopBarFlags };

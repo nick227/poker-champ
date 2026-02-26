@@ -24,6 +24,7 @@ export function useTableScreenStores(tableId: string | undefined) {
       dispatchListBots: s.dispatchListBots,
       dispatchAddBot: s.dispatchAddBot,
       dispatchRemoveBot: s.dispatchRemoveBot,
+      dispatchSetSittingOut: s.dispatchSetSittingOut,
       joinState: id ? s.tableJoinById[id] : undefined,
     }))
   );

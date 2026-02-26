@@ -29,6 +29,8 @@ export const TABLE = {
   deal: "Deal",
   fold: "Fold",
   sittingOut: "Sitting out",
+  sitOut: "Sit out",
+  rejoin: "Rejoin",
   bankroll: "Bankroll",
   sort: "Sort",
   createGame: "Create Game",

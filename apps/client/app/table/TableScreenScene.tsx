@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import { TableLayout } from "@/components/domain/table/TableLayout";
 import { EmptyTableView } from "@/components/domain/table/EmptyTableView";
 import { TableSceneShell } from "@/components/domain/table/TableSceneShell";
@@ -8,12 +8,8 @@ import { ConnectingCard } from "@/components/domain/table/ConnectingCard";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import type { TableScreenController } from "@/types/tableSceneContract";
-import {
-  DEFAULT_MAX_SEATS,
-  TABLE_SHELL_TITLE_CLASSNAME,
-  TABLE_SHELL_TOP_BAR_CLASSNAME,
-} from "@/components/domain/table/constants/tableLayout.constants";
 import { tablePath } from "@/lib/nav";
+import { a } from "vitest/dist/chunks/suite.B2jumIFP";
 
 /** Single source for all non-game status text. DealerAnnounceBar is the only place that shows these. */
 function statusMessageFor(
@@ -72,12 +68,8 @@ function StatusShell({
   return (
     <TableSceneShell
       tableName="Connecting…"
-      playerCount={0}
-      maxSeats={DEFAULT_MAX_SEATS}
       balanceCents={renderModel.balanceCents}
-      topBarCenter={renderModel.tableTopBarCenter}
       topBarRight={renderModel.tableTopBarRight}
-      onCloseTable={actions.closeTableAndReturn}
       opponents={[]}
       dealerBar={<DealerAnnounceBar statusMessage={message} />}
       board={
@@ -90,10 +82,19 @@ function StatusShell({
       }
       hero={<View collapsable={false} />}
       bottom={statusBottom(mode, actions)}
-      titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
-      topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
     />
   );
+}
+
+export function copyShareTableUrl(url?: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function" && url) {
+    navigator.clipboard.writeText(url).catch((err) => {
+      console.error("Failed to copy share table URL:", err);
+    });
+    alert("Share table URL copied to clipboard!");
+  } else {
+    console.warn("Clipboard API not available. Cannot copy share table URL.");
+  }
 }
 
 export function TableScreenScene({ scene, renderModel, actions }: TableScreenSceneProps) {
@@ -103,19 +104,18 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
   const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
   const emptyOpponentsState = showEmptyOpponentsState ? (
     <View className="p-4 gap-y-3 mt-2">
-      <Text variant="h2" className="text-lg">
-        Waiting for opponents
-      </Text>
-      <View className="ui-row">
+      <View className="ui-row rounded-lg border border-border-subtle bg-panel-elevated p-3">
         <Button title="Add bot" onPress={actions.openAddBotPicker} />
-      </View>
-      <View className="rounded-lg border border-border-subtle bg-panel-elevated p-3">
-        <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
-          Share this game URL
-        </Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" selectable className="text-xs">
-          {shareTableUrl}
-        </Text>
+        <View className="ui-col p-4  flex-1 min-w-0">
+          <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
+            Share this game URL
+          </Text>
+          <Pressable onPress={() => copyShareTableUrl(shareTableUrl)}>
+            <Text numberOfLines={1} ellipsizeMode="tail" selectable className="w-full">
+              {shareTableUrl}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   ) : null;
@@ -133,9 +133,7 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           balanceCents={renderModel.balanceCents}
           tableStatus={scene.tableStatus}
           handResultMessage={renderModel.handResultMessage}
-          topBarCenter={renderModel.tableTopBarCenter}
           topBarRight={renderModel.tableTopBarRight}
-          onCloseTable={actions.closeTableAndReturn}
           onPlayerPress={actions.onPlayerPress}
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
@@ -152,10 +150,9 @@ export function TableScreenScene({ scene, renderModel, actions }: TableScreenSce
           connectionStatus={scene.connectionStatus}
           actionMessage={renderModel.actionMessage}
           handResultMessage={renderModel.handResultMessage}
-          topBarCenter={renderModel.tableTopBarCenter}
           topBarRight={renderModel.tableTopBarRight}
-          onCloseTable={actions.closeTableAndReturn}
           onAction={actions.sendAction}
+          onToggleSittingOut={actions.toggleHeroSittingOut}
           onPlayerPress={actions.onPlayerPress}
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}

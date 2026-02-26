@@ -1,24 +1,21 @@
-import { Pressable, ScrollView, View } from "react-native";
+import { Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/base/Text";
 import { DealerButton } from "./DealerButton";
 import { PlayingCard } from "./PlayingCard";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
-import type { Opponent, OpponentDisplayStatus } from "./table.adapter";
+import type { Opponent } from "./table.adapter";
 import { assertNever } from "./table.adapter";
 
 export type { Opponent } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
-import { OPPONENT_STRIP_HEIGHT } from "./constants/tableLayout.constants";
+import { OPPONENT_STRIP_MAX_HEIGHT_RATIO, OPPONENT_STRIP_MAX_HEIGHT_VH } from "./constants/components/opponentStrip.layout";
 import { opponentStripStyles as s, PRESSABLE_HIT_SLOP, PRESSABLE_ANDROID_RIPPLE } from "./opponentStrip.styles";
-
-export { OPPONENT_STRIP_HEIGHT };
 
 export type OpponentStripProps = {
   opponents: Opponent[];
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
-  height?: number;
 };
 
 function getStatusLabel(status: Opponent["status"]): string | null {
@@ -55,11 +52,11 @@ function OpponentCards({ opponent }: { opponent: Opponent }) {
       ? <PlayingCard rank={cards.right.rank} suit={cards.right.suit} />
       : <PlayingCard faceDown />;
   return (
-    <View style={s.cardRowInner}>
-      <View style={s.card}>
+    <View style={s.cardsRow}>
+      <View style={s.cardSlot}>
         <View style={s.cardScaled}>{left}</View>
       </View>
-      <View style={s.card}>
+      <View style={s.cardSlot}>
         <View style={s.cardScaled}>{right}</View>
       </View>
     </View>
@@ -70,27 +67,25 @@ export function OpponentStrip({
   opponents,
   winnerName,
   onPlayerPress,
-  height,
 }: OpponentStripProps) {
+  const { height: windowHeight } = useWindowDimensions();
   if (opponents.length === 0) return null;
-  const stripHeight = height ?? OPPONENT_STRIP_HEIGHT;
+  const maxHeightStyle =
+    Platform.OS === "web"
+      ? { maxHeight: `${OPPONENT_STRIP_MAX_HEIGHT_VH}vh` as unknown as number }
+      : { maxHeight: Math.round(windowHeight * OPPONENT_STRIP_MAX_HEIGHT_RATIO) };
   return (
     <View
       collapsable={false}
-      className="flex-shrink-0"
-      style={[s.strip, { height: stripHeight }]}
+      style={[s.strip, maxHeightStyle]}
     >
       <ScrollView
-        horizontal
-        className="overflow-x-auto"
-        style={s.scrollViewFill}
-        contentContainerStyle={[s.scrollContent, s.horizontalScrollContent]}
-        showsHorizontalScrollIndicator={true}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={true}
         bounces={false}
         overScrollMode="never"
         scrollEventThrottle={16}
       >
-        <View collapsable={false} style={s.opponentRow}>
           {opponents.map((o) => {
             const inactive = o.status === "folded" || o.status === "sittingOut" || o.status === "reconnecting";
             const actionText = o.actionLabel ?? getStatusLabel(o.status) ?? "---";
@@ -98,69 +93,52 @@ export function OpponentStrip({
             const tile = (
               <View
                 collapsable={false}
-                className={`border border-border-subtle ${o.isActive ? "bg-brand-soft/15" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
-                style={[s.tile, o.isActive && s.tileActive]}
+                className={`w-full border-border-subtle ${o.isActive ? "bg-brand-soft/15" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
+                style={[s.rowShell, o.isActive && s.rowShellActive]}
                 data-testid="opponent-tile"
                 data-opponent-id={o.id}
                 data-opponent-name={o.name}
                 data-stack-cents={String(o.stackCents ?? 0)}
               >
-                <View style={s.cardRow}>
+                <View style={s.cardsCol} className="border-border-subtle">
                   <OpponentCards opponent={o} />
                 </View>
-                <View style={s.usernameRow} className="border-t border-border-subtle/80 bg-panel/80">
-                  <Text
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                    allowFontScaling={false}
-                    style={[s.usernameText, o.isActive && s.usernameTextActive]}
-                  >
-                    {o.name}{o.isBot ? " [BOT]" : ""}
+                <View style={s.infoCol} className="bg-panel/80">
+                  <View style={s.infoTopRow}>
+                    <View style={s.nameWrap}>
+                      <View style={s.avatar} className="bg-panel-elevated border border-border">
+                        <Text variant="label" className="text-xs font-semibold" allowFontScaling={false}>
+                          {o.name.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text variant="label" className="text-xs font-semibold" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
+                        {o.name}{o.isBot ? " [BOT]" : ""}
+                      </Text>
+                    </View>
+                    {o.isDealer ? <DealerButton size="small" /> : null}
+                  </View>
+                  <Text numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false} style={s.stackText}>
+                    {formatCents(o.stackCents ?? 0)}
                   </Text>
-                </View>
-                <View style={s.actionRow} className="bg-panel/80">
                   <Text
                     variant="muted"
                     numberOfLines={1}
                     ellipsizeMode="tail"
-                    className={`text-[10px] ${o.status === "folded" ? "text-danger" : ""}`}
+                    className={o.status === "folded" ? "text-danger" : undefined}
                     allowFontScaling={false}
+                    style={s.actionText}
                   >
                     {actionText}
                   </Text>
                 </View>
-                <View style={s.avatarStackRow} className="bg-panel/80 border-t border-border-subtle/80">
-                  <View style={s.avatarCol}>
-                    <View style={s.avatar} className="bg-panel-elevated border border-border">
-                      <Text variant="label" className="text-xs font-semibold" allowFontScaling={false}>
-                        {o.name.slice(0, 1).toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={s.stackCol}>
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      allowFontScaling={false}
-                      style={s.stackText}
-                    >
-                      {formatCents(o.stackCents ?? 0)}
-                    </Text>
-                  </View>
-                </View>
               </View>
             );
             const content = (
-              <View style={s.contentWrapper} collapsable={false}>
+              <>
+                {isWinner ? <PotWinRing /> : null}
                 {tile}
-                {o.isDealer ? (
-                  <View style={s.dealerBadge}>
-                    <DealerButton size="small" />
-                  </View>
-                ) : null}
-              </View>
+              </>
             );
-            const wrapped = isWinner ? <PotWinRing>{content}</PotWinRing> : content;
             return onPlayerPress ? (
               <Pressable
                 key={o.id}
@@ -168,14 +146,14 @@ export function OpponentStrip({
                 hitSlop={PRESSABLE_HIT_SLOP}
                 android_ripple={PRESSABLE_ANDROID_RIPPLE}
                 className="ui-touch"
+                style={s.rowPressable}
               >
-                {wrapped}
+                {content}
               </Pressable>
             ) : (
-              <View key={o.id}>{wrapped}</View>
+              <View key={o.id} style={s.rowPressable}>{content}</View>
             );
           })}
-        </View>
       </ScrollView>
     </View>
   );

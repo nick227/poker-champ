@@ -29,6 +29,8 @@ export type HeroZoneProps = {
   isActiveTurn?: boolean;
   userName?: string;
   showStats?: boolean;
+  potCents?: number;
+  onToggleSittingOut?: () => void;
   /** Override height when viewport is small. */
   height?: number;
 };
@@ -78,7 +80,9 @@ export function HeroZone({
   isDealer = false,
   isActiveTurn = false,
   userName,
+  potCents = 0,
   showStats = true,
+  onToggleSittingOut,
   height: heightProp,
 }: HeroZoneProps) {
   const layoutHeight = useTableLayoutHeight();
@@ -87,6 +91,11 @@ export function HeroZone({
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
+  const isSittingOut = heroStatus === "SITTING_OUT";
+  const sitOutDisabled =
+    heroStatus === "RECONNECTING" ||
+    !onToggleSittingOut ||
+    (isSittingOut && stackCents <= 0);
   const hasCalculations = hasHeroCalculations({ equity, potOdds, outs });
   // Keep calc strip visually persistent so Hero cards never shift between states.
   const calculationsVisible = showStats;
@@ -97,12 +106,14 @@ export function HeroZone({
     <View
       collapsable={false}
       className="hero-container flex-shrink-0"
-      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, padding: 16, gap: 16 }]}
+      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, paddingLeft: 16, gap: 16 }]}
     >
+      {isWinner ? <PotWinRing radius={0} /> : null}
       {/* Top rail: calculation stats (always rendered to preserve layout height). */}
       <View style={s.calcStrip}>
         <CalculationsStrip
           equity={equity}
+          potCents={potCents}
           vpipPct={playerStats?.vpipPct}
           pfrPct={playerStats?.pfrPct}
           statsHands={playerStats?.hands}
@@ -143,21 +154,14 @@ export function HeroZone({
 
         {/* Right slot: dealer indicator when hero has the button. */}
         {isDealer ? (
-          <View style={s.dealerSlot}>
+          <View className="mr-4" style={s.dealerSlot}>
             <DealerButton size="small" />
           </View>
         ) : null}
 
-        {/* Right slot: game status. */}
-        <View className="ui-row ui-center" style={s.holeCardsHeader}>
-          <Text variant={folded ? "danger" : "muted"} className="text-xs" allowFontScaling={false}>
-            {statusLabel ?? " "}
-          </Text>
-        </View>
       </View>
     </View>
   );
 
-  // Winner state: add celebratory ring around the same content tree.
-  return isWinner ? <PotWinRing>{content}</PotWinRing> : content;
+  return content;
 }

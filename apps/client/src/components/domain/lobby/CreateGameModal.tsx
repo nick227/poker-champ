@@ -73,8 +73,8 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
 
   return (
     <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame}>
-      <View className="ui-stack-4">
-        <Input label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
+      <View className="">
+        <Input style={{ marginTop: 4 }} label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
         <View>
           <Text variant="label">Blinds</Text>

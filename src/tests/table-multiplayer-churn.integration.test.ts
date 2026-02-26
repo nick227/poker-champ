@@ -365,4 +365,83 @@ describe("table multiplayer churn integration", () => {
       } catch {}
     }
   });
+
+  it("CHURN-DELETE-RACE: grace-window disconnect + delete + reconnect attempt returns TABLE_GONE and clears bots/sessions", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
+    (CashierService as any).processCashGameCashOut = async () => ({ success: true });
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({ softExpired: [], hardDeletedCount: 0 });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    const markSittingOutSpy = vi.spyOn(TableSeatSessionService, "markSittingOut").mockResolvedValue();
+    const markAllLeftSpy = vi.spyOn(TableSeatSessionService, "markAllLeftForTable").mockResolvedValue();
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_delete_race";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_delete_race",
+        name: "Delete Race Table",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const clientA = makeClient("sess_delete_a");
+    await room.onJoin(clientA as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
+    room.onMessageEvents.emit("ADD_BOT", clientA as any, { botId: "chaos_carl", buyInCents: 5000 });
+    await waitFor(
+      () => (clientA.latestSnapshot?.seats.filter((s) => s.isBot).length ?? 0) >= 1,
+      6000,
+      "bot seated before delete race",
+    );
+
+    // Simulate active grace window: disconnected but not abandoned.
+    room.dealer.unbindClient("user_a");
+    room.dealer.markDisconnected("user_a", Date.now() + 60_000);
+    await TableSeatSessionService.markSittingOut({
+      tableId: room.state.tableId,
+      userId: "user_a",
+      stackCentsSnapshot: room.state.playersById.get("user_a")?.stackCents ?? 0,
+      handIdSnapshot: room.state.handId || undefined,
+    });
+    await delay(50);
+    room.updateMetadataCounts();
+    expect(markSittingOutSpy).toHaveBeenCalled();
+    // Lobby presence count should reflect active bindings, not seated participants.
+    expect(room.computeConnectedHumanCount()).toBe(0);
+
+    // Creator delete sequence: lock, session cleanup, disconnect.
+    const lock = room.beginDeleteIfNoConnectedHumans();
+    expect(lock.ok).toBe(true);
+    await TableSeatSessionService.markAllLeftForTable({ tableId: room.state.tableId });
+    const disconnectSpy = vi.spyOn(room, "disconnect").mockImplementation(() => {});
+    await room.requestDisconnect();
+
+    // Reconnect attempt during delete must be rejected with TABLE_GONE.
+    const reconnectClient = makeClient("sess_delete_reconnect");
+    await room.onJoin(reconnectClient as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
+    const errorMessages = reconnectClient.sentByType.ERROR ?? [];
+    expect(errorMessages.length).toBeGreaterThan(0);
+    expect(errorMessages).toContainEqual(
+      expect.objectContaining({
+        version: 1,
+        code: "TABLE_GONE",
+      }),
+    );
+
+    expect(markAllLeftSpy).toHaveBeenCalledWith({ tableId: "table_delete_race" });
+    expect(disconnectSpy).toHaveBeenCalled();
+    expect([...room.state.playersById.values()].filter((p: any) => p.kind === "BOT")).toHaveLength(0);
+    expect(room.computeConnectedHumanCount()).toBe(0);
+  });
 });

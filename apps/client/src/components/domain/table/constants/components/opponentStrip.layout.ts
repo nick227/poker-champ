@@ -1,23 +1,18 @@
-/** OpponentStrip: 4-row tile layout. Each row has ROW_PADDING (2px). */
+/** Compact row layout tuned for vertical density and readability. */
+export const STRIP_HORIZONTAL_PADDING = 8;
+export const STRIP_VERTICAL_PADDING = 6;
+export const ROW_GAP = 6;
+export const ROW_PADDING = 6;
 
-export const CONTAINER_PADDING = 0;
-export const CONTAINER_VERTICAL_PADDING = 12;
-export const CONTAINER_HORIZONTAL_PADDING = 0;
-export const CONTAINER_BOTTOM_PADDING = 5;
-export const ROW_PADDING = 2;
-export const TILE_WIDTH = 150;
-export const TILE_PADDING = 8;
-export const AVATAR_SIZE = 28;
+/** 16vh cap on web; native uses this ratio against window height. */
+export const OPPONENT_STRIP_MAX_HEIGHT_VH = 16;
+export const OPPONENT_STRIP_MAX_HEIGHT_RATIO = 0.16;
 
-/** Row heights (content only; each row also has ROW_PADDING * 2 vertical padding). */
-export const OPPONENT_CARD_ROW_HEIGHT = 89;
-export const OPPONENT_USERNAME_ROW_HEIGHT = 20;
-export const OPPONENT_ACTION_ROW_HEIGHT = 20;
-export const OPPONENT_AVATAR_STACK_ROW_HEIGHT = 38;
-export const OPPONENT_TILE_HEIGHT = 200;
-export const OPPONENT_ROW_GAP = 20;
+export const AVATAR_SIZE = 24;
+export const OPPONENT_ROW_MIN_HEIGHT = 64;
 
+export const OPPONENT_CARDS_COL_WIDTH = 86;
 export const OPPONENT_CARD_GAP = 2;
-export const OPPONENT_CARD_SCALE = 1.1;
-export const OPPONENT_CARD_WIDTH = 53;
-export const OPPONENT_CARD_HEIGHT = 75;
+export const OPPONENT_CARD_SCALE = 0.78;
+export const OPPONENT_CARD_WIDTH = 41;
+export const OPPONENT_CARD_HEIGHT = 59;

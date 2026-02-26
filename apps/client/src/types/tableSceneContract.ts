@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload, BotSummary } from "@poker-champ/realtime-contract";
-import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
 import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
 import type { TableSceneMode } from "@/components/domain/table/tableScene.orchestration";
 import type { Opponent } from "@/components/domain/table/TableLayout";
@@ -8,16 +7,9 @@ import type { TableAction } from "@/components/domain/table/ActionBar";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/TableLayout";
 
-export type TableSceneChromeSlots = {
-  topBarCenter?: ReactNode;
-  topBarRight?: ReactNode;
-};
-
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
   sceneModel: TableSceneModel;
-  onAction?: ActionBarOnAction;
-  chrome?: TableSceneChromeSlots;
 };
 
 export type ActiveTableRow = {
@@ -48,7 +40,6 @@ export type TableScreenController = {
     actionMessage?: string;
     handResultMessage?: HandResultMessage;
     canRebuy: boolean;
-    tableTopBarCenter: ReactNode;
     tableTopBarRight: ReactNode;
     activeTableRows: ActiveTableRow[];
     chatMessages: ChatMessageForOverlay[];
@@ -82,6 +73,7 @@ export type TableScreenController = {
     openAddBotPicker: () => void;
     pickBot: (botId: string) => void;
     sendAction: (payload: { type: TableAction; amount?: number }) => void;
+    toggleHeroSittingOut: () => void;
     closeChat: () => void;
     sendChat: (text: string) => void;
   };

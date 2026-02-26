@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
-import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { TableTopBarActions } from "@/components/domain/table/TableTopBarActions";
+import { TableTopNavMenu } from "@/components/domain/table/TableTopNavMenu";
 import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { Opponent, ConnectionStatus } from "@/components/domain/table/TableLayout";
 import type { TableAction } from "@/components/domain/table/ActionBar";
-import { Button } from "@/components/base/Button";
 import { storeRegistry } from "@/registry/store.registry";
 import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
@@ -77,6 +75,7 @@ export function useTableScreenController({
     dispatchListBots,
     dispatchAddBot,
     dispatchRemoveBot,
+    dispatchSetSittingOut,
     joinState,
     lobbyTables,
     snapshotsByTableId,
@@ -112,12 +111,6 @@ export function useTableScreenController({
 
   const { cents: balanceCents, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
-  const lobbyTable = useMemo(
-    () => tableById.get(tableId),
-    [tableById, tableId],
-  );
-  const canDeleteTable =
-    Boolean(profile.userId && lobbyTable?.creatorId === profile.userId && (lobbyTable?.connectedHumanCount ?? 0) === 0);
 
   const closeTableAndReturn = useCallback(() => {
     if (id) {
@@ -178,7 +171,6 @@ export function useTableScreenController({
     hasAuthToken: Boolean(authToken),
     hasSnapshot: Boolean(snapshot),
     hasActiveHand: Boolean(snapshot?.hand),
-    canDeleteTable,
     canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents),
   });
 
@@ -334,7 +326,7 @@ export function useTableScreenController({
   );
   const heroIsSittingOut = heroDisplayStatus === "SITTING_OUT";
 
-  const { handleToggleVoice, handleToggleMute } = useVoiceJoinPolicy({
+  const { handleToggleVoice } = useVoiceJoinPolicy({
     controllerRef: voiceControllerRef,
     autoJoinAttemptedRef,
     voiceEnabled,
@@ -362,6 +354,18 @@ export function useTableScreenController({
     [tableId, dispatchTableAction],
   );
 
+  const toggleHeroSittingOut = useCallback(() => {
+    const targetSittingOut = !heroIsSittingOut;
+    const ok = dispatchSetSittingOut({ tableId, sittingOut: targetSittingOut });
+    if (!ok) {
+      console.log("TABLE_SIT_OUT_TOGGLE_FALLBACK", {
+        tableId,
+        targetSittingOut,
+        reason: "sender-not-registered-or-invalid-payload",
+      });
+    }
+  }, [dispatchSetSittingOut, heroIsSittingOut, tableId]);
+
   const onPlayerPress = useCallback(
     (o: Opponent) => {
       if (o.isBot) {
@@ -377,39 +381,26 @@ export function useTableScreenController({
     chatOverlay.setVisible(true);
   }, [chatOverlay]);
 
-  const tableTopBarCenter = useMemo(
-    () => (
-      <Button
-        minWidth={100}
-        variant="primary"
-        title="+ Bot"
-        onPress={handleAddBotPress}
-        loading={addBotPending}
-        disabled={!tableTopBarFlags.showAddBot}
-      />
-    ),
-    [tableTopBarFlags.showAddBot, addBotPending, handleAddBotPress],
-  );
-
   const tableTopBarRight = useMemo(
     () => (
-      <TableTopBarActions
+      <TableTopNavMenu
         chatBadge={chatOverlay.unseenCount || undefined}
         voiceEnabled={voiceEnabled}
-        voiceMuted={voiceMuted}
         onOpenTheme={() => setThemePickerVisible(true)}
-        onOpenChat={openChat}
         onToggleVoice={handleToggleVoice}
-        onToggleMute={handleToggleMute}
+        onOpenChat={openChat}
+        onAddBot={handleAddBotPress}
+        addBotDisabled={!tableTopBarFlags.showAddBot || addBotPending}
       />
     ),
     [
       chatOverlay.unseenCount,
       voiceEnabled,
-      voiceMuted,
       handleToggleVoice,
-      handleToggleMute,
       openChat,
+      handleAddBotPress,
+      tableTopBarFlags.showAddBot,
+      addBotPending,
     ],
   );
 
@@ -459,7 +450,6 @@ export function useTableScreenController({
       actionMessage: actionMessage ?? undefined,
       handResultMessage: handResultMessage ?? undefined,
       canRebuy,
-      tableTopBarCenter,
       tableTopBarRight,
       activeTableRows,
       chatMessages: chatOverlay.messages,
@@ -496,6 +486,7 @@ export function useTableScreenController({
       openAddBotPicker: handleAddBotPress,
       pickBot: handleBotPick,
       sendAction,
+      toggleHeroSittingOut,
       closeChat: chatOverlay.onClose,
       sendChat: chatOverlay.onSend,
     },

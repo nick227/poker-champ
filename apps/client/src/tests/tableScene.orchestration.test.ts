@@ -41,28 +41,19 @@ describe("table scene orchestration", () => {
     expect(shouldKeepOverlaysMountedAcrossModeChange("connecting", "idle")).toBe(false);
   });
 
-  it("returns unified table top-bar flags", () => {
+  it("returns add-bot flag", () => {
     const flags = getTableTopBarFlags({
-      canDeleteTable: true,
       canAddBot: true,
     });
 
-    expect(flags.showDelete).toBe(true);
     expect(flags.showAddBot).toBe(true);
-    expect(flags.showChat).toBe(true);
-    expect(flags.showClose).toBe(true);
   });
 
-  it("hides delete and add-bot when not allowed", () => {
+  it("hides add-bot when not allowed", () => {
     const flags = getTableTopBarFlags({
-      canDeleteTable: false,
       canAddBot: false,
     });
 
-    expect(flags.showDelete).toBe(false);
     expect(flags.showAddBot).toBe(false);
-    expect(flags.showChat).toBe(true);
-    expect(flags.showClose).toBe(true);
   });
 });
-

@@ -5,8 +5,7 @@
  */
 import { StyleSheet } from "react-native";
 import {
-  LAYOUT_TITLE_HEIGHT,
-  LAYOUT_TOP_BAR_HEIGHT,
+  LAYOUT_GAME_TOP_BAR_HEIGHT,
   GAME_AREA_HEIGHT,
   ACTION_BAR_HEIGHT,
   HERO_ZONE_HEIGHT,
@@ -22,15 +21,8 @@ export const layoutStyles = StyleSheet.create({
   },
   titleSection: {
     width: "100%",
-    height: LAYOUT_TITLE_HEIGHT,
-    minHeight: LAYOUT_TITLE_HEIGHT,
-    flexGrow: 0,
-    flexShrink: 0,
-  },
-  topBarSection: {
-    width: "100%",
-    height: LAYOUT_TOP_BAR_HEIGHT,
-    minHeight: LAYOUT_TOP_BAR_HEIGHT,
+    height: LAYOUT_GAME_TOP_BAR_HEIGHT,
+    minHeight: LAYOUT_GAME_TOP_BAR_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
   },

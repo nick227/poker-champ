@@ -68,6 +68,11 @@ type PokerRoomMetadata = {
   connectedHumanCount?: number;
 };
 
+type SittingOutSweepOptions = {
+  nowTs?: number;
+  abandonedPurgeMs?: number;
+};
+
 export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMetadata }> {
   // Keep cash-game rooms discoverable/joinable even when temporarily empty.
   override autoDispose = false;
@@ -87,6 +92,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private idleDisposeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly EMPTY_GRACE_MS = Number(process.env.POKER_ROOM_EMPTY_GRACE_MS ?? 60_000);
   private readonly IDLE_DISPOSE_MS = Number(process.env.POKER_ROOM_IDLE_DISPOSE_MS ?? 30 * 60_000);
+  private isDeleting = false;
 
   onCreate(options: any) {
     // Keep explicit in onCreate as well for defensive clarity in runtime logs.
@@ -379,6 +385,38 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     });
 
+    this.onMessage("SET_SITTING_OUT", async (client, message) => {
+      const parsed = TableInboundMessageSchema.safeParse({ type: "SET_SITTING_OUT", payload: message });
+      if (!parsed.success) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      if (parsed.data.type !== "SET_SITTING_OUT") {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid sit-out payload." });
+        return;
+      }
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) {
+        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Session is not bound to a seated user." });
+        return;
+      }
+      if (!this.isActiveBoundClient(userId, client)) return;
+      try {
+        await this.dealer.setPlayerSittingOut(userId, parsed.data.payload.sittingOut);
+        this.updateMetadataCounts();
+      } catch (err: any) {
+        if (err instanceof PokerError) {
+          this.sendTableMessage(client, "ERROR", {
+            code: err.code,
+            message: err.message,
+            ...(err.meta ?? {}),
+          });
+          return;
+        }
+        this.sendTableMessage(client, "ERROR", { code: "SIT_OUT_TOGGLE_FAILED", message: err?.message ?? String(err) });
+      }
+    });
+
     const onBan = async (payload: { userId: string }) => {
       await this.kickUserByAdmin(payload.userId, "BANNED");
     };
@@ -426,6 +464,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const userId = auth?.userId;
     const lockKey = `${this.state.tableId}:${userId ?? client.sessionId}`;
     await this.withJoinLock(lockKey, async () => {
+      if (this.isDeleting) {
+        this.sendTableMessage(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
+        client.leave();
+        return;
+      }
       this.touchActivity();
       await this.runPersistentSeatCleanup();
       logger.info(
@@ -606,6 +649,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     this.dealer.unbindClient(userId);
     this.removeTablePresence(userId);
+    this.updateMetadataCounts();
 
     const consented = code === CloseCode.CONSENTED;
     if (consented) {
@@ -638,6 +682,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     try {
       const reconnected = await this.allowReconnection(client, 60);
+      if (this.isDeleting) {
+        this.sendTableMessage(reconnected, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
+        try {
+          reconnected.leave();
+        } catch {}
+        return;
+      }
       this.rebindClientExclusive(userId, reconnected);
       await this.markReconnectedSafe(userId);
       this.addTablePresence(reconnected, userId);
@@ -698,6 +749,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   onDispose() {
+    this.isDeleting = true;
     if (this.idleDisposeTimer) {
       clearTimeout(this.idleDisposeTimer);
       this.idleDisposeTimer = null;
@@ -769,6 +821,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
     this.dealer.bindClient(userId, client);
     this.userIdBySessionId.set(client.sessionId, userId);
+    this.updateMetadataCounts();
   }
 
   private addTablePresence(client: Client, userId: string, displayName?: string): void {
@@ -873,6 +926,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   private async runPersistentSeatCleanup(): Promise<void> {
+    if (this.isDeleting) return;
     if (!this.persistentSeatsEnabled) return;
     const retentionHours = getSeatRetentionHours();
     const hardDeleteHours = getSeatHardDeleteHours();
@@ -948,11 +1002,57 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     );
   }
 
-  private isPlayerConnected(userId: string): boolean {
-    for (const player of this.state.playersById.values()) {
-      if (player.id === userId) return Boolean(player.connected);
+  /**
+   * Purge long-abandoned seated humans when no humans are currently connected.
+   * Presence gate uses binding-map truth (connectedHumanCount), never PlayerState.connected.
+   */
+  async runSittingOutSweep(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }> {
+    if (this.isDeleting) return { purgedUserIds: [] };
+    if (!this.persistentSeatsEnabled) return { purgedUserIds: [] };
+    if (this.computeConnectedHumanCount() > 0) return { purgedUserIds: [] };
+
+    const nowTs = options?.nowTs ?? Date.now();
+    const abandonedPurgeMs = options?.abandonedPurgeMs ?? 30 * 60 * 1000;
+    const abandonedHumans = [...this.state.playersById.values()]
+      .filter((p) => p.kind === "HUMAN" && p.status === "ABANDONED")
+      .map((p) => p.id);
+    if (abandonedHumans.length === 0) return { purgedUserIds: [] };
+
+    const disconnectRows = await TableSeatSessionService.listSittingOutDisconnectTimesForUsers({
+      tableId: this.state.tableId,
+      userIds: abandonedHumans,
+    });
+    const disconnectAtByUserId = new Map<string, number>();
+    for (const row of disconnectRows) {
+      if (row.disconnectAt instanceof Date) {
+        disconnectAtByUserId.set(row.userId, row.disconnectAt.getTime());
+      }
     }
-    return false;
+
+    const purgedUserIds: string[] = [];
+    for (const userId of abandonedHumans) {
+      const disconnectedAtTs = disconnectAtByUserId.get(userId);
+      if (disconnectedAtTs == null) continue;
+      if (nowTs - disconnectedAtTs <= abandonedPurgeMs) continue;
+
+      await this.dealer.removePlayer(userId);
+      await TableSeatSessionService.markLeft({
+        tableId: this.state.tableId,
+        userId,
+        reason: "ABANDONED_TIMEOUT",
+      });
+      purgedUserIds.push(userId);
+    }
+
+    if (purgedUserIds.length > 0) {
+      await this.maybeRemoveBotsIfNoHumans();
+      this.updateMetadataCounts();
+    }
+    return { purgedUserIds };
+  }
+
+  private isPlayerConnected(userId: string): boolean {
+    return Boolean(this.getBoundClient(userId));
   }
 
   private computeHumanCount(): number {
@@ -1047,7 +1147,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }, this.IDLE_DISPOSE_MS);
   }
 
-  requestDisconnect(): void {
+  async requestDisconnect(): Promise<void> {
+    this.isDeleting = true;
+    const connectedHumanCount = this.computeConnectedHumanCount();
+    if (connectedHumanCount !== 0) {
+      throw new Error(`DELETE_INVARIANT_FAILED: connectedHumanCount=${connectedHumanCount}`);
+    }
+    this.purgeBotsForDelete();
+    this.updateMetadataCounts();
     const payload = { version: 1 as const, code: "TABLE_GONE" as const, message: "Table no longer exists" };
     this.clients.forEach((c) => {
       try {
@@ -1057,6 +1164,33 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     });
     this.disconnect();
+  }
+
+  /** Terminal delete-path cleanup: bots are synthetic and can be dropped immediately. */
+  private purgeBotsForDelete(): void {
+    for (const player of [...this.state.playersById.values()]) {
+      if (player.kind !== "BOT") continue;
+      if (player.seat >= 0 && player.seat < this.state.seats.length) {
+        this.state.seats[player.seat] = "";
+      }
+      this.state.playersById.delete(player.id);
+    }
+  }
+
+  beginDeleteIfNoConnectedHumans(): { ok: boolean; connectedHumanCount: number; reason?: string } {
+    if (this.isDeleting) {
+      return { ok: false, connectedHumanCount: this.computeConnectedHumanCount(), reason: "ALREADY_DELETING" };
+    }
+    const connectedHumanCount = this.computeConnectedHumanCount();
+    if (connectedHumanCount !== 0) {
+      return { ok: false, connectedHumanCount, reason: "CONNECTED_HUMANS_PRESENT" };
+    }
+    this.isDeleting = true;
+    return { ok: true, connectedHumanCount: 0 };
+  }
+
+  cancelDelete(): void {
+    this.isDeleting = false;
   }
 
   private async bootstrapPersistentSeatRecovery(): Promise<void> {

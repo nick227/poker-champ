@@ -1,84 +1,66 @@
 import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
-import type { ReactNode } from "react";
+import { Animated, StyleSheet } from "react-native";
+import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
 
-const CHASER_COLORS = [
-  "#FFD700",
-  "#FF6B6B",
-  "#4ECDC4",
-  "#A855F7",
-  "#FFD700",
-];
+const RING_SIZE = 2;
+const FLASH_DURATION = 450;
+const FLASH_MIN_OPACITY = 0.2;
+const FLASH_MAX_OPACITY = 1;
 
-const CHASER_DURATION = 800;
+type PotWinRingProps = {
+  radius?: number;
+};
 
-export function PotWinRing({ children }: { children: ReactNode }) {
-  const animValue = useRef(new Animated.Value(0)).current;
+export function PotWinRing({ radius = TABLE_TILE_RADIUS }: PotWinRingProps = {}) {
+  const flash = useRef(new Animated.Value(FLASH_MIN_OPACITY)).current;
 
   useEffect(() => {
     Animated.loop(
-      Animated.timing(animValue, {
-        toValue: CHASER_COLORS.length - 1,
-        duration: CHASER_DURATION,
-        useNativeDriver: true,
-      })
+      Animated.sequence([
+        Animated.timing(flash, {
+          toValue: FLASH_MAX_OPACITY,
+          duration: FLASH_DURATION,
+          useNativeDriver: true,
+        }),
+        Animated.timing(flash, {
+          toValue: FLASH_MIN_OPACITY,
+          duration: FLASH_DURATION,
+          useNativeDriver: true,
+        }),
+      ])
     ).start();
-  }, [animValue]);
-
-  const createChaserStyle = (index: number) => {
-    const color = CHASER_COLORS[index];
-
-    return {
-      position: "absolute" as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      borderWidth: 4,
-      borderColor: color,
-      borderRadius: 14,
-      opacity: animValue.interpolate({
-        inputRange: [index - 1, index, index + 1],
-        outputRange: [0, 1, 0],
-        extrapolate: "clamp",
-      }),
-    };
-  };
+  }, [flash]);
 
   return (
-    <View style={wrapperStyle}>
-      <View style={baseRingStyle} pointerEvents="none" />
-      {CHASER_COLORS.map((_, i) => (
-        <Animated.View
-          key={i}
-          style={createChaserStyle(i)}
-          pointerEvents="none"
-        />
-      ))}
-      <View style={contentSlotStyle}>{children}</View>
-    </View>
+    <>
+      <Animated.View pointerEvents="none" style={[styles.baseRing, { borderRadius: radius }]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.flashRing, { borderRadius: radius, opacity: flash }]}
+      />
+    </>
   );
 }
 
-const wrapperStyle = {
-  position: "relative" as const,
-  width: "100%" as const,
-  flexGrow: 0,
-  flexShrink: 0,
-};
-
-const contentSlotStyle = {
-  zIndex: 1 as const,
-  width: "100%" as const,
-};
-
-const baseRingStyle = {
-  position: "absolute" as const,
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  borderWidth: 4,
-  borderColor: "rgba(255, 215, 0, 0.3)",
-  borderRadius: 14,
-};
+const styles = StyleSheet.create({
+  baseRing: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: RING_SIZE,
+    borderColor: "rgba(255, 215, 0, 0.25)",
+    zIndex: 2,
+  },
+  flashRing: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: RING_SIZE,
+    borderColor: "rgba(255, 215, 0, 1)",
+    zIndex: 3,
+  },
+});

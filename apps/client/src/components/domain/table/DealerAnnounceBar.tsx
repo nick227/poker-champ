@@ -71,7 +71,7 @@ export function DealerAnnounceBar({
 
   return (
     <View collapsable={false} className="relative h-9 p-4 ui-row flex-shrink-0 items-center w-full justify-center ui-surface">
-      <View className="min-w-0 justify-center px-2">
+      <View className="min-w-0 justify-center pt-2 pb-4">
         <Text variant="body" numberOfLines={1} ellipsizeMode="tail" className="text-center" allowFontScaling={false}>
           {message}
         </Text>

@@ -10,6 +10,7 @@ import { ACTIVE_TILE_BORDER } from "./constants/style/tableColors";
 
 export const heroZoneStyles = StyleSheet.create({
   root: {
+    position: "relative",
     flexDirection: "column",
     borderWidth: 2,
     borderColor: "transparent",

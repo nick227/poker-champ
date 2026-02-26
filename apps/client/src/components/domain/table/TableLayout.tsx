@@ -17,7 +17,6 @@ import { useTableSceneModel } from "./hooks/useTableSceneModel";
 import type { TableSceneModel } from "./hooks/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "./table.types";
 import { TableSceneShell } from "./TableSceneShell";
-import { TABLE_SHELL_TITLE_CLASSNAME, TABLE_SHELL_TOP_BAR_CLASSNAME } from "./constants/tableLayout.constants";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -32,10 +31,9 @@ export type TableLayoutProps = {
   actionMessage?: string;
   handResultMessage?: HandResultMessage;
   sceneModel?: TableSceneModel;
-  topBarCenter?: ReactNode;
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
-  onCloseTable?: () => void;
+  onToggleSittingOut?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
   opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
@@ -51,10 +49,9 @@ export function TableLayout({
   actionMessage,
   handResultMessage,
   sceneModel,
-  topBarCenter,
   topBarRight,
   onAction,
-  onCloseTable,
+  onToggleSittingOut,
   onPlayerPress,
   opponentStripEmptyState,
   canRebuy = false,
@@ -80,9 +77,6 @@ export function TableLayout({
     isHeroWinner,
     isHeroDealer,
     tableName,
-    playerCount,
-    maxSeats,
-    blinds,
   } = sceneModel ?? model;
 
   useEffect(() => {
@@ -120,13 +114,9 @@ export function TableLayout({
   return (
     <TableSceneShell
         tableName={tableName}
-        blinds={blinds}
-        playerCount={playerCount}
-        maxSeats={maxSeats}
         balanceCents={balanceCents}
-        topBarCenter={topBarCenter}
+        playerStackCents={heroStackCents}
         topBarRight={topBarRight}
-        onCloseTable={onCloseTable}
         opponents={opponents}
         opponentStripEmptyState={opponentStripEmptyState}
         winnerName={handResultMessage?.winnerName}
@@ -156,7 +146,9 @@ export function TableLayout({
             isDealer={isHeroDealer}
             isActiveTurn={isHeroToAct}
             userName={heroName}
-          />
+            potCents={potCents}
+            onToggleSittingOut={onToggleSittingOut}
+            />
         }
         bottom={
           canRebuy && onPressRebuy && !canAct ? (
@@ -171,8 +163,6 @@ export function TableLayout({
             />
           )
         }
-        titleSectionClassName={TABLE_SHELL_TITLE_CLASSNAME}
-        topBarSectionClassName={TABLE_SHELL_TOP_BAR_CLASSNAME}
       />
   );
 }

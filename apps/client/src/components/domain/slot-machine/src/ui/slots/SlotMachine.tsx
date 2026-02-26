@@ -96,11 +96,6 @@ export function SlotMachine({
         stack: { width: "100%", maxWidth: 760, gap: t.space.md },
         machine: {
           width: "100%",
-          gap: t.space.md,
-          backgroundColor: t.colors.bg1,
-          borderWidth: 1,
-          borderColor: t.colors.border,
-          padding: t.space.md,
         },
         reelShell: {
           width: "100%",
@@ -294,7 +289,7 @@ export function SlotMachine({
     <View style={s.root}>
       <View style={s.safe}>
         <View style={s.stack}>
-          <View style={s.machine}>
+          <View className="slot-machine-inner" style={s.machine}>
             <JackpotBanner title="777 Jackpot" value={formatCents(jackpotValueCents)} animatedStyle={jackpotBannerStyle} />
 
             <MarqueeLights active={lock.locked} />
@@ -318,17 +313,15 @@ export function SlotMachine({
 
             <WinBanner text={machineOutput} animatedStyle={winBannerStyle} />
 
+            <PrimaryButton betCents={betCents} title="SPIN" subtitle={canSpin ? "PUSH" : "WAIT"} disabled={!canSpin} onPress={handleSpin} animatedStyle={spinBtnStyle} />
+
             <View style={s.betPanel}>
-              <Text style={s.sectionTitle}>Bet</Text>
-              <Text style={s.betValue}>{formatCents(betCents)}</Text>
               <View style={s.betRow}>
                 <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
                 <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
                 <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
               </View>
             </View>
-
-            <PrimaryButton title="SPIN" subtitle={canSpin ? "PUSH" : "WAIT"} disabled={!canSpin} onPress={handleSpin} animatedStyle={spinBtnStyle} />
 
           </View>
         </View>
