@@ -33,6 +33,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const callbackRef = useRef(options);
   const send = (type: string, payload?: unknown) => sessionRef.current?.send({ type, payload }) ?? false;
+  const disconnect = (consented: boolean = false) => sessionRef.current?.disconnect(consented);
 
   useEffect(() => {
     callbackRef.current = options;
@@ -42,7 +43,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
     const authToken = getAuthToken();
     if (!canStartRealtimeSession({ scope: options.scope, enabled: options.enabled, authHydrated: options.authHydrated, authToken })) {
       // Hard-stop: never attempt table realtime socket/join until auth is hydrated and token exists.
-      sessionRef.current?.disconnect();
+      sessionRef.current?.disconnect(false);
       sessionRef.current = null;
       return;
     }
@@ -73,7 +74,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
       if (options.scope === "table") {
         useE2EConnectionCountStore.getState().decrement();
       }
-      session.disconnect();
+      session.disconnect(false);
       sessionRef.current = null;
     };
   }, [options.scope, options.id, options.enabled, options.authHydrated, options.joinOptions]);
@@ -81,6 +82,7 @@ export function useRealtimeChannel(options: UseRealtimeChannelOptions) {
   return useMemo(
     () => ({
       send,
+      disconnect,
       getNativeRoom: () => sessionRef.current?.getNativeRoom?.(),
     }),
     [],

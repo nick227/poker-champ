@@ -50,7 +50,7 @@ export function OnlinePlayersSheet({
         {!loading && !error && players.length === 0 ? <Text variant="muted">No players online</Text> : null}
 
         {!error ? (
-          <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+          <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
             {players.map((player) => (
               <View key={player.userId} className="ui-row items-center ui-inline-3 rounded-lg border border-border-subtle bg-panel-elevated p-3">
                 <View className="h-10 w-10 items-center justify-center rounded-full border border-border-subtle bg-panel">

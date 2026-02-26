@@ -28,7 +28,7 @@ export function GameTableRow({
     connectedHumanCount === 0;
 
   return (
-    <View className="ui-surface-card ui-p-lg rounded-lg border-l-2 border-brand-soft my-4" data-table-id={table.id}>
+    <View className="ui-surface-card ui-p-lg rounded-sm border-l-2 border-brand-soft my-4" data-table-id={table.id}>
       <View className="ui-row ui-inline-3 justify-between">
         <View className="flex-1 min-w-[120px] ui-stack-1">
           <Text variant="h2" className="text-base">{table.name}</Text>

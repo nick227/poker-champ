@@ -27,7 +27,7 @@ export type RealtimeSessionOptions = {
 export type RealtimeSession = {
   connected: () => boolean;
   send: (message: RealtimeOutboundMessage) => boolean;
-  disconnect: () => void;
+  disconnect: (consented?: boolean) => void;
   getNativeRoom?: () => unknown;
 };
 
@@ -379,7 +379,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       room.send(message.type, message.payload);
       return true;
     },
-    disconnect: () => {
+    disconnect: (consented: boolean = false) => {
       shouldReconnect = false;
       debugLog("DISCONNECT_REQUESTED", { roomId: room?.roomId ?? activeRoomId });
       if (reconnectTimer) {
@@ -389,7 +389,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       if (!room) return;
       connected = false;
       try {
-        room.leave();
+        room.leave(consented);
       } catch {}
       room = null;
     },

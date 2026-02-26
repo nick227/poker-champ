@@ -1,3 +1,3 @@
 export const COMMUNITY_CARD_GAP = 22;
-export const COMMUNITY_BOARD_HEIGHT = 200;
+export const COMMUNITY_BOARD_HEIGHT = 150;
 export const COMMUNITY_CARD_SCALE = 1.33;

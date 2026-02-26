@@ -112,14 +112,6 @@ export function useTablePageController({
   const { cents: balanceCents, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
 
-  const closeTableAndReturn = useCallback(() => {
-    if (id) {
-      closeTable(String(id));
-      storeRegistry.table().clearTable(String(id));
-    }
-    router.replace(lobbyPath());
-  }, [id, closeTable, router]);
-
   const [playerPopup, setPlayerPopup] = useState<{ name: string } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [themePickerVisible, setThemePickerVisible] = useState(false);
@@ -129,6 +121,24 @@ export function useTablePageController({
   const [voicePrefReady, setVoicePrefReady] = useState(false);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
+
+  const closeTableAndReturn = useCallback(() => {
+    // Hard leave: explicit user intent to leave seat/table lifecycle.
+    try {
+      if (typeof voiceRoom?.disconnect === "function") {
+        voiceRoom.disconnect(true);
+      } else if (typeof voiceRoom?.leave === "function") {
+        void voiceRoom.leave(true);
+      }
+    } catch (err) {
+      console.warn("TABLE_HARD_LEAVE_FAILED", err);
+    }
+    if (id) {
+      closeTable(String(id));
+      storeRegistry.table().clearTable(String(id));
+    }
+    router.replace(lobbyPath());
+  }, [id, closeTable, router, voiceRoom]);
 
   const snapshot = snapshotsByTableId[tableId];
   const snapshotSeats = snapshot?.seats;
@@ -390,6 +400,7 @@ export function useTablePageController({
         onToggleVoice={handleToggleVoice}
         onOpenChat={openChat}
         onAddBot={handleAddBotPress}
+        onLeaveTable={closeTableAndReturn}
         addBotDisabled={!tableTopBarFlags.showAddBot || addBotPending}
       />
     ),
@@ -399,6 +410,7 @@ export function useTablePageController({
       handleToggleVoice,
       openChat,
       handleAddBotPress,
+      closeTableAndReturn,
       tableTopBarFlags.showAddBot,
       addBotPending,
     ],

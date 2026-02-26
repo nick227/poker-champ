@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { CloseCode } from "@colyseus/core";
 import { PokerRoom } from "../rooms/PokerRoom.js";
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 import { CashierService } from "../engine/economy/CashierService.js";
@@ -225,6 +226,247 @@ describe("table join guardrails", () => {
     const boundClient = room.dealer.getClient("user_same");
     expect(boundClient).toBe(client2);
     expect(boundClient).not.toBe(client1);
+  });
+
+  it("ignores stale consented close after restore and keeps restored seat/stack", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_stale_close_restore";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_stale_close_restore",
+        name: "Stale Close Restore",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const client1 = makeClient("session_stale_close_1");
+    const client2 = makeClient("session_stale_close_2");
+
+    await room.onJoin(client1 as any, { buyInCents: 5000 }, { userId: "user_stale_close", username: "alice" });
+    const stackBefore = room.state.playersById.get("user_stale_close")?.stackCents;
+
+    await room.onJoin(client2 as any, { buyInCents: 5000 }, { userId: "user_stale_close", username: "alice" });
+    await room.onLeave(client1 as any, CloseCode.CONSENTED);
+
+    expect(markLeftSpy).not.toHaveBeenCalled();
+    expect(room.dealer.getClient("user_stale_close")).toBe(client2);
+    expect(room.state.playersById.get("user_stale_close")?.stackCents).toBe(stackBefore);
+  });
+
+  it("hard leave marks LEFT and blocks restore until a fresh NEW join", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_hard_leave_blocks_restore";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_hard_leave_blocks_restore",
+        name: "Hard Leave Blocks Restore",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const client1 = makeClient("session_hard_leave_1");
+    await room.onJoin(client1 as any, { buyInCents: 5000 }, { userId: "user_hard_leave", username: "bob" });
+
+    await room.onLeave(client1 as any, CloseCode.CONSENTED);
+    expect(markLeftSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ tableId: "table_hard_leave_blocks_restore", userId: "user_hard_leave" }),
+    );
+    expect(room.state.playersById.has("user_hard_leave")).toBe(false);
+
+    const noBuyInClient = makeClient("session_hard_leave_2");
+    await room.onJoin(noBuyInClient as any, {} as any, { userId: "user_hard_leave", username: "bob" });
+    expect(noBuyInClient.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({ code: "MISSING_BUY_IN_CENTS" }),
+    );
+
+    const freshJoinClient = makeClient("session_hard_leave_3");
+    await room.onJoin(freshJoinClient as any, { buyInCents: 5000 }, { userId: "user_hard_leave", username: "bob" });
+    expect(freshJoinClient.send).toHaveBeenCalledWith(
+      "WELCOME",
+      expect.objectContaining({ playerId: "user_hard_leave", joinMode: "NEW" }),
+    );
+  });
+
+  it("churn loop: repeated soft exit and immediate restore keeps seat/stack and never flips to NEW", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markSittingOut").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    vi.spyOn(CashierService, "processCashGameCashOut").mockResolvedValue({ success: true });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_soft_churn_restore";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_soft_churn_restore",
+        name: "Soft Churn Restore",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const userId = "user_soft_churn";
+    const username = "alice";
+    const firstClient = makeClient("session_soft_churn_0");
+    await room.onJoin(firstClient as any, { buyInCents: 5000 }, { userId, username });
+    expect(firstClient.send).toHaveBeenCalledWith(
+      "WELCOME",
+      expect.objectContaining({ playerId: userId, joinMode: "NEW" }),
+    );
+
+    const initialSeat = room.state.playersById.get(userId)?.seat;
+    const initialStack = room.state.playersById.get(userId)?.stackCents;
+    const initialBotIds = [...room.state.playersById.values()]
+      .filter((p: any) => p.kind === "BOT")
+      .map((p: any) => p.id)
+      .sort();
+
+    let activeClient = firstClient;
+    const iterations = 25;
+    for (let i = 1; i <= iterations; i += 1) {
+      const reconnectClient = makeClient(`session_soft_churn_${i}`);
+      const leavePromise = room.onLeave(activeClient as any, 1001);
+      await room.onJoin(reconnectClient as any, { buyInCents: 5000 }, { userId, username });
+      await leavePromise;
+
+      expect(reconnectClient.send).toHaveBeenCalledWith(
+        "SESSION_RESTORED",
+        expect.objectContaining({ userId, joinMode: "RESTORE" }),
+      );
+      expect(reconnectClient.send).not.toHaveBeenCalledWith(
+        "WELCOME",
+        expect.objectContaining({ playerId: userId }),
+      );
+      expect(room.state.playersById.get(userId)?.seat).toBe(initialSeat);
+      expect(room.state.playersById.get(userId)?.stackCents).toBe(initialStack);
+      const botIds = [...room.state.playersById.values()]
+        .filter((p: any) => p.kind === "BOT")
+        .map((p: any) => p.id)
+        .sort();
+      expect(botIds).toEqual(initialBotIds);
+
+      activeClient = reconnectClient;
+    }
+  });
+
+  it("soft exit and restore does not leave player stuck sitting out", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markSittingOut").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = "room_soft_restore_not_sitout";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_soft_restore_not_sitout",
+        name: "Soft Restore Not Sitout",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const userId = "user_restore_not_sitout";
+    const c1 = makeClient("session_restore_not_sitout_1");
+    await room.onJoin(c1 as any, { buyInCents: 5000 }, { userId, username: "alice" });
+
+    const leavePromise = room.onLeave(c1 as any, 1001);
+    const c2 = makeClient("session_restore_not_sitout_2");
+    await room.onJoin(c2 as any, { buyInCents: 5000 }, { userId, username: "alice" });
+    await leavePromise;
+
+    expect(c2.send).toHaveBeenCalledWith(
+      "SESSION_RESTORED",
+      expect.objectContaining({ userId, joinMode: "RESTORE" }),
+    );
+    const player = room.state.playersById.get(userId);
+    expect(player).toBeTruthy();
+    expect(player.sittingOutUntilNextHand).toBe(false);
+    expect(player.connected).toBe(true);
+    expect(player.status).toBe("ACTIVE");
   });
 
   it("restores persisted seat session without requiring buyInCents", async () => {

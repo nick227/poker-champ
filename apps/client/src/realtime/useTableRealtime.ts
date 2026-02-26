@@ -6,6 +6,8 @@ import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.mess
 export type TableRealtimeRoom = {
   send: (type: string, payload?: unknown) => void;
   onMessage: (type: string, cb: (payload: unknown) => void) => void;
+  leave?: (consented?: boolean) => void | Promise<void>;
+  disconnect?: (consented?: boolean) => void;
 };
 
 export function isTableRealtimeRoom(value: unknown): value is TableRealtimeRoom {
@@ -44,6 +46,7 @@ export function useTableRealtime({
   const onTableGoneRef = useRef(onTableGone);
   const onReadyRoomRef = useRef(onReadyRoom);
   const realtimeSendRef = useRef<(type: string, payload?: unknown) => boolean>(() => false);
+  const realtimeDisconnectRef = useRef<(consented?: boolean) => void>(() => undefined);
   onErrorRef.current = onError;
   onTableGoneRef.current = onTableGone;
   onReadyRoomRef.current = onReadyRoom;
@@ -92,7 +95,18 @@ export function useTableRealtime({
     },
     onOpen: (_send, getNativeRoom) => {
       const nativeRoom = getNativeRoom?.() ?? null;
-      onReadyRoomRef.current?.(isTableRealtimeRoom(nativeRoom) ? nativeRoom : null);
+      if (isTableRealtimeRoom(nativeRoom)) {
+        const room = nativeRoom as TableRealtimeRoom;
+        onReadyRoomRef.current?.({
+          // Keep prototype methods intact by delegating instead of spreading.
+          send: (type: string, payload?: unknown) => room.send(type, payload),
+          onMessage: (type: string, cb: (payload: unknown) => void) => room.onMessage(type, cb),
+          leave: (consented?: boolean) => room.leave?.(consented),
+          disconnect: (consented?: boolean) => realtimeDisconnectRef.current(consented),
+        });
+        return;
+      }
+      onReadyRoomRef.current?.(null);
     },
     onClose: () => {
       onReadyRoomRef.current?.(null);
@@ -101,6 +115,7 @@ export function useTableRealtime({
 
   // Update the send ref whenever realtime changes
   realtimeSendRef.current = realtime.send;
+  realtimeDisconnectRef.current = realtime.disconnect;
 
   useEffect(() => {
     if (roomId && roomId.length > 0) {

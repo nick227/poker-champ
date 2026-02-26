@@ -12,6 +12,7 @@ export type TableTopNavMenuProps = {
   onToggleVoice: () => void;
   onOpenChat: () => void;
   onAddBot: () => void;
+  onLeaveTable: () => void;
   addBotDisabled?: boolean;
 };
 
@@ -22,6 +23,7 @@ export function TableTopNavMenu({
   onToggleVoice,
   onOpenChat,
   onAddBot,
+  onLeaveTable,
   addBotDisabled = false,
 }: TableTopNavMenuProps) {
   const pathname = usePathname();
@@ -83,6 +85,9 @@ export function TableTopNavMenu({
                 <Text variant="body" className={addBotDisabled ? "text-text-subtle" : undefined}>
                   Add bot
                 </Text>
+              </Pressable>
+              <Pressable onPress={() => runAndClose(onLeaveTable)} className="px-2 py-2">
+                <Text variant="body">Leave table</Text>
               </Pressable>
             </View>
           </View>

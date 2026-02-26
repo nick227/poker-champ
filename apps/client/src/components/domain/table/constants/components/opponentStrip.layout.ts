@@ -5,7 +5,7 @@ export const ROW_GAP = 6;
 export const ROW_PADDING = 6;
 
 /** 16vh cap on web; native uses this ratio against window height. */
-export const OPPONENT_STRIP_MAX_HEIGHT_VH = 16;
+export const OPPONENT_STRIP_MAX_HEIGHT_VH = 96;
 export const OPPONENT_STRIP_MAX_HEIGHT_RATIO = 0.16;
 
 export const AVATAR_SIZE = 24;

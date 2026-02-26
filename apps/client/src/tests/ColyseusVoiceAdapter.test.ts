@@ -83,4 +83,13 @@ describe("ColyseusVoiceAdapter", () => {
 
     expect(captured).toEqual(payload);
   });
+
+  it("does not throw when room is missing onMessage", () => {
+    const adapter = new ColyseusVoiceAdapter({ send: roomSend } as any);
+    expect(() =>
+      adapter.onMessage(() => {
+        // no-op
+      }),
+    ).not.toThrow();
+  });
 });

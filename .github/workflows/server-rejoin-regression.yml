@@ -35,4 +35,5 @@ jobs:
         with:
           version: 9
       - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:churn:pr
       - run: pnpm test:server:rejoin

@@ -366,6 +366,94 @@ describe("table multiplayer churn integration", () => {
     }
   });
 
+  it(
+    "CHURN-SOFT-RESTORE-MIDHAND: hero soft-exits/restores mid-hand while other human continues; no hang, auto-action, clean bind, stable bots",
+    { timeout: 45000 },
+    async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({ softExpired: [], hardDeletedCount: 0 });
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    const markSittingOutSpy = vi.spyOn(TableSeatSessionService, "markSittingOut").mockResolvedValue();
+
+    const { room, clientA, clientB } = await setupRoomWithHumansAndBots();
+    const diagnostics = attachDiagnosticDenylistCollector(room);
+    const heroUserId = "user_a";
+    const heroRestoreClient = makeClient("sess_a_restore_midhand");
+    try {
+      const before = clientA.latestSnapshot!;
+      const handIdBefore = before.hand?.handId ?? "";
+      const botIdsBefore = before.seats.filter((s) => s.isBot && s.userId).map((s) => String(s.userId)).sort();
+      const seqBefore = before.snapshotSeq;
+
+      // Soft exit (non-consented) while hand is active.
+      const leavePromise = room.onLeave(clientA as any, 1001);
+      const snapshotsBeforeLeave = clientB.sentByType.TABLE_SNAPSHOT?.length ?? 0;
+      // Keep gameplay moving from the connected human while hero is away.
+      for (let i = 0; i < 4; i += 1) {
+        const snap = clientB.latestSnapshot;
+        if (!snap?.hand?.handId || snap.hand.handId !== handIdBefore || snap.lastHandResult?.handId) break;
+        const toActUserId = snap.seats.find((s) => s.seat === snap.hand?.toActSeat)?.userId;
+        if (toActUserId === "user_b") {
+          const action = { ...pickLegalAction(snap), actionId: `soft-midhand-play-${i}-${Date.now()}` };
+          room.onMessageEvents.emit("ACTION", clientB as any, action);
+        }
+        await delay(120);
+      }
+
+      // Auto-check/fold should trigger while hero is disconnected.
+      await waitFor(
+        () => {
+          const snaps = ((clientB.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(snapshotsBeforeLeave);
+          return snaps.some((s) => s.lastAction?.origin === "AUTO" && s.lastAction?.actorUserId === heroUserId);
+        },
+        10000,
+        "auto action while hero disconnected",
+      );
+      expect(markSittingOutSpy).toHaveBeenCalled();
+
+      // Immediate restore while the table is still progressing.
+      await room.onJoin(heroRestoreClient as any, { buyInCents: 5000 }, { userId: heroUserId, username: "alice" });
+      await Promise.race([leavePromise, delay(2500)]);
+
+      expect(heroRestoreClient.sentByType.SESSION_RESTORED?.length ?? 0).toBeGreaterThan(0);
+      expect(room.dealer.getClient(heroUserId)).toBe(heroRestoreClient as any);
+
+      // No hang: stream progresses and either current hand ends or hand/seq advances.
+      await waitFor(
+        () => {
+          const latest = heroRestoreClient.latestSnapshot;
+          if (!latest) return false;
+          const progressed = latest.snapshotSeq > seqBefore;
+          const handAdvanced =
+            Boolean(latest.lastHandResult?.handId) ||
+            (latest.hand?.handId ?? "") !== handIdBefore ||
+            (latest.hand?.actionCount ?? 0) > (before.hand?.actionCount ?? 0);
+          return progressed && handAdvanced;
+        },
+        12000,
+        "post-restore progression without hang",
+      );
+
+      const after = heroRestoreClient.latestSnapshot!;
+      const botIdsAfter = after.seats.filter((s) => s.isBot && s.userId).map((s) => String(s.userId)).sort();
+      expect(botIdsAfter).toEqual(botIdsBefore);
+      assertSnapshotChurnInvariants(after);
+      expect(diagnostics.findings).toEqual([]);
+    } finally {
+      diagnostics.detach();
+      try {
+        await room.onLeave(heroRestoreClient as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
   it("CHURN-DELETE-RACE: grace-window disconnect + delete + reconnect attempt returns TABLE_GONE and clears bots/sessions", async () => {
     process.env.FEATURE_PERSISTENT_SEATS = "true";
     (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });

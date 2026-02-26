@@ -19,12 +19,28 @@ export type ColyseusVoiceAdapterOptions = {
  *   Lobby: allowedChannelId = "lobby". Table: allowedChannelId = tableId (rejects "lobby").
  */
 export class ColyseusVoiceAdapter implements VoiceSignalingAdapter {
+  private warnedInvalidRoom = false;
+
   constructor(
     private readonly room: RoomLike,
     private readonly options: ColyseusVoiceAdapterOptions = {},
   ) {}
 
+  private hasValidRoomMethods(): boolean {
+    const candidate = this.room as unknown as { send?: unknown; onMessage?: unknown };
+    const ok = typeof candidate.send === "function" && typeof candidate.onMessage === "function";
+    if (!ok && !this.warnedInvalidRoom) {
+      this.warnedInvalidRoom = true;
+      console.warn("[VoiceAdapter] Invalid room passed to ColyseusVoiceAdapter", {
+        hasSend: typeof candidate.send === "function",
+        hasOnMessage: typeof candidate.onMessage === "function",
+      });
+    }
+    return ok;
+  }
+
   send(msg: VoiceSignalMessage): void {
+    if (!this.hasValidRoomMethods()) return;
     const { allowedChannelId } = this.options;
     if (allowedChannelId != null && msg.channelId !== allowedChannelId) return;
     let size: number;
@@ -38,6 +54,7 @@ export class ColyseusVoiceAdapter implements VoiceSignalingAdapter {
   }
 
   onMessage(cb: (msg: VoiceSignalMessage) => void): void {
+    if (!this.hasValidRoomMethods()) return;
     this.room.onMessage(VOICE_SIGNAL_TYPE, (msg: any) => cb(msg as VoiceSignalMessage));
   }
 }

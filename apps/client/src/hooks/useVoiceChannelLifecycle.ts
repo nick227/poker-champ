@@ -36,6 +36,13 @@ export function useVoiceChannelLifecycle({
 
   useEffect(() => {
     if (!room || !selfUserId) return;
+    if (typeof room.send !== "function" || typeof room.onMessage !== "function") {
+      console.warn("[VoiceLifecycle] Skipping controller init due to invalid room object", {
+        hasSend: typeof room.send === "function",
+        hasOnMessage: typeof room.onMessage === "function",
+      });
+      return;
+    }
     const adapter = new ColyseusVoiceAdapter(room, { allowedChannelId: channelId });
     const controller = createVoiceController({
       adapter,
