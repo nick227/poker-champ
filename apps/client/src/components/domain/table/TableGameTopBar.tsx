@@ -24,7 +24,7 @@ export function TableGameTopBar({
 
   return (
     <View className="mb-2 ui-row items-center justify-between ui-inline-3">
-      <View className="ui-row items-center ui-inline-3 flex-1">
+      <View className="pt-2 pl-2 ui-row items-center ui-inline-3 flex-1">
         <Pressable
           onPress={onLogoPress}
           className="h-10 w-10 rounded-full ui-surface ui-center border border-border-subtle"

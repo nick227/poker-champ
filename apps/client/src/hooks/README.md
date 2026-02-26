@@ -1,32 +1,37 @@
-# 🎯 Hooks Directory
+# Hooks Directory
 
 ## Replay Architecture
 
-**Replay is implemented via TableProviders. Do NOT add generic replay providers.**
+Replay is implemented via table providers. Do not add generic replay providers.
 
-### ✅ Correct Approach
-- `useHandReplayTableProvider(handId)` - Lean TableProvider + ReplayController
-- Future: `useLessonReplayTableProvider(lessonId)` - Same interface, different data source
-- Future: `useCoachingReplayTableProvider(sessionId)` - Same interface, different data source
+### Correct approach
 
-### ❌ Obsolete (Deleted)
-- `useReplayProvider` - Generic replay abstraction (removed)
-- `useHandReplayProvider` - Legacy hand replay provider (removed)
+- `useHandReplayTableProvider(handId)` - lean `TableProvider` + replay controller
+- Future: `useLessonReplayTableProvider(lessonId)` - same interface, different data source
+- Future: `useCoachingReplayTableProvider(sessionId)` - same interface, different data source
 
-### 🏗️ Architecture Principle
-**Replay is just another provider, not a new system.**
+### Obsolete (deleted)
 
+- `useReplayProvider` - generic replay abstraction
+- `useHandReplayProvider` - legacy hand replay provider
+
+### Architecture principle
+
+Replay is another provider mode, not a separate system.
+
+```text
+Snapshot Source -> useXReplayTableProvider -> TableProvider -> ActiveTableView
 ```
-Snapshot Source → useXReplayTableProvider → TableProvider → TableLayout
-```
 
-All replay modes (hand history, lessons, coaching) use the same:
-- TableProvider contract (snapshot + onAction)
-- ReplayController interface (navigation + playback)
-- Same TableLayout component
+All replay modes (hand history, lessons, coaching) share:
+
+- `TableProvider` contract (snapshot + onAction)
+- replay controller interface (navigation + playback)
+- same `ActiveTableView` renderer
 
 This ensures:
-- ✅ Single UI codebase
-- ✅ Type safety via assertTableProvider
-- ✅ Future extensibility
-- ✅ No parallel abstractions
+
+- single UI codebase
+- type safety via `assertTableProvider`
+- future extensibility
+- no parallel abstractions

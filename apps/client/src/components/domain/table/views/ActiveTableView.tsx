@@ -4,25 +4,23 @@
  */
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { type Opponent } from "./OpponentStrip";
-import { DealerAnnounceBar } from "./DealerAnnounceBar";
-import { CommunityBoard } from "./CommunityBoard";
-import { HeroZone } from "./HeroZone";
-import { ActionBar, type ActionBarOnAction } from "./ActionBar";
+import { type Opponent } from "../OpponentStrip";
+import { DealerAnnounceBar } from "../DealerAnnounceBar";
+import { HeroZone } from "../HeroZone";
+import { ActionBar, type ActionBarOnAction } from "../ActionBar";
 import { Button } from "@/components/base/Button";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
-import { useTableSceneModel } from "./hooks/useTableSceneModel";
-import type { TableSceneModel } from "./hooks/useTableSceneModel";
-import type { ConnectionStatus, HandResultMessage } from "./table.types";
-import { TableSceneShell } from "./TableSceneShell";
+import type { TableSceneModel } from "../model/useTableSceneModel";
+import type { ConnectionStatus, HandResultMessage } from "../table.types";
+import { TableSceneShell } from "../shell/TableSceneShell";
+import { useTableViewShellFrame } from "./tableView.shared";
 
 export type { Opponent };
 export type { HandResultMessage };
 export type { ConnectionStatus };
 
-export type TableLayoutProps = {
+export type ActiveTableViewProps = {
   snapshot: TableSnapshotPayload;
   opponents: Opponent[];
   balanceCents: number;
@@ -40,7 +38,7 @@ export type TableLayoutProps = {
   onPressRebuy?: () => void;
 };
 
-export function TableLayout({
+export function ActiveTableView({
   snapshot,
   opponents,
   balanceCents,
@@ -56,10 +54,20 @@ export function TableLayout({
   opponentStripEmptyState,
   canRebuy = false,
   onPressRebuy,
-}: TableLayoutProps) {
+}: ActiveTableViewProps) {
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
-  const model = useTableSceneModel(snapshot, handResultMessage, connectionStatus);
+  const { model, shellBaseProps, board } = useTableViewShellFrame({
+    snapshot,
+    sceneModel,
+    handResultMessage,
+    connectionStatus,
+    balanceCents,
+    topBarRight,
+    opponents,
+    opponentStripEmptyState,
+    onPlayerPress,
+  });
   const {
     handSummary,
     actionContext,
@@ -76,8 +84,7 @@ export function TableLayout({
     isHeroToAct,
     isHeroWinner,
     isHeroDealer,
-    tableName,
-  } = sceneModel ?? model;
+  } = model;
 
   useEffect(() => {
     const handId = snapshot.hand?.handId ?? null;
@@ -113,56 +120,49 @@ export function TableLayout({
 
   return (
     <TableSceneShell
-        tableName={tableName}
-        balanceCents={balanceCents}
-        playerStackCents={heroStackCents}
-        topBarRight={topBarRight}
-        opponents={opponents}
-        opponentStripEmptyState={opponentStripEmptyState}
-        winnerName={handResultMessage?.winnerName}
-        onPlayerPress={onPlayerPress}
-        dealerBar={
-          <DealerAnnounceBar
-            hand={handSummary}
-            actionMessage={actionMessage}
-            handResultMessage={handResultMessage}
-            tableStatus={tableStatus}
-            nextHandAtTs={snapshot.nextHandAtTs}
-          />
-        }
-        board={<CommunityBoard cards={communityCards} potCents={potCents} />}
-        hero={
-          <HeroZone
-            cards={heroCards}
-            stackCents={heroStackCents}
-            canAct={canAct}
+      {...shellBaseProps}
+      dealerBar={
+        <DealerAnnounceBar
+          hand={handSummary}
+          actionMessage={actionMessage}
+          handResultMessage={handResultMessage}
+          tableStatus={tableStatus}
+          nextHandAtTs={snapshot.nextHandAtTs}
+        />
+      }
+      board={board}
+      hero={
+        <HeroZone
+          cards={heroCards}
+          stackCents={heroStackCents}
+          canAct={canAct}
+          heroStatus={heroStatus}
+          equity={heroCalculations?.equityPct}
+          potOdds={heroCalculations?.potOddsPct}
+          outs={heroCalculations?.outs}
+          playerStats={heroPlayerStats}
+          showStats={snapshot.table?.showStats ?? true}
+          isWinner={isHeroWinner}
+          isDealer={isHeroDealer}
+          isActiveTurn={isHeroToAct}
+          userName={heroName}
+          potCents={potCents}
+          onToggleSittingOut={onToggleSittingOut}
+        />
+      }
+      bottom={
+        canRebuy && onPressRebuy ? (
+          <Button title="Rebuy" onPress={onPressRebuy} />
+        ) : (
+          <ActionBar
+            actionContext={actionContext}
             heroStatus={heroStatus}
-            equity={heroCalculations?.equityPct}
-            potOdds={heroCalculations?.potOddsPct}
-            outs={heroCalculations?.outs}
-            playerStats={heroPlayerStats}
-            showStats={snapshot.table?.showStats ?? true}
-            isWinner={isHeroWinner}
-            isDealer={isHeroDealer}
-            isActiveTurn={isHeroToAct}
-            userName={heroName}
+            actionOptions={heroActionOptions}
             potCents={potCents}
-            onToggleSittingOut={onToggleSittingOut}
-            />
-        }
-        bottom={
-          canRebuy && onPressRebuy && !canAct ? (
-            <Button title="Rebuy" onPress={onPressRebuy} />
-          ) : (
-            <ActionBar
-              actionContext={actionContext}
-              heroStatus={heroStatus}
-              actionOptions={heroActionOptions}
-              potCents={potCents}
-              onAction={onAction}
-            />
-          )
-        }
-      />
+            onAction={onAction}
+          />
+        )
+      }
+    />
   );
 }

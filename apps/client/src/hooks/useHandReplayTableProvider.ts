@@ -11,7 +11,7 @@ import { historyService } from "@/services/history.service";
 import { storeRegistry } from "@/registry/store.registry";
 import { assertTableProvider } from "@/types/tableProvider";
 import type { ReplayController, ReplayTableProvider } from "@/types/replayController";
-import { buildTableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
 
 export interface HandReplayResult {
@@ -160,3 +160,4 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
     error: null,
   };
 }
+

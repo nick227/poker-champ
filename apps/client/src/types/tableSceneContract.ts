@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload, BotSummary } from "@poker-champ/realtime-contract";
-import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import type { TableSceneMode } from "@/components/domain/table/tableScene.orchestration";
-import type { Opponent } from "@/components/domain/table/TableLayout";
+import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
 import type { TableAction } from "@/components/domain/table/ActionBar";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
-import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/TableLayout";
+import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
@@ -20,7 +20,7 @@ export type ActiveTableRow = {
   isYourTurn: boolean;
 };
 
-export type TableScreenController = {
+export type TablePageController = {
   scene: {
     mode: TableSceneMode;
     tableNextPath: string;
@@ -78,3 +78,5 @@ export type TableScreenController = {
     sendChat: (text: string) => void;
   };
 };
+
+

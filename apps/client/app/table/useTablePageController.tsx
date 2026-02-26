@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TableTopNavMenu } from "@/components/domain/table/TableTopNavMenu";
 import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
-import type { Opponent, ConnectionStatus } from "@/components/domain/table/TableLayout";
+import type { Opponent, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
 import type { TableAction } from "@/components/domain/table/ActionBar";
 import { storeRegistry } from "@/registry/store.registry";
 import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
@@ -27,9 +27,9 @@ import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoin
 import { showVoiceErrorToast } from "@/voice/errors";
 import { useOpenTableSync } from "@/components/domain/table/hooks/useOpenTableSync";
 import { useTableConnection } from "@/components/domain/table/hooks/useTableConnection";
-import { useTableScreenStores } from "@/hooks/useTableScreenStores";
+import { useTablePageStores } from "@/hooks/useTablePageStores";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
-import type { TableScreenController } from "@/types/tableSceneContract";
+import type { TablePageController } from "@/types/tableSceneContract";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -50,15 +50,15 @@ const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
 };
 const MAX_CHAT_OVERLAY_MESSAGES = 100;
 
-type UseTableScreenControllerParams = {
+type UseTablePageControllerParams = {
   id?: string;
   buyInCentsParam?: string;
 };
 
-export function useTableScreenController({
+export function useTablePageController({
   id,
   buyInCentsParam,
-}: UseTableScreenControllerParams): TableScreenController {
+}: UseTablePageControllerParams): TablePageController {
   const router = useRouter();
   const tableId = id ? String(id) : "demo";
 
@@ -86,7 +86,7 @@ export function useTableScreenController({
     errorForTable,
     hydrated: authHydrated,
     token: authToken,
-  } = useTableScreenStores(tableId);
+  } = useTablePageStores(tableId);
 
   const normalizedLobbyTables = useMemo(
     () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)) as LobbyTableRow[],
@@ -492,3 +492,6 @@ export function useTableScreenController({
     },
   };
 }
+
+
+

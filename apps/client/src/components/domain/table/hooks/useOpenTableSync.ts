@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 type OpenTableOptions = {
   buyInCents: number;
@@ -27,6 +27,9 @@ export function useOpenTableSync({
   lobbyTableCount,
   refreshLobby,
 }: UseOpenTableSyncOptions) {
+  const lastOpenAttemptForTableRef = useRef<string | null>(null);
+  const lastActiveAttemptForTableRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (tableId && lobbyTableCount === 0) {
       refreshLobby();
@@ -42,9 +45,21 @@ export function useOpenTableSync({
       routeBuyInCents !== joinStateBuyInCents;
 
     if (!hasOpenTable) {
-      openTable(tableId, shouldUseRouteBuyInOnOpen ? { buyInCents: routeBuyInCents as number } : undefined);
+      if (lastOpenAttemptForTableRef.current !== tableId) {
+        lastOpenAttemptForTableRef.current = tableId;
+        openTable(tableId, shouldUseRouteBuyInOnOpen ? { buyInCents: routeBuyInCents as number } : undefined);
+      }
+    } else {
+      lastOpenAttemptForTableRef.current = null;
     }
 
-    if (activeTableId !== tableId) setActive(tableId);
+    if (activeTableId !== tableId) {
+      if (lastActiveAttemptForTableRef.current !== tableId) {
+        lastActiveAttemptForTableRef.current = tableId;
+        setActive(tableId);
+      }
+    } else {
+      lastActiveAttemptForTableRef.current = null;
+    }
   }, [tableId, routeBuyInCents, joinStateBuyInCents, openTableIds, activeTableId, openTable, setActive]);
 }

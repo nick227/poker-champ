@@ -3,7 +3,7 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TableAction } from "@/components/domain/table/ActionBar";
 import { assertTableProvider, type TableProvider } from "@/types/tableProvider";
 import { storeRegistry } from "@/registry/store.registry";
-import { buildTableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 
 interface UseGameTableProviderProps {
   tableId: string;
@@ -29,7 +29,7 @@ export function useGameTableProvider({ tableId }: UseGameTableProviderProps): Ta
   const snapshot = storeRegistry.table().snapshotsByTableId[tableId] as TableSnapshotPayload;
   const connectionStatus = storeRegistry.table().connectionStatusByTableId[tableId] ?? "DISCONNECTED";
 
-  // Existing action handling logic extracted from TableScreen
+  // Existing action handling logic extracted from table page flow
   const onAction = useCallback(
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
@@ -49,3 +49,4 @@ export function useGameTableProvider({ tableId }: UseGameTableProviderProps): Ta
     onAction,
   });
 }
+

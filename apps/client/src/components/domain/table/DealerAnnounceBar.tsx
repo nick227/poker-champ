@@ -69,21 +69,26 @@ export function DealerAnnounceBar({
   const message =
     statusMessage ?? deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
 
+  const bgClass =
+    remaining > 0
+      ? "bg-brand/20"        // ← choose your highlight
+      : "ui-surface";
+
   return (
-    <View collapsable={false} className="relative h-9 p-4 ui-row flex-shrink-0 items-center w-full justify-center ui-surface">
-      <View className="min-w-0 justify-center pt-2 pb-4">
-        <Text variant="body" numberOfLines={1} ellipsizeMode="tail" className="text-center" allowFontScaling={false}>
+    <View
+      collapsable={false}
+      className={`relative h-9 mb-2 px-4 ui-row flex-shrink-0 items-center w-full justify-center ${bgClass}`}
+    >
+      <View className="min-w-0 justify-center">
+        <Text
+          variant="body"
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          className="text-center"
+          allowFontScaling={false}
+        >
           {message}
         </Text>
-      </View>
-      <View className="absolute right-0 min-w-[112px] items-end">
-        {remaining > 0 ? (
-          <View className="px-2 py-0.5 rounded-full bg-surface-lowest/40 border border-border-subtle/30 flex-shrink-0">
-            <Text variant="label" className="font-mono text-text-subtle" allowFontScaling={false}>
-              {TABLE.nextDeal} {remaining}s
-            </Text>
-          </View>
-        ) : null}
       </View>
     </View>
   );

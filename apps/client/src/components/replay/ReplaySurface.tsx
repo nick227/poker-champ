@@ -1,10 +1,10 @@
 import { View } from "react-native";
-import { TableLayout } from "@/components/domain/table/TableLayout";
+import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { ReplayControls } from "@/components/replay/ReplayControls";
 import type { ReplaySurfaceProps } from "./replay.types";
 
 /**
- * Single shared renderer for replay: same TableLayout as in-game + ReplayControls.
+ * Single shared renderer for replay: same ActiveTableView as in-game + ReplayControls.
  * Container controls height; do not use flex:1 on root.
  */
 export function ReplaySurface({
@@ -20,7 +20,7 @@ export function ReplaySurface({
   }
   return (
     <View>
-      <TableLayout
+      <ActiveTableView
         snapshot={snapshot}
         sceneModel={sceneModel}
         onAction={onAction}
@@ -41,3 +41,4 @@ export function ReplaySurface({
     </View>
   );
 }
+

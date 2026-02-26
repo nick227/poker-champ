@@ -5,15 +5,15 @@ import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDrop
 import { BotPickerSheet } from "@/components/domain/table/BotPickerSheet";
 import { ThemePickerSheet } from "@/components/domain/table/ThemePickerSheet";
 import { MODAL } from "@/constants/copy";
-import type { TableScreenController } from "@/types/tableSceneContract";
+import type { TablePageController } from "@/types/tableSceneContract";
 
-type TableScreenOverlaysProps = {
-  renderModel: TableScreenController["renderModel"];
-  uiState: TableScreenController["uiState"];
-  actions: TableScreenController["actions"];
+type TablePageOverlaysProps = {
+  renderModel: TablePageController["renderModel"];
+  uiState: TablePageController["uiState"];
+  actions: TablePageController["actions"];
 };
 
-export function TableScreenOverlays({ renderModel, uiState, actions }: TableScreenOverlaysProps) {
+export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOverlaysProps) {
   const snapshot = renderModel.snapshot;
 
   return (
@@ -57,3 +57,4 @@ export function TableScreenOverlays({ renderModel, uiState, actions }: TableScre
     </>
   );
 }
+

@@ -1,19 +1,20 @@
 import { type ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { type Opponent } from "./OpponentStrip";
-import { DealerAnnounceBar } from "./DealerAnnounceBar";
-import { CommunityBoard } from "./CommunityBoard";
-import { HeroZone } from "./HeroZone";
+import { type Opponent } from "../OpponentStrip";
+import { DealerAnnounceBar } from "../DealerAnnounceBar";
+import { HeroZone } from "../HeroZone";
 import { Button } from "@/components/base/Button";
-import { useTableSceneModel, type TableSceneModel } from "./hooks/useTableSceneModel";
-import { TableSceneShell } from "./TableSceneShell";
+import type { TableSceneModel } from "../model/useTableSceneModel";
+import { TableSceneShell } from "../shell/TableSceneShell";
+import type { HandResultMessage } from "../table.types";
+import { useTableViewShellFrame } from "./tableView.shared";
 
 export type EmptyTableViewProps = {
   snapshot: TableSnapshotPayload;
   opponents: Opponent[];
   balanceCents: number;
   tableStatus?: string;
-  handResultMessage?: { winnerName: string; amountCents: number; winningHandDescr?: string };
+  handResultMessage?: HandResultMessage;
   sceneModel?: TableSceneModel;
   topBarRight?: ReactNode;
   onPlayerPress?: (opponent: Opponent) => void;
@@ -35,26 +36,26 @@ export function EmptyTableView({
   canRebuy = false,
   onPressRebuy,
 }: EmptyTableViewProps) {
-  const model = useTableSceneModel(snapshot, handResultMessage ?? null, undefined);
+  const { model, shellBaseProps, board } = useTableViewShellFrame({
+    snapshot,
+    sceneModel,
+    handResultMessage,
+    connectionStatus: undefined,
+    balanceCents,
+    topBarRight,
+    opponents,
+    opponentStripEmptyState,
+    onPlayerPress,
+  });
   const {
     heroStatus,
     heroStackCents,
     heroCards,
-    potCents,
-    communityCards,
-    tableName,
-  } = sceneModel ?? model;
+  } = model;
 
   return (
     <TableSceneShell
-      tableName={tableName}
-      balanceCents={balanceCents}
-      playerStackCents={heroStackCents}
-      topBarRight={topBarRight}
-      opponents={opponents}
-      opponentStripEmptyState={opponentStripEmptyState}
-      winnerName={handResultMessage?.winnerName}
-      onPlayerPress={onPlayerPress}
+      {...shellBaseProps}
       dealerBar={
         <DealerAnnounceBar
           hand={undefined}
@@ -63,7 +64,7 @@ export function EmptyTableView({
           nextHandAtTs={snapshot.nextHandAtTs}
         />
       }
-      board={<CommunityBoard cards={communityCards} potCents={potCents} />}
+      board={board}
       hero={
         <HeroZone
           cards={heroCards}

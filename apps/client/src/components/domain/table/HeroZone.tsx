@@ -10,7 +10,7 @@ import { assertNever } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
 import { hasHeroCalculations } from "./table.utils";
 import { HERO_ZONE_HEIGHT } from "./constants/tableLayout.constants";
-import { useTableLayoutHeight } from "./TableLayoutHeightContext";
+import { useTableLayoutHeight } from "./shell/TableLayoutHeightContext";
 import { heroZoneStyles as s } from "./heroZone.styles";
 
 export { HERO_ZONE_HEIGHT };
@@ -125,7 +125,7 @@ export function HeroZone({
       {/* Main row: hero cards + stack summary (+ optional dealer button). */}
       <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={s.mainRow}>
         {/* Left card: status label + two hero hole cards. */}
-        <View className="ui-col ui-center rounded-lg border border-border-subtle bg-panel/80 px-3 py-4" style={s.holeCardsCol}>
+        <View className="ui-col ui-center rounded-sm border border-border-subtle bg-panel/80 px-3 py-4" style={s.holeCardsCol}>
           <View className="ui-row ui-center" style={s.cardRow}>
             {cards.map((c, i) => {
               const key = HERO_CARD_KEYS[i] ?? `card-${i}`;
@@ -140,7 +140,7 @@ export function HeroZone({
 
         {/* Center card: player identity and stack amount. */}
         <View
-          className="ui-col ui-center justify-center rounded-lg border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]"
+          className="ui-col ui-center justify-center rounded-sm border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]"
           style={s.stackCol}
           data-testid="hero-stack"
           data-stack-cents={String(stackCents)}

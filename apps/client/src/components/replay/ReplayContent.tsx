@@ -4,7 +4,7 @@ import { ReplayFromSnapshots } from "./ReplayFromSnapshots";
 
 /**
  * Public replay API. Dispatches by source type; never fetches unless source says so.
- * No direct TableLayout; always goes through ReplayFrom* → ReplaySurface.
+ * No direct ActiveTableView usage here; always goes through ReplayFrom* -> ReplaySurface.
  */
 export function ReplayContent({ source, compact, onClose }: ReplayContentProps) {
   if (source.type === "handId") {

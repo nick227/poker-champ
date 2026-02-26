@@ -1,16 +1,11 @@
 import { useEffect, useRef, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { Pill, type PillVariant } from "@/components/base/Pill";
+import { Text } from "@/components/base/Text";
 import { DURATION } from "@/theme/animation";
 import { formatCents } from "@/lib/format";
 
 const CALC_STRIP_HEIGHT = 40;
-
-function toVariant(favorable: boolean, poor: boolean): PillVariant {
-  if (poor) return "danger";
-  if (favorable) return "success";
-  return "warn";
-}
 
 export function CalculationsStrip({
   equity,
@@ -64,37 +59,17 @@ export function CalculationsStrip({
     }).start();
   }, [equity, potOdds, outs, vpipPct, pfrPct, muted, visible, opacity]);
 
-  const eqVariant =
-    typeof equity === "number"
-      ? toVariant(equity > 50, equity < 30)
-      : "neutral";
-
-  const poVariant =
-    typeof potOdds === "number" && typeof equity === "number"
-      ? toVariant(potOdds < equity, potOdds > equity + 20)
-      : "neutral";
+  const potValue = typeof potCents === "number" ? formatCents(potCents) : "--";
 
   const pills = useMemo(() => {
-    const base = [
-      {
-        label: "Pot",
-        value:
-          typeof potCents === "number"
-            ? formatCents(potCents)
-            : "--",
-        variant: "neutral" as PillVariant,
-      },
-    ];
-
-    if (!visible) return base;
+    if (!visible) return [];
 
     return [
-      ...base,
       {
         label: "Equity",
         value:
           typeof equity === "number" ? `${equity}%` : "--",
-        variant: eqVariant,
+        variant: "neutral" as PillVariant,
       },
       {
         label: "VPIP",
@@ -106,18 +81,8 @@ export function CalculationsStrip({
             : "--",
         variant: "neutral" as PillVariant,
       },
-      {
-        label: "PFR",
-        value:
-          typeof pfrPct === "number"
-            ? typeof statsHands === "number"
-              ? `${pfrPct}% (${statsHands})`
-              : `${pfrPct}%`
-            : "--",
-        variant: "neutral" as PillVariant,
-      },
     ];
-  }, [visible, potCents, equity, vpipPct, pfrPct, statsHands, eqVariant]);
+  }, [visible, equity, vpipPct, statsHands]);
 
   return (
     <View
@@ -131,6 +96,15 @@ export function CalculationsStrip({
         }}
       >
         <View className="ui-row ui-inline-2 ui-p-stack-2" style={{ flexWrap: "nowrap" }}>
+          <View
+            collapsable={false}
+            className="min-w-[6rem] ui-inline-1 rounded-sm border-2 border-border px-3 py-1 bg-emerald-900 flex-shrink-0"
+            style={{ minHeight: 28, flexDirection: "row", alignItems: "center" }}
+          >
+            <Text className="text-white" variant="body" allowFontScaling={false} style={{ fontVariant: ["tabular-nums"], minWidth: 0 }}>
+              Pot Amount: {potValue}
+            </Text>
+          </View>
           {pills.map((p) => (
             <Pill
               key={p.label}

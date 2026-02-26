@@ -133,7 +133,7 @@ export function ActionBar({
     const numericText = text.replace(/[^0-9.]/g, '');
     const parts = numericText.split('.');
     if (parts.length > 2) return; // Prevent multiple decimal points
-    
+
     setBetState(prev => ({ ...prev, display: numericText }));
   }, []);
 
@@ -238,11 +238,13 @@ export function ActionBar({
               disabled={betRaiseDisabled}
             />
           </View>
-          <View className="ui-row justify-between" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
+          <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
             <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} />
             <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} />
             <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} />
             <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} />
+          </View>
+          <View className="ui-row justify-center">
             {canShowBetInput ? (
               <Input
                 iconLeft="$"
@@ -257,6 +259,7 @@ export function ActionBar({
                 editable={WAGER}
                 allowFontScaling={false}
                 maxLength={10}
+                style={{ maxWidth: 144 }}
                 aria-label="Bet amount input"
                 aria-disabled={!WAGER}
               />

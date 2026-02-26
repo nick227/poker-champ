@@ -7,7 +7,7 @@ import { storeRegistry } from "@/registry/store.registry";
  * Lives in src/hooks (orchestration) so it can use storeRegistry; table domain
  * components receive data via props from the route that uses this hook.
  */
-export function useTableScreenStores(tableId: string | undefined) {
+export function useTablePageStores(tableId: string | undefined) {
   const id = tableId ?? "";
 
   const tablesSlice = storeRegistry.use.tables(
@@ -56,3 +56,4 @@ export function useTableScreenStores(tableId: string | undefined) {
     ...authSlice,
   };
 }
+

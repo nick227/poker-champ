@@ -15,7 +15,7 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
   return (
     <View
       collapsable={false}
-      className="bg-felt justify-center"
+      className="bg-felt justify-center rounded-lg"
       style={{ flexDirection: "column", height: COMMUNITY_BOARD_HEIGHT }}
     >
       <View
@@ -33,7 +33,7 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
           style={{
             gap: COMMUNITY_CARD_GAP,
             alignItems: "center",
-            justifyContent: "space-evenly",
+            justifyContent: "center",
           }}
         >
           {cards.map((c, i) => {

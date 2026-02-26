@@ -3,7 +3,7 @@ import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
 import { assertTableProvider, type TableProvider } from "@/types/tableProvider";
 import { evaluateLessonAnswer } from "@/lib/lessons/lessonEvaluator";
 import { useLessonRuntime } from "@/contexts/LessonRuntimeContext";
-import { buildTableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 
 interface UseLessonTableProviderProps {
   lessonId: string;
@@ -79,3 +79,4 @@ export function useLessonEvaluation() {
   const { evaluation } = useLessonRuntime();
   return evaluation;
 }
+

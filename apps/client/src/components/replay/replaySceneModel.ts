@@ -1,4 +1,4 @@
-import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 
 const REPLAY_DISABLED_ACTIONS = {
   FOLD: false,
@@ -27,3 +27,4 @@ export function buildReplayDisabledSceneModel(
     actionContext,
   });
 }
+

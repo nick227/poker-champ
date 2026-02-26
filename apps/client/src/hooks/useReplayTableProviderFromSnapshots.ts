@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { ReplayController, ReplayTableProvider } from "@/types/replayController";
 import { assertTableProvider } from "@/types/tableProvider";
-import { buildTableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
 
 export interface ReplayFromSnapshotsResult {
@@ -88,3 +88,4 @@ export function useReplayTableProviderFromSnapshots(
     error: null,
   };
 }
+

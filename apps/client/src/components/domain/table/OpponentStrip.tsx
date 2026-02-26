@@ -93,7 +93,7 @@ export function OpponentStrip({
             const tile = (
               <View
                 collapsable={false}
-                className={`w-full border-border-subtle ${o.isActive ? "bg-brand-soft/15" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
+                className={`w-full px-4 border-border-subtle ${o.isActive ? "bg-brand-soft/15" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
                 style={[s.rowShell, o.isActive && s.rowShellActive]}
                 data-testid="opponent-tile"
                 data-opponent-id={o.id}
@@ -103,7 +103,7 @@ export function OpponentStrip({
                 <View style={s.cardsCol} className="border-border-subtle">
                   <OpponentCards opponent={o} />
                 </View>
-                <View style={s.infoCol} className="bg-panel/80">
+                <View style={s.infoCol} className="bg-panel/80 px-2">
                   <View style={s.infoTopRow}>
                     <View style={s.nameWrap}>
                       <View style={s.avatar} className="bg-panel-elevated border border-border">

@@ -4,7 +4,7 @@
  */
 
 export const LAYOUT_GAME_TOP_BAR_HEIGHT = 52;
-export const GAME_AREA_HEIGHT = 150;
-export const HERO_ZONE_HEIGHT = 200;
+export const GAME_AREA_HEIGHT = 250;
+export const HERO_ZONE_HEIGHT = 180;
 export const ACTION_BAR_HEIGHT = 224;
-export const DEALER_BAR_HEIGHT = 30;
+export const DEALER_BAR_HEIGHT = 50;

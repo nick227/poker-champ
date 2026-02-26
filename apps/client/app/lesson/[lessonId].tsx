@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { useMemo } from "react";
 import { Screen } from "@/components/containers/Screen";
-import { TableLayout } from "@/components/domain/table/TableLayout";
+import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { LessonPanel } from "@/components/lesson/LessonPanel";
 import { useGameTableProvider } from "@/hooks/useGameTableProvider";
 import { useLessonTableProvider, useLessonEvaluation } from "@/hooks/useLessonTableProvider";
@@ -16,7 +16,7 @@ import { LessonRuntimeProvider } from "@/contexts/LessonRuntimeContext";
  * 
  * Route: /lesson/[lessonId]
  * Provider: useLessonTableProvider
- * Architecture: Same TableLayout, different data source
+ * Architecture: Same ActiveTableView, different data source
  */
 export default function LessonScreen() {
   const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
@@ -56,8 +56,8 @@ function LessonScreenContent({ balanceCents }: { balanceCents: number }) {
   return (
     <Screen>
       <View className="flex-1 bg-panel h-full">
-        {/* TableLayout renders lesson snapshot with all required props */}
-        <TableLayout 
+        {/* ActiveTableView renders lesson snapshot with all required props */}
+        <ActiveTableView
           snapshot={snapshot} 
           onAction={onAction}
           opponents={opponents}
@@ -77,3 +77,4 @@ function LessonScreenContent({ balanceCents }: { balanceCents: number }) {
     </Screen>
   );
 }
+

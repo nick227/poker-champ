@@ -1,7 +1,7 @@
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import type { ReplayController } from "@/types/replayController";
-import type { Opponent } from "@/components/domain/table/TableLayout";
+import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
 import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
 
 export type ReplaySource =
@@ -27,3 +27,4 @@ export type ReplaySurfaceProps = {
   controller: ReplayController;
   compact?: boolean;
 };
+

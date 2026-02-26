@@ -26,7 +26,6 @@ export const opponentStripStyles = StyleSheet.create({
   },
   scrollContent: {
     gap: ROW_GAP,
-    paddingBottom: 2,
   },
   rowPressable: {
     position: "relative",

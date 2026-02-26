@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getActionContext } from "@/components/domain/table/actionBar.logic";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
-import type { TableSceneModel } from "@/components/domain/table/hooks/useTableSceneModel";
+import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 
 function makeInteractiveSceneModel(): TableSceneModel {
   const actionContext = getActionContext({
@@ -86,3 +86,4 @@ describe("buildReplayDisabledSceneModel", () => {
     }).toThrow();
   });
 });
+

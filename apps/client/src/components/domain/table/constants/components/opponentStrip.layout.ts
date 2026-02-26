@@ -1,5 +1,5 @@
 /** Compact row layout tuned for vertical density and readability. */
-export const STRIP_HORIZONTAL_PADDING = 8;
+export const STRIP_HORIZONTAL_PADDING = 0;
 export const STRIP_VERTICAL_PADDING = 6;
 export const ROW_GAP = 6;
 export const ROW_PADDING = 6;

@@ -25,7 +25,7 @@ export function Pill({
   return (
     <View
       collapsable={false}
-      className={`min-w-[5rem] ui-inline-1 rounded-md border px-2 py-1 ${variantClass[variant]} ${className}`}
+      className={`min-w-[5rem] ui-inline-1 rounded-sm border px-2 py-1 ${variantClass[variant]} ${className}`}
       style={{ minHeight: 28, flexDirection: "row", alignItems: "center" }}
     >
       <Text variant="muted" allowFontScaling={false} numberOfLines={1} style={{ minWidth: 0 }}>

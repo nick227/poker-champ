@@ -6,14 +6,14 @@ import type { ReactNode } from "react";
 import { Platform, View, ScrollView } from "react-native";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
-import { TableGameTopBar } from "./TableGameTopBar";
-import { OpponentStrip, type Opponent } from "./OpponentStrip";
+import { TableGameTopBar } from "../TableGameTopBar";
+import { OpponentStrip, type Opponent } from "../OpponentStrip";
 import { usePreferencesStore } from "@/stores/preferences.store";
-import { useTableLayoutHeights } from "./hooks/useTableLayoutHeights";
-import { layoutStyles } from "./tableLayout.styles";
+import { useTableLayoutHeights } from "../hooks/useTableLayoutHeights";
+import { layoutStyles } from "../tableLayout.styles";
 import {
   ACTION_BAR_HEIGHT,
-} from "./constants/tableLayout.constants";
+} from "../constants/tableLayout.constants";
 import { useProfile } from "@/hooks/useProfile";
 import { useRouter } from "expo-router";
 
