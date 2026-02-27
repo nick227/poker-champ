@@ -2,6 +2,9 @@ import { Client } from "@colyseus/sdk";
 import { lobby } from "@poker-champ/sdk";
 import { RECONNECT_DELAY_MS, MAX_RECONNECT_ATTEMPTS } from "@/constants";
 
+/** Close code when leaving a stale/superseded connection. Matches server use (PokerRoom) for SESSION_REPLACED and rebind; treated as non-error. */
+const LEAVE_CODE_STALE_OR_REPLACED = 4000;
+
 export type RealtimeOutboundMessage = {
   type: string;
   payload?: unknown;
@@ -108,8 +111,8 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
   const connect = () => {
     try {
       socket = new WebSocket(wsUrl);
-    } catch (err: any) {
-      options.onError?.(err?.message ?? "Unable to initialize websocket");
+    } catch (err: unknown) {
+      options.onError?.(err instanceof Error ? err.message : "Unable to initialize websocket");
       scheduleReconnect();
       return;
     }
@@ -178,6 +181,11 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
 
   let connected = false;
   let shouldReconnect = true;
+  /** Set by disconnect(); when true, connect() must not fire CONNECTED/onOpen and must leave immediately after join. */
+  let disposed = false;
+  /** Monotonic generation: increment at start of connect(); set to DISPOSED_GEN in disconnect(). Stale callbacks and late-joining attempts check this so they don't dispatch or become active. */
+  const DISPOSED_CONNECT_GEN = -1;
+  let connectAttemptId = 0;
   type ColyseusRoom = Awaited<ReturnType<Client["joinById"]>>;
   let room: ColyseusRoom | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -214,7 +222,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   };
 
   const scheduleReconnect = () => {
-    if (!shouldReconnect || reconnectTimer) return;
+    if (disposed || !shouldReconnect || reconnectTimer) return;
     if (terminalJoinFailure) {
       debugLog("RECONNECT_ABORTED_TERMINAL_JOIN_FAILURE", { roomId: activeRoomId, roomName: options.roomName });
       return;
@@ -234,11 +242,14 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     options.onMessage({ type: "RECONNECTING" });
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
+      if (disposed) return;
       void connect();
     }, RECONNECT_DELAY_MS);
   };
 
   const connect = async () => {
+    const myConnectId = ++connectAttemptId;
+    const isStale = () => disposed || myConnectId !== connectAttemptId;
     try {
       const tableIdCandidate =
         typeof options.joinOptions?.tableId === "string" && options.joinOptions.tableId.length > 0
@@ -255,14 +266,15 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         attemptedRoomIdPreflightRecovery = true;
         try {
           const recoveredRoomId = await resolveRoomIdByTableId(tableIdCandidate);
+          if (isStale()) return;
           if (recoveredRoomId && recoveredRoomId !== activeRoomId) {
             activeRoomId = recoveredRoomId;
             debugLog("ROOM_ID_PREJOIN_RECOVERED", { tableId: tableIdCandidate, recoveredRoomId });
           }
-        } catch (recoveryErr: any) {
+        } catch (recoveryErr: unknown) {
           debugLog("ROOM_ID_PREJOIN_RECOVERY_FAILED", {
             tableId: tableIdCandidate,
-            message: recoveryErr?.message ?? String(recoveryErr),
+            message: recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr),
           });
         }
       }
@@ -287,6 +299,14 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
           : await client.joinOrCreate(options.roomName ?? "lobby", options.joinOptions ?? {});
       }
 
+      if (isStale() && room) {
+        try {
+          (room as unknown as { leave: (code?: number) => void }).leave(LEAVE_CODE_STALE_OR_REPLACED);
+        } catch {}
+        room = null;
+        return;
+      }
+
       connected = true;
       reconnectAttempts = 0;
       terminalJoinFailure = false;
@@ -299,6 +319,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       options.onOpen?.();
 
       currentRoom!.onMessage("*", (type: string | number, payload: unknown) => {
+        if (myConnectId !== connectAttemptId) return;
         if (type === "ERROR" && payload && typeof payload === "object") {
           const code = (payload as { code?: string }).code;
           if (code === "JOIN_FAILED" || code === "BAD_JOIN_OPTIONS" || code === "MISSING_BUY_IN_CENTS" || code === "UNAUTHORIZED") {
@@ -315,11 +336,13 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       });
 
       currentRoom!.onError((code: number, message?: string) => {
+        if (myConnectId !== connectAttemptId) return;
         debugLog("ROOM_ERROR", { code, message, roomId: room?.roomId ?? options.roomId });
         options.onError?.(`Colyseus error (${code}): ${message ?? ""}`);
       });
 
       currentRoom!.onLeave(() => {
+        if (myConnectId !== connectAttemptId) return;
         const roomIdForReconnect = currentRoom.roomId ?? null;
         const sessionIdForReconnect = currentRoom.sessionId ?? null;
         connected = false;
@@ -342,13 +365,21 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         }
       });
     } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to connect to Colyseus";
+      debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message });
+
+      // If this connect attempt is stale (disposed or superseded by a newer attempt),
+      // do not emit DISCONNECTED, do not schedule reconnect, and do not mutate shared
+      // reconnection state. The live attempt owns reconnect/error semantics.
+      if (isStale()) {
+        return;
+      }
+
       reconnectionRoomId = null;
       reconnectionSessionId = null;
       connected = false;
       room = null;
       options.onMessage({ type: "DISCONNECTED", payload: undefined });
-      const message = err instanceof Error ? err.message : "Unable to connect to Colyseus";
-      debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message });
 
       const tableIdCandidate = options.joinOptions?.tableId;
       if (
@@ -368,8 +399,11 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
             return;
           }
           debugLog("ROOM_ID_RECOVERY_MISS", { tableId: tableIdCandidate, attemptedRoomId: activeRoomId });
-        } catch (recoveryErr: any) {
-          debugLog("ROOM_ID_RECOVERY_FAILED", { tableId: tableIdCandidate, message: recoveryErr?.message ?? String(recoveryErr) });
+        } catch (recoveryErr: unknown) {
+          debugLog("ROOM_ID_RECOVERY_FAILED", {
+            tableId: tableIdCandidate,
+            message: recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr),
+          });
         }
       }
 
@@ -386,10 +420,10 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
             activeRoomId = recoveredRoomId;
             debugLog("EMPTY_ERROR_ROOM_ID_RECOVERED", { tableId: tableIdCandidate, recoveredRoomId });
           }
-        } catch (recoveryErr: any) {
+        } catch (recoveryErr: unknown) {
           debugLog("EMPTY_ERROR_ROOM_ID_RECOVERY_FAILED", {
             tableId: tableIdCandidate,
-            message: recoveryErr?.message ?? String(recoveryErr),
+            message: recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr),
           });
         }
       }
@@ -411,6 +445,8 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       return true;
     },
     disconnect: (consented: boolean = false) => {
+      disposed = true;
+      connectAttemptId = DISPOSED_CONNECT_GEN;
       shouldReconnect = false;
       debugLog("DISCONNECT_REQUESTED", { roomId: room?.roomId ?? activeRoomId });
       if (reconnectTimer) {

@@ -109,6 +109,7 @@ describe("useTableRealtime behavior", () => {
       botSummariesByTableId: {},
       lastSeqByTableId: {},
       connectionStatusByTableId: {},
+      activeSessionIdByTableId: {},
       statusByTableId: {},
       errorByTableId: {},
     });
@@ -197,5 +198,82 @@ describe("useTableRealtime behavior", () => {
     dispatchTableMessage(tableId, "TABLE_SNAPSHOT", makeSnapshot(1, tableId));
 
     expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+  });
+
+  describe("rapid reconnect and session ownership stress", () => {
+    const tableId = "t1";
+
+    it("rapid CONNECTED sequence: only last session owns; stale DISCONNECTEDs ignored", () => {
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s1" });
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s2" });
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s3" });
+
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("s3");
+
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s1" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s2" });
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("s3");
+
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s3" });
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBeUndefined();
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBeUndefined();
+    });
+
+    it("rapid loop: CONNECTED → real DISCONNECTED → CONNECTED; stale DISCONNECTED then TABLE_SNAPSHOT", () => {
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s1" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s1" });
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBeUndefined();
+
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s2" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s1" });
+      dispatchTableMessage(tableId, "TABLE_SNAPSHOT", makeSnapshot(1, tableId));
+
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("s2");
+    });
+
+    it("many CONNECTED then only matching DISCONNECTED clears", () => {
+      for (let i = 1; i <= 10; i++) {
+        dispatchTableMessage(tableId, "CONNECTED", { sessionId: `s${i}` });
+      }
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("s10");
+
+      for (let i = 1; i <= 9; i++) {
+        dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: `s${i}` });
+      }
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("s10");
+
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "s10" });
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBeUndefined();
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBeUndefined();
+    });
+
+    it("interleaved CONNECTED, DISCONNECTED, TABLE_SNAPSHOT: final owner wins and healing holds", () => {
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "sA" });
+      dispatchTableMessage(tableId, "TABLE_SNAPSHOT", makeSnapshot(1, tableId));
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "sB" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sA" });
+      dispatchTableMessage(tableId, "TABLE_SNAPSHOT", makeSnapshot(2, tableId));
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "sC" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sA" });
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sB" });
+
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("sC");
+      expect(useTableStore.getState().snapshotsByTableId[tableId]?.snapshotSeq).toBe(2);
+
+      dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sC" });
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBeUndefined();
+    });
+
+    it("DISCONNECTED without sessionId clears (real disconnect)", () => {
+      dispatchTableMessage(tableId, "CONNECTED", { sessionId: "s1" });
+      dispatchTableMessage(tableId, "DISCONNECTED", undefined);
+      expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBeUndefined();
+      expect(useTableStore.getState().getActiveSessionId(tableId)).toBeUndefined();
+    });
   });
 });

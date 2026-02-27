@@ -63,9 +63,14 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
   if (type === "DISCONNECTED") {
     const sessionId = getSessionIdFromPayload(payload);
     const activeSessionId = deps.getActiveSessionId?.(tableId);
+    // Ignore only when both ids exist and differ (stale leave from a replaced/orphan session).
+    // Missing sessionId (e.g. catch-block disconnect) → treat as real disconnect and clear.
     if (sessionId != null && activeSessionId != null && sessionId !== activeSessionId) {
-      // Stale leave from a replaced session; ignore so we don't clear status for the live session.
-      deps.debugLog("INBOUND", { tableId, type, payload, ignored: "stale session" });
+      deps.debugLog("INBOUND_STALE_DISCONNECTED_IGNORED", {
+        tableId,
+        incomingSessionId: sessionId,
+        activeSessionId,
+      });
       return;
     }
     deps.clearActiveSessionId?.(tableId);
