@@ -33,36 +33,41 @@ export function bootstrapSdk() {
 
   bootPromise = (async () => {
     if (booted) return;
-    booted = true;
 
-    const apiUrl =
-      process.env.EXPO_PUBLIC_API_URL ||
-      DEFAULT_API_URL;
+    try {
+      const apiUrl =
+        process.env.EXPO_PUBLIC_API_URL ||
+        DEFAULT_API_URL;
 
-    setApiBaseUrl(String(apiUrl));
+      setApiBaseUrl(String(apiUrl));
 
-    // Store -> SDK context
-    setAuthToken(storeRegistry.auth().token);
+      // Store -> SDK context
+      setAuthToken(storeRegistry.auth().token);
 
-    storeRegistry.use.auth.subscribe((state) => {
-      setAuthToken(state.token);
-    });
+      storeRegistry.use.auth.subscribe((state) => {
+        setAuthToken(state.token);
+      });
 
-    await storeRegistry.auth().hydrateToken();
+      await storeRegistry.auth().hydrateToken();
 
-    const token = storeRegistry.auth().token;
-    if (token) {
-      try {
-        await auth.me();
-      } catch {
-        storeRegistry.auth().logout();
+      const token = storeRegistry.auth().token;
+      if (token) {
+        try {
+          await auth.me();
+        } catch {
+          storeRegistry.auth().logout();
+        }
       }
-    }
 
-    storeRegistry.auth().markHydrated();
-    setSoundPlayer(createExpoAvPlayer());
-    preloadSounds([...PRELOAD_SOUNDS]);
-    void checkVersionMismatchOnce();
+      setSoundPlayer(createExpoAvPlayer());
+      preloadSounds([...PRELOAD_SOUNDS]);
+      void checkVersionMismatchOnce();
+    } catch (error) {
+      console.error("[bootstrapSdk] startup failed", error);
+    } finally {
+      storeRegistry.auth().markHydrated();
+      booted = true;
+    }
   })();
 
   return bootPromise;
