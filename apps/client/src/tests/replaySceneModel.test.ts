@@ -33,6 +33,7 @@ function makeInteractiveSceneModel(): TableSceneModel {
     heroCalculations: undefined,
     heroPlayerStats: undefined,
     heroName: "Hero",
+    heroAvatarUrl: undefined,
     isHeroToAct: true,
     isHeroWinner: false,
     isHeroDealer: false,

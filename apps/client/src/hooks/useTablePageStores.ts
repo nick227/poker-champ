@@ -9,9 +9,13 @@ import { storeRegistry } from "@/registry/store.registry";
  */
 export function useTablePageStores(tableId: string | undefined) {
   const id = tableId ?? "";
+  type TablesState = ReturnType<typeof storeRegistry.tables>;
+  type LobbyState = ReturnType<typeof storeRegistry.lobby>;
+  type TableState = ReturnType<typeof storeRegistry.table>;
+  type AuthState = ReturnType<typeof storeRegistry.auth>;
 
   const tablesSlice = storeRegistry.use.tables(
-    useShallow((s) => ({
+    useShallow((s: TablesState) => ({
       openTableIds: s.openTableIds,
       activeTableId: s.activeTableId,
       openTable: s.openTable,
@@ -29,10 +33,10 @@ export function useTablePageStores(tableId: string | undefined) {
     }))
   );
 
-  const lobbyTables = storeRegistry.use.lobby(useShallow((s) => s.tables));
+  const lobbyTables = storeRegistry.use.lobby(useShallow((s: LobbyState) => s.tables));
 
   const tableSlice = storeRegistry.use.table(
-    useShallow((s) => ({
+    useShallow((s: TableState) => ({
       snapshotsByTableId: s.snapshotsByTableId,
       chatMessagesForTable: id ? (s.chatMessagesByTableId[id] ?? []) : [],
       botSummariesForTable: id ? (s.botSummariesByTableId[id] ?? []) : [],
@@ -43,7 +47,7 @@ export function useTablePageStores(tableId: string | undefined) {
   );
 
   const authSlice = storeRegistry.use.auth(
-    useShallow((s) => ({
+    useShallow((s: AuthState) => ({
       hydrated: s.hydrated,
       token: s.token,
     }))

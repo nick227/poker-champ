@@ -66,8 +66,8 @@ describe("Colyseus transport double-mount prevention", () => {
   });
 
   it("dispose during preflight resolveRoomIdByTableId await: no join afterward", async () => {
-    let resolveListTables: (v: { tables: unknown[] }) => void;
-    const listTablesPromise = new Promise<{ tables: unknown[] }>((res) => {
+    let resolveListTables: (v: { tables: any[] }) => void;
+    const listTablesPromise = new Promise<{ tables: any[] }>((res) => {
       resolveListTables = res;
     });
     vi.mocked(lobby.listTables).mockReturnValue(listTablesPromise);

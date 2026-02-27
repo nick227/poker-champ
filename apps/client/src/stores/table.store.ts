@@ -27,7 +27,7 @@ type TableStoreState = {
   clearTable: (tableId: string) => void;
 };
 
-export const useTableStore = create<TableStoreState>((set) => ({
+export const useTableStore = create<TableStoreState>((set, get) => ({
   snapshotsByTableId: {},
   chatMessagesByTableId: {},
   botSummariesByTableId: {},
@@ -132,7 +132,7 @@ export const useTableStore = create<TableStoreState>((set) => ({
     set((s) => ({
       activeSessionIdByTableId: { ...s.activeSessionIdByTableId, [tableId]: sessionId },
     })),
-  getActiveSessionId: (tableId) => useTableStore.getState().activeSessionIdByTableId[tableId],
+  getActiveSessionId: (tableId): string | undefined => get().activeSessionIdByTableId[tableId],
   clearActiveSessionId: (tableId) =>
     set((s) => {
       const { [tableId]: _, ...activeSessionIdByTableId } = s.activeSessionIdByTableId;

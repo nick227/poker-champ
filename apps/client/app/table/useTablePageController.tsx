@@ -89,7 +89,7 @@ export function useTablePageController({
   } = useTablePageStores(tableId);
 
   const normalizedLobbyTables = useMemo(
-    () => lobbyTables.map((t) => normalizeTable(t as Record<string, unknown>)) as LobbyTableRow[],
+    () => lobbyTables.map((t: unknown) => normalizeTable(t as Record<string, unknown>)) as LobbyTableRow[],
     [lobbyTables],
   );
   const tableById = useMemo(() => {
@@ -156,7 +156,7 @@ export function useTablePageController({
       chatMessagesForTable.length > MAX_CHAT_OVERLAY_MESSAGES
         ? chatMessagesForTable.slice(-MAX_CHAT_OVERLAY_MESSAGES)
         : chatMessagesForTable;
-    return list.map((m) => ({
+    return list.map((m: { id: string; senderName: string; text: string; senderUserId: string }) => ({
       id: m.id,
       sender: m.senderName,
       text: m.text,
@@ -238,7 +238,7 @@ export function useTablePageController({
 
   const activeTableRows = useMemo(
     () =>
-      openTableIds.map((oid) => {
+      openTableIds.map((oid: string) => {
         const s = snapshotsByTableId[oid];
         let heroSeatForTable: TableSnapshotPayload["seats"][number] | undefined;
         if (s?.hero.seat != null) {
