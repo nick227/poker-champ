@@ -292,7 +292,10 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       terminalJoinFailure = false;
       const currentRoom = room;
       debugLog("CONNECTED", { roomId: currentRoom?.roomId ?? options.roomId, sessionId: currentRoom?.sessionId });
-      options.onMessage({ type: "CONNECTED" });
+      options.onMessage({
+        type: "CONNECTED",
+        payload: currentRoom?.sessionId != null ? { sessionId: currentRoom.sessionId } : undefined,
+      });
       options.onOpen?.();
 
       currentRoom!.onMessage("*", (type: string | number, payload: unknown) => {
@@ -321,7 +324,10 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         const sessionIdForReconnect = currentRoom.sessionId ?? null;
         connected = false;
         room = null;
-        options.onMessage({ type: "DISCONNECTED" });
+        options.onMessage({
+          type: "DISCONNECTED",
+          payload: sessionIdForReconnect != null ? { sessionId: sessionIdForReconnect } : undefined,
+        });
         options.onClose?.();
         if (sessionReplacedByNewerConnection) {
           debugLog("Session replaced by newer connection (no retry)");
@@ -340,7 +346,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       reconnectionSessionId = null;
       connected = false;
       room = null;
-      options.onMessage({ type: "DISCONNECTED" });
+      options.onMessage({ type: "DISCONNECTED", payload: undefined });
       const message = err instanceof Error ? err.message : "Unable to connect to Colyseus";
       debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message });
 

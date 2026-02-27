@@ -66,7 +66,8 @@ describe("dealer auto-action queue race handling", () => {
       (dealer as any).maybeActForBot();
       state.street = "WAITING";
 
-      await vi.advanceTimersByTimeAsync(800);
+      // Advance time by the maximum possible bot delay to flush the queued action.
+      await vi.advanceTimersByTimeAsync(3000);
       await expect((dealer as any).actionQueue).resolves.toBeUndefined();
     } finally {
       vi.useRealTimers();

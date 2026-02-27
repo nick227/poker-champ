@@ -40,7 +40,6 @@ export const opponentStripStyles = StyleSheet.create({
     overflow: "hidden",
   },
   rowShellActive: {
-    borderColor: ACTIVE_TILE_BORDER,
     boxShadow: [
       {
         offsetX: 0,

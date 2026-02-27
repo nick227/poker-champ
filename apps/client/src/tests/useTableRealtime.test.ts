@@ -91,6 +91,9 @@ function dispatchTableMessage(tableId: string, type: string, payload: unknown) {
       setBotSummaries: (t, bots) => useTableStore.getState().setBotSummaries(t, bots),
       setConnectionStatus: (t, status) => useTableStore.getState().setConnectionStatus(t, status),
       clearConnectionStatus: (t) => useTableStore.getState().clearConnectionStatus(t),
+      setActiveSessionId: (t, sessionId) => useTableStore.getState().setActiveSessionId(t, sessionId),
+      getActiveSessionId: (t) => useTableStore.getState().getActiveSessionId(t),
+      clearActiveSessionId: (t) => useTableStore.getState().clearActiveSessionId(t),
       setError: (t, message) => useTableStore.getState().setError(t, message),
       onError: undefined,
       debugLog: vi.fn(),
@@ -174,5 +177,25 @@ describe("useTableRealtime behavior", () => {
 
     dispatchTableMessage("t1", "DISCONNECTED", undefined);
     expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBeUndefined();
+  });
+
+  it("keeps CONNECTED when DISCONNECTED is from a stale session (session scoping)", () => {
+    const tableId = "t1";
+    dispatchTableMessage(tableId, "CONNECTED", { sessionId: "sessionB" });
+    expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+    expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("sessionB");
+
+    dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sessionA" });
+    expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
+    expect(useTableStore.getState().getActiveSessionId(tableId)).toBe("sessionB");
+  });
+
+  it("stale DISCONNECTED then TABLE_SNAPSHOT leaves status CONNECTED (healing path)", () => {
+    const tableId = "t1";
+    dispatchTableMessage(tableId, "CONNECTED", { sessionId: "sessionB" });
+    dispatchTableMessage(tableId, "DISCONNECTED", { sessionId: "sessionA" });
+    dispatchTableMessage(tableId, "TABLE_SNAPSHOT", makeSnapshot(1, tableId));
+
+    expect(useTableStore.getState().connectionStatusByTableId[tableId]).toBe("CONNECTED");
   });
 });

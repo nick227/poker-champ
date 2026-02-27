@@ -12,6 +12,9 @@ export type TableRealtimeMessageHandlerDeps = {
   setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: Exclude<TableLifecycleStatus, "DISCONNECTED">) => void;
   clearConnectionStatus: (tableId: string) => void;
+  setActiveSessionId?: (tableId: string, sessionId: string) => void;
+  getActiveSessionId?: (tableId: string) => string | undefined;
+  clearActiveSessionId?: (tableId: string) => void;
   setError: (tableId: string, error: string) => void;
   onError?: (message: string) => void;
   onTableGone?: (tableId: string) => void;
@@ -25,6 +28,14 @@ type TableRealtimeInboundMessage = {
   deps: TableRealtimeMessageHandlerDeps;
 };
 
+function getSessionIdFromPayload(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "sessionId" in payload) {
+    const v = (payload as { sessionId?: string }).sessionId;
+    return typeof v === "string" ? v : undefined;
+  }
+  return undefined;
+}
+
 export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps }: TableRealtimeInboundMessage): void {
   if (type === "WELCOME") {
     const p = payload as { roomId?: string; joinMode?: "NEW" | "RESTORE" } | undefined;
@@ -35,10 +46,30 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
       deps.resetSnapshotStream(tableId);
     }
   }
+
+  if (type === "CONNECTED") {
+    const sessionId = getSessionIdFromPayload(payload);
+    if (sessionId && deps.setActiveSessionId) deps.setActiveSessionId(tableId, sessionId);
+    deps.setConnectionStatus(tableId, "CONNECTED");
+  }
+
   if (type === "SESSION_RESTORED") {
     // A restored session may resume from a different snapshot stream cursor.
     // Reset local cursor so the first post-restore snapshot is always accepted.
     deps.resetSnapshotStream(tableId);
+    deps.setConnectionStatus(tableId, "CONNECTED");
+  }
+
+  if (type === "DISCONNECTED") {
+    const sessionId = getSessionIdFromPayload(payload);
+    const activeSessionId = deps.getActiveSessionId?.(tableId);
+    if (sessionId != null && activeSessionId != null && sessionId !== activeSessionId) {
+      // Stale leave from a replaced session; ignore so we don't clear status for the live session.
+      deps.debugLog("INBOUND", { tableId, type, payload, ignored: "stale session" });
+      return;
+    }
+    deps.clearActiveSessionId?.(tableId);
+    deps.clearConnectionStatus(tableId);
   }
   if (type === "TABLE_SNAPSHOT") {
     const snap = payload as
@@ -54,6 +85,12 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
       version: snap?.version,
       snapshotSeq: snap?.snapshotSeq,
     });
+
+    // Receiving a snapshot implies the connection for this table is live. Restore CONNECTED
+    // if we were incorrectly marked DISCONNECTED by a stale session's onLeave (e.g. double
+    // connection / SESSION_REPLACED race: old session leaves and clears status while the
+    // current session is still receiving snapshots).
+    deps.setConnectionStatus(tableId, "CONNECTED");
 
     if (snap?.actionId) {
       storeRegistry.tables().clearPendingActionIfMatch(tableId, snap.actionId);

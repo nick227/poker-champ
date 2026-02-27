@@ -125,6 +125,7 @@ export function assertNever(x: never): never {
 export type OpponentDisplayStatus = "active" | "folded" | "allIn" | "sittingOut" | "reconnecting";
 
 export type Opponent = {
+  seat: number;
   id: string;
   name: string;
   stackCents: number;
@@ -202,6 +203,7 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
     }
 
     opponents.push({
+      seat: seat.seat,
       id: seat.userId,
       name: seat.name || "Player",
       stackCents: seat.stackCents,
@@ -212,5 +214,16 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       cards,
     });
   }
+  const heroSeat = snapshot.hero.seat;
+  const maxSeats = snapshot.table?.maxSeats ?? snapshot.seats.length;
+
+  if (heroSeat != null && maxSeats > 0) {
+    opponents.sort((a, b) => {
+      const aKey = (a.seat - heroSeat + maxSeats) % maxSeats;
+      const bKey = (b.seat - heroSeat + maxSeats) % maxSeats;
+      return aKey - bKey;
+    });
+  }
+
   return opponents;
 }

@@ -60,6 +60,7 @@ import { ActionService, type ActionResult, type ActionServiceLastAction, type Ac
 import { SettlementService } from "./dealer/services/SettlementService.js";
 import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
 import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
+import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS } from "./dealer/timing.js";
 import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
 import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
 import { SessionPlayerStatsTracker } from "./dealer/services/SessionPlayerStatsTracker.js";
@@ -239,6 +240,14 @@ export class Dealer {
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       enqueueAction: (userId, payload, delayMs) => this.enqueueInternalAction(userId, payload, delayMs),
+      getBotDelayMs: () => {
+        // Production bot \"thinking\" delay: random in [BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS].
+        const min = BOT_ACTION_DELAY_MIN_MS;
+        const max = BOT_ACTION_DELAY_MAX_MS;
+        if (max <= min) return min;
+        const span = max - min + 1;
+        return min + Math.floor(Math.random() * span);
+      },
       onAutoSitOutReachedCap: this.onAutoSitOutReachedCap,
     });
     this.playerLifecycleService = new PlayerLifecycleService({

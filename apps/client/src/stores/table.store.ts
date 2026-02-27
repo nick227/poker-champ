@@ -10,6 +10,7 @@ type TableStoreState = {
   botSummariesUpdatedAtByTableId: Record<string, number>;
   lastSeqByTableId: Record<string, number>;
   connectionStatusByTableId: Record<string, "CONNECTED" | "RECONNECTING" | "DISCONNECTED">;
+  activeSessionIdByTableId: Record<string, string | undefined>;
   statusByTableId: Record<string, string | undefined>;
   errorByTableId: Record<string, string | undefined>;
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
@@ -18,6 +19,9 @@ type TableStoreState = {
   setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
   clearConnectionStatus: (tableId: string) => void;
+  setActiveSessionId: (tableId: string, sessionId: string) => void;
+  getActiveSessionId: (tableId: string) => string | undefined;
+  clearActiveSessionId: (tableId: string) => void;
   setStatus: (tableId: string, status: string) => void;
   setError: (tableId: string, error: string) => void;
   clearTable: (tableId: string) => void;
@@ -30,6 +34,7 @@ export const useTableStore = create<TableStoreState>((set) => ({
   botSummariesUpdatedAtByTableId: {},
   lastSeqByTableId: {},
   connectionStatusByTableId: {},
+  activeSessionIdByTableId: {},
   statusByTableId: {},
   errorByTableId: {},
   appendChatMessage: (tableId, message) =>
@@ -123,6 +128,16 @@ export const useTableStore = create<TableStoreState>((set) => ({
       const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
       return { connectionStatusByTableId };
     }),
+  setActiveSessionId: (tableId, sessionId) =>
+    set((s) => ({
+      activeSessionIdByTableId: { ...s.activeSessionIdByTableId, [tableId]: sessionId },
+    })),
+  getActiveSessionId: (tableId) => useTableStore.getState().activeSessionIdByTableId[tableId],
+  clearActiveSessionId: (tableId) =>
+    set((s) => {
+      const { [tableId]: _, ...activeSessionIdByTableId } = s.activeSessionIdByTableId;
+      return { activeSessionIdByTableId };
+    }),
   setError: (tableId, error) =>
     set((s) => ({
       errorByTableId: {
@@ -140,6 +155,7 @@ export const useTableStore = create<TableStoreState>((set) => ({
       const { [tableId]: _error, ...errorByTableId } = s.errorByTableId;
       const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
       const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
+      const { [tableId]: _activeSessionId, ...activeSessionIdByTableId } = s.activeSessionIdByTableId;
       return {
         snapshotsByTableId,
         chatMessagesByTableId,
@@ -149,6 +165,7 @@ export const useTableStore = create<TableStoreState>((set) => ({
         errorByTableId,
         lastSeqByTableId,
         connectionStatusByTableId,
+        activeSessionIdByTableId,
       };
     }),
 }));

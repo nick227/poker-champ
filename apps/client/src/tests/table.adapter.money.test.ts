@@ -216,4 +216,139 @@ describe("table adapter money mapping", () => {
     const outSeat = opponents.find((o) => o.id === "sitting_out");
     expect(outSeat?.cards).toBeUndefined();
   });
+
+  it("orders opponents by seat relative to the hero", () => {
+    const snapshot = makeSnapshot();
+    const orderingSnapshot: TableSnapshotPayload = {
+      ...snapshot,
+      hero: {
+        ...snapshot.hero,
+        seat: 2,
+      },
+      seats: [
+        {
+          seat: 0,
+          occupied: true,
+          userId: "p0",
+          name: "P0",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+        {
+          seat: 1,
+          occupied: true,
+          userId: "p1",
+          name: "P1",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+        {
+          seat: 2,
+          occupied: true,
+          userId: "hero",
+          name: "Hero",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+        {
+          seat: 3,
+          occupied: true,
+          userId: "p3",
+          name: "P3",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+        {
+          seat: 4,
+          occupied: true,
+          userId: "p4",
+          name: "P4",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+        {
+          seat: 5,
+          occupied: true,
+          userId: "p5",
+          name: "P5",
+          stackCents: 1000,
+          roundBetCents: 0,
+          committedCents: 0,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: false,
+        },
+      ],
+    };
+
+    const opponents = mapSeatsToOpponents(orderingSnapshot);
+    const idsInOrder = opponents.map((o) => o.id);
+    expect(idsInOrder).toEqual(["p3", "p4", "p5", "p0", "p1"]);
+  });
+
+  it("orders opponents when hero is at seat 0 (heroSeat falsy but valid)", () => {
+    const snapshot = makeSnapshot();
+    const heroAtZero: TableSnapshotPayload = {
+      ...snapshot,
+      hero: { ...snapshot.hero, seat: 0 },
+      table: { ...snapshot.table, maxSeats: 6 },
+      seats: [0, 1, 2, 3, 4, 5].map((seat) => ({
+        seat,
+        occupied: true,
+        userId: seat === 0 ? "hero" : `p${seat}`,
+        name: seat === 0 ? "Hero" : `P${seat}`,
+        stackCents: 1000,
+        roundBetCents: 0,
+        committedCents: 0,
+        connected: true,
+        disconnectDeadlineTs: 0,
+        isDealer: false,
+        status: "ACTIVE" as const,
+        isToAct: false,
+        isBot: false,
+      })),
+    };
+
+    const opponents = mapSeatsToOpponents(heroAtZero);
+    const idsInOrder = opponents.map((o) => o.id);
+    expect(idsInOrder).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+  });
 });

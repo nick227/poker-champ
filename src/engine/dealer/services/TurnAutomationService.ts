@@ -48,11 +48,6 @@ import { eligibleToAct } from "../../rules/BettingRound.js";
 import { BotResolver } from "../../bots/BotResolver.js";
 
 // ============================================================================
-// IMPORTS - Constants & Timing
-// ============================================================================
-import { BOT_ACTION_DELAY_MS } from "../timing.js";
-
-// ============================================================================
 // MAIN CLASS - Turn Automation Management
 // ============================================================================
 
@@ -80,6 +75,7 @@ export class TurnAutomationService {
     currentHandAutoActedUserIds: Set<string>;
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
     enqueueAction: (userId: string, payload: ActionPayload, delayMs?: number) => void;
+    getBotDelayMs: () => number;
     onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
   }) {}
 
@@ -144,7 +140,8 @@ export class TurnAutomationService {
     };
 
     const payload = this.deps.botResolver.pickAction(player, ctx);
-    this.deps.enqueueAction(toActId, payload, BOT_ACTION_DELAY_MS);
+    const delayMs = this.deps.getBotDelayMs();
+    this.deps.enqueueAction(toActId, payload, delayMs);
   }
 
   // ============================================================================
