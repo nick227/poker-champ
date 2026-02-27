@@ -27,4 +27,3 @@ export function TablePage() {
 }
 
 export default TablePage;
-

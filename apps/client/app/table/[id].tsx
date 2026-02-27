@@ -1,4 +1,4 @@
-import { TablePage } from "./TablePage";
+import { TablePage } from "@/features/table-page/TablePage";
 
 export default function TablePageRoute() {
   return <TablePage />;

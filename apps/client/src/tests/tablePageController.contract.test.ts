@@ -1,6 +1,6 @@
 import { describe, it, expectTypeOf } from "vitest";
 import type { TablePageController } from "@/types/tableSceneContract";
-import { useTablePageController } from "../../app/table/useTablePageController";
+import { useTablePageController } from "../features/table-page/useTablePageController";
 
 describe("table page controller contract", () => {
   it("keeps useTablePageController aligned with TablePageController", () => {
