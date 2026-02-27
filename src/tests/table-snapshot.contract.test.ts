@@ -66,6 +66,31 @@ describe("table snapshot contract emission", () => {
     expect(payload.stateHash.length).toBeGreaterThan(0);
   });
 
+  it("includes hero.avatarUrl in snapshot when getAvatarByUserId is provided and returns url", async () => {
+    const state = new PokerState();
+    state.tableId = "table_avatar";
+    state.tableName = "Table";
+    state.street = "WAITING";
+    state.maxSeats = 2;
+    const hero = makePlayer({ id: "u1", name: "Hero", seat: 0, stackCents: 5000 });
+    state.playersById.set(hero.id, hero);
+    state.seats[0] = hero.id;
+    state.seats[1] = "";
+
+    const getAvatarByUserId = async (userId: string) =>
+      ({ avatarUrl: `/avatars/${userId}/1.png`, avatarVersion: 1 } as { avatarUrl: string | null; avatarVersion: number | null });
+    const dealer = new Dealer(state, undefined, { getAvatarByUserId });
+    const client = makeClient();
+    dealer.bindClient(hero.id, client as any);
+
+    await dealer.emitSnapshotToUser(hero.id, "JOIN");
+
+    expect(client.send).toHaveBeenCalledTimes(1);
+    const payload = client.send.mock.calls[0][1] as any;
+    expect(payload.hero.avatarUrl).toBe("/avatars/u1/1.png");
+    expect(payload.hero.avatarVersion).toBe(1);
+  });
+
   it("keeps hero showdown hole cards visible while waiting for next hand", () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_showdown_waiting";

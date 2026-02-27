@@ -1,4 +1,5 @@
 import { View, Pressable } from "react-native";
+import { useEffect, useState } from "react";
 import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { EmptyTableView } from "@/components/domain/table/views/EmptyTableView";
 import { StatusTableView } from "@/components/domain/table/views/StatusTableView";
@@ -6,6 +7,10 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import type { TablePageController } from "@/types/tableSceneContract";
 import { tablePath } from "@/lib/nav";
+import { useProfile } from "@/hooks/useProfile";
+import { useAvatarUpload } from "@/hooks/useAvatarUpload";
+import { serviceRegistry } from "@/registry/service.registry";
+import { getAvatarUrlFromMeResponse } from "@/lib/meResponse";
 
 export type TableSceneRouterProps = {
   scene: TablePageController["scene"];
@@ -37,6 +42,27 @@ export function copyShareTableUrl(url?: string) {
 export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRouterProps) {
   const { snapshot } = renderModel;
   const { mode } = scene;
+  const { refetch, avatarUrl: profileAvatarUrl } = useProfile();
+  const [heroAvatarUrl, setHeroAvatarUrl] = useState<string | null | undefined>(profileAvatarUrl);
+  const { pickAndUpload: pickAndUploadAvatar } = useAvatarUpload({
+    onSuccess: (result) => {
+      setHeroAvatarUrl(result.avatarUrl);
+      void refetch();
+    },
+  });
+  useEffect(() => {
+    setHeroAvatarUrl(profileAvatarUrl);
+  }, [profileAvatarUrl]);
+  useEffect(() => {
+    if (mode !== "active") return;
+    let cancelled = false;
+    Promise.all([serviceRegistry.get.me(), refetch()]).then(([res]) => {
+      if (cancelled || !res.ok || !res.data) return;
+      const url = getAvatarUrlFromMeResponse(res.data);
+      setHeroAvatarUrl((prev) => url ?? prev);
+    });
+    return () => { cancelled = true; };
+  }, [mode, refetch]);
   const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
   const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
   const emptyOpponentsState = showEmptyOpponentsState ? (
@@ -82,6 +108,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
+          onBackToLobby={actions.closeTableAndReturn}
         />
       );
     case "active":
@@ -101,6 +128,8 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
+          heroAvatarUrlOverride={heroAvatarUrl ?? profileAvatarUrl ?? undefined}
+          onHeroAvatarPress={pickAndUploadAvatar}
         />
       );
     default:

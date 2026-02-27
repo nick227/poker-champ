@@ -3,18 +3,21 @@
  * the tree and avoids re-measure jitter on Android/Web. Do not remove.
  */
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View, ActivityIndicator } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { type Opponent } from "../OpponentStrip";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { HeroZone } from "../HeroZone";
 import { ActionBar, type ActionBarOnAction } from "../ActionBar";
 import { Button } from "@/components/base/Button";
+import { Text } from "@/components/base/Text";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
 import { TableSceneShell } from "../shell/TableSceneShell";
 import { useTableViewShellFrame } from "./tableView.shared";
+import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -36,6 +39,8 @@ export type ActiveTableViewProps = {
   opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
   onPressRebuy?: () => void;
+  heroAvatarUrlOverride?: string;
+  onHeroAvatarPress?: () => void;
 };
 
 export function ActiveTableView({
@@ -54,7 +59,10 @@ export function ActiveTableView({
   opponentStripEmptyState,
   canRebuy = false,
   onPressRebuy,
+  heroAvatarUrlOverride,
+  onHeroAvatarPress,
 }: ActiveTableViewProps) {
+  const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
@@ -81,6 +89,7 @@ export function ActiveTableView({
     heroCalculations,
     heroPlayerStats,
     heroName,
+    heroAvatarUrl,
     isHeroToAct,
     isHeroWinner,
     isHeroDealer,
@@ -118,6 +127,100 @@ export function ActiveTableView({
     prevRevealedBoardCardsRef.current = revealedCount;
   }, [communityCards]);
 
+  const heroIsSeated = snapshot.hero.youAreSeated;
+  const waitingBetweenHands = !snapshot.hand;
+  const hasActionOptions = !!heroActionOptions;
+
+  // Smart notification system for better UX
+  const notification = useActiveTableNotification(
+    waitingBetweenHands,
+    hasActionOptions,
+    actionContext.showActions,
+    isPendingHeroAction,
+    opponents,
+    snapshot
+  );
+
+  // Hide the ActionBar optimistically as soon as the hero takes an action.
+  // This avoids any visible pause while waiting for the server to advance to the next actor.
+  const handleAction: ActionBarOnAction = useCallback(
+    (payload) => {
+      setIsPendingHeroAction(true);
+      onAction(payload);
+    },
+    [onAction],
+  );
+
+  // Clear pending state once the server snapshot catches up and it's no longer our turn
+  // (or there are no longer action options / hand in progress).
+  useEffect(() => {
+    if (!actionContext.showActions || !hasActionOptions || waitingBetweenHands) {
+      setIsPendingHeroAction(false);
+    }
+  }, [actionContext.showActions, hasActionOptions, waitingBetweenHands]);
+
+  let bottom: ReactNode;
+  if (canRebuy && onPressRebuy) {
+    bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
+  } else if (!heroIsSeated) {
+    bottom = (
+      <View className="ui-p-inline-4">
+        <Text className="text-center">You are not seated at this table.</Text>
+      </View>
+    );
+  } else if (
+    waitingBetweenHands ||
+    !hasActionOptions ||
+    !actionContext.showActions ||
+    isPendingHeroAction
+  ) {
+    const textVariantClass = {
+      default: "text-center text-muted",
+      processing: "text-center text-info animate-pulse",
+      waiting: "text-center text-warning",
+    }[notification.variant];
+
+    bottom = (
+      <View className="ui-p-inline-4 gap-y-2">
+        <View className="flex-row items-center justify-center gap-x-2">
+          {notification.showLoadingIndicator && (
+            <ActivityIndicator 
+              size="small" 
+              className="opacity-70"
+            />
+          )}
+          <Text 
+            className={textVariantClass}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {notification.message}
+          </Text>
+        </View>
+      </View>
+    );
+  } else {
+    bottom = (
+      <ActionBar
+        actionContext={actionContext}
+        heroStatus={heroStatus}
+        actionOptions={heroActionOptions}
+        potCents={potCents}
+        onAction={handleAction}
+      />
+    );
+  }
+
+  if (__DEV__ && !bottom) {
+    // This should never happen: ActiveTableView must always render a bottom CTA/state.
+    // eslint-disable-next-line no-console
+    console.error("No bottom CTA rendered in ActiveTableView — illegal UI state", {
+      hasHand: Boolean(snapshot.hand),
+      heroIsSeated,
+      canRebuy,
+    });
+  }
+
   return (
     <TableSceneShell
       {...shellBaseProps}
@@ -146,23 +249,13 @@ export function ActiveTableView({
           isDealer={isHeroDealer}
           isActiveTurn={isHeroToAct}
           userName={heroName}
+          avatarUrl={heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined}
           potCents={potCents}
+          onAvatarPress={onHeroAvatarPress}
           onToggleSittingOut={onToggleSittingOut}
         />
       }
-      bottom={
-        canRebuy && onPressRebuy ? (
-          <Button title="Rebuy" onPress={onPressRebuy} />
-        ) : (
-          <ActionBar
-            actionContext={actionContext}
-            heroStatus={heroStatus}
-            actionOptions={heroActionOptions}
-            potCents={potCents}
-            onAction={onAction}
-          />
-        )
-      }
+      bottom={bottom}
     />
   );
 }
