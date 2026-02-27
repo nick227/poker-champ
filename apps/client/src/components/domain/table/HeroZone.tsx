@@ -106,7 +106,7 @@ export function HeroZone({
     <View
       collapsable={false}
       className="hero-container flex-shrink-0"
-      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, paddingLeft: 16, gap: 16 }]}
+      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, gap: 16 }]}
     >
       {isWinner ? <PotWinRing radius={0} /> : null}
       {/* Top rail: calculation stats (always rendered to preserve layout height). */}

@@ -25,8 +25,10 @@ export function useRebuySheet(
         : undefined;
 
     if (!heroSeat) return false;
-    if (heroSeat.status !== "WAITING" && heroSeat.status !== "OUT") return false;
     if (heroSeat.stackCents !== 0) return false;
+    // Busted (stack 0): allow rebuy when OUT, WAITING, or ABANDONED (sat out then busted).
+    const allowedBustedStatuses = ["WAITING", "OUT", "ABANDONED"];
+    if (!allowedBustedStatuses.includes(heroSeat.status)) return false;
 
     const { minBuyInCents, maxBuyInCents } = snapshot.table;
 

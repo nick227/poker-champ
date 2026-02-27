@@ -178,9 +178,13 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
 
   let connected = false;
   let shouldReconnect = true;
-  let room: any = null;
+  type ColyseusRoom = Awaited<ReturnType<Client["joinById"]>>;
+  let room: ColyseusRoom | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let activeRoomId = options.roomId;
+  /** When set, connect() uses client.reconnect() instead of joinById so the server's allowReconnection reservation is used. */
+  let reconnectionRoomId: string | null = null;
+  let reconnectionSessionId: string | null = null;
   let attemptedRoomIdRecovery = false;
   let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
@@ -264,25 +268,34 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       }
 
       const client = new Client(url);
+      const useReconnect = Boolean(reconnectionRoomId && reconnectionSessionId);
       debugLog("SOCKET_CONNECT_ATTEMPT", {
         url,
         roomId: activeRoomId,
         roomName: options.roomName,
+        useReconnect,
         hasJoinOptions: Boolean(options.joinOptions),
         joinOptionKeys: options.joinOptions ? Object.keys(options.joinOptions) : [],
       });
-      room = activeRoomId
-        ? await client.joinById(activeRoomId, options.joinOptions ?? {})
-        : await client.joinOrCreate(options.roomName ?? "lobby", options.joinOptions ?? {});
+      if (useReconnect && reconnectionRoomId && reconnectionSessionId) {
+        room = await client.reconnect(reconnectionRoomId, reconnectionSessionId);
+        reconnectionRoomId = null;
+        reconnectionSessionId = null;
+      } else {
+        room = activeRoomId
+          ? await client.joinById(activeRoomId, options.joinOptions ?? {})
+          : await client.joinOrCreate(options.roomName ?? "lobby", options.joinOptions ?? {});
+      }
 
       connected = true;
       reconnectAttempts = 0;
       terminalJoinFailure = false;
-      debugLog("CONNECTED", { roomId: room?.roomId ?? options.roomId, sessionId: room?.sessionId });
+      const currentRoom = room;
+      debugLog("CONNECTED", { roomId: currentRoom?.roomId ?? options.roomId, sessionId: currentRoom?.sessionId });
       options.onMessage({ type: "CONNECTED" });
       options.onOpen?.();
 
-      room.onMessage("*", (type: string, payload: unknown) => {
+      currentRoom!.onMessage("*", (type: string | number, payload: unknown) => {
         if (type === "ERROR" && payload && typeof payload === "object") {
           const code = (payload as { code?: string }).code;
           if (code === "JOIN_FAILED" || code === "BAD_JOIN_OPTIONS" || code === "MISSING_BUY_IN_CENTS" || code === "UNAUTHORIZED") {
@@ -295,28 +308,40 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
           sessionReplacedByNewerConnection = true;
           debugLog("SESSION_REPLACED_RECEIVED", { roomId: room?.roomId ?? options.roomId });
         }
-        options.onMessage({ type, payload });
+        options.onMessage({ type: typeof type === "string" ? type : String(type), payload });
       });
 
-      room.onError((code: number, message: string) => {
+      currentRoom!.onError((code: number, message?: string) => {
         debugLog("ROOM_ERROR", { code, message, roomId: room?.roomId ?? options.roomId });
-        options.onError?.(`Colyseus error (${code}): ${message}`);
+        options.onError?.(`Colyseus error (${code}): ${message ?? ""}`);
       });
 
-      room.onLeave(() => {
+      currentRoom!.onLeave(() => {
+        const roomIdForReconnect = currentRoom.roomId ?? null;
+        const sessionIdForReconnect = currentRoom.sessionId ?? null;
         connected = false;
+        room = null;
         options.onMessage({ type: "DISCONNECTED" });
         options.onClose?.();
         if (sessionReplacedByNewerConnection) {
           debugLog("Session replaced by newer connection (no retry)");
           return;
         }
-        if (shouldReconnect) scheduleReconnect();
+        if (shouldReconnect) {
+          if (roomIdForReconnect && sessionIdForReconnect) {
+            reconnectionRoomId = roomIdForReconnect;
+            reconnectionSessionId = sessionIdForReconnect;
+          }
+          scheduleReconnect();
+        }
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      reconnectionRoomId = null;
+      reconnectionSessionId = null;
       connected = false;
+      room = null;
       options.onMessage({ type: "DISCONNECTED" });
-      const message = err?.message ?? "Unable to connect to Colyseus";
+      const message = err instanceof Error ? err.message : "Unable to connect to Colyseus";
       debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message });
 
       const tableIdCandidate = options.joinOptions?.tableId;
