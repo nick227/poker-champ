@@ -12,8 +12,15 @@ describe("lobby table shape", () => {
       maxSeats:9,
       smallBlindCents:100,
       bigBlindCents:200,
+      minBuyInCents: 2000,
+      maxBuyInCents: 20000,
       visibility:"PUBLIC",
-      createdAt:Date.now()
+      speed: "normal",
+      createdAt:Date.now(),
+      updatedAt: Date.now(),
+      creatorName: "Player",
+      creatorAvatarUrl: null,
+      showStats: true,
     };
     expect(t.bigBlindCents).toBe(200);
   });

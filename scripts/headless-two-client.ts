@@ -106,6 +106,23 @@ async function main() {
   const emitAction = (userId: UserId, payload: { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number }) => {
     room.onMessageEvents.emit("ACTION", clients[userId], { actionId: randomUUID(), ...payload });
   };
+  const seenTurnActionKeys = new Set<string>();
+  const emitActionOncePerTurn = (
+    userId: UserId,
+    payload: { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number },
+  ): boolean => {
+    const handId = room.state?.handId ?? "";
+    const street = room.state?.street ?? "";
+    const handActionSeq = room.state?.handActionSeq ?? -1;
+    const toActSeat = room.state?.toActSeat ?? -1;
+    const toActStateUserId = room.state?.seats?.[toActSeat];
+    if (toActStateUserId !== userId) return false;
+    const key = `${handId}|${street}|${handActionSeq}|${toActSeat}|${userId}`;
+    if (seenTurnActionKeys.has(key)) return false;
+    seenTurnActionKeys.add(key);
+    emitAction(userId, payload);
+    return true;
+  };
 
   const activeHand = () => snapshots.user_a?.hand;
   const roomStreet = () => room.state?.street as string;
@@ -168,10 +185,10 @@ async function main() {
         await delay(50);
         continue;
       }
-      if (options.canCheck) emitAction(actingUserId, { action: "CHECK" });
-      else if (options.canCall) emitAction(actingUserId, { action: "CALL" });
-      else if (options.canFold) emitAction(actingUserId, { action: "FOLD" });
-      else if (options.canAllIn) emitAction(actingUserId, { action: "ALL_IN" });
+      if (options.canCheck) emitActionOncePerTurn(actingUserId, { action: "CHECK" });
+      else if (options.canCall) emitActionOncePerTurn(actingUserId, { action: "CALL" });
+      else if (options.canFold) emitActionOncePerTurn(actingUserId, { action: "FOLD" });
+      else if (options.canAllIn) emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
       else await delay(50);
       await delay(120);
     }
@@ -202,7 +219,7 @@ async function main() {
     const toActUserId = resolveSnapshotActorUserId();
 
     if (!toActUserId) throw new Error("No to-act user in snapshot");
-    emitAction(toActUserId, { action: "FOLD" });
+    emitActionOncePerTurn(toActUserId, { action: "FOLD" });
     await waitForHandAdvance(firstHandNumber);
 
     await room.onJoin(clients.user_c as any, { buyInCents: 2000 }, { userId: "user_c", username: "charlie" });
@@ -241,32 +258,32 @@ async function main() {
       }
 
       if (actingUserId === "user_c" && !seenShortAllIn && heroOptions.canAllIn) {
-        emitAction(actingUserId, { action: "ALL_IN" });
+        emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
         seenShortAllIn = true;
       } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && !seenLargeRaise && heroOptions.canRaise) {
         const target = Math.max(heroOptions.minRaiseTo ?? 0, 1200);
         const amountCents = Math.min(target, heroOptions.maxRaiseTo ?? target);
-        emitAction(actingUserId, { action: "RAISE", amountCents });
+        emitActionOncePerTurn(actingUserId, { action: "RAISE", amountCents });
         seenLargeRaise = true;
         seenFollowUpContest = true;
       } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenLargeRaise && !seenCallAfterRaise && heroOptions.canCall) {
-        emitAction(actingUserId, { action: "CALL" });
+        emitActionOncePerTurn(actingUserId, { action: "CALL" });
         seenCallAfterRaise = true;
         seenFollowUpContest = true;
       } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && heroOptions.canCall) {
-        emitAction(actingUserId, { action: "CALL" });
+        emitActionOncePerTurn(actingUserId, { action: "CALL" });
         seenFollowUpContest = true;
       } else if ((actingUserId === "user_a" || actingUserId === "user_b") && seenShortAllIn && heroOptions.canAllIn) {
-        emitAction(actingUserId, { action: "ALL_IN" });
+        emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
         seenFollowUpContest = true;
       } else if (heroOptions.canCheck) {
-        emitAction(actingUserId, { action: "CHECK" });
+        emitActionOncePerTurn(actingUserId, { action: "CHECK" });
       } else if (heroOptions.canCall) {
-        emitAction(actingUserId, { action: "CALL" });
+        emitActionOncePerTurn(actingUserId, { action: "CALL" });
       } else if (heroOptions.canAllIn) {
-        emitAction(actingUserId, { action: "ALL_IN" });
+        emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
       } else {
-        emitAction(actingUserId, { action: "FOLD" });
+        emitActionOncePerTurn(actingUserId, { action: "FOLD" });
       }
       await delay(140);
       sidePotLastSnapshotId = snapshots.user_a?.snapshotId ?? sidePotLastSnapshotId;
@@ -337,10 +354,10 @@ async function main() {
         continue;
       }
 
-      if (options.canCheck) emitAction(actingUserId, { action: "CHECK" });
-      else if (options.canCall) emitAction(actingUserId, { action: "CALL" });
-      else if (options.canAllIn) emitAction(actingUserId, { action: "ALL_IN" });
-      else emitAction(actingUserId, { action: "FOLD" });
+      if (options.canCheck) emitActionOncePerTurn(actingUserId, { action: "CHECK" });
+      else if (options.canCall) emitActionOncePerTurn(actingUserId, { action: "CALL" });
+      else if (options.canAllIn) emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
+      else emitActionOncePerTurn(actingUserId, { action: "FOLD" });
 
       emittedProgressAction = true;
       break;
@@ -388,10 +405,10 @@ async function main() {
       const actingUserId = resolveSnapshotActorUserId();
       const options = actingUserId ? snapshots[actingUserId]?.hero?.actionOptions : undefined;
       if (actingUserId && options && snapshots[actingUserId]?.hand?.handId === roomHandId()) {
-        if (options.canCheck) emitAction(actingUserId, { action: "CHECK" });
-        else if (options.canCall) emitAction(actingUserId, { action: "CALL" });
-        else if (options.canAllIn) emitAction(actingUserId, { action: "ALL_IN" });
-        else emitAction(actingUserId, { action: "FOLD" });
+        if (options.canCheck) emitActionOncePerTurn(actingUserId, { action: "CHECK" });
+        else if (options.canCall) emitActionOncePerTurn(actingUserId, { action: "CALL" });
+        else if (options.canAllIn) emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
+        else emitActionOncePerTurn(actingUserId, { action: "FOLD" });
       }
     }
 

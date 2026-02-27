@@ -66,7 +66,7 @@ export function seatOrderLeftOfDealer(state: PokerState): string[] {
     if (!id) continue;
 
     const player = state.playersById.get(id);
-    if (player && player.status !== "OUT") order.push(id);
+    if (player && (player.status === "ACTIVE" || player.status === "ALL_IN")) order.push(id);
   }
 
   return order;

@@ -102,16 +102,56 @@ export class TurnAutomationService {
    */
   maybeActForBot(): void {
     const state = this.deps.state;
-    if (state.street === "WAITING") return;
-    if (state.runoutMode === "STAGED") return;
+    if (state.street === "WAITING") {
+      return;
+    }
+    if (state.runoutMode === "STAGED") {
+      return;
+    }
 
     const toActId = state.seats[state.toActSeat] ?? "";
     const player = state.playersById.get(toActId);
-    if (!toActId || !player) return;
-    if (!eligibleToAct(player) || !player.needsAction) return;
+    if (!toActId || !player) {
+      return;
+    }
+    if (!eligibleToAct(player) || !player.needsAction) {
+      if (player.kind === "BOT" && player.needsAction) {
+        logger.warn(
+          {
+            userId: player.id,
+            street: state.street,
+            status: player.status,
+            needsAction: player.needsAction,
+            eligible: eligibleToAct(player),
+            runoutMode: state.runoutMode,
+            toActSeat: state.toActSeat,
+            reason: "INELIGIBLE_OR_NO_NEEDS_ACTION",
+          },
+          "BOT_AUTOMATION_SKIPPED",
+        );
+      }
+      return;
+    }
 
     const options = this.deps.getHeroActionOptions(toActId);
-    if (!options) return;
+    if (!options) {
+      if (player.kind === "BOT" && player.needsAction) {
+        logger.warn(
+          {
+            userId: player.id,
+            street: state.street,
+            status: player.status,
+            needsAction: player.needsAction,
+            eligible: eligibleToAct(player),
+            runoutMode: state.runoutMode,
+            toActSeat: state.toActSeat,
+            reason: "NO_ACTION_OPTIONS",
+          },
+          "BOT_AUTOMATION_SKIPPED",
+        );
+      }
+      return;
+    }
 
     if (player.kind !== "BOT" && player.connected) return;
 
@@ -141,6 +181,15 @@ export class TurnAutomationService {
 
     const payload = this.deps.botResolver.pickAction(player, ctx);
     const delayMs = this.deps.getBotDelayMs();
+    logger.info(
+      {
+        userId: toActId,
+        delayMs,
+        street: state.street,
+        action: payload.action,
+      },
+      "BOT_ACTION_ENQUEUED",
+    );
     this.deps.enqueueAction(toActId, payload, delayMs);
   }
 

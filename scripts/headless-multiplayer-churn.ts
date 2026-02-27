@@ -15,6 +15,9 @@ import {
   isActionableStatePhase,
 } from "../src/engine/invariants/churnInvariantContract.js";
 
+// Headless churn should run with deterministic immediate bot turns.
+process.env.POKER_BOT_DELAY_MS = "0";
+
 type UserId = "u1" | "u2" | "u3" | "u4";
 type ScenarioName = "fold-storm" | "allin-ladder" | "join-leave-thrash" | "endurance";
 type ClientLike = { sessionId: string; send: (type: string, payload: unknown) => void; leave: () => void };
@@ -183,6 +186,8 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
   const nonActionableNullBySnapshotSeq = new Map<UserId, number>();
   const stallStartByUser = new Map<UserId, number>();
   let noActorStallStartedAt: number | null = null;
+  let botToActStallStartedAt: number | null = null;
+  let botToActStallKey: string | null = null;
   let strictInvariantFailure: string | null = null;
   let recorderSeq = 0;
   const startedAt = Date.now();
@@ -419,6 +424,23 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
     recordEvent("HANDLE_ACTION", { actorUserId: userId, payload });
     room.onMessageEvents.emit("ACTION", client, { actionId: randomUUID(), ...payload });
   };
+  const seenTurnActionKeys = new Set<string>();
+  const emitActionOncePerTurn = (
+    userId: UserId,
+    payload: { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number },
+  ): boolean => {
+    const handId = room.state?.handId ?? "";
+    const street = room.state?.street ?? "";
+    const handActionSeq = room.state?.handActionSeq ?? -1;
+    const toActSeat = room.state?.toActSeat ?? -1;
+    const toActStateUserId = room.state?.seats?.[toActSeat];
+    if (toActStateUserId !== userId) return false;
+    const key = `${handId}|${street}|${handActionSeq}|${toActSeat}|${userId}`;
+    if (seenTurnActionKeys.has(key)) return false;
+    seenTurnActionKeys.add(key);
+    emitAction(userId, payload);
+    return true;
+  };
 
   const resolveActor = (): UserId | undefined => {
     if (!isActionableStatePhase(room.state)) return undefined;
@@ -569,7 +591,46 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
       const toActSeat = room.state?.toActSeat ?? -1;
       const toActUserId = room.state?.seats?.[toActSeat];
       const toActIsManagedHuman = isManagedHumanUserId(toActUserId);
+      const toActPlayer = toActUserId ? room.state?.playersById?.get?.(toActUserId) : undefined;
       if (!actor || !joinedUsers.has(actor)) {
+        if (
+          isActionableState &&
+          toActPlayer?.kind === "BOT" &&
+          toActPlayer.status === "ACTIVE" &&
+          toActPlayer.needsAction
+        ) {
+          const currentBotStallKey = [
+            room.state?.handId ?? "unknown",
+            room.state?.street ?? "unknown",
+            String(room.state?.handActionSeq ?? -1),
+            String(toActSeat),
+            String(toActUserId),
+          ].join("|");
+          if (botToActStallKey !== currentBotStallKey) {
+            botToActStallKey = currentBotStallKey;
+            botToActStallStartedAt = Date.now();
+          } else if (botToActStallStartedAt && Date.now() - botToActStallStartedAt > 1800) {
+            const snapshotSummary = (["u1", "u2", "u3", "u4"] as UserId[])
+              .map((id) => `${id}:${snapshots[id]?.reason ?? "none"}#${snapshots[id]?.snapshotSeq ?? 0}`)
+              .join(",");
+            recordFinding(
+              [
+                "STALL_BOT_TO_ACT_NO_PROGRESS",
+                `handId=${room.state?.handId ?? "unknown"}`,
+                `street=${room.state?.street ?? "unknown"}`,
+                `toActSeat=${toActSeat}`,
+                `toActUserId=${String(toActUserId ?? "none")}`,
+                `handActionSeq=${room.state?.handActionSeq ?? -1}`,
+                `snapshots=${snapshotSummary}`,
+                `state=${buildServerStateDump()}`,
+              ].join(" "),
+            );
+            botToActStallStartedAt = Date.now();
+          }
+        } else {
+          botToActStallStartedAt = null;
+          botToActStallKey = null;
+        }
         if (isActionableState && toActIsManagedHuman) {
           const startedAt = noActorStallStartedAt ?? Date.now();
           noActorStallStartedAt = startedAt;
@@ -597,6 +658,8 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
         continue;
       }
       noActorStallStartedAt = null;
+      botToActStallStartedAt = null;
+      botToActStallKey = null;
       if (!isActionableState) {
         stallStartByUser.delete(actor);
         await delay(40);
@@ -637,18 +700,25 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
         const actorState = room.state?.playersById?.get?.(actor);
         if (actorState?.needsAction) {
           const actorSnapshot = snapshots[actor];
+          const hasSameHandSnapshot = actorSnapshot?.hand?.handId === room.state?.handId;
+          const hasActionableSnapshotContext =
+            hasSameHandSnapshot &&
+            Boolean(actorSnapshot?.hero?.actionOptions) &&
+            !actorSnapshot?.lastHandResult?.handId;
           const seq = actorSnapshot?.snapshotSeq ?? -1;
-          const priorLoggedSeq = nonActionableNullBySnapshotSeq.get(actor);
-          if (priorLoggedSeq !== seq) {
-            const context = [
-              `needsAction-without-action user=${actor}`,
-              `handId=${room.state?.handId ?? "unknown"}`,
-              `street=${room.state?.street ?? "unknown"}`,
-              `toActSeat=${room.state?.toActSeat ?? -1}`,
-              `reason=${actorSnapshot?.reason ?? "unknown"}`,
-            ].join(" ");
-            recordFinding(context);
-            nonActionableNullBySnapshotSeq.set(actor, seq);
+          if (hasActionableSnapshotContext) {
+            const priorLoggedSeq = nonActionableNullBySnapshotSeq.get(actor);
+            if (priorLoggedSeq !== seq) {
+              const context = [
+                `needsAction-without-action user=${actor}`,
+                `handId=${room.state?.handId ?? "unknown"}`,
+                `street=${room.state?.street ?? "unknown"}`,
+                `toActSeat=${room.state?.toActSeat ?? -1}`,
+                `reason=${actorSnapshot?.reason ?? "unknown"}`,
+              ].join(" ");
+              recordFinding(context);
+              nonActionableNullBySnapshotSeq.set(actor, seq);
+            }
           }
           const baselineSeq = seq;
           await waitFor(
@@ -662,7 +732,7 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
         continue;
       }
 
-      emitAction(actor, action);
+      emitActionOncePerTurn(actor, action);
       await delay(80);
     }
 

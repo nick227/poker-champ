@@ -137,6 +137,8 @@ export class SnapshotService {
     getHeroSessionStats?: (userId: string) => TableSnapshotPayload["hero"]["playerStats"];
     /** Optional hook for custom snapshot processing */
     emitHook?: SnapshotEmitHook;
+    /** Optional: fetch avatar for snapshot seat/hero. When provided, seats and hero include avatarUrl/avatarVersion. */
+    getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
   }) {}
 
   // ============================================================================
@@ -165,20 +167,20 @@ export class SnapshotService {
    * @param actionId Optional action identifier
    * @returns void - Async broadcast operation
    */
-  emitToAll(reason: SnapshotReason, actionId?: string): void {
+  async emitToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
-    const base = this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
     const toActUserId = this.deps.state.street !== "WAITING"
       ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
       : null;
 
-    const systemPayload = this.finalizePayload(this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
+    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
     this.emitSnapshotHook(systemPayload, reason);
 
     for (const [userId, client] of this.deps.clientsByUserId.entries()) {
-      const payload = this.buildHeroPatch(userId, base, toActUserId);
+      const payload = await this.buildHeroPatch(userId, base, toActUserId);
       const final = this.finalizePayload(payload, userId);
       if (VALIDATE_SNAPSHOTS) {
         const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
@@ -193,18 +195,18 @@ export class SnapshotService {
     snapshotMetrics.observeBuildMs(performance.now() - t0);
   }
 
-  emitToUser(userId: string, reason: SnapshotReason, actionId?: string): void {
+  async emitToUser(userId: string, reason: SnapshotReason, actionId?: string): Promise<void> {
     const client = this.deps.clientsByUserId.get(userId);
     if (!client) return;
 
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
-    const base = this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
     const toActUserId = this.deps.state.street !== "WAITING"
       ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
       : null;
-    const payload = this.buildHeroPatch(userId, base, toActUserId);
+    const payload = await this.buildHeroPatch(userId, base, toActUserId);
     const final = this.finalizePayload(payload, userId);
 
     if (VALIDATE_SNAPSHOTS) {
@@ -217,7 +219,7 @@ export class SnapshotService {
     client.send("TABLE_SNAPSHOT", final);
     snapshotMetrics.emitSnapshot();
 
-    const systemPayload = this.finalizePayload(this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
+    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
     this.emitSnapshotHook(systemPayload, reason);
     snapshotMetrics.observeBuildMs(performance.now() - t0);
   }
@@ -326,38 +328,54 @@ export class SnapshotService {
    * @param snapshotSeq Unique sequence number
    * @returns Base snapshot payload object
    */
-  private buildBaseSnapshot(
+  private async buildBaseSnapshot(
     reason: SnapshotReason,
     actionId: string | undefined,
     snapshotSeq: number,
-  ): Omit<TableSnapshotPayload, "hero" | "stateHash"> {
+  ): Promise<Omit<TableSnapshotPayload, "hero" | "stateHash">> {
     const state = this.deps.state;
     const nowTs = Date.now();
+    const getAvatar = this.deps.getAvatarByUserId;
 
-    const seats = state.seats.map((occupantUserId, seat) => {
-      const player = occupantUserId ? state.playersById.get(occupantUserId) : undefined;
-      const connected = player?.connected ?? false;
-      const disconnectDeadlineTs = player?.disconnectDeadlineTs ?? 0;
-      if (connected && disconnectDeadlineTs !== 0) {
-        logger.error({ tableId: state.tableId, seat, playerId: player?.id }, "INVARIANT: connected player must have disconnectDeadlineTs 0");
-        throw new Error("INVARIANT_VIOLATION");
-      }
-      return {
-        seat,
-        occupied: Boolean(player),
-        userId: player?.id,
-        isBot: player?.kind === "BOT",
-        name: player?.name || "Empty",
-        status: player?.status ?? "OUT",
-        stackCents: player?.stackCents ?? 0,
-        roundBetCents: player?.roundBetCents ?? 0,
-        committedCents: player?.committedCents ?? 0,
-        connected,
-        disconnectDeadlineTs,
-        isDealer: state.dealerSeat === seat,
-        isToAct: state.toActSeat === seat,
-      };
-    });
+    const seats = await Promise.all(
+      state.seats.map(async (occupantUserId, seat) => {
+        const player = occupantUserId ? state.playersById.get(occupantUserId) : undefined;
+        const connected = player?.connected ?? false;
+        const disconnectDeadlineTs = player?.disconnectDeadlineTs ?? 0;
+        if (connected && disconnectDeadlineTs !== 0) {
+          logger.error({ tableId: state.tableId, seat, playerId: player?.id }, "INVARIANT: connected player must have disconnectDeadlineTs 0");
+          throw new Error("INVARIANT_VIOLATION");
+        }
+        let avatarUrl: string | undefined;
+        let avatarVersion: number | undefined;
+        if (getAvatar && occupantUserId && player?.kind === "HUMAN") {
+          try {
+            const av = await getAvatar(occupantUserId);
+            if (av.avatarUrl) avatarUrl = av.avatarUrl;
+            if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
+          } catch {
+            // Avatar fetch failure must not break snapshot; leave avatar unset
+          }
+        }
+        return {
+          seat,
+          occupied: Boolean(player),
+          userId: player?.id,
+          isBot: player?.kind === "BOT",
+          name: player?.name || "Empty",
+          status: player?.status ?? "OUT",
+          stackCents: player?.stackCents ?? 0,
+          roundBetCents: player?.roundBetCents ?? 0,
+          committedCents: player?.committedCents ?? 0,
+          connected,
+          disconnectDeadlineTs,
+          isDealer: state.dealerSeat === seat,
+          isToAct: state.toActSeat === seat,
+          ...(avatarUrl != null && { avatarUrl }),
+          ...(avatarVersion != null && { avatarVersion }),
+        };
+      }),
+    );
 
     const hand = state.street === "WAITING"
       ? undefined
@@ -388,6 +406,7 @@ export class SnapshotService {
       table: {
         tableId: state.tableId,
         tableName: state.tableName,
+        ...(state.creatorId ? { creatorId: state.creatorId } : {}),
         visibility: state.visibility,
         maxSeats: state.maxSeats,
         smallBlindCents: state.smallBlindCents,
@@ -404,11 +423,11 @@ export class SnapshotService {
     };
   }
 
-  private buildHeroPatch(
+  private async buildHeroPatch(
     userId: string,
     base: Omit<TableSnapshotPayload, "hero" | "stateHash">,
     toActUserId: string | null,
-  ): Omit<TableSnapshotPayload, "stateHash"> {
+  ): Promise<Omit<TableSnapshotPayload, "stateHash">> {
     const state = this.deps.state;
     const hero = state.playersById.get(userId);
     const liveHoleCards = hero ? this.deps.getHoleCardsByPlayerId().get(userId) : undefined;
@@ -423,6 +442,18 @@ export class SnapshotService {
     const potOddsPct = callAmount > 0
       ? Math.round((callAmount / (state.potCents + callAmount)) * 100)
       : undefined;
+
+    let avatarUrl: string | undefined;
+    let avatarVersion: number | undefined;
+    if (this.deps.getAvatarByUserId) {
+      try {
+        const av = await this.deps.getAvatarByUserId(userId);
+        if (av.avatarUrl) avatarUrl = av.avatarUrl;
+        if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
+      } catch {
+        // Avatar fetch failure must not break hero patch; leave avatar unset
+      }
+    }
 
     const hasCalc = Boolean(calc) || potOddsPct !== undefined;
     const heroSection = {
@@ -442,6 +473,8 @@ export class SnapshotService {
           }
         : undefined,
       playerStats: this.deps.getHeroSessionStats?.(userId),
+      ...(avatarUrl != null && { avatarUrl }),
+      ...(avatarVersion != null && { avatarVersion }),
     };
 
     return { ...base, hero: heroSection };

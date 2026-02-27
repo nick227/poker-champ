@@ -38,6 +38,7 @@ import { registerVoiceRelay } from "./voice/register-voice-relay.js";
 import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../engine/bots/BotCatalog.js";
+import { getPrisma } from "../db/prisma.js";
 
 /**
  * Type definition for join options when a client connects to the table
@@ -83,7 +84,10 @@ type TableConfig = {
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
+  updatedAt: number;
   creatorId?: string;
+  creatorName: string;
+  creatorAvatarUrl: string | null;
 };
 
 /**
@@ -106,10 +110,15 @@ type PokerRoomMetadata = {
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
+  updatedAt: number;
   runningSince?: number;
   creatorId?: string;
+  creatorName: string;
+  creatorAvatarUrl: string | null;
   humanCount?: number;
   connectedHumanCount?: number;
+  avgPotCents?: number;
+  waitlistCount?: number;
 };
 
 /**
@@ -121,6 +130,8 @@ type SittingOutSweepOptions = {
   nowTs?: number;
   abandonedPurgeMs?: number;
 };
+
+type InstantGamePresetId = "SIX_BOT_RING" | "HEADS_UP_BOT";
 
 /**
  * Main poker room class that manages a single poker table
@@ -204,6 +215,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * Limits: 20 messages per minute per client.
    */
   private readonly chatRateLimit = createPerClientRateLimiter({ maxPerWindow: 20, windowMs: 60_000 });
+  private readonly lastAcceptedActionByUserId: Map<
+    string,
+    { action: string; amountCents?: number; actionId: string; atTs: number }
+  > = new Map();
 
   /**
    * Timestamp of last activity in this room. Used for idle detection
@@ -258,6 +273,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     // Configure table state from provided config or use defaults
     this.state.tableId = cfg?.tableId ?? (options?.tableId ?? "table_poc");
     this.state.tableName = cfg?.name ?? "Hold'em";
+    this.state.creatorId = cfg?.creatorId != null ? String(cfg.creatorId) : "";
     this.state.visibility = cfg?.visibility ?? "PUBLIC";
     this.state.speed = cfg?.speed ?? "normal";
     this.state.maxSeats = cfg?.maxSeats ?? 9;
@@ -277,6 +293,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.setMetadata({
       tableId: this.state.tableId,
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
+      creatorName: cfg?.creatorName ?? "Player",
+      creatorAvatarUrl: cfg?.creatorAvatarUrl ?? null,
+      updatedAt: Date.now(),
     });
 
     // Initialize the Dealer with game state and persistence callbacks
@@ -314,6 +333,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           schemaVersion: snapshot.schemaVersion,
         });
       },
+      getAvatarByUserId: async (userId: string) => {
+        const user = await getPrisma().user.findUnique({
+          where: { id: userId },
+          select: { avatarUrl: true, avatarVersion: true },
+        });
+        return user
+          ? { avatarUrl: user.avatarUrl ?? null, avatarVersion: user.avatarVersion ?? null }
+          : { avatarUrl: null, avatarVersion: null };
+      },
     });
 
     // Update lobby metadata with current player counts and table info
@@ -332,8 +360,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       passwordHash: cfg?.passwordHash,
       speed: cfg?.speed ?? "normal",
       createdAt: this.state.createdAtTs,
+      updatedAt: Date.now(),
       runningSince: undefined,
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
+      creatorName: cfg?.creatorName ?? "Player",
+      creatorAvatarUrl: cfg?.creatorAvatarUrl ?? null,
       humanCount,
       connectedHumanCount,
     });
@@ -519,9 +550,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return;
       }
 
+      const userId = this.userIdBySessionId.get(client.sessionId);
       try {
         // Verify the user is authenticated and seated
-        const userId = this.userIdBySessionId.get(client.sessionId);
         if (!userId) throw new PokerError("BAD_STATE", "Session is not bound to a seated user.");
         if (!this.isActiveBoundClient(userId, client)) return;
         
@@ -540,6 +571,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         
         // Execute the action through the dealer
         await this.dealer.handleAction(userId, parsed.data, normalized.actionId);
+        this.lastAcceptedActionByUserId.set(userId, {
+          action: parsed.data.action,
+          amountCents: parsed.data.amountCents,
+          actionId: normalized.actionId,
+          atTs: Date.now(),
+        });
         
         // Log successful action execution
         logger.info(
@@ -553,6 +590,30 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           "POKER_ACTION_ACCEPTED",
         );
       } catch (err: any) {
+        const isBenignDuplicateRetry = (() => {
+          if (!(err instanceof PokerError)) return false;
+          if (err.code !== "NOT_YOUR_TURN" && err.code !== "HAND_NOT_STARTED") return false;
+          const last = this.lastAcceptedActionByUserId.get(userId ?? "");
+          if (!last) return false;
+          if (last.actionId !== normalized.actionId) return false;
+          if (last.action !== parsed.data.action) return false;
+          if ((last.amountCents ?? undefined) !== (parsed.data.amountCents ?? undefined)) return false;
+          return Date.now() - last.atTs <= 1200;
+        })();
+        if (isBenignDuplicateRetry) {
+          logger.info(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              sessionId: client.sessionId,
+              userId,
+              action: parsed.data.action,
+              amountCents: parsed.data.amountCents,
+            },
+            "POKER_ACTION_DUPLICATE_RETRY_IGNORED",
+          );
+          return;
+        }
         // Log and handle action rejection with appropriate error messaging
         logger.warn(
           {
@@ -676,7 +737,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const runningSince = state.runningSinceTs || undefined;
     const current = this.getMetadataSafe();
     if (current.runningSince !== runningSince) {
-      void this.setMetadata({ ...current, runningSince });
+      void this.setMetadata({ ...current, runningSince, updatedAt: Date.now() });
     }
   }
 
@@ -1103,6 +1164,78 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         });
       }
     }
+  }
+
+  /**
+   * Seeds bots for an instant game preset directly on the server.
+   * This is called via remoteRoomCall immediately after room creation
+   * so that the first snapshot already includes the target bots.
+   */
+  async seedInstantBots(
+    presetId: InstantGamePresetId,
+  ): Promise<{ ok: boolean; added: number; target: number; reason?: string }> {
+    const target =
+      presetId === "SIX_BOT_RING"
+        ? 5
+        : presetId === "HEADS_UP_BOT"
+          ? 1
+          : 0;
+
+    if (target <= 0) {
+      return { ok: false, added: 0, target, reason: "UNSUPPORTED_PRESET" };
+    }
+
+    let existingBots = 0;
+    for (const player of this.state.playersById.values()) {
+      if (player.kind === "BOT") existingBots += 1;
+    }
+
+    if (existingBots >= target) {
+      return { ok: true, added: 0, target };
+    }
+
+    const summaries = listEnabledBotSummaries();
+    if (summaries.length === 0) {
+      logger.warn(
+        { roomId: this.roomId, tableId: this.state.tableId, presetId },
+        "INSTANT_BOT_SEED_NO_ENABLED_BOTS",
+      );
+      return { ok: false, added: 0, target, reason: "NO_ENABLED_BOTS" };
+    }
+
+    const missing = target - existingBots;
+    let added = 0;
+    const buyInCents =
+      this.state.minBuyInCents > 0
+        ? this.state.minBuyInCents
+        : this.state.bigBlindCents * 20;
+
+    for (let i = 0; i < missing; i += 1) {
+      const summary = summaries[i % summaries.length];
+      const runtimeBotId = newBotId();
+      const botName = summary.name ?? `Bot ${summary.id}`;
+      try {
+        await this.dealer.addBot(runtimeBotId, botName, buyInCents, summary.id);
+        added += 1;
+      } catch (err: unknown) {
+        logger.warn(
+          {
+            roomId: this.roomId,
+            tableId: this.state.tableId,
+            presetId,
+            botId: summary.id,
+            message: (err as Error | undefined)?.message ?? String(err),
+          },
+          "INSTANT_BOT_SEED_ADD_FAILED",
+        );
+      }
+    }
+
+    if (added > 0) {
+      this.updateMetadataCounts();
+    }
+
+    return { ok: added === missing, added, target };
   }
 
   /**
@@ -1663,7 +1796,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const connectedHumanCount = this.computeConnectedHumanCount();
     const current = this.getMetadataSafe();
     if (current.humanCount !== humanCount || current.connectedHumanCount !== connectedHumanCount) {
-      void this.setMetadata({ ...current, humanCount, connectedHumanCount });
+      void this.setMetadata({ ...current, humanCount, connectedHumanCount, updatedAt: Date.now() });
     }
   }
 

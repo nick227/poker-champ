@@ -50,6 +50,8 @@ export function buildTableSceneModel(
     toActSeat != null &&
     heroSeat === toActSeat;
   const heroName = seatContext.heroSeat?.name;
+  const heroAvatarUrl =
+    snapshot.hero.avatarUrl ?? seatContext.heroSeat?.avatarUrl ?? undefined;
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
   const isHeroDealer = getIsDealer(snapshot, seatContext);
   const tableName = snapshot.table?.tableName ?? TABLE.defaultTableName;
@@ -85,6 +87,7 @@ export function buildTableSceneModel(
     heroCalculations: snapshot.hero.calculations,
     heroPlayerStats: snapshot.hero.playerStats,
     heroName,
+    heroAvatarUrl,
     isHeroToAct,
     isHeroWinner,
     isHeroDealer,

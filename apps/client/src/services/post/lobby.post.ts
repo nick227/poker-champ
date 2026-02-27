@@ -1,4 +1,5 @@
 import { serviceRegistry } from "@/registry/service.registry";
+import type { InstantGamePresetId } from "@/components/domain/lobby/instantGame.presets";
 
 type CreateTableInput = {
   name?: string;
@@ -27,6 +28,27 @@ export async function postCreateTable(input: CreateTableInput) {
   };
 
   const res = await serviceRegistry.post.joinTable(payload);
+  if (!res.ok) throw new Error(res.error.message);
+  return res.data;
+}
+
+export async function postCreateInstantGame(input: { presetId: InstantGamePresetId; config: CreateTableInput }) {
+  const payload = {
+    presetId: input.presetId,
+    config: {
+      name: input.config.name?.trim() || "Hold'em",
+      maxSeats: input.config.maxSeats,
+      smallBlindCents: input.config.smallBlindCents,
+      bigBlindCents: input.config.bigBlindCents,
+      minBuyInCents: input.config.minBuyInCents,
+      maxBuyInCents: input.config.maxBuyInCents,
+      visibility: input.config.visibility ?? "PUBLIC" as const,
+      password: input.config.visibility === "PRIVATE" ? input.config.password : undefined,
+      showStats: input.config.showStats ?? true,
+    },
+  };
+
+  const res = await serviceRegistry.post.instantGame(payload);
   if (!res.ok) throw new Error(res.error.message);
   return res.data;
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, ImageSourcePropType, Text } from "react-native";
+import { View, ImageSourcePropType } from "react-native";
+import Animated from "react-native-reanimated";
 import { Easing, runOnJS, withSequence, withTiming, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
@@ -24,6 +25,7 @@ import { MarqueeLights } from "./MarqueeLights";
 import { ReelWindow } from "./ReelWindow";
 import { WinBanner } from "./WinBanner";
 import { JackpotBanner } from "./JackpotBanner";
+import { VictoryText } from "./VictoryText";
 
 const SYMBOL_HEIGHT = 110;
 const PAD_ROWS = 2;
@@ -100,11 +102,10 @@ export function SlotMachine({
         reelShell: {
           width: "100%",
           backgroundColor: t.colors.panel2,
-          borderWidth: 1,
+          borderWidth: 0,
           borderColor: t.colors.border,
           overflow: "hidden",
           position: "relative",
-          paddingHorizontal: 10,
         },
         reelsRow: {
           width: "100%",
@@ -133,6 +134,7 @@ export function SlotMachine({
           fontWeight: t.type.weightBold,
           color: t.colors.textMuted,
           textTransform: "uppercase",
+          marginVertical: 20,
         },
         betValue: {
           fontSize: 18,
@@ -172,6 +174,15 @@ export function SlotMachine({
   const pressScale = useSharedValue(1);
   const winPulse = useSharedValue(0);
   const jackpotPulse = useSharedValue(0);
+  const buttonFlash = useSharedValue(0);
+  const bannerFlash = useSharedValue(0);
+  const jackpotCelebration = useSharedValue(0);
+  const celebrationStage = useSharedValue(0);
+  const screenShake = useSharedValue(0);
+  const victoryGlow = useSharedValue(0);
+  const sparkleIntensity = useSharedValue(0);
+  const victoryTextScale = useSharedValue(0);
+  const victoryTextOpacity = useSharedValue(0);
 
   const reelPosRef = React.useRef<[number, number, number]>([0, 0, 0]);
 
@@ -188,8 +199,90 @@ export function SlotMachine({
   const reelStyle2 = useAnimatedStyle(() => ({ transform: [{ translateY: y2.value }] }));
 
   const spinBtnStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }));
-  const winBannerStyle = useAnimatedStyle(() => ({ opacity: 0.55 + winPulse.value * 0.45, transform: [{ scale: 1 + winPulse.value * 0.02 }] }));
-  const jackpotBannerStyle = useAnimatedStyle(() => ({ opacity: 0.75 + jackpotPulse.value * 0.25, transform: [{ scale: 1 + jackpotPulse.value * 0.01 }] }));
+  const winBannerStyle = useAnimatedStyle(() => ({ 
+    opacity: 0.55 + winPulse.value * 0.45, 
+    shadowColor: winPulse.value > 0.5 ? '#FFD700' : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: winPulse.value * 0.8,
+    shadowRadius: winPulse.value * 15,
+    elevation: winPulse.value > 0.5 ? 10 : 0,
+  }));
+  
+  const jackpotBannerStyle = useAnimatedStyle(() => ({ 
+    opacity: 0.75 + jackpotPulse.value * 0.25,
+    borderColor: jackpotPulse.value > 0.5 ? '#FFD700' : theme.colors.accent1,
+    borderWidth: 2 + jackpotPulse.value * 2,
+    shadowColor: jackpotPulse.value > 0.3 ? '#FF6B35' : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: jackpotPulse.value * 0.9,
+    shadowRadius: jackpotPulse.value * 20,
+    elevation: jackpotPulse.value > 0.3 ? 15 : 0,
+  }));
+  
+  const spinBtnFlashStyle = useAnimatedStyle(() => ({
+    opacity: buttonFlash.value > 0.5 ? 0.7 : 1,
+    backgroundColor: buttonFlash.value > 0.5 ? theme.colors.accent0 : theme.colors.accent0,
+    borderColor: buttonFlash.value > 0.5 ? '#FFD700' : theme.colors.accent1,
+    borderWidth: 2,
+    shadowColor: buttonFlash.value > 0.3 ? '#FFD700' : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: buttonFlash.value * 0.7,
+    shadowRadius: buttonFlash.value * 12,
+    elevation: buttonFlash.value > 0.3 ? 8 : 0,
+  }));
+  
+  const combinedCelebrationStyle = useAnimatedStyle(() => ({
+    opacity: jackpotCelebration.value > 0 ? 1 : 0,
+    backgroundColor: jackpotCelebration.value > 0.5 ? 'rgba(255, 215, 0, 0.15)' : 'rgba(255, 215, 0, 0.05)',
+    borderRadius: 16,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+    shadowColor: sparkleIntensity.value > 0 ? '#FFD700' : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: sparkleIntensity.value * 0.8,
+    shadowRadius: sparkleIntensity.value * 25,
+    elevation: sparkleIntensity.value > 0.5 ? 20 : 0,
+  }));
+  
+  const screenShakeStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: screenShake.value * 2 },
+      { translateY: screenShake.value * 1 }
+    ],
+  }));
+  
+  const victoryGlowStyle = useAnimatedStyle(() => ({
+    opacity: victoryGlow.value,
+    backgroundColor: `rgba(255, 215, 0, ${victoryGlow.value * 0.3})`,
+    position: 'absolute',
+    top: -20,
+    left: -20,
+    right: -20,
+    bottom: -20,
+    borderRadius: 24,
+    pointerEvents: 'none',
+  }));
+  
+  const sparkleStyle = useAnimatedStyle(() => ({
+    opacity: sparkleIntensity.value > 0 ? 1 : 0,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: sparkleIntensity.value * 0.8,
+    shadowRadius: sparkleIntensity.value * 25,
+    elevation: sparkleIntensity.value > 0.5 ? 20 : 0,
+  }));
+  
+  const victoryTextStyle = useAnimatedStyle(() => ({
+    opacity: victoryTextOpacity.value,
+  }));
+  
+  const jackpotBannerFlashStyle = useAnimatedStyle(() => 
+    bannerFlash ? ({ opacity: bannerFlash.value > 0.5 ? 1 : 0.85 }) : {}
+  );
 
   const normalizeReelPositionsCallback = useCallback(() => {
     const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
@@ -265,21 +358,30 @@ export function SlotMachine({
     pressScale,
     winPulse,
     jackpotPulse,
+    buttonFlash,
+    bannerFlash,
+    jackpotCelebration,
+    celebrationStage,
+    screenShake,
+    victoryGlow,
+    sparkleIntensity,
+    victoryTextScale,
+    victoryTextOpacity,
   });
 
   const canSpin = useMemo(() => !lock.locked && bank >= betCents, [lock.locked, bank, betCents]);
 
   const jackpotValueCents = useMemo(() => {
     if (jackpotBannerCents !== undefined) return jackpotBannerCents;
-    
+
     const jackpotKey = game.jackpotKey;
     const paytable = game.paytable;
-    
+
     if (!jackpotKey || !paytable || !(jackpotKey in paytable)) {
       console.warn(`[slot] Jackpot key "${jackpotKey}" not found in paytable`);
       return 0;
     }
-    
+
     // MVP Rule: paytable[jackpotKey] is a multiplier (e.g., 100x bet)
     const jackpotMultiplier = paytable[jackpotKey];
     return jackpotMultiplier * betCents;
@@ -287,12 +389,17 @@ export function SlotMachine({
 
   return (
     <View style={s.root}>
-      <View style={s.safe}>
+      <View style={s.safe} className="justify-center">
         <View style={s.stack}>
-          <View className="slot-machine-inner" style={s.machine}>
-            <JackpotBanner title="777 Jackpot" value={formatCents(jackpotValueCents)} animatedStyle={jackpotBannerStyle} />
+          <Animated.View className="slot-machine-inner" style={[s.machine, screenShakeStyle]}>
+          <Animated.View style={victoryGlowStyle} />
+          <Animated.View style={combinedCelebrationStyle} />
+          <VictoryText animatedStyle={victoryTextStyle} />
+            <JackpotBanner title="777 Jackpot" value={formatCents(jackpotValueCents)} animatedStyle={jackpotBannerStyle} flashStyle={jackpotBannerFlashStyle} />
 
-            <MarqueeLights active={lock.locked} />
+            <View className="my-2">
+              <MarqueeLights active={lock.locked} />
+            </View>
 
             <View style={s.reelShell}>
               <View style={s.reelsRow}>
@@ -309,11 +416,15 @@ export function SlotMachine({
 
             </View>
 
-            <MarqueeLights active={lock.locked} />
+            <View className="my-2">
+              <MarqueeLights active={lock.locked} />
+            </View>
 
             <WinBanner text={machineOutput} animatedStyle={winBannerStyle} />
 
-            <PrimaryButton betCents={betCents} title="SPIN" subtitle={canSpin ? "PUSH" : "WAIT"} disabled={!canSpin} onPress={handleSpin} animatedStyle={spinBtnStyle} />
+            <View className="my-2">
+              <PrimaryButton betCents={betCents} title="SPIN" subtitle={canSpin ? "PUSH" : "WAIT"} disabled={!canSpin} onPress={handleSpin} animatedStyle={spinBtnStyle} flashStyle={spinBtnFlashStyle} />
+            </View>
 
             <View style={s.betPanel}>
               <View style={s.betRow}>
@@ -323,7 +434,7 @@ export function SlotMachine({
               </View>
             </View>
 
-          </View>
+          </Animated.View>
         </View>
       </View>
     </View>

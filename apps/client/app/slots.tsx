@@ -46,9 +46,10 @@ export default function SlotsScreen() {
         onlineLabel={onlineLabel}
         onPressOnline={openOnlineSheet}
         amountCents={currentBankroll}
+        avatarUrl={profile.avatarUrl}
       />
 
-      <View className="flex-1">
+      <View className="flex-1 slot-container">
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
           <View className="slot-machine-container justify-start" style={{ flex: 1, minHeight: 900 }}>
             <ThemeProvider initialThemeId="poker-champ-dark">

@@ -200,6 +200,7 @@ export class Dealer {
         stateHash: string;
         schemaVersion: number;
       }) => Promise<void> | void;
+      getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
       maxQueueDepth?: number;
     },
   ) {
@@ -241,6 +242,8 @@ export class Dealer {
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       enqueueAction: (userId, payload, delayMs) => this.enqueueInternalAction(userId, payload, delayMs),
       getBotDelayMs: () => {
+        const override = Number(process.env.POKER_BOT_DELAY_MS);
+        if (Number.isFinite(override) && override >= 0) return Math.floor(override);
         // Production bot \"thinking\" delay: random in [BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS].
         const min = BOT_ACTION_DELAY_MIN_MS;
         const max = BOT_ACTION_DELAY_MAX_MS;
@@ -269,6 +272,7 @@ export class Dealer {
       getLastAction: () => this.currentHand?.lastAction,
       getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
       emitHook: options?.onTableSnapshotEmitted,
+      getAvatarByUserId: options?.getAvatarByUserId,
     });
     this.actionService = new ActionService({
       state: this.state,
@@ -295,11 +299,11 @@ export class Dealer {
   resetSessionStats(): void {
     this.sessionStatsTracker.resetAll();
   }
-  emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string) {
-    this.snapshotService.emitToUser(userId, reason, actionId);
+  emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string): Promise<void> {
+    return this.snapshotService.emitToUser(userId, reason, actionId);
   }
-  emitSnapshotsToAll(reason: SnapshotReason, actionId?: string) {
-    this.snapshotService.emitToAll(reason, actionId);
+  emitSnapshotsToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
+    return this.snapshotService.emitToAll(reason, actionId);
   }
 
   // ---------------------------------------------------------------------------
@@ -637,7 +641,7 @@ export class Dealer {
         case "EMIT_SNAPSHOT":
           // IMPORTANT: flush stats BEFORE emitting HAND_END snapshot so payload includes updated hero.playerStats.
           if (plan.reason === "HAND_END") this.flushSessionStatsOnly();
-          this.sendTableSnapshotToAll(plan.reason, plan.actionId);
+          await this.sendTableSnapshotToAll(plan.reason, plan.actionId);
           break;
         case "DELAY":
           await new Promise((resolve) => setTimeout(resolve, plan.ms));
@@ -666,7 +670,7 @@ export class Dealer {
     for (const plan of plans) {
       switch (plan.kind) {
         case "EMIT_SNAPSHOT":
-          this.sendTableSnapshotToAll(plan.reason, plan.actionId);
+          await this.sendTableSnapshotToAll(plan.reason, plan.actionId);
           break;
         case "LIFECYCLE_DEFERRED_REMOVAL":
           this.emitDiagnostic({
@@ -741,14 +745,14 @@ export class Dealer {
     this.nextHandScheduled = true;
     const countdownMs = NEXT_HAND_DELAY_MS;
 
-    setTimeout(() => {
+    setTimeout(async () => {
       this.state.nextHandAtTs = Date.now() + countdownMs;
       // Emit snapshot so clients see the countdown after result-hold window.
-      this.sendTableSnapshotToAll("AUTO_TRANSITION");
+      await this.sendTableSnapshotToAll("AUTO_TRANSITION");
 
-      setTimeout(() => {
+      setTimeout(async () => {
         if (this.disposed) return;
-        
+
         this.state.nextHandAtTs = 0;
 
         const seated = [...this.state.playersById.values()]
@@ -765,7 +769,7 @@ export class Dealer {
         } else {
           // If we still cannot start (e.g. players left), ensure clients know we are WAITING
           this.nextHandScheduled = false;
-          this.sendTableSnapshotToAll("AUTO_TRANSITION");
+          await this.sendTableSnapshotToAll("AUTO_TRANSITION");
         }
       }, countdownMs);
     }, delayMs);
@@ -824,7 +828,7 @@ export class Dealer {
 
       if (player.stackCents <= 0) {
         player.status = "OUT";
-        this.sendTableSnapshotToAll("SEAT_CHANGE");
+        await this.sendTableSnapshotToAll("SEAT_CHANGE");
         return;
       }
 
@@ -832,7 +836,7 @@ export class Dealer {
         player.status = "ABANDONED";
       }
 
-      this.sendTableSnapshotToAll("SEAT_CHANGE");
+      await this.sendTableSnapshotToAll("SEAT_CHANGE");
 
       if (this.state.street === "WAITING") return;
 
@@ -864,13 +868,13 @@ export class Dealer {
 
     if (player.stackCents <= 0) {
       player.status = "OUT";
-      this.sendTableSnapshotToAll("SEAT_CHANGE");
+      await this.sendTableSnapshotToAll("SEAT_CHANGE");
       return;
     }
 
     if (this.state.street === "WAITING") {
       player.status = "ACTIVE";
-      this.sendTableSnapshotToAll("SEAT_CHANGE");
+      await this.sendTableSnapshotToAll("SEAT_CHANGE");
       if (countNonOutPlayers(this.state) >= 2) {
         await this.startHand();
       }
@@ -881,7 +885,7 @@ export class Dealer {
     if (player.status === "OUT") {
       player.status = "ABANDONED";
     }
-    this.sendTableSnapshotToAll("SEAT_CHANGE");
+    await this.sendTableSnapshotToAll("SEAT_CHANGE");
   }
 
   private async forceFoldForLeave(userId: string): Promise<void> {
@@ -903,7 +907,7 @@ export class Dealer {
       case "NO_OP":
         return;
       case "WAITING_FOR_PLAYERS":
-        this.sendTableSnapshotToAll("AUTO_TRANSITION");
+        await this.sendTableSnapshotToAll("AUTO_TRANSITION");
         maybeAssertBettingState(this.state);
         return;
       case "HAND_FINISHED":
@@ -915,7 +919,7 @@ export class Dealer {
         maybeAssertBettingState(this.state);
         return;
       case "TURN_ADVANCED":
-        this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
+        await this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
         maybeAssertBettingState(this.state);
         this.maybeActForBot();
         return;
@@ -1172,8 +1176,8 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Internal snapshot emission (public API available for single-user emits)
 
-  private sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string) {
-    this.snapshotService.emitToAll(reason, actionId);
+  private async sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
+    await this.snapshotService.emitToAll(reason, actionId);
   }
 
   private normalizeQueuedAutoAction(userId: string, payload: ActionPayload): ActionPayload | null {

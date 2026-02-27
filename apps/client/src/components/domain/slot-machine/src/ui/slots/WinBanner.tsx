@@ -4,6 +4,8 @@ import Animated from "react-native-reanimated";
 import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
 
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
 export function WinBanner({ text, animatedStyle }: { text: string; animatedStyle?: any }) {
   const { theme } = useTheme();
   const s = makeStyles(theme, (t) => ({
@@ -28,7 +30,7 @@ export function WinBanner({ text, animatedStyle }: { text: string; animatedStyle
   }));
   return (
     <Animated.View style={[s.wrap, animatedStyle]}>
-      <Text numberOfLines={1} ellipsizeMode="tail" style={s.text}>{text}</Text>
+      <AnimatedText numberOfLines={1} ellipsizeMode="tail" style={s.text}>{text}</AnimatedText>
     </Animated.View>
   );
 }

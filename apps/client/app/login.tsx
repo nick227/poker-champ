@@ -23,7 +23,7 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("test@example.com");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("password");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

@@ -6,7 +6,10 @@ import { TableSceneRouter } from "./TableSceneRouter";
 import { TablePageOverlays } from "./TablePageOverlays";
 
 export function TablePage() {
-  const { id, buyInCents: buyInCentsParam } = useLocalSearchParams<{ id: string; buyInCents?: string }>();
+  const { id, buyInCents: buyInCentsParam } = useLocalSearchParams<{
+    id: string;
+    buyInCents?: string;
+  }>();
   const controller = useTablePageController({
     id: id ? String(id) : undefined,
     buyInCentsParam,

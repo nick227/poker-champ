@@ -4,9 +4,6 @@
 export const BASE_CARD_WIDTH = 60;
 export const BASE_CARD_HEIGHT = 80;
 
-/** Card aspect ratio (height:width) - should remain constant */
-export const CARD_ASPECT_RATIO = BASE_CARD_HEIGHT / BASE_CARD_WIDTH; // 1.33
-
 /** Standard card scales used throughout the app */
 export const CARD_SCALES = {
   MINI: 0.6,

@@ -37,7 +37,7 @@ export function MarqueeLights({ active }: { active: boolean }) {
   if (!active) return <View style={s.row} />;
 
   return (
-    <View style={s.row}>
+    <View className="" style={s.row}>
       {bulbs.map((i) => (
         <Bulb key={i} i={i} phase={phase} baseStyle={s.bulb} />
       ))}

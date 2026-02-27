@@ -42,7 +42,7 @@ import type { PokerState, Street } from "../../../state/PokerState.js";
 // ============================================================================
 import {
   allRemainingPlayersAllInOrFolded,
-  beginRound,
+  eligibleToAct,
   eligibleForShowdown,
   noFurtherBettingPossible,
   resetBettingRound,
@@ -136,6 +136,8 @@ export class HandLifecycleService {
   private deck: DeckService | null = null;
   /** Set in startHand when we have 2+ active players; reset at start of startHand. Meaningful only after a successful hand start. */
   private currentHandIncludesBotParticipants = false;
+  /** Players dealt into the current hand. Only these players may have needsAction=true during this hand. */
+  private currentHandInHandIds = new Set<string>();
 
   // ============================================================================
   // CONSTRUCTOR & DEPENDENCIES
@@ -175,6 +177,17 @@ export class HandLifecycleService {
       }
     }
     return sum;
+  }
+
+  /**
+   * Apply hand-scoped needsAction flags for the current street.
+   * Only players dealt into this hand can be actionable.
+   */
+  private applyNeedsActionForCurrentHand(): void {
+    const { state } = this.deps;
+    for (const player of state.playersById.values()) {
+      player.needsAction = this.currentHandInHandIds.has(player.id) && eligibleToAct(player);
+    }
   }
 
   private assertHandResultPayoutsOrThrow(
@@ -306,6 +319,7 @@ export class HandLifecycleService {
     const { state } = this.deps;
     this.deck = null;
     this.currentHandIncludesBotParticipants = false;
+    this.currentHandInHandIds.clear();
     this.deps.getHandStartingStacksByPlayerId().clear();
     if (countActiveHumanPlayers(state) === 0) return plans;
     state.runningSinceTs = Date.now();
@@ -349,6 +363,7 @@ export class HandLifecycleService {
     if (activePlayers.length < 2) {
       state.street = "WAITING";
       state.runoutMode = "NONE";
+      this.currentHandInHandIds.clear();
       plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });
       maybeAssertStateInvariants(state);
       return plans;
@@ -368,6 +383,7 @@ export class HandLifecycleService {
     this.deck = new DeckService();
     this.deck.shuffle();
     this.currentHandIncludesBotParticipants = activePlayers.some((player) => player.kind === "BOT");
+    this.currentHandInHandIds = new Set(activePlayers.map((player) => player.id));
 
     const startingStacksByUserId = new Map<string, number>();
     for (const player of activePlayers) {
@@ -440,13 +456,18 @@ export class HandLifecycleService {
       state.roundCurrentBetCents = Math.max(state.roundCurrentBetCents, postedSb);
     }
     state.minRaiseCents = state.bigBlindCents;
-    beginRound(state);
+    this.applyNeedsActionForCurrentHand();
     // In heads-up, SB (Dealer) acts first pre-flop, BB acts first on subsequent streets
     // In full ring, BB acts first pre-flop, action proceeds left from BB
     const firstToActSeat = isHeadsUp ? sbSeat : bbSeat;
     state.toActSeat = findNextToActSeat(state, firstToActSeat);
     if (state.toActSeat === -1) {
       throw new PokerError("BAD_STATE", "No seat needs action at hand start.");
+    }
+    const toActId = state.seats[state.toActSeat] ?? "";
+    const toActPlayer = toActId ? state.playersById.get(toActId) : undefined;
+    if (!toActPlayer || toActPlayer.status !== "ACTIVE" || !toActPlayer.needsAction) {
+      throw new PokerError("BAD_STATE", "toAct must be ACTIVE with needsAction at hand start.");
     }
 
     if (bbId && !isHeadsUp) {
@@ -510,7 +531,7 @@ export class HandLifecycleService {
     this.dealCommunityForStreet(next);
 
     resetBettingRound(state);
-    beginRound(state);
+    this.applyNeedsActionForCurrentHand();
     state.toActSeat = findNextToActSeat(state, state.dealerSeat);
     if (state.toActSeat === -1) {
       // Churn windows can transition streets with no actionable seat (all-in/folded/abandoned mix).

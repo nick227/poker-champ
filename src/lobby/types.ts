@@ -12,7 +12,10 @@ export type TableConfig = {
   passwordHash?: string;
   speed: "normal" | "fast";
   createdAt: number;
+  updatedAt: number;
   creatorId?: string;
+  creatorName: string;
+  creatorAvatarUrl: string | null;
   showStats: boolean;
 };
 
@@ -30,8 +33,13 @@ export type LobbyTableSummary = {
   speed: "normal" | "fast";
   runningSince?: number;
   createdAt: number;
+  updatedAt: number;
   creatorId?: string;
+  creatorName: string;
+  creatorAvatarUrl: string | null;
   showStats: boolean;
   humanCount?: number;
   connectedHumanCount?: number;
+  avgPotCents?: number;
+  waitlistCount?: number;
 };

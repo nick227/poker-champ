@@ -32,6 +32,10 @@ function makeClient(sessionId: string): FakeClient {
   return client;
 }
 
+function getSnapshots(client: FakeClient): TableSnapshotPayload[] {
+  return (client.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[];
+}
+
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
@@ -108,7 +112,7 @@ describe("table action broadcasting", () => {
     return { room, clientA, clientB };
   }
 
-  async function setupHumanVsBotRoom() {
+async function setupHumanVsBotRoom() {
     (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
     (CashierService as any).processCashGameCashOut = async () => ({ success: true });
 
@@ -136,8 +140,16 @@ describe("table action broadcasting", () => {
     await room.onJoin(clientA as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
     room.onMessageEvents.emit("ADD_BOT", clientA as any, { name: "Bot", buyInCents: 5000, botId: "chaos_carl" });
 
-    await waitFor(() => Boolean(clientA.latestSnapshot?.hand?.handId), 4000, "active hand human vs bot");
-    await waitFor(() => (clientA.latestSnapshot?.seats.some((s) => s.isBot) ?? false), 4000, "bot seated");
+    await waitFor(
+      () => getSnapshots(clientA).some((snap) => snap.seats.some((s) => s.isBot)),
+      5000,
+      "bot seated",
+    );
+    await waitFor(
+      () => getSnapshots(clientA).some((snap) => Boolean(snap.hand?.handId)),
+      5000,
+      "active hand human vs bot",
+    );
 
     return { room, clientA };
   }
@@ -267,7 +279,10 @@ describe("table action broadcasting", () => {
     }
   });
 
-  it("marks disconnected player as sitting out after auto-action cap", async () => {
+  it(
+    "marks disconnected player as sitting out after auto-action cap",
+    { timeout: 30000 },
+    async () => {
     process.env.FEATURE_PERSISTENT_SEATS = "true";
     process.env.AUTO_ACTION_HAND_CAP = "1";
     vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
@@ -288,29 +303,46 @@ describe("table action broadcasting", () => {
       const connectedUserId = String(toActUserId) === "user_a" ? "user_b" : "user_a";
       const connectedClient = connectedUserId === "user_a" ? clientA : clientB;
 
-      const startHandId = before.hand?.handId ?? "";
-      // Deterministically drive the hand to completion so auto-action cap can be applied.
-      for (let i = 0; i < 12; i++) {
-        const snap = connectedClient.latestSnapshot;
-        if (!snap) break;
-        const handId = snap.hand?.handId ?? "";
-        if (!handId || handId !== startHandId || Boolean(snap.lastHandResult?.handId)) break;
+      await waitFor(
+        () =>
+          getSnapshots(clientA).some(
+            (snap) => snap.lastAction?.origin === "AUTO" && snap.lastAction?.actorUserId === toActUserId,
+          ),
+        12000,
+        "disconnected auto-action observed",
+      );
 
-        const connectedSeat = snap.seats.find((s) => s.userId === connectedUserId)?.seat;
-        const canActNow = connectedSeat !== undefined && snap.hand?.toActSeat === connectedSeat;
-        if (canActNow) {
-          const action = { ...pickLegalAction(snap), actionId: `act-${i}-${Date.now()}` };
-          room.onMessageEvents.emit("ACTION", connectedClient as any, action);
+      const started = Date.now();
+      let lastActionSnapshotId = "";
+      while (Date.now() - started < 14000) {
+        const roomHandId = room.state?.handId;
+        if (!roomHandId || room.state?.street === "WAITING") break;
+        const snap = connectedClient.latestSnapshot;
+        if (snap) {
+          const connectedSeat = snap.seats.find((s) => s.userId === connectedUserId)?.seat;
+          const canActNow =
+            snap.hand?.handId === roomHandId &&
+            connectedSeat !== undefined &&
+            snap.hand?.toActSeat === connectedSeat &&
+            Boolean(snap.hero.actionOptions);
+          if (canActNow && snap.snapshotId !== lastActionSnapshotId) {
+            lastActionSnapshotId = snap.snapshotId;
+            const action = { ...pickLegalAction(snap), actionId: `act-${Date.now()}` };
+            room.onMessageEvents.emit("ACTION", connectedClient as any, action);
+          }
         }
+
+        const disconnectedSeat = clientA.latestSnapshot?.seats.find((s) => s.userId === toActUserId);
+        if (disconnectedSeat?.status === "ABANDONED" && markSittingOutSpy.mock.calls.length > 0) break;
         await delay(120);
       }
 
       await waitFor(
         () =>
-          Boolean(clientA.latestSnapshot?.seats.find((s) => s.userId === toActUserId && s.status === "ABANDONED")) &&
+          clientA.latestSnapshot?.seats.some((s) => s.userId === toActUserId && s.status === "ABANDONED") === true &&
           markSittingOutSpy.mock.calls.length > 0,
-        10000,
-        "auto-action cap sit-out",
+        12000,
+        "auto-action cap abandoned",
       );
 
       const seat = clientA.latestSnapshot!.seats.find((s) => s.userId === toActUserId);

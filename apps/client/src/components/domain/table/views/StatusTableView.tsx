@@ -1,8 +1,6 @@
-import type { ReactNode } from "react";
-import { View } from "react-native";
-import { Button } from "@/components/base/Button";
-import { DealerAnnounceBar } from "../DealerAnnounceBar";
-import { ConnectingCard } from "../ConnectingCard";
+import { useEffect, useState } from "react";
+import { AccessibilityInfo, View } from "react-native";
+import { TableLoadingLanding, type TableLoadingMode } from "../loading/TableLoadingLanding";
 import { TableSceneShell } from "../shell/TableSceneShell";
 import type { TablePageController } from "@/types/tableSceneContract";
 
@@ -17,29 +15,11 @@ function statusMessageFor(
   mode: TablePageController["scene"]["mode"],
   scene: TablePageController["scene"],
 ): string {
-  if (mode === "auth_loading") return "Restoring session...";
-  if (mode === "auth_required") return "Session required. Redirecting to login...";
-  const { hasValidBuyIn, tableError, tableStatus } = scene;
-  if (!hasValidBuyIn) return "Missing buy-in data.";
+  if (mode === "auth_loading") return "Restoring your session...";
+  if (mode === "auth_required") return "Sign in to continue.";
+  const { tableError } = scene;
   if (tableError) return tableError;
-  if (tableStatus === "DISCONNECTED") return "Connecting...";
-  if (tableStatus === "RECONNECTING") return "Reconnecting to table...";
-  return `Connecting to table (${tableStatus})...`;
-}
-
-function statusBottom(
-  mode: TablePageController["scene"]["mode"],
-  actions: TablePageController["actions"],
-): ReactNode {
-  const isLogin = mode === "auth_required";
-  return (
-    <View className="ui-p-inline-4">
-      <Button
-        title={isLogin ? "Go to login" : "Return to lobby"}
-        onPress={isLogin ? actions.goToLogin : actions.goToLobby}
-      />
-    </View>
-  );
+  return "Connecting to table...";
 }
 
 export function StatusTableView({
@@ -48,25 +28,46 @@ export function StatusTableView({
   renderModel,
   actions,
 }: StatusTableViewProps) {
+  const loadingMode: TableLoadingMode = mode === "auth_required" ? "auth_required" : mode === "auth_loading" ? "auth_loading" : "connecting";
   const message = statusMessageFor(mode, scene);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof AccessibilityInfo.isReduceMotionEnabled !== "function") return;
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setReducedMotion(Boolean(enabled));
+      })
+      .catch(() => {
+        // Keep default animation behavior when reduced-motion capability is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <TableSceneShell
-      tableName="Connecting..."
+      tableName="Poker Champ"
       balanceCents={renderModel.balanceCents}
       topBarRight={renderModel.tableTopBarRight}
       opponents={[]}
-      dealerBar={<DealerAnnounceBar statusMessage={message} />}
+      immersiveBoard
+      dealerBar={<View collapsable={false} />}
       board={
-        <ConnectingCard
-          message={message}
-          action={
-            <Button variant="link" title="Return to lobby" onPress={actions.goToLobby} />
-          }
+        <TableLoadingLanding
+          mode={loadingMode}
+          statusMessage={message}
+          tableId={renderModel.tableId}
+          onReturnToLobby={actions.goToLobby}
+          onGoToLogin={actions.goToLogin}
+          reducedMotion={reducedMotion}
         />
       }
       hero={<View collapsable={false} />}
-      bottom={statusBottom(mode, actions)}
+      bottom={null}
     />
   );
 }

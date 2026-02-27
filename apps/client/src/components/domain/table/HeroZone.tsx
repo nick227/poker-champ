@@ -1,5 +1,6 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
+import { AvatarImage } from "@/components/base/AvatarImage";
 import { PlayingCard } from "./PlayingCard";
 import { CalculationsStrip } from "./CalculationsStrip";
 import { DealerButton } from "./DealerButton";
@@ -28,6 +29,8 @@ export type HeroZoneProps = {
   isDealer?: boolean;
   isActiveTurn?: boolean;
   userName?: string;
+  avatarUrl?: string | null;
+  onAvatarPress?: () => void;
   showStats?: boolean;
   potCents?: number;
   onToggleSittingOut?: () => void;
@@ -80,6 +83,8 @@ export function HeroZone({
   isDealer = false,
   isActiveTurn = false,
   userName,
+  avatarUrl,
+  onAvatarPress,
   potCents = 0,
   showStats = true,
   onToggleSittingOut,
@@ -97,7 +102,6 @@ export function HeroZone({
     !onToggleSittingOut ||
     (isSittingOut && stackCents <= 0);
   const hasCalculations = hasHeroCalculations({ equity, potOdds, outs });
-  // Keep calc strip visually persistent so Hero cards never shift between states.
   const calculationsVisible = showStats;
   const calcMuted = !canAct || !hasCalculations;
 
@@ -146,9 +150,19 @@ export function HeroZone({
           data-stack-cents={String(stackCents)}
           data-hero-name={userName ?? ""}
         >
-          {userName ? (
-            <Text variant="label" numberOfLines={1} className="text-center" allowFontScaling={false}>{userName}</Text>
-          ) : null}
+          <View style={s.heroIdentityRow}>
+            <AvatarImage
+              avatarUrl={avatarUrl}
+              initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
+              onPress={onAvatarPress}
+              style={s.heroAvatar}
+              imageStyle={s.heroAvatarImage}
+              className="bg-panel-elevated border border-border"
+            />
+            {userName ? (
+              <Text variant="label" numberOfLines={1} className="text-center flex-1" allowFontScaling={false}>{userName}</Text>
+            ) : null}
+          </View>
           <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
         </View>
 

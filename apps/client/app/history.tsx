@@ -166,6 +166,7 @@ export default function HandHistoryScreen() {
         onlineLabel={onlineLabel}
         onPressOnline={openOnlineSheet}
         amountCents={currentBankroll}
+        avatarUrl={profile.avatarUrl}
       />
 
       <View className="flex-1 ui-stack-3">

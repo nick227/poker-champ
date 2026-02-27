@@ -132,6 +132,22 @@ export interface paths {
         patch: operations["profileUpdate"];
         trace?: never;
     };
+    "/api/profile/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["profileAvatarUpload"];
+        delete: operations["profileAvatarDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/overview": {
         parameters: {
             query?: never;
@@ -372,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lobby/instant-games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["lobbyCreateInstantGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bots": {
         parameters: {
             query?: never;
@@ -535,6 +567,8 @@ export interface components {
             deletedAt?: string | null;
             trustLevel: number;
             bankrollCents: number;
+            avatarUrl?: string | null;
+            avatarVersion?: number | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -558,12 +592,24 @@ export interface components {
             visibility: "PUBLIC" | "PRIVATE";
             runningSince: number | null;
             createdAt: number;
+            updatedAt: number;
+            creatorId?: string | null;
+            creatorName: string;
+            creatorAvatarUrl: string | null;
+            avgPotCents?: number | null;
+            waitlistCount?: number | null;
             showStats: boolean;
+            humanCount?: number | null;
+            connectedHumanCount?: number | null;
         };
         BotSummary: {
             id: string;
             name: string;
             avatarUrl?: string | null;
+        };
+        AvatarUploadResponse: {
+            avatarUrl: string | null;
+            avatarVersion: number | null;
         };
         LobbyChatMessage: {
             id: string;
@@ -841,6 +887,71 @@ export interface operations {
                     "application/json": {
                         user: components["schemas"]["User"];
                     };
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    profileAvatarUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Avatar uploaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarUploadResponse"];
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    profileAvatarDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Avatar removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarUploadResponse"];
                 };
             };
             /** @description Bad request */
@@ -1538,6 +1649,60 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    lobbyCreateInstantGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    presetId: "SIX_BOT_RING" | "HEADS_UP_BOT";
+                    config: {
+                        name: string;
+                        maxSeats: number;
+                        smallBlindCents: number;
+                        bigBlindCents: number;
+                        minBuyInCents: number;
+                        maxBuyInCents: number;
+                        /** @enum {string} */
+                        visibility: "PUBLIC" | "PRIVATE";
+                        password?: string;
+                        showStats?: boolean;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Instant game table created and bots seeded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tableId: string;
+                        roomId: string;
+                        presetId: string;
+                        seededBots: number;
+                        targetBots?: number | null;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

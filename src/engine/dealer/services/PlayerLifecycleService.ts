@@ -198,6 +198,9 @@ export class PlayerLifecycleService {
     player.connected = true;
     player.disconnectDeadlineTs = 0;
     player.stackCents = buyInTableBalance;
+    player.roundBetCents = 0;
+    player.committedCents = 0;
+    player.needsAction = false;
     player.sittingOutUntilNextHand = this.deps.state.street !== "WAITING";
 
     this.deps.state.playersById.set(userId, player);
@@ -335,6 +338,9 @@ export class PlayerLifecycleService {
     player.connected = true;
     player.disconnectDeadlineTs = 0;
     player.stackCents = buyInCents;
+    player.roundBetCents = 0;
+    player.committedCents = 0;
+    player.needsAction = false;
     player.sittingOutUntilNextHand = this.deps.state.street !== "WAITING";
 
     this.deps.state.playersById.set(botId, player);

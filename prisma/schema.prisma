@@ -244,6 +244,9 @@ model User {
   passwordHash  String
   displayName   String
   role          UserRole  @default(USER)
+  avatarUrl     String?
+  avatarVersion Int?
+  avatarUpdatedAt DateTime?
   
   // Trust & Safety
   isBanned      Boolean   @default(false)

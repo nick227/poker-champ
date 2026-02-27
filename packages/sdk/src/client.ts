@@ -19,6 +19,7 @@ type RequestOptions = {
   token?: string | null;
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | null | undefined>;
+  bodyFormat?: "json" | "raw";
 };
 
 function joinUrl(baseUrl: string, path: string) {
@@ -48,17 +49,23 @@ export async function request<T>(
 
   const token = typeof opts.token !== "undefined" ? opts.token : getAuthToken();
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(opts.headers ?? {}),
-  };
+  const bodyFormat = opts.bodyFormat ?? "json";
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
+  if (bodyFormat === "json" && !("Content-Type" in headers)) {
+    headers["Content-Type"] = "application/json";
+  }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   try {
     const res = await fetch(withQuery(joinUrl(baseUrl, path), opts.query), {
       method,
       headers,
-      body: typeof body === "undefined" ? undefined : JSON.stringify(body),
+      body:
+        typeof body === "undefined"
+          ? undefined
+          : bodyFormat === "json"
+            ? JSON.stringify(body)
+            : body,
     });
 
     const contentType = res.headers.get("content-type") ?? "";

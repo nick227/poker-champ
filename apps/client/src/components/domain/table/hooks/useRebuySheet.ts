@@ -16,7 +16,10 @@ export function useRebuySheet(
 
   const canRebuy = useMemo(() => {
     if (!snapshot) return false;
+
+    // Never allow rebuy while a hand is in progress.
     if (snapshot.hand) return false;
+    // Must currently be seated to safely reason about stack/status.
     if (!snapshot.hero.youAreSeated) return false;
 
     const heroSeat =
@@ -25,13 +28,14 @@ export function useRebuySheet(
         : undefined;
 
     if (!heroSeat) return false;
+
+    // Busted (stack 0): allow rebuy when OUT, WAITING, ABANDONED, or residual ALL_IN
+    // after an all-in pot where hand is already over.
     if (heroSeat.stackCents !== 0) return false;
-    // Busted (stack 0): allow rebuy when OUT, WAITING, or ABANDONED (sat out then busted).
-    const allowedBustedStatuses = ["WAITING", "OUT", "ABANDONED"];
+    const allowedBustedStatuses = ["WAITING", "OUT", "ABANDONED", "ALL_IN"];
     if (!allowedBustedStatuses.includes(heroSeat.status)) return false;
 
     const { minBuyInCents, maxBuyInCents } = snapshot.table;
-
     if (!Number.isInteger(minBuyInCents) || minBuyInCents <= 0) return false;
     if (!Number.isInteger(maxBuyInCents) || maxBuyInCents <= 0) return false;
 

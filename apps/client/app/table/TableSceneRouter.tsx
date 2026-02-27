@@ -40,29 +40,30 @@ export function copyShareTableUrl(url?: string) {
 }
 
 export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRouterProps) {
-  const { snapshot } = renderModel;
+  const { snapshot, currentUserAvatarUrl } = renderModel;
   const { mode } = scene;
-  const { refetch, avatarUrl: profileAvatarUrl } = useProfile();
-  const [heroAvatarUrl, setHeroAvatarUrl] = useState<string | null | undefined>(profileAvatarUrl);
+  const { refetch: refreshProfile, avatarUrl: profileAvatarUrl } = useProfile();
+  const [heroAvatarUrl, setHeroAvatarUrl] = useState<string | null | undefined>(currentUserAvatarUrl ?? profileAvatarUrl);
   const { pickAndUpload: pickAndUploadAvatar } = useAvatarUpload({
     onSuccess: (result) => {
       setHeroAvatarUrl(result.avatarUrl);
-      void refetch();
+      void refreshProfile();
     },
   });
+  const profileOrCurrentUserUrl = currentUserAvatarUrl ?? profileAvatarUrl;
   useEffect(() => {
-    setHeroAvatarUrl(profileAvatarUrl);
-  }, [profileAvatarUrl]);
+    setHeroAvatarUrl((prev) => profileOrCurrentUserUrl ?? prev);
+  }, [profileOrCurrentUserUrl]);
   useEffect(() => {
     if (mode !== "active") return;
     let cancelled = false;
-    Promise.all([serviceRegistry.get.me(), refetch()]).then(([res]) => {
+    Promise.all([serviceRegistry.get.me(), refreshProfile()]).then(([res]) => {
       if (cancelled || !res.ok || !res.data) return;
       const url = getAvatarUrlFromMeResponse(res.data);
       setHeroAvatarUrl((prev) => url ?? prev);
     });
     return () => { cancelled = true; };
-  }, [mode, refetch]);
+  }, [mode, refreshProfile]);
   const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
   const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
   const emptyOpponentsState = showEmptyOpponentsState ? (
@@ -128,7 +129,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
-          heroAvatarUrlOverride={heroAvatarUrl ?? profileAvatarUrl ?? undefined}
+          heroAvatarUrlOverride={heroAvatarUrl ?? profileOrCurrentUserUrl ?? undefined}
           onHeroAvatarPress={pickAndUploadAvatar}
         />
       );
@@ -136,4 +137,3 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       return null;
   }
 }
-

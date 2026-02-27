@@ -4,7 +4,9 @@ import Animated from "react-native-reanimated";
 import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
 
-export function JackpotBanner({ title, value, animatedStyle }: { title: string; value: string; animatedStyle?: any }) {
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
+export function JackpotBanner({ title, value, animatedStyle, flashStyle }: { title: string; value: string; animatedStyle?: any; flashStyle?: any }) {
   const { theme } = useTheme();
   const s = makeStyles(theme, (t) => ({
     wrap: {
@@ -18,10 +20,10 @@ export function JackpotBanner({ title, value, animatedStyle }: { title: string; 
     },
     top: {
       textAlign: "center",
-      fontSize: 11,
+      fontSize: 24,
       letterSpacing: 3,
       fontWeight: t.type.weightHeavy,
-      color: t.colors.textMuted,
+      color: "#ffffff",
       textTransform: "uppercase",
     },
     value: {
@@ -39,7 +41,9 @@ export function JackpotBanner({ title, value, animatedStyle }: { title: string; 
 
   return (
     <Animated.View style={[s.wrap, animatedStyle]}>
-      <Text style={s.top}>{title}</Text>
+      <Animated.View style={flashStyle}>
+        <AnimatedText style={s.top}>{title}</AnimatedText>
+      </Animated.View>
     </Animated.View>
   );
 }

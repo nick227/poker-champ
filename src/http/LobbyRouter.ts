@@ -8,6 +8,7 @@ import { logger } from "../lib/logger.js";
 import { getPrisma } from "../db/prisma.js";
 
 const router = express.Router();
+const InstantPresetIdSchema = z.enum(["SIX_BOT_RING", "HEADS_UP_BOT"]);
 const LobbyChatQuerySchema = z.object({
   scope: z.string().min(1).default("lobby"),
   cursor: z.string().optional(),
@@ -51,13 +52,34 @@ router.get("/tables", async (_req, res) => {
       speed: metadata.speed ?? "normal",
       runningSince: metadata.runningSince ?? null,
       createdAt: metadata.createdAt ?? Date.now(),
+      updatedAt: metadata.updatedAt ?? metadata.createdAt ?? Date.now(),
       creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
+      creatorName: typeof metadata.creatorName === "string" && metadata.creatorName.length > 0 ? metadata.creatorName : "Player",
+      creatorAvatarUrl: typeof metadata.creatorAvatarUrl === "string" ? metadata.creatorAvatarUrl : null,
       showStats: metadata.showStats ?? true,
       humanCount,
       connectedHumanCount,
+      avgPotCents: typeof metadata.avgPotCents === "number" ? metadata.avgPotCents : undefined,
+      waitlistCount: typeof metadata.waitlistCount === "number" ? metadata.waitlistCount : undefined,
     };
   });
-  res.json({ tables });
+  const creatorIds = [...new Set(tables.map((t: { creatorId?: string }) => t.creatorId).filter(Boolean))] as string[];
+  const avatarByCreatorId = new Map<string, string | null>();
+  if (creatorIds.length > 0) {
+    const prisma = getPrisma();
+    const users = await prisma.user.findMany({
+      where: { id: { in: creatorIds } },
+      select: { id: true, avatarUrl: true },
+    });
+    for (const u of users) {
+      avatarByCreatorId.set(u.id, u.avatarUrl ?? null);
+    }
+  }
+  const enriched = tables.map((t: { creatorId?: string; creatorAvatarUrl?: string | null }) => {
+    const avatar = t.creatorAvatarUrl ?? (t.creatorId ? avatarByCreatorId.get(t.creatorId) ?? null : null);
+    return { ...t, creatorAvatarUrl: typeof avatar === "string" ? avatar : null };
+  });
+  res.json({ tables: enriched });
 });
 
 router.post("/tables", requireAuth, async (req, res) => {
@@ -69,7 +91,22 @@ router.post("/tables", requireAuth, async (req, res) => {
 
   const { user } = req;
   const creatorId = user?.id != null ? String(user.id) : undefined;
-  const config = await buildTableConfig({ ...parsed.data, creatorId, showStats: parsed.data.showStats });
+  const creatorName = user?.displayName && user.displayName.length > 0 ? user.displayName : "Player";
+  let creatorAvatarUrl: string | null = typeof user?.avatarUrl === "string" && user.avatarUrl.length > 0 ? user.avatarUrl : null;
+  if (!creatorAvatarUrl && creatorId) {
+    const creator = await getPrisma().user.findUnique({
+      where: { id: creatorId },
+      select: { avatarUrl: true },
+    });
+    creatorAvatarUrl = creator?.avatarUrl ?? null;
+  }
+  const config = await buildTableConfig({
+    ...parsed.data,
+    creatorId,
+    creatorName,
+    creatorAvatarUrl,
+    showStats: parsed.data.showStats,
+  });
   const created = await matchMaker.createRoom("poker", { tableConfig: config });
   const roomId =
     typeof created === "string"
@@ -95,6 +132,109 @@ router.post("/tables", requireAuth, async (req, res) => {
   }
 
   res.status(201).json({ tableId: config.tableId, roomId });
+});
+
+router.post("/instant-games", requireAuth, async (req, res) => {
+  const bodySchema = z.object({
+    presetId: InstantPresetIdSchema,
+    config: z.unknown(),
+  });
+  const parsedBody = bodySchema.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    res.status(400).json({ error: "Invalid instant game payload", details: parsedBody.error.flatten() });
+    return;
+  }
+
+  const createParsed = CreateTableSchema.safeParse(parsedBody.data.config ?? {});
+  if (!createParsed.success) {
+    res.status(400).json({ error: "Invalid table config", details: createParsed.error.flatten() });
+    return;
+  }
+
+  const { user } = req;
+  const creatorId = user?.id != null ? String(user.id) : undefined;
+  const creatorName = user?.displayName && user.displayName.length > 0 ? user.displayName : "Player";
+  let creatorAvatarUrl: string | null = typeof user?.avatarUrl === "string" && user.avatarUrl.length > 0 ? user.avatarUrl : null;
+  if (!creatorAvatarUrl && creatorId) {
+    const creator = await getPrisma().user.findUnique({
+      where: { id: creatorId },
+      select: { avatarUrl: true },
+    });
+    creatorAvatarUrl = creator?.avatarUrl ?? null;
+  }
+
+  const config = await buildTableConfig({
+    ...createParsed.data,
+    creatorId,
+    creatorName,
+    creatorAvatarUrl,
+    showStats: createParsed.data.showStats,
+  });
+
+  const created = await matchMaker.createRoom("poker", { tableConfig: config });
+  const roomId =
+    typeof created === "string"
+      ? created
+      : (created as { roomId?: string } | null | undefined)?.roomId;
+
+  if (!roomId) {
+    res.status(500).json({ error: "Failed to create table room" });
+    return;
+  }
+
+  let seededBots = 0;
+  let targetBots: number | null = null;
+  try {
+    const seedResult = await matchMaker.remoteRoomCall(
+      roomId,
+      "seedInstantBots" as never,
+      [parsedBody.data.presetId] as never,
+      5000,
+    ) as { ok?: boolean; added?: number; target?: number; reason?: string } | undefined;
+    if (seedResult) {
+      seededBots = seedResult.added ?? 0;
+      targetBots = typeof seedResult.target === "number" ? seedResult.target : null;
+      if (!seedResult.ok) {
+        logger.warn(
+          {
+            tableId: config.tableId,
+            roomId,
+            presetId: parsedBody.data.presetId,
+            seededBots,
+            targetBots,
+            reason: seedResult.reason,
+          },
+          "Instant game bot seeding did not reach target",
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn(
+      { err, tableId: config.tableId, roomId, presetId: parsedBody.data.presetId },
+      "Failed to seed instant game bots",
+    );
+  }
+
+  try {
+    const lobbyRooms = await matchMaker.query({ name: "lobby" });
+    await Promise.allSettled(
+      lobbyRooms.map(async (r: { roomId?: string }) => {
+        const lobbyRoomId = r.roomId;
+        if (!lobbyRoomId) return;
+        await matchMaker.remoteRoomCall(lobbyRoomId, "pushTableListUpdate" as never, [], 5000);
+      }),
+    );
+  } catch (err) {
+    logger.warn({ err, tableId: config.tableId }, "Failed to push lobby table list update after instant game creation");
+  }
+
+  res.status(201).json({
+    tableId: config.tableId,
+    roomId,
+    presetId: parsedBody.data.presetId,
+    seededBots,
+    targetBots,
+  });
 });
 
 router.delete("/tables/:tableId", requireAuth, async (req, res) => {

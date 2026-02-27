@@ -47,6 +47,8 @@ export function useTableRealtime({
   const onReadyRoomRef = useRef(onReadyRoom);
   const realtimeSendRef = useRef<(type: string, payload?: unknown) => boolean>(() => false);
   const realtimeDisconnectRef = useRef<(consented?: boolean) => void>(() => undefined);
+  const nativeRoomRef = useRef<TableRealtimeRoom | null>(null);
+  const bridgedRoomRef = useRef<TableRealtimeRoom | null>(null);
   onErrorRef.current = onError;
   onTableGoneRef.current = onTableGone;
   onReadyRoomRef.current = onReadyRoom;
@@ -100,18 +102,26 @@ export function useTableRealtime({
       const nativeRoom = getNativeRoom?.() ?? null;
       if (isTableRealtimeRoom(nativeRoom)) {
         const room = nativeRoom as TableRealtimeRoom;
-        onReadyRoomRef.current?.({
-          // Keep prototype methods intact by delegating instead of spreading.
-          send: (type: string, payload?: unknown) => room.send(type, payload),
-          onMessage: (type: string, cb: (payload: unknown) => void) => room.onMessage(type, cb),
-          leave: (consented?: boolean) => room.leave?.(consented),
-          disconnect: (consented?: boolean) => realtimeDisconnectRef.current(consented),
-        });
+        if (nativeRoomRef.current !== room || !bridgedRoomRef.current) {
+          nativeRoomRef.current = room;
+          bridgedRoomRef.current = {
+            // Keep prototype methods intact by delegating instead of spreading.
+            send: (type: string, payload?: unknown) => room.send(type, payload),
+            onMessage: (type: string, cb: (payload: unknown) => void) => room.onMessage(type, cb),
+            leave: (consented?: boolean) => room.leave?.(consented),
+            disconnect: (consented?: boolean) => realtimeDisconnectRef.current(consented),
+          };
+        }
+        onReadyRoomRef.current?.(bridgedRoomRef.current);
         return;
       }
+      nativeRoomRef.current = null;
+      bridgedRoomRef.current = null;
       onReadyRoomRef.current?.(null);
     },
     onClose: () => {
+      nativeRoomRef.current = null;
+      bridgedRoomRef.current = null;
       onReadyRoomRef.current?.(null);
     },
   });
@@ -136,11 +146,16 @@ export function useTableRealtime({
       buyInCents: hasValidBuyIn ? Number(buyInCents) : undefined,
       hasPassword: Boolean(password),
     });
+  }, [tableId, roomId, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
+
+  useEffect(() => {
     storeRegistry.tables().registerTableSender(tableId, realtimeSendRef.current);
     return () => {
       debugLog("DISPOSE", { tableId });
       storeRegistry.tables().unregisterTableSender(tableId);
+      nativeRoomRef.current = null;
+      bridgedRoomRef.current = null;
       onReadyRoomRef.current?.(null);
     };
-  }, [tableId, roomId, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
+  }, [tableId]);
 }

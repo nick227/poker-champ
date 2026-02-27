@@ -5,6 +5,8 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
 import type { SymbolKey } from "../../games/types";
 
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
 export function ReelWindow({
   strip,
   symbols,
@@ -69,7 +71,7 @@ export function ReelWindow({
                 <Image source={src} style={s.image} resizeMode="contain" />
               ) : (
                 <View style={s.fallbackTile}>
-                  <Text style={s.fallbackText}>{k}</Text>
+                  <AnimatedText style={s.fallbackText}>{k}</AnimatedText>
                 </View>
               )}
             </View>

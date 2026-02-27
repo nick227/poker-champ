@@ -27,7 +27,9 @@ export type SoundKey =
   | "slotPull"
   | "slotReelSpin"
   | "slotReelStop"
-  | "slotWin";
+  | "slotWin"
+  | "slotJackpot"
+  | "slotJackpotFanfare";
 
 export type SoundDefinition = {
   asset: number;
@@ -62,6 +64,8 @@ const SLOT_PULL_ASSET = require("../../assets/sounds/click.wav");
 const SLOT_REEL_SPIN_ASSET = require("../../assets/sounds/mixkit-retro-arcade-casino-notification-211.wav");
 const SLOT_REEL_STOP_ASSET = require("../../assets/sounds/mixkit-game-click-1114.wav");
 const SLOT_WIN_ASSET = require("../../assets/sounds/mixkit-casino-bling-achievement-2067.wav");
+const SLOT_JACKPOT_ASSET = require("../../assets/sounds/mixkit-slot-machine-win-alert-1931.wav");
+const SLOT_JACKPOT_FANFARE_ASSET = require("../../assets/sounds/mixkit-casino-win-notification-1986.wav");
 
 function withPlaceholder(
   category: SoundCategory,
@@ -99,6 +103,8 @@ const SOUND_MAP = {
   slotReelSpin: { asset: SLOT_REEL_SPIN_ASSET, category: "action", cooldownMs: 120, maxInstances: 1 },
   slotReelStop: { asset: SLOT_REEL_STOP_ASSET, category: "action", cooldownMs: 80, maxInstances: 1 },
   slotWin: { asset: SLOT_WIN_ASSET, category: "outcome", cooldownMs: 180, maxInstances: 1 },
+  slotJackpot: { asset: SLOT_JACKPOT_ASSET, category: "outcome", cooldownMs: 500, maxInstances: 1 },
+  slotJackpotFanfare: { asset: SLOT_JACKPOT_FANFARE_ASSET, category: "outcome", cooldownMs: 3000, maxInstances: 1 },
 } satisfies Record<SoundKey, SoundDefinition>;
 
 export { SOUND_MAP };

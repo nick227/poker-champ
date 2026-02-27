@@ -45,6 +45,8 @@ export const openApiSpec = {
           deletedAt: { type: "string", format: "date-time", nullable: true },
           trustLevel: { type: "integer" },
           bankrollCents: { type: "integer" },
+          avatarUrl: { type: "string", nullable: true },
+          avatarVersion: { type: "integer", nullable: true },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
@@ -73,7 +75,15 @@ export const openApiSpec = {
           visibility: { type: "string", enum: ["PUBLIC", "PRIVATE"] },
           runningSince: { type: "integer", nullable: true },
           createdAt: { type: "integer" },
+          updatedAt: { type: "integer" },
+          creatorId: { type: "string", nullable: true },
+          creatorName: { type: "string" },
+          creatorAvatarUrl: { type: "string", nullable: true },
+          avgPotCents: { type: "integer", nullable: true },
+          waitlistCount: { type: "integer", nullable: true },
           showStats: { type: "boolean" },
+          humanCount: { type: "integer", nullable: true },
+          connectedHumanCount: { type: "integer", nullable: true },
         },
         required: [
           "tableId",
@@ -88,6 +98,9 @@ export const openApiSpec = {
           "visibility",
           "runningSince",
           "createdAt",
+          "updatedAt",
+          "creatorName",
+          "creatorAvatarUrl",
           "showStats",
         ],
       },
@@ -99,6 +112,14 @@ export const openApiSpec = {
           avatarUrl: { type: "string", nullable: true },
         },
         required: ["id", "name"],
+      },
+      AvatarUploadResponse: {
+        type: "object",
+        properties: {
+          avatarUrl: { type: "string", nullable: true },
+          avatarVersion: { type: "integer", nullable: true },
+        },
+        required: ["avatarUrl", "avatarVersion"],
       },
       LobbyChatMessage: {
         type: "object",
@@ -328,6 +349,63 @@ export const openApiSpec = {
                   properties: { user: { $ref: "#/components/schemas/User" } },
                   required: ["user"],
                 },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/profile/avatar": {
+      post: {
+        tags: ["profile"],
+        operationId: "profileAvatarUpload",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                properties: {
+                  file: {
+                    type: "string",
+                    format: "binary",
+                  },
+                },
+                required: ["file"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Avatar uploaded",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AvatarUploadResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+      delete: {
+        tags: ["profile"],
+        operationId: "profileAvatarDelete",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Avatar removed",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AvatarUploadResponse" },
               },
             },
           },
@@ -1099,6 +1177,77 @@ export const openApiSpec = {
           },
           "401": {
             description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lobby/instant-games": {
+      post: {
+        tags: ["lobby"],
+        operationId: "lobbyCreateInstantGame",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  presetId: {
+                    type: "string",
+                    enum: ["SIX_BOT_RING", "HEADS_UP_BOT"],
+                  },
+                  config: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", minLength: 1, maxLength: 80 },
+                      maxSeats: { type: "integer", minimum: 2, maximum: 10 },
+                      smallBlindCents: { type: "integer", minimum: 1 },
+                      bigBlindCents: { type: "integer", minimum: 1 },
+                      minBuyInCents: { type: "integer", minimum: 1 },
+                      maxBuyInCents: { type: "integer", minimum: 1 },
+                      visibility: { type: "string", enum: ["PUBLIC", "PRIVATE"] },
+                      password: { type: "string" },
+                      showStats: { type: "boolean" },
+                    },
+                    required: [
+                      "name",
+                      "maxSeats",
+                      "smallBlindCents",
+                      "bigBlindCents",
+                      "minBuyInCents",
+                      "maxBuyInCents",
+                      "visibility",
+                    ],
+                  },
+                },
+                required: ["presetId", "config"],
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Instant game table created and bots seeded",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    tableId: { type: "string" },
+                    roomId: { type: "string" },
+                    presetId: { type: "string" },
+                    seededBots: { type: "integer" },
+                    targetBots: { type: "integer", nullable: true },
+                  },
+                  required: ["tableId", "roomId", "presetId", "seededBots"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid request",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

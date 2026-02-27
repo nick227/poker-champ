@@ -34,6 +34,8 @@ export type TablePageController = {
     openTableIds: string[];
     activeTableId?: string | null;
     profileUsername?: string;
+    /** Current user avatar (profile/me); hero zone uses this when snapshot has no avatar yet. */
+    currentUserAvatarUrl?: string | null;
     balanceCents: number;
     snapshot?: TableSnapshotPayload;
     opponents: Opponent[];

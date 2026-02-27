@@ -4,6 +4,24 @@ import { launchImageLibraryAsync } from "expo-image-picker";
 import { uploadAvatar, type AvatarUploadResult } from "@/services/profileAvatar";
 import { useToastStore } from "@/stores/toast.store";
 
+function uriToJpegFile(uri: string): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", uri, true);
+    xhr.responseType = "blob";
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const blob = xhr.response as Blob;
+        resolve(new File([blob], "image.jpg", { type: "image/jpeg" }));
+      } else {
+        reject(new Error(`Failed to read image URI: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Failed to read image URI"));
+    xhr.send();
+  });
+}
+
 export function useAvatarUpload(opts: { onSuccess?: (result: AvatarUploadResult) => void }) {
   const [uploading, setUploading] = useState(false);
   const toast = useToastStore();
@@ -49,9 +67,7 @@ export function useAvatarUpload(opts: { onSuccess?: (result: AvatarUploadResult)
       quality: 0.82,
     });
     if (result.canceled || !result.assets[0]) return;
-    const res = await fetch(result.assets[0].uri);
-    const blob = await res.blob();
-    const file = new File([blob], "image.jpg", { type: "image/jpeg" });
+    const file = await uriToJpegFile(result.assets[0].uri);
     await uploadFile(file);
   }, [uploadFile]);
 

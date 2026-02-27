@@ -104,6 +104,10 @@ export const opponentStripStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  avatarImage: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+  },
   stackText: {
     fontSize: 13,
     fontWeight: "600",

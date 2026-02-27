@@ -148,6 +148,8 @@ export const TableSeatSnapshotSchema = z.object({
   disconnectDeadlineTs: z.number().int().nonnegative().default(0),
   isDealer: z.boolean().default(false),
   isToAct: z.boolean().default(false),
+  avatarUrl: z.string().min(1).optional(),
+  avatarVersion: z.number().int().nonnegative().optional(),
 });
 
 export const TableLastActionSchema = z.object({
@@ -178,6 +180,7 @@ export const TableSnapshotPayloadSchema = z.object({
   table: z.object({
     tableId: z.string().min(1),
     tableName: z.string().min(1),
+    creatorId: z.string().min(1).optional(),
     visibility: VisibilityEnum,
     maxSeats: z.number().int().min(2).max(10),
     smallBlindCents: z.number().int().positive(),
@@ -212,6 +215,8 @@ export const TableSnapshotPayloadSchema = z.object({
     actionOptions: HeroActionOptionsSchema.optional(),
     calculations: HeroCalculationsSchema.optional(),
     playerStats: HeroPlayerStatsSchema.optional(),
+    avatarUrl: z.string().min(1).optional(),
+    avatarVersion: z.number().int().nonnegative().optional(),
   }),
 
   calculationsMeta: CalculationsMetaSchema.optional(),

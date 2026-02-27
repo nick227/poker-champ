@@ -1,5 +1,6 @@
 import { Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { Text } from "@/components/base/Text";
+import { AvatarImage } from "@/components/base/AvatarImage";
 import { DealerButton } from "./DealerButton";
 import { PlayingCard } from "./PlayingCard";
 import { formatCents } from "@/lib/format";
@@ -106,11 +107,13 @@ export function OpponentStrip({
                 <View style={s.infoCol}>
                   <View style={s.infoTopRow}>
                     <View style={s.nameWrap}>
-                      <View style={s.avatar} className="bg-panel-elevated border border-border">
-                        <Text variant="label" className="text-xs font-semibold" allowFontScaling={false}>
-                          {o.name.slice(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
+                      <AvatarImage
+                        avatarUrl={o.avatarUrl}
+                        initial={o.name.slice(0, 1).toUpperCase()}
+                        style={s.avatar}
+                        imageStyle={s.avatarImage}
+                        className="bg-panel-elevated border border-border"
+                      />
                       <Text variant="label" className="text-xs font-semibold" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
                         {o.name}{o.isBot ? " [BOT]" : ""}
                       </Text>

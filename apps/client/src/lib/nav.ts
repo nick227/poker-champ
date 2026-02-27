@@ -1,12 +1,17 @@
 import { screenRegistry } from "@/registry/screen.registry";
 
-export function tablePath(id: string, opts?: { buyInCents?: number }): string {
+export function tablePath(
+  id: string,
+  opts?: { buyInCents?: number },
+): string {
   const base = `/table/${encodeURIComponent(id)}`;
+  const params = new URLSearchParams();
   const buyInCents = opts?.buyInCents;
   if (Number.isInteger(buyInCents) && Number(buyInCents) > 0) {
-    return `${base}?buyInCents=${encodeURIComponent(String(buyInCents))}`;
+    params.set("buyInCents", String(buyInCents));
   }
-  return base;
+  const query = params.toString();
+  return query.length > 0 ? `${base}?${query}` : base;
 }
 
 export function lobbyPath(): string {
@@ -21,4 +26,3 @@ export function loginPathWithNext(next: string): string {
   const base = loginPath();
   return `${base}?next=${encodeURIComponent(next)}`;
 }
-

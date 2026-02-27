@@ -55,6 +55,25 @@ export const heroZoneStyles = StyleSheet.create({
   stackCol: {
     gap: 4,
   },
+  heroIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  },
+  heroAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   dealerSlot: {
     width: DEALER_BUTTON_SLOT_SIZE,
     height: DEALER_BUTTON_SLOT_SIZE,

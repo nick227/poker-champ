@@ -1,5 +1,6 @@
 import "dotenv/config";
 import http from "node:http";
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import { Server } from "@colyseus/core";
@@ -63,6 +64,15 @@ app.use(securityHeaders);
 app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: "1mb" }));
 
+const avatarsRoot = path.resolve("var", "avatars");
+app.use(
+  "/avatars",
+  express.static(avatarsRoot, {
+    maxAge: "31536000",
+    immutable: true,
+  }),
+);
+
 const openApiMiddleware =
   (OpenApiValidatorModule as any)?.middleware ??
   (OpenApiValidatorModule as any)?.default?.middleware;
@@ -76,6 +86,8 @@ app.use(
     apiSpec: openApiSpec as unknown as Record<string, unknown>,
     validateRequests: true,
     validateResponses: env.NODE_ENV !== "production",
+    // Avoid double-processing multipart/form-data on avatar upload, which breaks Multer with "Unexpected end of form".
+    ignorePaths: /\/api\/profile\/avatar/,
   }),
 );
 
@@ -100,6 +112,7 @@ app.use("/api/economy", economyRouter);
 app.use("/api/tournaments", tournamentsRouter);
 app.use("/api/lobby", lobbyRouter);
 app.use("/api/profile", profileRouter);
+app.use("/api/me", profileRouter);
 app.use("/api/history", handHistoryRouter);
 app.use("/api/bots", botRouter);
 if (isLeaderboardEnabled()) {
@@ -138,7 +151,8 @@ const gameServer = new Server({
     colyseusApp.use((req, res, next) => {
       const path = req.path ?? "";
       const isApiRoute = path === "/api" || path.startsWith("/api/");
-      if (isApiRoute || path === "/health" || path === "/openapi.json") {
+      const isAvatarRoute = path.startsWith("/avatars/");
+      if (isApiRoute || isAvatarRoute || path === "/health" || path === "/openapi.json") {
         app(req, res, next);
         return;
       }

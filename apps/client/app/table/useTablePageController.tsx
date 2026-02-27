@@ -303,6 +303,10 @@ export function useTablePageController({
     router.replace(lobbyPath());
   }, [tableId, closeTable, router]);
 
+  const handleReadyRoom = useCallback((room: TableRealtimeRoom | null) => {
+    setVoiceRoom((prev) => (prev === room ? prev : room));
+  }, []);
+
   const { hasValidBuyIn } = useTableConnection({
     tableId,
     persistedRoomId,
@@ -312,7 +316,7 @@ export function useTablePageController({
     hasAuthToken: Boolean(authToken),
     onError: handleRealtimeError,
     onTableGone: handleTableGone,
-    onReadyRoom: setVoiceRoom,
+    onReadyRoom: handleReadyRoom,
   });
 
   const resetVoiceAutoJoinAttempt = useCallback(() => {
@@ -456,6 +460,7 @@ export function useTablePageController({
       openTableIds,
       activeTableId,
       profileUsername: profile.username,
+      currentUserAvatarUrl: profile.avatarUrl ?? undefined,
       balanceCents,
       snapshot,
       opponents,
@@ -504,6 +509,3 @@ export function useTablePageController({
     },
   };
 }
-
-
-

@@ -18,11 +18,12 @@ import { useToastStore } from "@/stores/toast.store";
 import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 import { postEconomyDeposit } from "@/services/post/economy.post";
+import { ProfileAvatarSection } from "@/components/domain/settings/ProfileAvatarSection";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
-  const profile = useProfile();
+  const { refetch, ...profile } = useProfile();
   const bankroll = useBankroll();
   const soundEnabled = usePreferencesStore((s) => s.soundEnabled);
   const setSoundEnabled = usePreferencesStore((s) => s.setSoundEnabled);
@@ -69,8 +70,14 @@ export default function SettingsScreen() {
         amountCents={bankroll.cents}
         onlineLabel={onlineLabel}
         onPressOnline={openOnlineSheet}
+        avatarUrl={profile.avatarUrl}
       />
       <View className="flex-1 ui-stack-4 ui-p-4">
+        <ProfileAvatarSection
+          avatarUrl={profile.avatarUrl}
+          username={profile.username}
+          onUpdate={refetch}
+        />
         <View className="ui-row justify-between ui-surface-card ui-p-4">
           <Text variant="body">Sound</Text>
           <Toggle value={soundEnabled} onValueChange={setSoundEnabled} />

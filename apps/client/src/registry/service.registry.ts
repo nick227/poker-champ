@@ -76,6 +76,29 @@ const serviceByKey = {
       password?: string;
       showStats?: boolean;
     }) => withApiError(() => lobby.createTable(input)),
+    instantGame: (input: {
+      presetId: string;
+      config: {
+        name: string;
+        maxSeats: number;
+        smallBlindCents: number;
+        bigBlindCents: number;
+        minBuyInCents: number;
+        maxBuyInCents: number;
+        visibility: "PUBLIC" | "PRIVATE";
+        password?: string;
+        showStats?: boolean;
+      };
+    }) =>
+      withApiError(() =>
+        request<{
+          tableId: string;
+          roomId?: string;
+          presetId: string;
+          seededBots: number;
+          targetBots: number | null;
+        }>("POST", "/api/lobby/instant-games", input),
+      ),
     deleteTable: (tableId: string) => withApiError(() => lobby.deleteTable(tableId)),
     buyIn: (input: { tableId: string; amountCents: number; externalRef?: string }) =>
       withApiError(() => economy.buyIn(input)),
@@ -102,6 +125,7 @@ const serviceOrdered = [
   { key: "post.authLogin", call: serviceByKey.post.authLogin },
   { key: "post.authLogout", call: serviceByKey.post.authLogout },
   { key: "post.joinTable", call: serviceByKey.post.joinTable },
+  { key: "post.instantGame", call: serviceByKey.post.instantGame },
   { key: "post.deleteTable", call: serviceByKey.post.deleteTable },
   { key: "post.buyIn", call: serviceByKey.post.buyIn },
   { key: "post.economyDeposit", call: serviceByKey.post.economyDeposit },

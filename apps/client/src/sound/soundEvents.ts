@@ -23,7 +23,9 @@ export type SoundEvent =
   | "slot.pull"
   | "slot.reelSpin"
   | "slot.reelStop"
-  | "slot.win";
+  | "slot.win"
+  | "slot.jackpot"
+  | "slot.jackpotFanfare";
 
 export const SOUND_EVENT_COOLDOWN_MS: Partial<Record<SoundEvent, number>> = {
   "ui.tap": 60,
@@ -51,4 +53,6 @@ export const SOUND_EVENT_COOLDOWN_MS: Partial<Record<SoundEvent, number>> = {
   "slot.reelSpin": 120,
   "slot.reelStop": 80,
   "slot.win": 180,
+  "slot.jackpot": 500,
+  "slot.jackpotFanfare": 3000,
 };

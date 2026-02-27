@@ -33,6 +33,7 @@
     "@poker-champ/sdk": "workspace:*",
     "expo": "~52.0.28",
     "expo-av": "~16.0.0",
+    "expo-image-picker": "~16.0.6",
     "expo-router": "~4.0.14",
     "expo-secure-store": "^15.0.8",
     "expo-status-bar": "~2.0.1",
@@ -50,9 +51,11 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.10.0",
     "@babel/plugin-transform-class-static-block": "^7.28.6",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.58.2",
+    "@tauri-apps/cli": "^2.10.0",
+    "@testing-library/react": "^14.3.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
@@ -61,12 +64,10 @@
     "eslint": "^9.18.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "happy-dom": "^15.11.7",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.9",
-    "@playwright/test": "^1.58.2",
-    "@testing-library/react": "^14.3.1",
-    "happy-dom": "^15.11.7"
+    "vitest": "^2.1.9"
   }
 }

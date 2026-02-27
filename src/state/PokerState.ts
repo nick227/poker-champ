@@ -7,6 +7,7 @@ export type RunoutMode = "NONE" | "STAGED";
 export class PokerState extends Schema {
   @type("string") tableId: string = "";
   @type("string") tableName: string = "Hold'em";
+  @type("string") creatorId: string = "";
   @type("string") visibility: "PUBLIC" | "PRIVATE" = "PUBLIC";
   @type("string") speed: "normal" | "fast" = "normal";
 

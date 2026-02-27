@@ -134,6 +134,7 @@ export type Opponent = {
   isBot?: boolean;
   status?: OpponentDisplayStatus;
   actionLabel?: string;
+  avatarUrl?: string;
   cards?: {
     left?: UiCard;
     right?: UiCard;
@@ -211,6 +212,7 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       isActive: seat.isToAct,
       isBot: seat.isBot ?? false,
       status: getSeatOpponentStatus(seat, serverNowTs),
+      ...(seat.avatarUrl && { avatarUrl: seat.avatarUrl }),
       cards,
     });
   }

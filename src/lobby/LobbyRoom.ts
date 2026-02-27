@@ -118,7 +118,8 @@ export class LobbyRoom extends Room<LobbyState> {
       }
 
       const creatorId = this.userIdBySessionId.get(client.sessionId);
-      const cfg = await buildTableConfig({ ...parsed.data, creatorId });
+      const creatorName = this.displayNameByUserId.get(creatorId ?? "") ?? "Player";
+      const cfg = await buildTableConfig({ ...parsed.data, creatorId, creatorName, creatorAvatarUrl: null });
       const created = await matchMaker.createRoom("poker", { tableConfig: cfg });
       const roomId =
         typeof created === "string"
@@ -323,7 +324,7 @@ export class LobbyRoom extends Room<LobbyState> {
   private async queryTables(includePrivateHash: boolean = false): Promise<(LobbyTableSummary & { passwordHash?: string })[]> {
     const rooms = await matchMaker.query({ name: "poker" });
 
-    return rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
+    const raw = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
       const m = r.metadata ?? {};
       const humanCount = typeof m.humanCount === "number" ? m.humanCount : undefined;
       const connectedHumanCount = typeof m.connectedHumanCount === "number" ? m.connectedHumanCount : undefined;
@@ -342,13 +343,34 @@ export class LobbyRoom extends Room<LobbyState> {
         speed: (m.speed as "normal" | "fast") ?? "normal",
         runningSince: m.runningSince as number | undefined,
         createdAt: (m.createdAt as number) ?? Date.now(),
+        updatedAt: (m.updatedAt as number) ?? (m.createdAt as number) ?? Date.now(),
         creatorId: m.creatorId != null ? String(m.creatorId) : undefined,
+        creatorName: typeof m.creatorName === "string" && m.creatorName.length > 0 ? m.creatorName : "Player",
+        creatorAvatarUrl: typeof m.creatorAvatarUrl === "string" ? m.creatorAvatarUrl : null,
         humanCount,
         connectedHumanCount,
+        avgPotCents: typeof m.avgPotCents === "number" ? m.avgPotCents : undefined,
+        waitlistCount: typeof m.waitlistCount === "number" ? m.waitlistCount : undefined,
       };
       if (includePrivateHash) summary.passwordHash = m.passwordHash as string | undefined;
       return summary;
-    }).sort((a, b) => (b.players - a.players) || (b.createdAt - a.createdAt));
+    });
+    const creatorIds = [...new Set(raw.map((t) => t.creatorId).filter(Boolean))] as string[];
+    const avatarByCreatorId = new Map<string, string | null>();
+    if (creatorIds.length > 0) {
+      const users = await getPrisma().user.findMany({
+        where: { id: { in: creatorIds } },
+        select: { id: true, avatarUrl: true },
+      });
+      for (const u of users) {
+        avatarByCreatorId.set(u.id, u.avatarUrl ?? null);
+      }
+    }
+    const enriched = raw.map((t) => {
+      const avatar = t.creatorAvatarUrl ?? (t.creatorId ? avatarByCreatorId.get(t.creatorId) ?? null : null);
+      return { ...t, creatorAvatarUrl: typeof avatar === "string" ? avatar : null };
+    });
+    return enriched.sort((a, b) => (b.players - a.players) || (b.createdAt - a.createdAt));
   }
 
   private canSendLobbyChat(userId: string, nowTs: number): boolean {

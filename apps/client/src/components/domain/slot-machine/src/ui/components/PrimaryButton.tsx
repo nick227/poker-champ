@@ -5,7 +5,9 @@ import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
 import { formatCents } from "../../engine/format";
 
-export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyle, betCents }: { title: string; subtitle?: string; disabled?: boolean; onPress?: () => void; animatedStyle?: any, betCents?: number }) {
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
+export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyle, flashStyle, betCents }: { title: string; subtitle?: string; disabled?: boolean; onPress?: () => void; animatedStyle?: any; flashStyle?: any; betCents?: number }) {
   const { theme } = useTheme();
   const s = makeStyles(theme, (t) => ({
     btn: {
@@ -36,10 +38,12 @@ export function PrimaryButton({ title, subtitle, disabled, onPress, animatedStyl
   }));
   return (
     <Animated.View style={animatedStyle}>
-      <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [s.btn, pressed && !disabled && { opacity: 0.9 }]}>
-        <Text style={s.title}>{typeof betCents === 'undefined' ? '' : formatCents(betCents)}</Text>
-        {!!subtitle && <Text style={s.sub}>{subtitle}</Text>}
-      </Pressable>
+      <Animated.View style={flashStyle}>
+        <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [s.btn, pressed && !disabled && { opacity: 0.9 }]}>
+        <AnimatedText style={s.title}>{typeof betCents === 'undefined' ? '' : formatCents(betCents)}</AnimatedText>
+        {!!subtitle && <AnimatedText style={s.sub}>{subtitle}</AnimatedText>}
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

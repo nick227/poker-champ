@@ -25,10 +25,13 @@ export async function buildTableConfig(input: {
   password?: string;
   speed: "normal" | "fast";
   creatorId?: string;
+  creatorName: string;
+  creatorAvatarUrl: string | null;
   showStats: boolean;
 }): Promise<TableConfig> {
   const tableId = makeTableId();
   const createdAt = Date.now();
+  const updatedAt = createdAt;
   const passwordHash =
     input.visibility === "PRIVATE"
       ? await hashPassword(input.password ?? "")
@@ -46,7 +49,10 @@ export async function buildTableConfig(input: {
     speed: input.speed,
     passwordHash,
     createdAt,
+    updatedAt,
     creatorId: input.creatorId,
+    creatorName: input.creatorName,
+    creatorAvatarUrl: input.creatorAvatarUrl,
     showStats: input.showStats,
   };
 }

@@ -2,12 +2,15 @@
 node_modules
 **/node_modules
 .pnpm-store
+package-lock.json
 
 # Build / output
 dist
 **/dist
 build
 **/build
+artifacts
+**/artifacts
 .expo
 **/.expo
 *.tsbuildinfo
@@ -40,6 +43,8 @@ test_output.log
 coverage
 **/coverage
 .nyc_output
+apps/client/playwright-report
+apps/client/test-results
 
 # IDE / OS
 .idea
@@ -69,4 +74,5 @@ apps/client/src-tauri/target
 .cache
 tmp
 temp
+var
 *.local

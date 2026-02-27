@@ -9,6 +9,10 @@ export function eligibleForShowdown(p: PlayerState): boolean {
   return p.status === "ACTIVE" || p.status === "ALL_IN";
 }
 
+function isSeatSchedulable(state: PokerState, p: PlayerState): boolean {
+  return p.seat >= 0 && p.seat < state.seats.length && state.seats[p.seat] === p.id;
+}
+
 export function resetBettingRound(state: PokerState) {
   state.roundCurrentBetCents = 0;
   state.minRaiseCents = state.bigBlindCents;
@@ -24,7 +28,7 @@ export function resetBettingRound(state: PokerState) {
  */
 export function onNewBetLevel(state: PokerState, actorId: string) {
   for (const p of state.playersById.values()) {
-    if (!eligibleToAct(p)) {
+    if (!eligibleToAct(p) || !isSeatSchedulable(state, p)) {
       p.needsAction = false;
       continue;
     }
@@ -49,7 +53,7 @@ export function syncRoundCurrentBetCents(state: PokerState): void {
  */
 export function beginRound(state: PokerState) {
   for (const p of state.playersById.values()) {
-    p.needsAction = eligibleToAct(p);
+    p.needsAction = eligibleToAct(p) && isSeatSchedulable(state, p);
   }
 }
 
@@ -66,7 +70,7 @@ export function bettingRoundComplete(state: PokerState): boolean {
   }
   // also ensure all ACTIVE players have matched current bet (or have 0 stack due to all-in handled elsewhere)
   for (const p of state.playersById.values()) {
-    if (!eligibleToAct(p)) continue;
+    if (!eligibleToAct(p) || !isSeatSchedulable(state, p)) continue;
     if (p.roundBetCents !== state.roundCurrentBetCents) return false;
   }
   return true;
@@ -76,7 +80,7 @@ export function bettingRoundComplete(state: PokerState): boolean {
  * Determine if no further betting is possible because all remaining players are all-in or folded.
  */
 export function noFurtherBettingPossible(state: PokerState): boolean {
-  const live = [...state.playersById.values()].filter(p => p.status !== "OUT");
+  const live = [...state.playersById.values()].filter((p) => p.status !== "OUT" && isSeatSchedulable(state, p));
   const contenders = live.filter(p => p.status !== "FOLDED" && p.status !== "ABANDONED");
   const active = contenders.filter(p => p.status === "ACTIVE");
   const allIn = contenders.filter(p => p.status === "ALL_IN");

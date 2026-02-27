@@ -1,6 +1,6 @@
 /**
  * Parse avatarUrl from GET /api/auth/me response shape.
- * Used so table hero avatar can use the same contract as useProfile.
+ * Single source for "user.avatarUrl" from me(); used by useProfile and table hero.
  */
 export function getAvatarUrlFromMeResponse(
   data: unknown

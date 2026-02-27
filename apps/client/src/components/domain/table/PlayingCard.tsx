@@ -1,8 +1,10 @@
-import { View } from "react-native";
+import { useState } from "react";
+import { Image, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { CardBackPattern } from "./CardBackPatterns";
 import { DEFAULT_CARD_DIMENSIONS, CARD_SCALES } from "./constants/cardDimensions.constants";
+import { getCardFaceSource } from "./cardFaceAssets";
 
 const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 const RANKS: Record<string, string> = {
@@ -34,10 +36,12 @@ export function PlayingCard({
   suit?: string;
   faceDown?: boolean;
 }) {
+  const [imageError, setImageError] = useState(false);
   const { cardBackPattern, cardBackHue, cardBackSaturation, cardBackLightness } = usePreferencesStore();
-  
+
   const normalizedSuit = suit?.toLowerCase();
   const normalizedRank = rank?.toUpperCase();
+
   if (faceDown) {
     return (
       <CardBackPattern
@@ -50,18 +54,57 @@ export function PlayingCard({
       />
     );
   }
+
+  const cardFaceStyle: "glyph" | "image" = "image";
+  const imageSource =
+    cardFaceStyle === "image" && !imageError && normalizedRank && normalizedSuit
+      ? getCardFaceSource(normalizedRank, normalizedSuit)
+      : null;
+
+  if (imageSource) {
+    return (
+      <View
+        renderToHardwareTextureAndroid
+        style={[cardStyle, { backfaceVisibility: "hidden" as const }]}
+        className="rounded-card border border-border-subtle bg-card-face overflow-hidden"
+      >
+        <Image
+          source={imageSource}
+          style={{ width: DEFAULT_CARD_DIMENSIONS.width, height: DEFAULT_CARD_DIMENSIONS.height }}
+          resizeMode="contain"
+          onError={() => setImageError(true)}
+        />
+      </View>
+    );
+  }
+
   const r = normalizedRank ? RANKS[normalizedRank] ?? normalizedRank : "?";
   const s = normalizedSuit ? SUITS[normalizedSuit] ?? normalizedSuit : "?";
   const red = normalizedSuit ? isRedSuit(normalizedSuit) : false;
   const textColor = red ? "#dc2626" : "#111827";
+
   return (
     <View
       renderToHardwareTextureAndroid
       style={[cardLayout, { backfaceVisibility: "hidden" as const }]}
       className="rounded-card border border-border-subtle bg-card-face gap-1"
     >
-      <Text variant="h2" className="text-xl leading-tight font-extrabold" style={{ color: textColor }} allowFontScaling={false}>{r}</Text>
-      <Text variant="body" className="text-base leading-none font-bold" style={{ color: textColor }} allowFontScaling={false}>{s}</Text>
+      <Text
+        variant="h2"
+        className="text-xl leading-tight font-extrabold"
+        style={{ color: textColor }}
+        allowFontScaling={false}
+      >
+        {r}
+      </Text>
+      <Text
+        variant="body"
+        className="text-base leading-none font-bold"
+        style={{ color: textColor }}
+        allowFontScaling={false}
+      >
+        {s}
+      </Text>
     </View>
   );
 }

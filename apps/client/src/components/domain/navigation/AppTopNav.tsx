@@ -2,13 +2,17 @@ import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { AvatarImage } from "@/components/base/AvatarImage";
 import { formatCents } from "@/lib/format";
+
+const TOP_NAV_AVATAR_SIZE = 40;
 
 export type AppTopNavProps = {
   username: string;
   amountCents: number;
   onlineLabel: string;
   onPressOnline?: () => void;
+  avatarUrl?: string | null;
 };
 
 export function AppTopNav({
@@ -16,6 +20,7 @@ export function AppTopNav({
   amountCents,
   onlineLabel,
   onPressOnline,
+  avatarUrl,
 }: AppTopNavProps) {
   const router = useRouter();
   const initial = (username || "P").slice(0, 1).toUpperCase();
@@ -23,14 +28,27 @@ export function AppTopNav({
   return (
     <View className="ui-section mb-2 ui-row items-center justify-between ui-inline-3">
       <View className="ui-row items-center ui-inline-3 flex-1">
-        <Pressable
+        <AvatarImage
+          avatarUrl={avatarUrl}
+          initial={initial}
           onPress={() => router.push("/settings")}
-          className="h-10 w-10 rounded-full ui-surface ui-center border border-border-subtle"
-        >
-          <Text numberOfLines={1} variant="body">
-            {initial}
-          </Text>
-        </Pressable>
+          style={{
+            width: TOP_NAV_AVATAR_SIZE,
+            height: TOP_NAV_AVATAR_SIZE,
+            borderRadius: TOP_NAV_AVATAR_SIZE / 2,
+            overflow: "hidden",
+            backgroundColor: "var(--c-panel-elevated, #333)",
+            borderWidth: 1,
+            borderColor: "var(--c-border-subtle, #555)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          imageStyle={{
+            width: TOP_NAV_AVATAR_SIZE,
+            height: TOP_NAV_AVATAR_SIZE,
+            borderRadius: TOP_NAV_AVATAR_SIZE / 2,
+          }}
+        />
         <Pressable onPress={() => router.push("/settings")} className="flex-1">
           <Text numberOfLines={1} variant="body">
             {username}

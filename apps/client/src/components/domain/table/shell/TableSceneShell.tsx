@@ -31,6 +31,7 @@ export type TableSceneShellProps = {
   hero: ReactNode;
   bottom: ReactNode;
   rootClassName?: string;
+  immersiveBoard?: boolean;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -51,6 +52,7 @@ export function TableSceneShell({
   hero,
   bottom,
   rootClassName,
+  immersiveBoard = false,
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
@@ -93,57 +95,73 @@ export function TableSceneShell({
           />
         </View>
 
-        <ScrollView>
-          <View
-            collapsable={false}
-            style={layoutStyles.opponentStripSection}
-            className="table-opponent-strip"
-          >
-            {opponents.length === 0 && opponentStripEmptyState ? (
-              <View className="opponent-strip-empty-state">
-                {opponentStripEmptyState}
-              </View>
-            ) : (
-              <OpponentStrip
-                opponents={opponents}
-                winnerName={winnerName}
-                onPlayerPress={onPlayerPress}
-              />
-            )}
-          </View>
-
-          <View collapsable={false}>
-            <View collapsable={false} style={layoutStyles.gameArea}>
-              <View collapsable={false} style={layoutStyles.dealerBar}>
-                {dealerBar}
-              </View>
-              <View collapsable={false} style={layoutStyles.feltArea}>
+        <ScrollView contentContainerStyle={immersiveBoard ? { flexGrow: 1 } : undefined}>
+          {immersiveBoard ? (
+            <View
+              collapsable={false}
+              style={{
+                flexGrow: 1,
+                justifyContent: "center",
+              }}
+            >
+              <View collapsable={false} style={{ flex: 1, justifyContent: "center" }}>
                 {board}
               </View>
             </View>
-            <View
-              collapsable={false}
-              style={[layoutStyles.heroSection, heroSectionStyle]}
-              className="table-hero-section"
-            >
-              {hero}
-            </View>
-          </View>
+          ) : (
+            <>
+              <View
+                collapsable={false}
+                style={layoutStyles.opponentStripSection}
+                className="table-opponent-strip"
+              >
+                {opponents.length === 0 && opponentStripEmptyState ? (
+                  <View className="opponent-strip-empty-state">
+                    {opponentStripEmptyState}
+                  </View>
+                ) : (
+                  <OpponentStrip
+                    opponents={opponents}
+                    winnerName={winnerName}
+                    onPlayerPress={onPlayerPress}
+                  />
+                )}
+              </View>
 
-          <View
-            collapsable={false}
-            style={[
-              layoutStyles.actionBarSection,
-              {
-                height: ACTION_BAR_HEIGHT + insets.bottom,
-                minHeight: ACTION_BAR_HEIGHT + insets.bottom,
-                paddingBottom: insets.bottom,
-              },
-            ]}
-            className="border-t border-border-subtle flex items-center justify-center"
-          >
-            {bottom}
-          </View>
+              <View collapsable={false}>
+                <View collapsable={false} style={layoutStyles.gameArea}>
+                  <View collapsable={false} style={layoutStyles.dealerBar}>
+                    {dealerBar}
+                  </View>
+                  <View collapsable={false} style={layoutStyles.feltArea}>
+                    {board}
+                  </View>
+                </View>
+                <View
+                  collapsable={false}
+                  style={[layoutStyles.heroSection, heroSectionStyle]}
+                  className="table-hero-section"
+                >
+                  {hero}
+                </View>
+              </View>
+
+              <View
+                collapsable={false}
+                style={[
+                  layoutStyles.actionBarSection,
+                  {
+                    height: ACTION_BAR_HEIGHT + insets.bottom,
+                    minHeight: ACTION_BAR_HEIGHT + insets.bottom,
+                    paddingBottom: insets.bottom,
+                  },
+                ]}
+                className="border-t border-border-subtle flex items-center justify-center"
+              >
+                {bottom}
+              </View>
+            </>
+          )}
         </ScrollView>
       </TableLayoutHeightProvider>
     </View>

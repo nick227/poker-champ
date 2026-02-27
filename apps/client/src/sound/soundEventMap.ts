@@ -27,4 +27,6 @@ export const SOUND_EVENT_MAP: Record<SoundEvent, SoundKey> = {
   "slot.reelSpin": "slotReelSpin",
   "slot.reelStop": "slotReelStop",
   "slot.win": "slotWin",
+  "slot.jackpot": "slotJackpot",
+  "slot.jackpotFanfare": "slotJackpotFanfare",
 };
