@@ -11,8 +11,8 @@ Target topology:
 - Service URL: `https://poker-champ-api-realtime-production.up.railway.app`
 - Public networking port: `2567`
 - Build command: `pnpm install --frozen-lockfile && pnpm build`
-- Start command: `pnpm start` (or `pnpm start:with-seed` to run lessons content seed on every start so prod stays in sync with `docs/lessons/content`)
-- One-off/preview deploy migration command: `pnpm db:migrate`
+- Start command: `pnpm start` (or `pnpm start:with-seed` to run migrations, then lessons seed, then start—use this so prod has tables and lesson content on every deploy)
+- One-off: If you need to run only migrations without starting the server, use Railway’s “Run command” (or a one-off job) with `pnpm db:migrate`.
 - Required env:
   - `NODE_ENV=production`
   - `PORT=2567`
@@ -43,12 +43,19 @@ Target topology:
 3. Run `pnpm db:migrate` once on Service A after first successful deploy.
 4. Open `https://poker-champ-web-production.up.railway.app` and verify API + WS calls hit the API service URL.
 
-## Lessons content on deploy
+## Migrations and lessons on deploy
 
-The lessons catalog (L01–L15) and follow-up content live in `docs/lessons/content` and are loaded into the DB by `pnpm lessons:seed:content`. **The build does not run the seed.** To get the latest lesson content on Railway after a push:
+**Tables:** Prisma migrations must be applied before the app (or the lessons seed) uses the DB. **The build does not run migrations.**
 
-- **Option A (recommended):** Set the api-realtime service **Start command** to `pnpm start:with-seed`. The seed runs before the server starts (idempotent upsert, a few seconds). Every deploy then has up-to-date lesson content.
-- **Option B:** Run `pnpm lessons:seed:content` once after deploy (e.g. Railway “Run command” or a one-off job). Use this if you prefer not to seed on every start.
+**Lessons:** The catalog (L01–L15) and follow-up content live in `docs/lessons/content` and are loaded by `pnpm lessons:seed:content`. The seed requires the `Lesson` and `LessonStep` tables to exist.
+
+**Recommended:** Set the api-realtime **Start command** to:
+
+```bash
+pnpm start:with-seed
+```
+
+That runs in order: `pnpm db:migrate` (create/update tables), then `pnpm lessons:seed:content` (upsert lesson content), then `pnpm start`. So every deploy gets migrations applied and up-to-date lesson content without needing SSH or a separate migration step. If you prefer not to seed on every start, use `pnpm db:migrate && pnpm start` and run the seed occasionally via Railway “Run command” with `pnpm lessons:seed:content`.
 
 ## Notes
 

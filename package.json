@@ -60,7 +60,7 @@
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",
     "start": "node dist/index.js",
-    "start:with-seed": "pnpm lessons:seed:content && pnpm start",
+    "start:with-seed": "pnpm db:migrate && pnpm lessons:seed:content && pnpm start",
     "start:web": "node tools/static-server.js",
     "db:migrate": "prisma migrate deploy",
     "server:typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
