@@ -123,6 +123,17 @@ export class PresenceIndex {
     return this.entriesByUserId.size;
   }
 
+  /** Returns tableIds the user is currently present at (for TABLE kind only). */
+  getTableIdsForUser(userId: string): string[] {
+    const entry = this.entriesByUserId.get(userId);
+    if (!entry) return [];
+    const tableIds: string[] = [];
+    for (const ref of entry.locationsByKey.values()) {
+      if (ref.location.kind === "TABLE") tableIds.push(ref.location.tableId);
+    }
+    return tableIds;
+  }
+
   getPlayersSnapshot(): OnlinePlayerSummary[] {
     const players: OnlinePlayerSummary[] = [];
     for (const [userId, entry] of this.entriesByUserId.entries()) {

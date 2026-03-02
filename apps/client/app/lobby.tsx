@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, useWindowDimensions, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { View, ScrollView, Pressable } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
 import { InstantGamePanels } from "@/components/domain/lobby/InstantGamePanels";
+import { ReplayQuickLinks } from "@/components/domain/lobby/ReplayQuickLinks";
 import { GameTablePanel } from "@/components/domain/lobby/GameTablePanel";
 import { GameTablePanelSkeleton } from "@/components/domain/lobby/GameTablePanelSkeleton";
 import { EmptyState } from "@/components/domain/lobby/EmptyState";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { CreateGameModal } from "@/components/domain/lobby/CreateGameModal";
 import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
+import { ReplaySheet } from "@/components/replay/ReplaySheet";
+import type { ReplaySource } from "@/components/replay/replay.types";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
+import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 import { useBankroll } from "@/hooks/useBankroll";
@@ -24,6 +28,8 @@ import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
 import { tablePath } from "@/lib/nav";
+import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
+import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import {
   buildInstantCreateTableConfig,
   type InstantGamePresetId,
@@ -41,6 +47,9 @@ const SORT_CYCLE: Record<SortKey, SortKey> = { name: "players", players: "blinds
 
 export default function LobbyScreen() {
   const router = useRouter();
+  const { fromLesson } = useLocalSearchParams<{ fromLesson?: string }>();
+  const [fromLessonDismissed, setFromLessonDismissed] = useState(false);
+  const showFromLessonNudge = Boolean(fromLesson && !fromLessonDismissed);
   const {
     tables,
     refresh,
@@ -64,8 +73,13 @@ export default function LobbyScreen() {
     maxBuyInCents: number;
   } | null>(null);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
+  const [replaySheetSource, setReplaySheetSource] = useState<ReplaySource | null>(null);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
-  const { width } = useWindowDimensions();
+  const {
+    latestHandId,
+    loading: latestReplayLoading,
+    error: latestReplayError,
+  } = useLatestReplayHand();
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => {
@@ -163,6 +177,22 @@ export default function LobbyScreen() {
   return (
     <Screen>
       <Masthead />
+      {showFromLessonNudge ? (
+        <View className="mx-4 mt-2 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
+          <Text variant="body" className="text-foreground flex-1 text-sm">
+            You just completed a lesson. Apply it at a table below.
+          </Text>
+          <Pressable
+            onPress={() => setFromLessonDismissed(true)}
+            className="rounded px-2 py-1"
+            hitSlop={8}
+          >
+            <Text variant="caption" className="text-muted">
+              Dismiss
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <AppTopNav
         username={profile.username ?? "Player"}
         onlineLabel={onlineLabel}
@@ -172,6 +202,22 @@ export default function LobbyScreen() {
       />
       <ScrollView className="flex-1">
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
+        <ReplayQuickLinks
+          latestHandId={latestHandId}
+          latestHandLoading={latestReplayLoading}
+          latestHandError={latestReplayError}
+          lessonsEnabled
+          onReplayLastHand={(handId) => setReplaySheetSource({ type: "handId", handId })}
+          onCommunityHand={() => {
+            const hand = getDefaultCommunityHand();
+            setReplaySheetSource({
+              type: "snapshots",
+              handId: `community:${hand.id}`,
+              snapshots: hand.snapshots,
+            });
+          }}
+          onPokerSchool={() => router.push("/lessons")}
+        />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
         <View className="flex-1 ui-column gap-3 p-4">
           {busy ? (
@@ -220,6 +266,11 @@ export default function LobbyScreen() {
         loading={onlineBusy}
         error={onlineError}
         onRefresh={requestOnlinePlayers}
+      />
+      <ReplaySheet
+        visible={replaySheetSource != null}
+        source={replaySheetSource}
+        onClose={() => setReplaySheetSource(null)}
       />
       <BottomBar active="lobby" />
     </Screen>

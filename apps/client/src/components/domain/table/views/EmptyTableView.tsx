@@ -118,7 +118,6 @@ export function EmptyTableView({
 
   if (__DEV__ && !bottom) {
     // This should never happen: EmptyTableView must always render a bottom CTA/state.
-    // eslint-disable-next-line no-console
     console.error("No bottom CTA rendered in EmptyTableView — illegal UI state", {
       hasHand: Boolean(snapshot.hand),
       heroIsSeated,

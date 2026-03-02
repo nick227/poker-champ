@@ -47,6 +47,17 @@
     "apps/client/src/realtime/transport.ts": ["exports"],
     "apps/client/src/theme/colors.ts": ["exports"],
     "apps/client/src/registry/service.registry.ts": ["types"],
-    "apps/client/src/types/replayController.ts": ["types"]
+    "apps/client/src/types/replayController.ts": ["types"],
+    "apps/client/src/contexts/LessonRuntimeContext.tsx": ["exports"],
+    "apps/client/src/hooks/useGameTableProvider.ts": ["exports"],
+    "apps/client/src/hooks/useLessonTableProvider.ts": ["exports"],
+    "apps/client/src/components/lesson/LessonPanel.tsx": ["exports"],
+    "apps/client/src/content/blog/blog.types.ts": ["exports"],
+    "apps/client/src/lib/lessons/lessonEvaluator.ts": ["exports"],
+    "apps/client/src/lib/lessons/lessonSnapshots.ts": ["exports"],
+    "apps/client/src/components/domain/table/loading/TableLoadingGraphic.tsx": ["exports"],
+    "apps/client/src/features/replay/community/communityHands.ts": ["exports"],
+    "apps/client/src/features/table-page/TablePage.tsx": ["exports"],
+    "apps/client/src/assets/cards/generated/cardFacePackRegistry.ts": ["exports"]
   }
 }

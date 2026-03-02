@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { bottomBarScreens, type ScreenKey } from "@/registry/screen.registry";
 
-type Tab = Extract<ScreenKey, "lobby" | "table" | "history" | "leaderboard" | "settings">;
+type Tab = Extract<ScreenKey, "lobby" | "table" | "lessons" | "leaderboard" | "settings">;
 
 export function BottomBar({ active }: { active: Tab }) {
   const router = useRouter();

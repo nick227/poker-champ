@@ -163,7 +163,7 @@ export function SlotMachine({
       const lens = [game.reels[0].length, game.reels[1].length, game.reels[2].length] as const;
       return Object.freeze(lens);
     },
-    [game.reels[0].length, game.reels[1].length, game.reels[2].length],
+    [game.reels],
   );
 
   const symbols = useMemo(() => ({ ...ASSETS.symbols, ...(symbolMap ?? {}) }), [symbolMap]);

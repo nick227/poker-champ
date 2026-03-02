@@ -1,7 +1,9 @@
 import { View } from "react-native";
 import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { ReplayControls } from "@/components/replay/ReplayControls";
+import { Text } from "@/components/base/Text";
 import type { ReplaySurfaceProps } from "./replay.types";
+import { getReplayActionMessage, getReplayHandResultMessage } from "./replayMessages";
 
 /**
  * Single shared renderer for replay: same ActiveTableView as in-game + ReplayControls.
@@ -18,8 +20,15 @@ export function ReplaySurface({
   if (process.env.NODE_ENV !== "production" && sceneModel.canAct) {
     console.warn("ReplaySurface received interactive sceneModel; actions should be disabled in replay");
   }
+  const actionMessage = getReplayActionMessage(snapshot);
+  const handResultMessage = getReplayHandResultMessage(snapshot);
   return (
     <View>
+      <View className="mx-4 mt-4 mb-2 self-start rounded-full border border-border bg-panel px-3 py-1">
+        <Text variant="label" className="text-xs">
+          Replay Mode
+        </Text>
+      </View>
       <ActiveTableView
         snapshot={snapshot}
         sceneModel={sceneModel}
@@ -28,6 +37,9 @@ export function ReplaySurface({
         balanceCents={balanceCents}
         tableStatus="REPLAY"
         connectionStatus="CONNECTED"
+        tableMode="replay"
+        actionMessage={actionMessage}
+        handResultMessage={handResultMessage}
       />
       <ReplayControls
         currentStep={controller.currentStep}

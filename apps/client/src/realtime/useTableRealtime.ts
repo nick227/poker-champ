@@ -49,6 +49,7 @@ export function useTableRealtime({
   const realtimeDisconnectRef = useRef<(consented?: boolean) => void>(() => undefined);
   const nativeRoomRef = useRef<TableRealtimeRoom | null>(null);
   const bridgedRoomRef = useRef<TableRealtimeRoom | null>(null);
+  const didDisconnectOthersRef = useRef(false);
   onErrorRef.current = onError;
   onTableGoneRef.current = onTableGone;
   onReadyRoomRef.current = onReadyRoom;
@@ -62,6 +63,14 @@ export function useTableRealtime({
       }) as const,
     [tableId, buyInCents, hasValidBuyIn, password],
   );
+
+  // Disconnect any other table session so only one table connection is active (avoids black screen on quick table switch).
+  // Run once per mount so we don't trigger a cascade of store/callback updates that could cause React #185 (max update depth).
+  useEffect(() => {
+    if (!tableId || !enabled || didDisconnectOthersRef.current) return;
+    didDisconnectOthersRef.current = true;
+    storeRegistry.tables().disconnectOtherTables(tableId);
+  }, [tableId, enabled]);
 
   const realtime = useRealtimeChannel({
     scope: "table",
@@ -112,6 +121,7 @@ export function useTableRealtime({
             disconnect: (consented?: boolean) => realtimeDisconnectRef.current(consented),
           };
         }
+        storeRegistry.tables().registerTableDisconnect(tableId, (consented) => realtimeDisconnectRef.current(consented));
         onReadyRoomRef.current?.(bridgedRoomRef.current);
         return;
       }
@@ -120,6 +130,7 @@ export function useTableRealtime({
       onReadyRoomRef.current?.(null);
     },
     onClose: () => {
+      storeRegistry.tables().unregisterTableDisconnect(tableId);
       nativeRoomRef.current = null;
       bridgedRoomRef.current = null;
       onReadyRoomRef.current?.(null);
@@ -152,6 +163,7 @@ export function useTableRealtime({
     storeRegistry.tables().registerTableSender(tableId, realtimeSendRef.current);
     return () => {
       debugLog("DISPOSE", { tableId });
+      storeRegistry.tables().unregisterTableDisconnect(tableId);
       storeRegistry.tables().unregisterTableSender(tableId);
       nativeRoomRef.current = null;
       bridgedRoomRef.current = null;

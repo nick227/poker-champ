@@ -1,0 +1,11 @@
+{
+  "curriculumTag": "poker_lessons_full_15_v1",
+  "lessonCount": 15,
+  "stepCount": 30,
+  "gradingVersion": 1,
+  "distributionKey": {
+    "type": "action_bucket",
+    "buckets": ["fold", "call", "raise", "all_in"]
+  },
+  "lockedAt": "2026-03-02"
+}

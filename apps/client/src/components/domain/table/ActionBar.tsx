@@ -92,6 +92,8 @@ export function ActionBar({
       : `${TABLE.check}/${TABLE.bet}`;
 
   const canShowBetInput = showActions && wager && WAGER;
+  const showWagerButton = WAGER;
+  const showChipsRow = WAGER || ALL_IN;
 
   const submitWager = useCallback(
     (rawAmount: number) => {
@@ -230,20 +232,26 @@ export function ActionBar({
               className="flex-1 min-w-0"
               disabled={!CHECK && !CALL}
             />
-            <Button
-              variant="primary"
-              title={betRaiseLabel}
-              onPress={handleBetRaise}
-              className="flex-1 min-w-0"
-              disabled={betRaiseDisabled}
-            />
+            {showWagerButton ? (
+              <Button
+                variant="primary"
+                title={betRaiseLabel}
+                onPress={handleBetRaise}
+                className="flex-1 min-w-0"
+                disabled={betRaiseDisabled}
+              />
+            ) : null}
           </View>
-          <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
-            <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} />
-            <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} />
-            <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} />
-            <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} />
-          </View>
+          {showChipsRow ? (
+            <View className="ui-row justify-center" style={{ gap: 8, minHeight: CHIPS_ROW_HEIGHT }}>
+              {WAGER ? <ChipButton title={TABLE.min} onPress={handleMin} disabled={!WAGER} /> : null}
+              {WAGER ? <ChipButton title={TABLE.halfPot} onPress={handleHalfPot} disabled={!WAGER} /> : null}
+              {WAGER ? <ChipButton title={TABLE.pot} onPress={handlePot} disabled={!WAGER} /> : null}
+              {ALL_IN ? <ChipButton title={TABLE.allIn} onPress={handleAllIn} disabled={!ALL_IN} /> : null}
+            </View>
+          ) : (
+            <View collapsable={false} style={{ minHeight: CHIPS_ROW_HEIGHT, width: "100%" }} />
+          )}
           <View className="ui-row justify-center">
             {canShowBetInput ? (
               <Input

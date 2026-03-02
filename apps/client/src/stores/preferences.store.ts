@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { zustandStorage } from "@/lib/storage";
+import {
+  DEFAULT_CARD_FACE_PACK_ID,
+  getValidCardFacePackId,
+  type CardFacePackId,
+} from "@/assets/cards/packs";
 
 type CardBackPattern = "classic" | "geometric" | "ornate" | "minimal" | "gradient";
 
@@ -10,6 +15,7 @@ type PreferencesState = {
   notificationsEnabled: boolean;
   feltColor: string; // HSL components
   cardFaceColor: string; // HSL components
+  cardFacePackId: CardFacePackId;
   cardBackColor: string; // HSL components (legacy, for backward compatibility)
   cardBackPattern: CardBackPattern;
   cardBackHue: number; // 0-360 for HSL hue
@@ -23,6 +29,7 @@ type PreferencesState = {
   setNotificationsEnabled: (v: boolean) => void;
   setFeltColor: (v: string) => void;
   setCardFaceColor: (v: string) => void;
+  setCardFacePackId: (id: CardFacePackId) => void;
   setCardBackColor: (v: string) => void;
   setCardBackPattern: (pattern: CardBackPattern) => void;
   setCardBackHue: (hue: number) => void;
@@ -42,6 +49,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       notificationsEnabled: true,
       feltColor: "158 30% 14%",
       cardFaceColor: "0 0% 98%",
+      cardFacePackId: DEFAULT_CARD_FACE_PACK_ID,
       cardBackColor: "217 50% 22%",
       cardBackPattern: "classic",
       cardBackHue: 217,
@@ -55,6 +63,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       setNotificationsEnabled: (v) => set({ notificationsEnabled: v }),
       setFeltColor: (v) => set({ feltColor: v }),
       setCardFaceColor: (v) => set({ cardFaceColor: v }),
+      setCardFacePackId: (id) => set({ cardFacePackId: getValidCardFacePackId(id) }),
       setCardBackColor: (v) => set({ cardBackColor: v }),
       setCardBackPattern: (pattern) => set({ cardBackPattern: pattern }),
       setCardBackHue: (hue) => set({ cardBackHue: Math.max(0, Math.min(360, hue)) }),
@@ -154,6 +163,20 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: "preferences-storage",
       storage: createJSONStorage(() => zustandStorage),
+      version: 1,
+      migrate: (persistedState) => {
+        if (!persistedState || typeof persistedState !== "object") return persistedState;
+        const state = persistedState as Record<string, unknown>;
+        const currentPackId = state.cardFacePackId;
+        const nextPackId =
+          currentPackId == null
+            ? DEFAULT_CARD_FACE_PACK_ID
+            : getValidCardFacePackId(currentPackId);
+        return {
+          ...state,
+          cardFacePackId: nextPackId,
+        };
+      },
     }
   )
 );

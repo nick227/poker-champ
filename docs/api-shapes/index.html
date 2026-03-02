@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Poker Champ API Shape Explorer</title>
+    <style>
+      :root {
+        --bg: #f3f0e8;
+        --panel: #fffcf5;
+        --ink: #1f2937;
+        --muted: #5f6b7a;
+        --accent: #0f766e;
+        --border: #d9d0c1;
+        --chip: #e8f5f3;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 20% 10%, #fff4d6, transparent 40%), var(--bg);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        min-height: 100vh;
+      }
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: linear-gradient(180deg, #fff8ea 0%, #fffdf8 100%);
+        padding: 16px;
+      }
+      .content {
+        padding: 18px 20px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.1rem;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-bottom: 14px;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .tab {
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      .tab.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      input[type="search"] {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+      }
+      .list {
+        max-height: calc(100vh - 210px);
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .item {
+        padding: 8px 10px;
+        border-bottom: 1px solid #f3ede2;
+        cursor: pointer;
+      }
+      .item:hover { background: #fcf7ec; }
+      .item.active { background: #effdfa; }
+      .item:last-child { border-bottom: 0; }
+      .pill {
+        display: inline-block;
+        margin-right: 6px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        padding: 2px 8px;
+        background: var(--chip);
+        color: #0b5f5a;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 1rem;
+      }
+      .tree {
+        font-family: "IBM Plex Mono", "Consolas", monospace;
+        font-size: 0.86rem;
+        line-height: 1.45;
+      }
+      .leaf { padding: 2px 0; }
+      details { margin-left: 14px; }
+      summary { cursor: pointer; }
+      .muted { color: var(--muted); }
+      .code {
+        font-family: "IBM Plex Mono", "Consolas", monospace;
+        background: #fbf7ef;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+      .code-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0;
+      }
+      .copy-btn {
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--ink);
+        border-radius: 6px;
+        padding: 3px 8px;
+        cursor: pointer;
+      }
+      .copy-btn:hover { background: #f6f0e4; }
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+        .list { max-height: 260px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h1>API Shape Explorer</h1>
+        <div id="meta" class="meta"></div>
+        <div class="tabs">
+          <button class="tab active" data-tab="operations">Endpoints</button>
+          <button class="tab" data-tab="models">Models</button>
+        </div>
+        <input id="search" type="search" placeholder="Filter..." />
+        <div id="list" class="list"></div>
+      </aside>
+      <main class="content" id="details"></main>
+    </div>
+    <script>
+      const state = {
+        tab: "operations",
+        search: "",
+        data: null,
+        activeKey: null,
+      };
+
+      const listEl = document.getElementById("list");
+      const detailsEl = document.getElementById("details");
+      const searchEl = document.getElementById("search");
+      const metaEl = document.getElementById("meta");
+
+      function byText(value) {
+        return (value ?? "").toLowerCase();
+      }
+
+      function renderShape(shape, label = null, level = 0) {
+        const node = document.createElement("div");
+        node.className = "tree";
+
+        const titleParts = [];
+        if (label) titleParts.push(label);
+        if (!shape) titleParts.push("unknown");
+
+        if (!shape) {
+          const leaf = document.createElement("div");
+          leaf.className = "leaf";
+          leaf.textContent = titleParts.join(": ");
+          node.appendChild(leaf);
+          return node;
+        }
+
+        const prefix = titleParts.length ? `${titleParts.join(": ")} ` : "";
+
+        if (shape.kind === "scalar") {
+          const leaf = document.createElement("div");
+          leaf.className = "leaf";
+          leaf.textContent = `${prefix}${shape.type}${shape.nullable ? " | null" : ""}${shape.format ? ` (${shape.format})` : ""}`;
+          node.appendChild(leaf);
+          return node;
+        }
+
+        if (shape.kind === "enum") {
+          const leaf = document.createElement("div");
+          leaf.className = "leaf";
+          leaf.textContent = `${prefix}enum ${JSON.stringify(shape.values)}${shape.nullable ? " | null" : ""}`;
+          node.appendChild(leaf);
+          return node;
+        }
+
+        if (shape.kind === "ref") {
+          const details = document.createElement("details");
+          details.open = level < 2;
+          const summary = document.createElement("summary");
+          summary.textContent = `${prefix}ref -> ${shape.ref}${shape.circular ? " (circular)" : ""}${shape.missing ? " (missing)" : ""}`;
+          details.appendChild(summary);
+          details.appendChild(makeCodeRow(`components["schemas"]["${shape.ref}"]`));
+          if (shape.target && !shape.circular) {
+            details.appendChild(renderShape(shape.target, null, level + 1));
+          }
+          node.appendChild(details);
+          return node;
+        }
+
+        if (shape.kind === "array") {
+          const details = document.createElement("details");
+          details.open = level < 2;
+          const summary = document.createElement("summary");
+          summary.textContent = `${prefix}array${shape.nullable ? " | null" : ""}`;
+          details.appendChild(summary);
+          details.appendChild(renderShape(shape.items, "items", level + 1));
+          node.appendChild(details);
+          return node;
+        }
+
+        if (shape.kind === "object") {
+          const details = document.createElement("details");
+          details.open = level < 2;
+          const summary = document.createElement("summary");
+          summary.textContent = `${prefix}object${shape.nullable ? " | null" : ""}`;
+          details.appendChild(summary);
+
+          const propertyNames = Object.keys(shape.properties || {});
+          if (!propertyNames.length && !shape.additionalProperties) {
+            const empty = document.createElement("div");
+            empty.className = "leaf muted";
+            empty.textContent = "(no defined properties)";
+            details.appendChild(empty);
+          }
+
+          for (const propertyName of propertyNames) {
+            const property = shape.properties[propertyName];
+            const propertyLabel = property.required ? propertyName : `${propertyName}?`;
+            details.appendChild(renderShape(property.shape, propertyLabel, level + 1));
+          }
+          if (shape.additionalProperties) {
+            details.appendChild(renderShape(shape.additionalProperties, "[key: string]", level + 1));
+          }
+
+          node.appendChild(details);
+          return node;
+        }
+
+        if (shape.kind === "oneOf" || shape.kind === "anyOf" || shape.kind === "allOf") {
+          const details = document.createElement("details");
+          details.open = level < 2;
+          const summary = document.createElement("summary");
+          summary.textContent = `${prefix}${shape.kind}`;
+          details.appendChild(summary);
+          (shape.variants || []).forEach((variant, index) => {
+            details.appendChild(renderShape(variant, `variant_${index + 1}`, level + 1));
+          });
+          node.appendChild(details);
+          return node;
+        }
+
+        const fallback = document.createElement("div");
+        fallback.className = "leaf";
+        fallback.textContent = `${prefix}${shape.kind ?? "unknown"}`;
+        node.appendChild(fallback);
+        return node;
+      }
+
+      function card(title, contentNode) {
+        const wrapper = document.createElement("section");
+        wrapper.className = "card";
+        const heading = document.createElement("h2");
+        heading.textContent = title;
+        wrapper.appendChild(heading);
+        wrapper.appendChild(contentNode);
+        return wrapper;
+      }
+
+      async function copyText(value) {
+        try {
+          await navigator.clipboard.writeText(value);
+        } catch {
+          const area = document.createElement("textarea");
+          area.value = value;
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          document.execCommand("copy");
+          document.body.removeChild(area);
+        }
+      }
+
+      function makeCodeRow(typePath) {
+        const row = document.createElement("div");
+        row.className = "code-row";
+        const code = document.createElement("span");
+        code.className = "code";
+        code.textContent = typePath;
+        row.appendChild(code);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-btn";
+        button.textContent = "Copy";
+        button.addEventListener("click", () => void copyText(typePath));
+        row.appendChild(button);
+        return row;
+      }
+
+      function renderOperation(operation) {
+        detailsEl.innerHTML = "";
+
+        const top = document.createElement("div");
+        top.className = "card";
+        top.innerHTML = `
+          <h2><span class="pill">${operation.method}</span><span class="code">${operation.path}</span></h2>
+          ${operation.summary ? `<div>${operation.summary}</div>` : ""}
+          <div class="muted">${operation.operationId}</div>
+        `;
+        detailsEl.appendChild(top);
+
+        const typePathsNode = document.createElement("div");
+        typePathsNode.appendChild(makeCodeRow(operation.typePath));
+        if (operation.request.bodyTypePath) typePathsNode.appendChild(makeCodeRow(operation.request.bodyTypePath));
+        detailsEl.appendChild(card("Type Paths", typePathsNode));
+
+        const sdkNode = document.createElement("div");
+        if ((operation.sdkMatches || []).length) {
+          operation.sdkMatches.forEach((match) => {
+            const line = document.createElement("div");
+            line.className = "leaf";
+            line.textContent = `${match.namespace}.${match.methodName}()`;
+            sdkNode.appendChild(line);
+          });
+        } else {
+          sdkNode.innerHTML = `<div class="muted">No SDK method match found.</div>`;
+        }
+        detailsEl.appendChild(card("SDK Methods", sdkNode));
+
+        const paramsNode = document.createElement("div");
+        for (const pathParam of operation.request.pathParams || []) {
+          paramsNode.appendChild(renderShape(pathParam.shape, `path.${pathParam.name}${pathParam.required ? "" : "?"}`));
+        }
+        for (const queryParam of operation.request.queryParams || []) {
+          paramsNode.appendChild(renderShape(queryParam.shape, `query.${queryParam.name}${queryParam.required ? "" : "?"}`));
+        }
+        if (!(operation.request.pathParams || []).length && !(operation.request.queryParams || []).length) {
+          paramsNode.innerHTML = `<div class="muted">No path/query params.</div>`;
+        }
+        detailsEl.appendChild(card("Parameters", paramsNode));
+
+        const reqNode = document.createElement("div");
+        reqNode.appendChild(renderShape(operation.request.body, "body"));
+        detailsEl.appendChild(card("Request Body", reqNode));
+
+        const resNode = document.createElement("div");
+        (operation.responses || []).forEach((response) => {
+          const block = document.createElement("details");
+          block.open = response.statusCode === "200";
+          const summary = document.createElement("summary");
+          summary.textContent = `${response.statusCode}${response.description ? ` - ${response.description}` : ""}`;
+          block.appendChild(summary);
+          if (response.typePath) block.appendChild(makeCodeRow(response.typePath));
+          block.appendChild(renderShape(response.shape, "response"));
+          resNode.appendChild(block);
+        });
+        detailsEl.appendChild(card("Responses", resNode));
+      }
+
+      function renderModel(model) {
+        detailsEl.innerHTML = "";
+        const top = document.createElement("div");
+        top.className = "card";
+        top.innerHTML = `<h2><span class="code">${model.name}</span></h2>`;
+        detailsEl.appendChild(top);
+        detailsEl.appendChild(card("Type Path", makeCodeRow(model.typePath)));
+        detailsEl.appendChild(card("Shape", renderShape(model.shape, model.name)));
+      }
+
+      function getVisibleItems() {
+        if (!state.data) return [];
+        if (state.tab === "operations") {
+          return state.data.operations.filter((operation) => {
+            const text = byText(`${operation.method} ${operation.path} ${operation.operationId} ${(operation.sdkMatches || []).map((m) => `${m.namespace}.${m.methodName}`).join(" ")}`);
+            return text.includes(state.search);
+          });
+        }
+        return state.data.models.filter((model) => byText(model.name).includes(state.search));
+      }
+
+      function renderList() {
+        listEl.innerHTML = "";
+        const items = getVisibleItems();
+        for (const item of items) {
+          const key = state.tab === "operations" ? `${item.method} ${item.path}` : item.name;
+          const row = document.createElement("div");
+          row.className = `item ${state.activeKey === key ? "active" : ""}`;
+
+          if (state.tab === "operations") {
+            row.innerHTML = `<span class="pill">${item.method}</span>${item.path}`;
+          } else {
+            row.textContent = item.name;
+          }
+
+          row.addEventListener("click", () => {
+            state.activeKey = key;
+            renderList();
+            if (state.tab === "operations") renderOperation(item);
+            else renderModel(item);
+          });
+          listEl.appendChild(row);
+        }
+
+        if (!items.length) {
+          listEl.innerHTML = `<div class="item muted">No matches.</div>`;
+          detailsEl.innerHTML = "";
+          return;
+        }
+
+        const hasActive = items.some((item) =>
+          (state.tab === "operations" ? `${item.method} ${item.path}` : item.name) === state.activeKey
+        );
+        if (!hasActive) {
+          const first = items[0];
+          state.activeKey = state.tab === "operations" ? `${first.method} ${first.path}` : first.name;
+          if (state.tab === "operations") renderOperation(first);
+          else renderModel(first);
+          renderList();
+        }
+      }
+
+      async function boot() {
+        const response = await fetch("./data.json", { cache: "no-store" });
+        const data = await response.json();
+        state.data = data;
+        metaEl.textContent = `${data.counts.operations} operations, ${data.counts.models} models, generated ${new Date(data.generatedAt).toLocaleString()}`;
+        renderList();
+      }
+
+      document.querySelectorAll(".tab").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
+          button.classList.add("active");
+          state.tab = button.dataset.tab;
+          state.activeKey = null;
+          renderList();
+        });
+      });
+
+      searchEl.addEventListener("input", (event) => {
+        state.search = byText(event.target.value);
+        state.activeKey = null;
+        renderList();
+      });
+
+      boot().catch((error) => {
+        detailsEl.innerHTML = `<div class="card"><h2>Failed to load data.json</h2><pre>${String(error)}</pre></div>`;
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,69 @@
+{
+  "lessonId": "L09",
+  "title": "AK vs Two Limpers",
+  "version": 1,
+  "moduleCode": "B_WIN_MORE_FLOPS",
+  "recommendedOrder": 9,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L09_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 9: AK vs Two Limpers. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L09_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 9: AK vs Two Limpers. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "AK over two limpers. Pot 700, cheap to raise. Raising is +EV—build the pot with a premium, take the initiative. Core lesson: Premium hands over limpers should raise—you want a bigger pot and you want to act first post-flop. Limping with AK leaves value on the table and lets opponents see a cheap flop. Take the lead when you have the hand for it."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

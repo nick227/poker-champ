@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { PlayingCard } from "./PlayingCard";
 import { PotChipStack } from "./PotChipStack";
 import type { UiCard } from "./table.adapter";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import {
   COMMUNITY_BOARD_HEIGHT,
   COMMUNITY_CARD_GAP,
@@ -12,6 +13,8 @@ import {
 const COMMUNITY_CARD_KEYS = ["flop1", "flop2", "flop3", "turn", "river"] as const;
 
 export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents: number }) {
+  const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
+
   return (
     <View
       collapsable={false}
@@ -40,7 +43,7 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
             const key = COMMUNITY_CARD_KEYS[i] ?? `card-${i}`;
             return c ? (
               <View key={key} style={{ transform: [{ scale: COMMUNITY_CARD_SCALE }] }}>
-                <PlayingCard rank={c.rank} suit={c.suit} />
+                <PlayingCard rank={c.rank} suit={c.suit} packId={cardFacePackId} />
               </View>
             ) : (
               <View key={key} style={{ transform: [{ scale: COMMUNITY_CARD_SCALE }] }}>

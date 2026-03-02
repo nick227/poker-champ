@@ -216,7 +216,7 @@ describe("table join guardrails", () => {
       "ERROR",
       expect.objectContaining({ code: "SESSION_REPLACED", message: "Session replaced by a newer connection." }),
     );
-    expect(client1.leave).toHaveBeenCalledWith(4000);
+    expect(client1.leave).toHaveBeenCalledWith(4001);
     expect(client2.send).toHaveBeenCalledWith(
       "SESSION_RESTORED",
       expect.objectContaining({ userId: "user_same", joinMode: "RESTORE" }),

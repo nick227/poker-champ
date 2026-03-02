@@ -269,6 +269,14 @@ model User {
   registrations TournamentRegistration[]
   createdTables PokerTable[] @relation("TableCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
+  lessonAttempts LessonAttempt[]
+  conceptMastery UserConceptMastery[]
+  userAwards    UserAward[]
+  curriculumProgress UserCurriculumProgress?
+  handCount     UserHandCount?
+
+  // Monetization
+  membership     Membership?
 
   @@index([usernameNormalized])
 }
@@ -350,6 +358,196 @@ enum TableSeatSessionState {
   LEFT
 }
 
+model Lesson {
+  id               String          @id
+  slug             String          @unique
+  title            String
+  description      String?
+  moduleCode       String          @default("A_STOP_BLEEDING_PREFLOP")
+  recommendedOrder Int             @default(999)
+  role             String          @default("teaches")
+  repeatable       Boolean         @default(false)
+  curriculumVersion String?
+  difficulty       String
+  status           String          @default("DRAFT")
+  estimatedMinutes Int?
+  version          Int             @default(1)
+  tier             String?         @default("pro") // free | pro | elite
+  applyCtaText     String?         // lesson-specific apply-at-table CTA
+  blogPostSlug     String?         // optional related blog post (slug)
+  replayHandId     String?         // optional related replay hand id
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  steps            LessonStep[]
+  attempts         LessonAttempt[]
+}
+
+model LessonStep {
+  id              String              @id
+  lessonId        String
+  lesson          Lesson              @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  sequence        Int
+  type            String
+  snapshotVersion Int?
+  snapshotJson    Json?
+  gradingVersion  Int                 @default(1)
+  beforeMessage   String?
+  questionText    String?
+  followUpMessage String?
+  gradingSpecJson Json?
+  explanationJson Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  options         LessonStepOption[]
+  concepts        LessonStepConcept[]
+  attemptSteps    LessonAttemptStep[]
+
+  @@unique([lessonId, sequence])
+  @@index([lessonId, sequence])
+}
+
+model LessonStepOption {
+  id           String     @id
+  stepId        String
+  step          LessonStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  optionKey     String
+  label         String
+  valueJson     Json?
+  displayOrder  Int
+  isCorrect     Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([stepId, optionKey])
+  @@index([stepId, displayOrder])
+}
+
+model LessonConcept {
+  id          String              @id
+  code        String              @unique
+  name        String
+  description String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  stepLinks   LessonStepConcept[]
+  mastery     UserConceptMastery[]
+}
+
+model LessonStepConcept {
+  stepId      String
+  step        LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  conceptId   String
+  concept     LessonConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  weight      Float         @default(1)
+  createdAt   DateTime      @default(now())
+
+  @@id([stepId, conceptId])
+  @@index([conceptId])
+}
+
+model LessonAttempt {
+  id              String             @id
+  lessonId        String
+  lesson          Lesson             @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          String             @default("IN_PROGRESS")
+  startedAt       DateTime           @default(now())
+  completedAt     DateTime?
+  scorePct        Float?
+  masteryDeltaJson Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  steps           LessonAttemptStep[]
+
+  @@index([lessonId, userId, status])
+  @@index([userId, completedAt])
+}
+
+model LessonAttemptStep {
+  id                String        @id
+  attemptId         String
+  attempt           LessonAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  stepId            String
+  step              LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  submittedAnswerJson Json
+  isCorrect         Boolean
+  feedbackJson      Json?
+  submittedAt       DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([attemptId, stepId])
+  @@index([attemptId, submittedAt])
+}
+
+model UserConceptMastery {
+  id            String        @id
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conceptId     String
+  concept       LessonConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  masteryScore  Float         @default(0)
+  confidence    Float         @default(0)
+  lastUpdatedAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, conceptId])
+  @@index([conceptId])
+}
+
+model UserAward {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  awardId        String
+  catalogVersion Int        @default(1)
+  earnedAt       DateTime  @default(now())
+  lastEarnedAt   DateTime  @default(now())
+  count          Int       @default(1)
+  reason         String    @db.Text
+  contextType    String?
+  contextId      String?
+  contextJson    Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, awardId])
+  @@index([userId, lastEarnedAt])
+}
+
+model AwardGrantEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  awardId   String
+  triggerKey String
+  earnedAt  DateTime @default(now())
+
+  @@unique([userId, awardId, triggerKey])
+  @@index([userId, awardId, triggerKey])
+}
+
+model UserCurriculumProgress {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completedLessonsCount Int     @default(0)
+  updatedAt            DateTime @updatedAt
+}
+
+model UserHandCount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  handsDealt   Int      @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
 model TableSeatSession {
   id                String                 @id @default(cuid())
   createdAt         DateTime               @default(now())
@@ -382,4 +580,28 @@ model BotStats {
   grossWonCents  BigInt   @default(0)
   grossLostCents BigInt   @default(0)
   updatedAt      DateTime @updatedAt
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  stripeId    String?  // Stripe Customer ID
+  type        String   // "lifetime", "monthly", etc.
+  status      String   // "active", "cancelled", "expired"
+  purchasedAt DateTime @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model ContentAccess {
+  id           String  @id @default(cuid())
+  contentId    String  // lesson, section, feature ID
+  type         String  // "lesson", "section", "feature"
+  isPremium    Boolean @default(false)
+  requiredTier String? // "lifetime", "premium", etc.
+
+  @@unique([contentId, type])
 }

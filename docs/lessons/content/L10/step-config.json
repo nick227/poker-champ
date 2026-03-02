@@ -1,0 +1,69 @@
+{
+  "lessonId": "L10",
+  "title": "AA UTG 9-Handed",
+  "version": 1,
+  "moduleCode": "B_WIN_MORE_FLOPS",
+  "recommendedOrder": 10,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L10_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 10: AA UTG 9-Handed. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L10_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 10: AA UTG 9-Handed. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "AA UTG. Raising is +EV. You have the best hand; build the pot and get value. Core lesson: With the best hand, raise. AA wants action—limping or flatting gives opponents a cheap flop and costs you value. Be consistent: premium hands play for a bigger pot. No slowplaying the nuts preflop."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

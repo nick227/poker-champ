@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Image, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import {
+  DEFAULT_CARD_FACE_PACK_ID,
+  type CardFacePackId,
+} from "../../../assets/cards/packs";
+import { getCardFacePackById } from "../../../assets/cards/packManifest";
+import { BuiltinCardFace } from "./BuiltinCardFace";
 import { CardBackPattern } from "./CardBackPatterns";
-import { DEFAULT_CARD_DIMENSIONS, CARD_SCALES } from "./constants/cardDimensions.constants";
+import { DEFAULT_CARD_DIMENSIONS } from "./constants/cardDimensions.constants";
 import { getCardFaceSource } from "./cardFaceAssets";
 
 const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
@@ -31,35 +37,46 @@ export function PlayingCard({
   rank,
   suit,
   faceDown,
+  packId = DEFAULT_CARD_FACE_PACK_ID,
 }: {
   rank?: string;
   suit?: string;
   faceDown?: boolean;
+  packId?: CardFacePackId;
 }) {
   const [imageError, setImageError] = useState(false);
-  const { cardBackPattern, cardBackHue, cardBackSaturation, cardBackLightness } = usePreferencesStore();
 
   const normalizedSuit = suit?.toLowerCase();
   const normalizedRank = rank?.toUpperCase();
 
+  const cardFaceStyle: "glyph" | "image" = "image";
+  const imageSource = useMemo(() => {
+    if (faceDown) return null;
+    if (cardFaceStyle !== "image") return null;
+    if (imageError || !normalizedRank || !normalizedSuit) return null;
+    return getCardFaceSource(normalizedRank, normalizedSuit, packId);
+  }, [cardFaceStyle, imageError, normalizedRank, normalizedSuit, packId, faceDown]);
+
   if (faceDown) {
-    return (
-      <CardBackPattern
-        pattern={cardBackPattern}
-        hue={cardBackHue}
-        saturation={cardBackSaturation}
-        lightness={cardBackLightness}
-        width={DEFAULT_CARD_DIMENSIONS.width}
-        height={DEFAULT_CARD_DIMENSIONS.height}
-      />
-    );
+    return <CardBack />;
   }
 
-  const cardFaceStyle: "glyph" | "image" = "image";
-  const imageSource =
-    cardFaceStyle === "image" && !imageError && normalizedRank && normalizedSuit
-      ? getCardFaceSource(normalizedRank, normalizedSuit)
-      : null;
+  const pack = getCardFacePackById(packId);
+  if (pack?.source.type === "builtin") {
+    return (
+      <View
+        renderToHardwareTextureAndroid
+        style={[cardStyle, { backfaceVisibility: "hidden" as const }]}
+        className="rounded-card border border-border-subtle overflow-hidden"
+      >
+        <BuiltinCardFace
+          variant={pack.source.variant}
+          rank={normalizedRank ?? "?"}
+          suit={normalizedSuit ?? "?"}
+        />
+      </View>
+    );
+  }
 
   if (imageSource) {
     return (
@@ -110,5 +127,19 @@ export function PlayingCard({
 }
 
 export function CardBack() {
-  return <PlayingCard faceDown />;
+  const cardBackPattern = usePreferencesStore((state) => state.cardBackPattern);
+  const cardBackHue = usePreferencesStore((state) => state.cardBackHue);
+  const cardBackSaturation = usePreferencesStore((state) => state.cardBackSaturation);
+  const cardBackLightness = usePreferencesStore((state) => state.cardBackLightness);
+
+  return (
+    <CardBackPattern
+      pattern={cardBackPattern}
+      hue={cardBackHue}
+      saturation={cardBackSaturation}
+      lightness={cardBackLightness}
+      width={DEFAULT_CARD_DIMENSIONS.width}
+      height={DEFAULT_CARD_DIMENSIONS.height}
+    />
+  );
 }

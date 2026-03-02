@@ -12,6 +12,8 @@ export type { Opponent } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
 import { OPPONENT_STRIP_MAX_HEIGHT_RATIO, OPPONENT_STRIP_MAX_HEIGHT_VH } from "./constants/components/opponentStrip.layout";
 import { opponentStripStyles as s, PRESSABLE_HIT_SLOP, PRESSABLE_ANDROID_RIPPLE } from "./opponentStrip.styles";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import type { CardFacePackId } from "@/assets/cards/packs";
 
 export type OpponentStripProps = {
   opponents: Opponent[];
@@ -37,7 +39,7 @@ function getStatusLabel(status: Opponent["status"]): string | null {
   }
 }
 
-function OpponentCards({ opponent }: { opponent: Opponent }) {
+function OpponentCards({ opponent, packId }: { opponent: Opponent; packId: CardFacePackId }) {
   const { cards } = opponent;
   if (!cards?.visible) {
     return <View style={s.cardPlaceholder} />;
@@ -45,12 +47,12 @@ function OpponentCards({ opponent }: { opponent: Opponent }) {
   const left = cards.faceDown
     ? <PlayingCard faceDown />
     : cards.left
-      ? <PlayingCard rank={cards.left.rank} suit={cards.left.suit} />
+      ? <PlayingCard rank={cards.left.rank} suit={cards.left.suit} packId={packId} />
       : <PlayingCard faceDown />;
   const right = cards.faceDown
     ? <PlayingCard faceDown />
     : cards.right
-      ? <PlayingCard rank={cards.right.rank} suit={cards.right.suit} />
+      ? <PlayingCard rank={cards.right.rank} suit={cards.right.suit} packId={packId} />
       : <PlayingCard faceDown />;
   return (
     <View style={s.cardsRow}>
@@ -69,6 +71,7 @@ export function OpponentStrip({
   winnerName,
   onPlayerPress,
 }: OpponentStripProps) {
+  const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const { height: windowHeight } = useWindowDimensions();
   if (opponents.length === 0) return null;
   const maxHeightStyle =
@@ -102,7 +105,7 @@ export function OpponentStrip({
                 data-stack-cents={String(o.stackCents ?? 0)}
               >
                 <View style={s.cardsCol} className="border-border-subtle">
-                  <OpponentCards opponent={o} />
+                  <OpponentCards opponent={o} packId={cardFacePackId} />
                 </View>
                 <View style={s.infoCol}>
                   <View style={s.infoTopRow}>

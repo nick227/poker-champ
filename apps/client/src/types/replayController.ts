@@ -39,15 +39,3 @@ export interface ReplayTableProvider extends TableProvider {
   /** Replay controls */
   replay: ReplayController;
 }
-
-/**
- * 🎯 REPLAY SOURCE TYPES
- * 
- * Different sources of snapshot data
- */
-export type ReplaySource = 
-  | "HAND_HISTORY"
-  | "LESSON" 
-  | "COACHING"
-  | "ANALYSIS"
-  | "GHOST_TABLE";

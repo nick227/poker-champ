@@ -49,4 +49,27 @@ describe("SessionPlayerStatsTracker", () => {
     expect(t.get("u1")).toEqual({ hands: 1, vpipPct: 100, pfrPct: 0 });
     expect(t.get("u2")).toEqual({ hands: 1, vpipPct: 100, pfrPct: 100 });
   });
+
+  it("getSessionId returns same id for user across hands, empty for unknown", () => {
+    const t = new SessionPlayerStatsTracker();
+    expect(t.getSessionId("u1")).toBe("");
+    t.recordHandForUser("u1", { dealtIn: true, vpip: false, pfr: false });
+    const id1 = t.getSessionId("u1");
+    expect(id1).not.toBe("");
+    t.recordHandForUser("u1", { dealtIn: true, vpip: true, pfr: false });
+    expect(t.getSessionId("u1")).toBe(id1);
+    expect(t.getSessionId("u2")).toBe("");
+  });
+
+  it("getSessionId is new after resetUser and next recordHandForUser", () => {
+    const t = new SessionPlayerStatsTracker();
+    t.recordHandForUser("u1", { dealtIn: true, vpip: false, pfr: false });
+    const idBefore = t.getSessionId("u1");
+    t.resetUser("u1");
+    expect(t.getSessionId("u1")).toBe("");
+    t.recordHandForUser("u1", { dealtIn: true, vpip: false, pfr: false });
+    const idAfter = t.getSessionId("u1");
+    expect(idAfter).not.toBe("");
+    expect(idAfter).not.toBe(idBefore);
+  });
 });

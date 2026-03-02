@@ -1,8 +1,12 @@
-import { View, Pressable, ScrollView } from "react-native";
+import { View, Pressable, ScrollView, Image } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { CARD_FACE_PACK_MANIFEST, getCardFacePackById } from "@/assets/cards/packManifest";
+import { CARD_FACE_PACKS, type CardFacePackId } from "@/assets/cards/packs";
+import { BuiltinCardFace } from "./BuiltinCardFace";
 import { CardBackPattern } from "./CardBackPatterns";
+import { keyToRankSuit } from "./cardFaceAssets";
 
 const THEME_PACKS = [
   { id: "default", name: "Royal Casino", colors: ["158 30% 14%", "42 82% 50%"] },
@@ -42,8 +46,61 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
     cardBackHue,
     cardBackSaturation,
     cardBackLightness,
+    cardFacePackId,
+    setCardFacePackId,
     applyThemePack,
   } = usePreferencesStore();
+
+  const cardFacePackOptions = CARD_FACE_PACK_MANIFEST;
+
+  const renderPackPreview = (packId: CardFacePackId, previewCardKeys: readonly string[]) => {
+    const packMeta = getCardFacePackById(packId);
+    if (!packMeta) {
+      return <View className="w-full h-16 rounded-md border border-border-subtle bg-panel" />;
+    }
+
+    if (packMeta.source.type === "builtin") {
+      const variant = packMeta.source.variant;
+      return (
+        <View className="w-full h-16 rounded-md border border-border-subtle overflow-hidden bg-panel p-1">
+          <View className="ui-row items-center justify-center gap-1">
+            {previewCardKeys.map((key, index) => {
+              const rs = keyToRankSuit(key);
+              if (!rs) return <View key={`${packId}-${key}-${index}`} className="w-7 h-10 rounded-sm bg-panel-elevated border border-border-subtle" />;
+              return (
+                <View key={`${packId}-${key}-${index}`} className="w-7 h-10 rounded-sm overflow-hidden border border-border-subtle">
+                  <BuiltinCardFace variant={variant} rank={rs.rank} suit={rs.suit} width={28} height={40} />
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    const pack = CARD_FACE_PACKS[packId as keyof typeof CARD_FACE_PACKS];
+    if (!pack) {
+      return <View className="w-full h-16 rounded-md border border-border-subtle bg-panel" />;
+    }
+
+    return (
+      <View className="w-full h-16 rounded-md border border-border-subtle overflow-hidden bg-panel p-1">
+        <View className="ui-row items-center justify-center gap-1">
+          {previewCardKeys.map((key, index) => {
+            const source = pack[key as keyof typeof pack];
+            if (source) {
+              return (
+                <View key={`${packId}-${key}-${index}`} className="w-7 h-10 rounded-sm overflow-hidden border border-border-subtle bg-card-face">
+                  <Image source={source} style={{ width: 28, height: 40 }} resizeMode="contain" />
+                </View>
+              );
+            }
+            return <View key={`${packId}-${key}-${index}`} className="w-7 h-10 rounded-sm bg-panel-elevated border border-border-subtle" />;
+          })}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Table Experience">
@@ -59,6 +116,28 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
               <Text variant="muted" className="mt-1 text-center text-[11px] font-medium">{pack.name}</Text>
             </Pressable>
           ))}
+        </View>
+
+        <View className="h-px bg-border-subtle mb-6" />
+
+        <Text variant="label" className="mb-3">Card Faces</Text>
+        <View className="ui-row-wrap gap-3 mb-8">
+          {cardFacePackOptions.map((pack) => {
+            const packId = pack.id as CardFacePackId;
+            const isSelected = cardFacePackId === packId;
+            return (
+              <Pressable
+                key={pack.id}
+                onPress={() => setCardFacePackId(packId)}
+                className="ui-col items-center flex-1 min-w-[46%]"
+              >
+                <View className={`w-full rounded-md ${isSelected ? "border-2 border-gold" : "border border-border-subtle"} overflow-hidden`}>
+                  {renderPackPreview(packId, pack.previewCardKeys)}
+                </View>
+                <Text variant="muted" className="mt-1 text-center text-[11px] font-medium">{pack.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View className="h-px bg-border-subtle mb-6" />

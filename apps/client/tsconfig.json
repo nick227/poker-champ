@@ -1,8 +1,8 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
-    "types": ["vitest/globals"],
+    "types": ["nativewind/types", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -10,5 +10,6 @@
       "@services/*": ["./src/services/*"],
       "@stores/*": ["./src/stores/*"]
     }
-  }
+  },
+  "exclude": ["tauri/target/**/*", "dist/**/*", "playwright-report/**/*"]
 }

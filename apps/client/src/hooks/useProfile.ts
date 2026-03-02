@@ -1,44 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { serviceRegistry } from "@/registry/service.registry";
-import { getAvatarUrlFromMeResponse } from "@/lib/meResponse";
+import { parseProfileFromMe, type Profile } from "@/lib/profileFromMe";
+import { useProfileStore } from "@/stores/profile.store";
 
-export type Profile = {
-  username?: string;
-  location?: string;
-  userId?: string;
-  avatarUrl?: string | null;
-};
-
-function parseProfileFromMe(d: unknown): Profile {
-  const u = (d as { user?: { id?: string; username?: string; displayName?: string; email?: string } })?.user;
-  return {
-    userId:
-      typeof u?.id === "string" && u.id.length > 0
-        ? u.id
-        : typeof u?.id === "number"
-          ? String(u.id)
-          : undefined,
-    username:
-      (typeof u?.username === "string" ? u.username : null) ??
-      (typeof u?.displayName === "string" ? u.displayName : null) ??
-      (typeof u?.email === "string" ? u.email : null) ??
-      "Player",
-    location: undefined,
-    avatarUrl: getAvatarUrlFromMeResponse(d),
-  };
-}
+export type { Profile };
 
 export function useProfile(): Profile & { refetch: () => Promise<void> } {
-  const [profile, setProfile] = useState<Profile>({});
+  const profile = useProfileStore((s) => s.profile);
+  const setProfile = useProfileStore((s) => s.setProfile);
 
   const refetch = useCallback(async () => {
     const res = await serviceRegistry.get.me();
     if (res.ok && res.data) {
       setProfile(parseProfileFromMe(res.data));
     }
-  }, []);
+  }, [setProfile]);
 
   useEffect(() => {
+    if (profile.username != null && profile.userId != null) return;
     let cancelled = false;
     serviceRegistry.get.me()
       .then((res) => {
@@ -48,7 +27,7 @@ export function useProfile(): Profile & { refetch: () => Promise<void> } {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [profile.username, profile.userId, setProfile]);
 
   return { ...profile, refetch };
 }

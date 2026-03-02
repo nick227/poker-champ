@@ -1,0 +1,79 @@
+{
+  "lessonId": "L15",
+  "title": "22 Chip Leader vs Raise",
+  "version": 1,
+  "moduleCode": "C_CLOSE_HAND_PROFITABLY",
+  "recommendedOrder": 15,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L15_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 15: 22 Chip Leader vs Raise. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L15_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 15: 22 Chip Leader vs Raise. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "22 as chip leader vs single raise. Call to set-mine or play position; price is reasonable. Calling is +EV—you're not committed to stacking off with a set, but you have implied odds. Core lesson: Small pairs want to see a cheap flop and hit a set. When the price is right (e.g. chip leader facing a single raise), call for implied odds—you're not committed to stacking off with just a pair, but a set can win a big pot. Don't overpay pre; if the raise is too big, fold."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "drills",
+  "repeatable": true
+}

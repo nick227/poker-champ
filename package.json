@@ -11,11 +11,21 @@
     "apps/*",
     "packages/*"
   ],
+  "pnpm": {
+    "overrides": {
+      "expo-font": "~13.0.4"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "eslint": "9"
+      }
+    }
+  },
   "scripts": {
     "dev:web": "pnpm -C apps/client dev:web",
     "dev": "pnpm -C apps/client dev",
     "build": "pnpm --filter @poker-champ/realtime-contract build && node scripts/retry-prisma-generate.mjs && tsc -p tsconfig.json",
-    "preflight:client": "pnpm --filter @poker-champ/realtime-contract build && pnpm sdk:check && pnpm -C apps/client typecheck && pnpm -C apps/client lint && pnpm test:client && pnpm test:client:money-safety",
+    "preflight:client": "pnpm --filter @poker-champ/realtime-contract build && pnpm sdk:check && pnpm api:shapes:check && pnpm -C apps/client typecheck && pnpm -C apps/client lint && pnpm test:client && pnpm test:client:money-safety",
     "preflight:client:ci": "pnpm preflight:client",
     "build:web": "pnpm --filter @poker-champ/realtime-contract build && pnpm -C apps/client build:web",
     "build:client:all": "node scripts/build-all.mjs",
@@ -25,10 +35,13 @@
     "test:client": "pnpm -C apps/client test:run",
     "test:voice": "pnpm -C apps/client test:voice",
     "test:client:money-safety": "pnpm --prefix apps/client exec vitest run src/tests/table.adapter.money.test.ts",
+    "test:client:lessons": "pnpm --prefix apps/client exec vitest run src/tests/useLessonSession.test.ts",
     "test:client:e2e:stack": "pnpm -C apps/client e2e:stack",
     "test:client:e2e:stack:ci": "pnpm -C apps/client e2e:stack:ci",
     "test:client:e2e:churn": "pnpm -C apps/client e2e:churn",
+    "test:client:e2e:lessons:canonical": "pnpm -C apps/client e2e:lessons:canonical",
     "test:server:history": "vitest run src/http/__tests__/HandHistoryRouter.overview-and-hands.test.ts",
+    "test:server:lessons": "vitest run src/http/__tests__/LessonsRouter.test.ts",
     "test:server:join": "vitest run src/tests/table-join.guard.test.ts",
     "test:server:broadcast": "vitest run src/tests/table-action-broadcast.test.ts",
     "test:server:money-safety": "vitest run src/tests/settlement-service.money-safety.test.ts src/tests/fold-path-equivalence.test.ts",
@@ -43,13 +56,14 @@
     "test:server:soak": "vitest run src/tests/dealer.random-walk.soak.test.ts",
     "test:server:soak:nightly": "set SOAK_PROFILE=nightly&& vitest run src/tests/dealer.random-walk.soak.test.ts",
     "test:server:rejoin": "vitest run src/tests/session-policy.test.ts src/tests/table-join.guard.test.ts src/tests/table-action-broadcast.test.ts src/tests/reconnection.invariant.test.ts src/tests/player-lifecycle.removal-bet-sync.test.ts src/tests/fold-path-equivalence.test.ts",
-    "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast && pnpm test:server:money-safety",
+    "test:server:core": "pnpm test:server:join && pnpm test:server:broadcast && pnpm test:server:money-safety && pnpm test:server:lessons",
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",
     "start": "node dist/index.js",
+    "start:with-seed": "pnpm lessons:seed:content && pnpm start",
     "start:web": "node tools/static-server.js",
     "db:migrate": "prisma migrate deploy",
-    "server:typecheck": "tsc -p tsconfig.json --noEmit",
+    "server:typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
     "realtime:check": "pnpm -C packages/realtime-contract typecheck && pnpm server:typecheck && pnpm -C apps/client typecheck",
     "harness:headless": "tsx scripts/headless-two-client.ts",
     "harness:headless:churn": "tsx scripts/headless-multiplayer-churn.ts",
@@ -64,13 +78,29 @@
     "reconcile:hand-history": "tsx scripts/reconcile-hand-history.ts",
     "bankroll:backfill": "tsx scripts/backfill-starting-bankroll.ts",
     "bankroll:backfill:apply": "tsx scripts/backfill-starting-bankroll.ts --apply",
+    "lessons:seed:legacy": "tsx scripts/seed-lessons-v1.ts",
+    "lessons:cleanup:legacy": "tsx scripts/cleanup-legacy-lessons.ts",
+    "lessons:cleanup:legacy:apply": "tsx scripts/cleanup-legacy-lessons.ts --apply",
+    "lessons:guard:legacy-seed": "node scripts/guard-no-legacy-seed.mjs",
+    "lessons:seed:content": "tsx scripts/seed-lessons-content.ts",
+    "lessons:smoke": "tsx scripts/smoke-lessons-v1.ts",
+    "lessons:verify:runtime": "tsx scripts/verify-lessons-runtime.ts",
+    "lessons:seed:integrity": "tsx scripts/check-lessons-seed-integrity.ts",
+    "lessons:gate": "pnpm lessons:guard:legacy-seed && pnpm lessons:seed:content -- --replace-noncanonical && pnpm lessons:smoke && pnpm test:server:lessons && pnpm -C apps/client typecheck && pnpm -C apps/client run e2e:lessons",
+    "lessons:content:check": "tsx scripts/check-lessons-content.ts",
+    "lessons:import:prepare": "tsx scripts/prepare-lessons-json-import.ts",
+    "lessons:import:apply-grading-plan": "tsx scripts/apply-grading-plan-to-drafts.ts",
     "openapi:export": "tsx scripts/export-openapi.ts",
     "sdk:gen": "pnpm openapi:export && node scripts/sync-sdk-version.mjs && npx openapi-typescript openapi.json -o packages/sdk/src/types.gen.ts",
     "sdk:check": "pnpm sdk:gen && pnpm -C packages/sdk typecheck",
+    "card:faces:gen": "tsx scripts/generate-card-face-packs.ts",
+    "api:shapes:gen": "node scripts/generate-api-shapes-docs.mjs",
+    "api:shapes:check": "node scripts/check-api-shapes.mjs",
+    "api:shapes:serve": "pnpm api:shapes:gen && node tools/serve-api-shapes.mjs",
     "ui:no-fetch": "node scripts/check-no-ui-fetch.mjs",
     "knip": "knip",
     "madge": "madge --circular --extensions ts,tsx src apps/client/src packages/sdk/src packages/realtime-contract/src",
-    "verify": "pnpm sdk:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm test:server:soak && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch && pnpm knip && pnpm madge",
+    "verify": "pnpm sdk:check && pnpm api:shapes:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm test:server:soak && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch && pnpm knip && pnpm madge",
     "verify:ci": "pnpm verify && pnpm test:client:e2e:stack:ci"
   },
   "dependencies": {
@@ -91,6 +121,7 @@
     "pino": "^10.3.1",
     "poker-odds-calculator": "^0.4.0",
     "pokersolver": "^2.1.4",
+    "stripe": "^20.4.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

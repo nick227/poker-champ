@@ -59,7 +59,11 @@ npm run dev:web
 - **Hand History**: Every action and payout is recorded to a persistent log for later review and auditing.
 - **Robust State Machine**: Automatic street transitions (Flop, Turn, River) and automated actions for disconnected players to prevent game stalls.
 
-## 📜 Commands
+## Docs
+
+- Card face pack workflow: [Adding Card Face Packs](docs/guides/ADDING_CARD_FACE_PACKS.md)
+
+## Commands
 
 - `npm run dev`: Start server in dev mode.
 - `npm run dev:web`: Start the client web application.
@@ -67,3 +71,4 @@ npm run dev:web
 - `npm run test:server:core`: Run core server integration tests.
 - `npm run lint`: Run ESLint across the project.
 - `npm run verify`: Run all checks (SDK, Tests, Typecheck, Lint) before pushing.
+

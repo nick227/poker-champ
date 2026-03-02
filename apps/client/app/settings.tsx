@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Toggle } from "@/components/base/Toggle";
@@ -9,6 +9,7 @@ import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { HandHistorySection } from "@/components/domain/history/HandHistorySection";
 import { useAuthStore } from "@/stores/auth.store";
 import { postAuthLogout } from "@/services/post/auth.post";
 import { useProfile } from "@/hooks/useProfile";
@@ -19,9 +20,11 @@ import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 import { postEconomyDeposit } from "@/services/post/economy.post";
 import { ProfileAvatarSection } from "@/components/domain/settings/ProfileAvatarSection";
+import { AwardsSection } from "@/components/domain/settings/AwardsSection";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
   const logout = useAuthStore((s) => s.logout);
   const { refetch, ...profile } = useProfile();
   const bankroll = useBankroll();
@@ -39,7 +42,6 @@ export default function SettingsScreen() {
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
   const handleLogout = async () => {
-    const token = useAuthStore.getState().token;
     if (token) await postAuthLogout().catch(() => {});
     logout();
     router.replace("/login");
@@ -72,12 +74,19 @@ export default function SettingsScreen() {
         onPressOnline={openOnlineSheet}
         avatarUrl={profile.avatarUrl}
       />
-      <View className="flex-1 ui-stack-4 ui-p-4">
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <ProfileAvatarSection
           avatarUrl={profile.avatarUrl}
           username={profile.username}
           onUpdate={refetch}
         />
+        <View className="ui-surface-card ui-p-4 ui-stack-2">
+          <Text variant="label">Profile</Text>
+          <Text variant="body">{profile.username ?? "Player"}</Text>
+          {profile.email ? (
+            <Text variant="muted" className="text-sm">{profile.email}</Text>
+          ) : null}
+        </View>
         <View className="ui-row justify-between ui-surface-card ui-p-4">
           <Text variant="body">Sound</Text>
           <Toggle value={soundEnabled} onValueChange={setSoundEnabled} />
@@ -90,8 +99,17 @@ export default function SettingsScreen() {
           <Text variant="body">Deposit</Text>
           <Button title="Add $1,000" variant="ghost" onPress={handleDeposit} />
         </View>
-        <Button title="Logout" variant="danger" onPress={handleLogout} />
-      </View>
+        <View className="mt-4">
+          <AwardsSection />
+        </View>
+        <Button title="Logout" variant="danger" onPress={handleLogout} className="mt-4" />
+        <View className="mt-4 flex flex-col" style={{ height: 420 }}>
+          <Text variant="label" className="mb-2">Hand History</Text>
+          <View className="flex-1 min-h-0">
+            <HandHistorySection currentUserId={profile.userId ?? ""} />
+          </View>
+        </View>
+      </ScrollView>
       <OnlinePlayersSheet
         visible={onlineSheetVisible}
         onClose={() => setOnlineSheetVisible(false)}

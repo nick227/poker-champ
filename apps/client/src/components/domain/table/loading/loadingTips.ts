@@ -8,43 +8,43 @@ export type Tip = {
 export const TIPS: Tip[] = [
   {
     category: "Position",
-    text: "Position is power: open wider on the button and tighten up out of position.",
+    text: "Position is power: open wider on the button.",
   },
   {
     category: "Bankroll",
-    text: "Protect your bankroll: avoid risking more than 5% in a single cash-game buy-in.",
+    text: "Avoid risking more than 5% buy-in.",
   },
   {
     category: "Preflop",
-    text: "If a hand is strong enough to call a large raise, ask whether it should be a 3-bet instead.",
+    text: "3-bet instead more often.",
   },
   {
     category: "Postflop",
-    text: "In multi-way pots, bluff less often. Someone usually has enough equity to continue.",
+    text: "In multi-way pots, bluff less.",
   },
   {
     category: "Mindset",
-    text: "When tilted, tighten up for one orbit before expanding ranges again.",
+    text: "When tilted, tighten up.",
   },
   {
     category: "Postflop",
-    text: "In heads-up pots, small continuation bets can create similar fold equity to larger sizing.",
+    text: "In heads-up pots, bet more often.",
   },
   {
     category: "Position",
-    text: "Most win rate comes from avoiding dominated spots out of position, not from heroic calls.",
+    text: "Most win rate comes from avoiding losses.",
   },
   {
     category: "Preflop",
-    text: "Facing frequent 3-bets? Defend with suited connectors and blockers, fold dominated offsuit hands.",
+    text: "Fold dominated offsuit hands.",
   },
   {
     category: "Mindset",
-    text: "Track decisions, not short-term results. Good process compounds faster than short-term luck.",
+    text: "Track decisions, not short-term results.",
   },
   {
     category: "Postflop",
-    text: "Count combos, not just hand labels. Range advantage decides many close turn and river spots.",
+    text: "Count combos, not just hand labels.",
   },
 ];
 

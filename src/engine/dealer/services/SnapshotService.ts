@@ -81,6 +81,9 @@ export type SnapshotReason = TableSnapshotPayload["reason"];
  */
 const VALIDATE_SNAPSHOTS = process.env.NODE_ENV !== "production";
 
+/** Max wait for avatar fetch so snapshot emission never blocks the action queue. */
+const AVATAR_FETCH_TIMEOUT_MS = 2000;
+
 // ============================================================================
 // MAIN CLASS - Snapshot Management & Broadcasting
 // ============================================================================
@@ -114,10 +117,34 @@ export class SnapshotService {
   
   /** Hand calculations coordinator for odds and statistics */
   private readonly handCalculations = new HandCalculationsCoordinator();
-  /** Snapshot sequence counter for unique identification */
+  /** Global snapshot sequence counter for all-client broadcasts */
   private snapshotSeq = 0;
+  /** Individual user snapshot sequence counter for user-specific emissions (starts at -1 and decrements) */
+  private userSnapshotSeq = -1;
   /** Last hand key for detecting hand changes */
   private lastHandKey: string | null = null;
+
+  /**
+   * Fetch avatar with timeout so slow or stuck avatar lookup never blocks the game loop.
+   * Returns nulls on timeout or throw.
+   */
+  private async getAvatarWithTimeout(userId: string): Promise<{ avatarUrl: string | null; avatarVersion: number | null }> {
+    const getAvatar = this.deps.getAvatarByUserId;
+    if (!getAvatar) return { avatarUrl: null, avatarVersion: null };
+    const fallback = (): { avatarUrl: string | null; avatarVersion: number | null } =>
+      ({ avatarUrl: null, avatarVersion: null });
+    try {
+      const result = await Promise.race([
+        getAvatar(userId),
+        new Promise<{ avatarUrl: string | null; avatarVersion: number | null }>((resolve) =>
+          setTimeout(() => resolve(fallback()), AVATAR_FETCH_TIMEOUT_MS),
+        ),
+      ]);
+      return result ?? fallback();
+    } catch {
+      return fallback();
+    }
+  }
 
   // ============================================================================
   // CONSTRUCTOR & DEPENDENCIES
@@ -200,7 +227,7 @@ export class SnapshotService {
     if (!client) return;
 
     const t0 = performance.now();
-    const snapshotSeq = this.nextSnapshotSeq();
+    const snapshotSeq = this.nextUserSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
     const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
     const toActUserId = this.deps.state.street !== "WAITING"
@@ -298,6 +325,20 @@ export class SnapshotService {
   }
 
   /**
+   * Generate next user-specific snapshot sequence number
+   * 
+   * PURPOSE:
+   * Provides sequential numbering for user-specific snapshots
+   * Uses negative numbers to avoid conflicts with global sequences
+   * 
+   * @returns Next user snapshot sequence number
+   */
+  private nextUserSnapshotSeq(): number {
+    this.userSnapshotSeq -= 1;
+    return this.userSnapshotSeq;
+  }
+
+  /**
    * Get current snapshot sequence number
    * 
    * PURPOSE:
@@ -335,7 +376,6 @@ export class SnapshotService {
   ): Promise<Omit<TableSnapshotPayload, "hero" | "stateHash">> {
     const state = this.deps.state;
     const nowTs = Date.now();
-    const getAvatar = this.deps.getAvatarByUserId;
 
     const seats = await Promise.all(
       state.seats.map(async (occupantUserId, seat) => {
@@ -348,14 +388,10 @@ export class SnapshotService {
         }
         let avatarUrl: string | undefined;
         let avatarVersion: number | undefined;
-        if (getAvatar && occupantUserId && player?.kind === "HUMAN") {
-          try {
-            const av = await getAvatar(occupantUserId);
-            if (av.avatarUrl) avatarUrl = av.avatarUrl;
-            if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
-          } catch {
-            // Avatar fetch failure must not break snapshot; leave avatar unset
-          }
+        if (occupantUserId && player?.kind === "HUMAN") {
+          const av = await this.getAvatarWithTimeout(occupantUserId);
+          if (av.avatarUrl) avatarUrl = av.avatarUrl;
+          if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
         }
         return {
           seat,
@@ -445,15 +481,9 @@ export class SnapshotService {
 
     let avatarUrl: string | undefined;
     let avatarVersion: number | undefined;
-    if (this.deps.getAvatarByUserId) {
-      try {
-        const av = await this.deps.getAvatarByUserId(userId);
-        if (av.avatarUrl) avatarUrl = av.avatarUrl;
-        if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
-      } catch {
-        // Avatar fetch failure must not break hero patch; leave avatar unset
-      }
-    }
+    const av = await this.getAvatarWithTimeout(userId);
+    if (av.avatarUrl) avatarUrl = av.avatarUrl;
+    if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
 
     const hasCalc = Boolean(calc) || potOddsPct !== undefined;
     const heroSection = {

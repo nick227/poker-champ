@@ -18,11 +18,15 @@ import { profileRouter } from "./http/ProfileRouter.js";
 import { handHistoryRouter } from "./http/HandHistoryRouter.js";
 import { leaderboardRouter } from "./http/LeaderboardRouter.js";
 import { botRouter } from "./http/BotRouter.js";
+import { lessonsRouter } from "./http/LessonsRouter.js";
+import { awardsRouter } from "./http/AwardsRouter.js";
+import { MonetizationRouter } from "./http/MonetizationRouter.js";
+import { handleStripeWebhook } from "./http/webhooks/stripe.js";
 import { openApiSpec } from "./http/openapi.js";
 import { RecoveryService } from "./engine/recovery/RecoveryService.js";
 import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
 import { loadEnv } from "./config/env.js";
-import { isLeaderboardEnabled } from "./config/features.js";
+import { isLeaderboardEnabled, isLessonsV1Enabled } from "./config/features.js";
 import { disconnectPrisma } from "./db/prisma.js";
 import { securityHeaders } from "./http/middleware/security.js";
 import { createIpRateLimit } from "./http/middleware/rateLimit.js";
@@ -62,6 +66,14 @@ function buildCorsOptions() {
 const app = express();
 app.use(securityHeaders);
 app.use(cors(buildCorsOptions()));
+
+// Stripe webhook must use raw body for signature verification (before express.json)
+app.post(
+  "/api/monetization/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+
 app.use(express.json({ limit: "1mb" }));
 
 const avatarsRoot = path.resolve("var", "avatars");
@@ -118,6 +130,11 @@ app.use("/api/bots", botRouter);
 if (isLeaderboardEnabled()) {
   app.use("/api/leaderboard", leaderboardRouter);
 }
+if (isLessonsV1Enabled()) {
+  app.use("/api/lessons", lessonsRouter);
+}
+app.use("/api/awards", awardsRouter);
+app.use("/api/monetization", MonetizationRouter);
 app.get("/openapi.json", (_req, res) => {
   res.json(openApiSpec);
 });

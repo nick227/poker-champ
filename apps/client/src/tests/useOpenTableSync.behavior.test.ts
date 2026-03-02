@@ -37,7 +37,7 @@ describe("useOpenTableSync", () => {
 
     expect(refreshLobby).toHaveBeenCalledTimes(1);
     expect(openTable).toHaveBeenCalledWith("t1", { buyInCents: 5000 });
-    expect(setActive).toHaveBeenCalledWith("t1");
+    expect(setActive).not.toHaveBeenCalled();
   });
 
   it("does not persist buy-in when route buy-in is unchanged and active table already matches", () => {
@@ -80,7 +80,7 @@ describe("useOpenTableSync", () => {
     });
 
     expect(openTable).toHaveBeenCalledWith("t3", undefined);
-    expect(setActive).toHaveBeenCalledWith("t3");
+    expect(setActive).not.toHaveBeenCalled();
     expect(refreshLobby).not.toHaveBeenCalled();
   });
 

@@ -1,0 +1,79 @@
+{
+  "lessonId": "L13",
+  "title": "Middle Pair vs Half-Pot Turn",
+  "version": 1,
+  "moduleCode": "C_CLOSE_HAND_PROFITABLY",
+  "recommendedOrder": 13,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L13_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 13: Middle Pair vs Half-Pot Turn. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L13_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 13: Middle Pair vs Half-Pot Turn. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "Middle pair (9s) on K-9-2-T. ~54% equity. Half-pot → need 33%. Equity above price—call is +EV. You'll lose sometimes; the math says call. Core lesson: One pair is marginal—the bet size and pot odds decide. When your equity beats the required price, call; when the bet is too big or the board gets worse, fold. Always do the comparison; don't call or fold on instinct alone."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

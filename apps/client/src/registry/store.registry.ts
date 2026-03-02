@@ -3,6 +3,7 @@ import { useLobbyStore } from "@/stores/lobby.store";
 import { useMultiTableStore } from "@/stores/multitable.store";
 import { useTableStore } from "@/stores/table.store";
 import { useHistoryStore } from "@/stores/history.store";
+import { useProfileStore } from "@/stores/profile.store";
 
 const storeByKey = {
   auth: {
@@ -30,9 +31,14 @@ const storeByKey = {
     get: () => useHistoryStore.getState(),
     use: useHistoryStore,
   },
+  profile: {
+    key: "profile",
+    get: () => useProfileStore.getState(),
+    use: useProfileStore,
+  },
 } as const;
 
-const storeOrdered = [storeByKey.auth, storeByKey.lobby, storeByKey.tables, storeByKey.table, storeByKey.history] as const;
+const storeOrdered = [storeByKey.auth, storeByKey.lobby, storeByKey.tables, storeByKey.table, storeByKey.history, storeByKey.profile] as const;
 
 export const storeRegistry = {
   byKey: storeByKey,
@@ -42,11 +48,13 @@ export const storeRegistry = {
   tables: () => storeByKey.tables.get(),
   table: () => storeByKey.table.get(),
   history: () => storeByKey.history.get(),
+  profile: () => storeByKey.profile.get(),
   use: {
     auth: storeByKey.auth.use,
     lobby: storeByKey.lobby.use,
     tables: storeByKey.tables.use,
     table: storeByKey.table.use,
     history: storeByKey.history.use,
+    profile: storeByKey.profile.use,
   },
 } as const;

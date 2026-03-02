@@ -1,0 +1,101 @@
+name: Lessons Canonical CI
+
+on:
+  pull_request:
+    paths:
+      - "docs/lessons/content/**"
+      - "scripts/seed-lessons-content.ts"
+      - "scripts/check-lessons-seed-integrity.ts"
+      - "scripts/check-lessons-content.ts"
+      - "src/http/LessonsRouter.ts"
+      - "apps/client/e2e/lessons-canonical-runtime.spec.ts"
+      - "apps/client/src/features/lessons/**"
+      - "apps/client/playwright.config.ts"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/lessons-canonical-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  curriculum-freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce curriculum lock bump for content edits
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Not a PR; skipping freeze guard."
+            exit 0
+          fi
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
+          if ! echo "$CHANGED" | grep -q "^docs/lessons/content/"; then
+            echo "No canonical content changes."
+            exit 0
+          fi
+          if echo "$CHANGED" | grep -q "^docs/lessons/content/curriculum.lock.json$"; then
+            echo "Curriculum lock updated with content changes."
+            exit 0
+          fi
+          echo "docs/lessons/content changed without updating docs/lessons/content/curriculum.lock.json"
+          echo "Bump curriculum lock to explicitly acknowledge canonical content mutation."
+          exit 1
+
+  canonical-gate:
+    runs-on: ubuntu-latest
+    needs: curriculum-freeze
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: poker_champ_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: mysql://root@127.0.0.1:3306/poker_champ_ci
+      ENABLE_LESSONS_V1: "true"
+      ENABLE_PAY_GATING: "false"
+      PORT: "3567"
+      PLAYWRIGHT_API_URL: http://localhost:3567
+      PLAYWRIGHT_WEB_PORT: "8082"
+      EXPO_PUBLIC_API_URL: http://localhost:3567
+      EXPO_PUBLIC_COLYSEUS_URL: ws://localhost:3567
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+      - name: Wait for MySQL
+        shell: bash
+        run: |
+          for i in $(seq 1 60); do
+            if mysqladmin ping -h 127.0.0.1 --silent; then
+              echo "MySQL ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL failed to become ready"
+          exit 1
+      - run: pnpm db:migrate
+      - run: pnpm lessons:content:check
+      - run: pnpm lessons:seed:content -- --replace-noncanonical
+      - run: pnpm lessons:seed:integrity
+      - run: pnpm -C apps/client exec playwright test e2e/lessons-canonical-runtime.spec.ts --project=chromium --reporter=line

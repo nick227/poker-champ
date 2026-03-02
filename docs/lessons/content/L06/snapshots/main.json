@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "snapshotId": "snapshot_6_corrected",
+  "snapshotSeq": 1,
+  "emittedAtTs": 1772440279689,
+  "serverTimeTs": 1772440279689,
+  "stateHash": "f4730375e6d10e10134fef9c294943b2cb96b9f7e6ef841f0621cd3099f8e72f",
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-table-l06",
+    "tableName": "Lesson Table",
+    "creatorId": "system",
+    "visibility": "PUBLIC",
+    "maxSeats": 2,
+    "smallBlindCents": 100,
+    "bigBlindCents": 200,
+    "minBuyInCents": 20000,
+    "maxBuyInCents": 200000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "hand_6",
+    "handNumber": 6,
+    "street": "PREFLOP",
+    "dealerSeat": 0,
+    "sbSeat": 0,
+    "bbSeat": 1,
+    "toActSeat": 0,
+    "actionCount": 3,
+    "roundCurrentBetCents": 2400,
+    "minRaiseCents": 4600,
+    "potCents": 3500,
+    "board": []
+  },
+  "seats": [
+    {
+      "seat": 0,
+      "occupied": true,
+      "userId": "user_hero",
+      "isBot": false,
+      "name": "Hero (SB)",
+      "status": "ACTIVE",
+      "stackCents": 18800,
+      "roundBetCents": 1200,
+      "committedCents": 1200,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": true,
+      "isToAct": true
+    },
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_villain",
+      "isBot": false,
+      "name": "Villain (BB)",
+      "status": "ACTIVE",
+      "stackCents": 17600,
+      "roundBetCents": 2400,
+      "committedCents": 2400,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    }
+  ],
+  "hero": {
+    "userId": "user_hero",
+    "youAreSeated": true,
+    "seat": 0,
+    "holeCards": [
+      "Kh",
+      "Kc"
+    ],
+    "actionOptions": {
+      "canFold": true,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": true,
+      "canAllIn": true,
+      "primaryWagerAction": "RAISE",
+      "callAmount": 1200,
+      "minRaiseTo": 4600,
+      "maxRaiseTo": 20000
+    },
+    "calculations": {
+      "mode": "LIVE_ADVISORY",
+      "stale": false,
+      "equityPct": 79,
+      "potOddsPct": 25,
+      "updatedAtTs": 1772440279689
+    },
+    "playerStats": {
+      "hands": 120,
+      "vpipPct": 24,
+      "pfrPct": 18
+    }
+  },
+  "lastAction": {
+    "handId": "hand_6",
+    "seq": 3,
+    "street": "PREFLOP",
+    "actorUserId": "user_villain",
+    "actorKind": "HUMAN",
+    "action": "RAISE",
+    "amountCents": 2400,
+    "raiseToCents": 2400,
+    "potAfterCents": 3500,
+    "origin": "PLAYER",
+    "createdAtTs": 1772440279689
+  }
+}

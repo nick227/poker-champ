@@ -1,0 +1,63 @@
+﻿{
+  "lessonId": "L3_blind_defense_bb_vs_btn",
+  "title": "Stop Overfolding Your Big Blind",
+  "version": 1,
+  "moduleCode": "A_STOP_BLEEDING_PREFLOP",
+  "recommendedOrder": 3,
+  "targetAudience": "serious online players moving up stakes",
+  "difficulty": "CORE",
+  "estimatedMinutes": 10,
+  "steps": [
+    {
+      "id": "L3_step_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "../_shared/snapshots/action_preflop_hero_to_act.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Blind defense is a high-frequency bankroll protection skill.",
+      "question": "What does price demand before you fold BB vs BTN?",
+      "followUpInstructorMessage": "Threshold-based defense beats autopilot folds.",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Price and realization define profitable defense."
+      }
+    },
+    {
+      "id": "L3_step_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "../_shared/snapshots/flop_hu_top_pair.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Use price + hand class.",
+      "question": "Which baseline defend principle is strongest here?",
+      "followUpInstructorMessage": "Overfolding BB creates a persistent winrate tax.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "a",
+        "responseCorrect": "Correct. Defend thresholds drive long-run EV retention.",
+        "responseIncorrect": "Not ideal. This framing misses price-driven defense.",
+        "followUpCorrect": "Apply this across BTN size buckets.",
+        "followUpIncorrect": "Re-evaluate pot odds and realization discount.",
+        "runtime": {
+          "scenarioProviderKey": "static_snapshot",
+          "evaluatorKey": "mcq_option_eval",
+          "revealLayerKeys": ["ev_impact"],
+          "continuationKey": null,
+          "displayCategory": "MATH_GENERATED"
+        }
+      },
+      "options": [
+        { "optionKey": "a", "label": "Defend by price-adjusted threshold, then adapt by pool", "displayOrder": 1 },
+        { "optionKey": "b", "label": "Fold most hands because you are out of position", "displayOrder": 2 },
+        { "optionKey": "c", "label": "Always 3-bet instead of defending passively", "displayOrder": 3 }
+      ],
+      "scenarioProviderKey": "static_snapshot",
+      "evaluatorKey": "mcq_option_eval",
+      "revealLayerKeys": ["ev_impact"],
+      "continuationKey": null,
+      "displayCategory": "MATH_GENERATED"
+    }
+  ]
+}

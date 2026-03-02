@@ -178,6 +178,19 @@ export class Dealer {
   private readonly maxQueueDepth: number;
   private disconnectSweepIntervalId: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
+  private readonly onHandEndedAwards?: (
+    handSummary: {
+      handId: string;
+      reason: "LAST_PLAYER" | "SHOWDOWN" | "DEFENSIVE_FALLBACK";
+      potCents: number;
+      bigBlindCents: number;
+      payoutsByUserId: Record<string, number>;
+      winnerId?: string;
+      allInPlayerIds: string[];
+    },
+    dealtUserIds: string[],
+    getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number }
+  ) => Promise<void>;
 
   // ---------------------------------------------------------------------------
   // CONSTRUCTOR - SERVICE WIRING & INITIALIZATION
@@ -202,9 +215,23 @@ export class Dealer {
       }) => Promise<void> | void;
       getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
       maxQueueDepth?: number;
+      onHandEndedAwards?: (
+        handSummary: {
+          handId: string;
+          reason: "LAST_PLAYER" | "SHOWDOWN" | "DEFENSIVE_FALLBACK";
+          potCents: number;
+          bigBlindCents: number;
+          payoutsByUserId: Record<string, number>;
+          winnerId?: string;
+          allInPlayerIds: string[];
+        },
+        dealtUserIds: string[],
+        getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number }
+      ) => Promise<void>;
     },
   ) {
     this.state = state;
+    this.onHandEndedAwards = options?.onHandEndedAwards;
     this.persistence =
       persistence ??
       new PersistenceFacade({
@@ -659,8 +686,7 @@ export class Dealer {
           this.scheduleNextHand(plan.reason, plan.delayMs ?? 0);
           break;
         case "HAND_ENDED":
-          // Currently no action needed - outcome data is already in lastHandResult
-          // This case exists for future extensibility and to prevent silent ignoring
+          await this.runHandEndedAwards(plan);
           break;
       }
     }
@@ -700,6 +726,39 @@ export class Dealer {
           break;
       }
     }
+  }
+
+  private async runHandEndedAwards(
+    plan: Extract<HandLifecyclePlan, { kind: "HAND_ENDED" }>
+  ): Promise<void> {
+    const result = this.lastHandResult;
+    if (!result || !this.currentHand) return;
+    const dealtUserIds = [...this.currentHand.holeCardsByPlayerId.keys()].filter(
+      (id) => this.state.playersById.get(id)?.kind === "HUMAN"
+    );
+    if (dealtUserIds.length === 0 || !this.onHandEndedAwards) return;
+    const allInPlayerIds = [...this.state.playersById.values()]
+      .filter((p) => p.status === "ALL_IN")
+      .map((p) => p.id);
+    const handSummary = {
+      handId: result.handId,
+      reason: plan.reason,
+      potCents: plan.outcome.potCents,
+      bigBlindCents: this.state.bigBlindCents,
+      payoutsByUserId: plan.outcome.payoutsByUserId,
+      winnerId: plan.outcome.winnerId,
+      allInPlayerIds,
+    };
+    for (const userId of dealtUserIds) {
+      const won = (plan.outcome.payoutsByUserId[userId] ?? 0) > 0;
+      this.sessionStatsTracker.recordHandResult(userId, won);
+    }
+    const tableId = this.state.tableId || "table_poc";
+    await this.onHandEndedAwards(handSummary, dealtUserIds, (userId) => ({
+      sessionId: this.sessionStatsTracker.getSessionId(userId) || tableId,
+      sessionHands: this.sessionStatsTracker.getSessionHands(userId),
+      consecutiveWins: this.sessionStatsTracker.getConsecutiveWins(userId),
+    }));
   }
 
   // ---------------------------------------------------------------------------

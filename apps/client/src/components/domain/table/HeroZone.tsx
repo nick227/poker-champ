@@ -13,6 +13,7 @@ import { hasHeroCalculations } from "./table.utils";
 import { HERO_ZONE_HEIGHT } from "./constants/tableLayout.constants";
 import { useTableLayoutHeight } from "./shell/TableLayoutHeightContext";
 import { heroZoneStyles as s } from "./heroZone.styles";
+import { usePreferencesStore } from "@/stores/preferences.store";
 
 export { HERO_ZONE_HEIGHT };
 
@@ -90,6 +91,7 @@ export function HeroZone({
   onToggleSittingOut,
   height: heightProp,
 }: HeroZoneProps) {
+  const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const layoutHeight = useTableLayoutHeight();
   const zoneHeight =
     heightProp ?? layoutHeight?.heroZoneHeight ?? HERO_ZONE_HEIGHT;
@@ -134,7 +136,7 @@ export function HeroZone({
             {cards.map((c, i) => {
               const key = HERO_CARD_KEYS[i] ?? `card-${i}`;
               return c ? (
-                <PlayingCard key={key} rank={c.rank} suit={c.suit} />
+                <PlayingCard key={key} rank={c.rank} suit={c.suit} packId={cardFacePackId} />
               ) : (
                 <PlayingCard key={key} faceDown />
               );

@@ -1,10 +1,18 @@
 {
+  "identifier": "com.pokerchamp.desktop",
+  "productName": "Poker Champ",
+  "version": "0.2.0",
   "build": {
-    "devPath": "http://localhost:8081",
-    "distDir": "../dist"
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:8081",
+    "frontendDist": "../dist"
   },
-  "package": { "productName": "Poker Champ", "version": "0.2.0" },
-  "tauri": {
-    "windows": [{ "title": "Poker Champ", "width": 1200, "height": 800, "resizable": true }]
-  }
+  "app": {
+    "windows": [
+      { "title": "Poker Champ", "width": 1200, "height": 800, "resizable": true }
+    ]
+  },
+  "bundle": {},
+  "plugins": {}
 }

@@ -4,8 +4,9 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
 import { PokerTipCard } from "./PokerTipCard";
-import { TableLoadingGraphic } from "./TableLoadingGraphic";
 import { getTipRotation } from "./loadingTips";
+import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
+import { useBankroll } from "@/hooks/useBankroll";
 
 export type TableLoadingMode = "auth_loading" | "auth_required" | "connecting";
 
@@ -20,10 +21,12 @@ export type TableLoadingLandingProps = {
 
 const BRAND_MARK = require("../../../../../assets/images/spades.png");
 const LANDING_MAX_WIDTH = 680;
-const STATUS_BLOCK_MIN_HEIGHT = 116;
 const TIP_BLOCK_MIN_HEIGHT = 124;
 const TIP_ROTATE_MS = 3800;
 const REVEAL_DELAY_MS = 90;
+/** Match slot machine longest reel spin (SlotMachine SPIN_DURATIONS max 1400ms). */
+const ONE_SPIN_MS = 1500;
+const SLOT_LANDING_MIN_HEIGHT = 380;
 
 function revealStyle(value: Animated.Value) {
   return {
@@ -37,11 +40,6 @@ function revealStyle(value: Animated.Value) {
       },
     ],
   };
-}
-
-function titleForMode(mode: TableLoadingMode): string {
-  if (mode === "auth_required") return "Session expired";
-  return "Preparing your seat";
 }
 
 export function TableLoadingLanding({
@@ -60,14 +58,23 @@ export function TableLoadingLanding({
   const tipOpacity = useRef(new Animated.Value(1)).current;
   const pulseValue = useRef(new Animated.Value(0.8)).current;
   const brandReveal = useRef(new Animated.Value(0)).current;
-  const heroReveal = useRef(new Animated.Value(0)).current;
-  const statusReveal = useRef(new Animated.Value(0)).current;
   const tipReveal = useRef(new Animated.Value(0)).current;
+  const slotReveal = useRef(new Animated.Value(0)).current;
   const actionReveal = useRef(new Animated.Value(0)).current;
 
   const actionTitle = mode === "auth_required" ? "Go to login" : "Return to lobby";
   const actionHandler = mode === "auth_required" ? (onGoToLogin ?? onReturnToLobby) : onReturnToLobby;
   const tip = safeTips[tipIndex % safeTips.length];
+
+  const { cents: bankroll } = useBankroll();
+  const [slotBankroll, setSlotBankroll] = useState(bankroll);
+  const [loadingUiVisible, setLoadingUiVisible] = useState(false);
+
+  useEffect(() => {
+    setLoadingUiVisible(false);
+    const t = setTimeout(() => setLoadingUiVisible(true), ONE_SPIN_MS);
+    return () => clearTimeout(t);
+  }, [tableId]);
 
   useEffect(() => {
     setTipIndex(0);
@@ -102,7 +109,7 @@ export function TableLoadingLanding({
   }, [reducedMotion, safeTips.length, tipOpacity]);
 
   useEffect(() => {
-    const revealValues = [brandReveal, heroReveal, statusReveal, tipReveal, actionReveal];
+    const revealValues = [brandReveal, tipReveal, slotReveal, actionReveal];
     if (reducedMotion) {
       revealValues.forEach((value) => value.setValue(1));
       return;
@@ -116,19 +123,13 @@ export function TableLoadingLanding({
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.timing(heroReveal, {
-        toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(statusReveal, {
+      Animated.timing(tipReveal, {
         toValue: 1,
         duration: 200,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.timing(tipReveal, {
+      Animated.timing(slotReveal, {
         toValue: 1,
         duration: 200,
         easing: Easing.out(Easing.quad),
@@ -143,16 +144,7 @@ export function TableLoadingLanding({
     ]);
     sequence.start();
     return () => sequence.stop();
-  }, [
-    actionReveal,
-    brandReveal,
-    heroReveal,
-    mode,
-    reducedMotion,
-    statusReveal,
-    tableId,
-    tipReveal,
-  ]);
+  }, [actionReveal, brandReveal, mode, reducedMotion, slotReveal, tableId, tipReveal]);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -179,12 +171,20 @@ export function TableLoadingLanding({
     return () => pulse.stop();
   }, [pulseValue, reducedMotion]);
 
+  const currentBankroll = slotBankroll ?? bankroll;
+  const minBetCents = 100;
+  const effectiveBankroll =
+    currentBankroll != null && currentBankroll >= minBetCents ? currentBankroll : undefined;
+
   return (
     <View
       className="flex-1"
-      style={{ paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 12 : 20 }}
+      style={{
+        paddingHorizontal: compact ? 12 : 16,
+        paddingVertical: compact ? 12 : 20,
+        justifyContent: "flex-start",
+      }}
     >
-      <View style={{ flexGrow: 1 }} />
       <View
         className="mx-auto w-full overflow-hidden rounded-3xl border border-border-subtle bg-bg px-5 py-5 shadow-lg"
         style={{ maxWidth: LANDING_MAX_WIDTH, paddingHorizontal: compact ? 14 : 20, paddingVertical: compact ? 14 : 20 }}
@@ -220,27 +220,8 @@ export function TableLoadingLanding({
           </Text>
         </Animated.View>
 
-        <Animated.View style={revealStyle(heroReveal)}>
-          <TableLoadingGraphic title={titleForMode(mode)} compact={compact} />
-        </Animated.View>
-
         <Animated.View
-          className="mt-4 rounded-2xl border border-border-subtle bg-panel-elevated px-4 py-3"
-          style={[{ minHeight: compact ? 98 : STATUS_BLOCK_MIN_HEIGHT }, revealStyle(statusReveal)]}
-        >
-          <Text variant="label" className="mb-1 normal-case tracking-normal text-text-subtle">
-            Connection Status
-          </Text>
-          <Text variant="body" className="text-text" numberOfLines={compact ? 1 : 2}>
-            {statusMessage}
-          </Text>
-          <View className="mt-3">
-            <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
-          </View>
-        </Animated.View>
-
-        <Animated.View
-          className="mt-5"
+          className="mt-2"
           style={[revealStyle(tipReveal), { minHeight: compact ? 108 : TIP_BLOCK_MIN_HEIGHT }]}
         >
           <Animated.View style={{ opacity: tipOpacity }}>
@@ -248,13 +229,30 @@ export function TableLoadingLanding({
           </Animated.View>
         </Animated.View>
 
+        <Animated.View
+          className="mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-panel-elevated"
+          style={[revealStyle(slotReveal), { minHeight: SLOT_LANDING_MIN_HEIGHT }]}
+        >
+          <ThemeProvider initialThemeId="poker-champ-dark">
+            <SlotMachine bankrollCents={effectiveBankroll} onBankrollChange={setSlotBankroll} />
+          </ThemeProvider>
+        </Animated.View>
+
+        {loadingUiVisible ? (
+          <Animated.View className="mt-4 flex-row items-center justify-center gap-2 rounded-2xl border border-border-subtle bg-panel-elevated px-4 py-3">
+            <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
+            <Text variant="muted" className="text-text-subtle my-4">
+              {statusMessage}
+            </Text>
+          </Animated.View>
+        ) : null}
+
         <Animated.View className="mt-5 items-center" style={revealStyle(actionReveal)}>
-          <View className="w-full mt-4" style={compact ? undefined : { maxWidth: 280 }}>
+          <View className="w-full my-4" style={compact ? undefined : { maxWidth: 280 }}>
             <Button variant="ghost" title={actionTitle} onPress={actionHandler} />
           </View>
         </Animated.View>
       </View>
-      <View style={{ flexGrow: 1 }} />
     </View>
   );
 }

@@ -16,6 +16,7 @@ export const openApiSpec = {
     { name: "economy" },
     { name: "tournaments" },
     { name: "lobby" },
+    { name: "lessons" },
     { name: "bots" },
     { name: "admin" },
   ],
@@ -32,6 +33,15 @@ export const openApiSpec = {
         type: "object",
         properties: { error: { type: "string" } },
         required: ["error"],
+      },
+      RateLimitError: {
+        type: "object",
+        properties: {
+          error: { type: "string" },
+          code: { type: "string", enum: ["RATE_LIMITED"] },
+          retryAfterSeconds: { type: "integer", minimum: 1 },
+        },
+        required: ["error", "code", "retryAfterSeconds"],
       },
       User: {
         type: "object",
@@ -133,6 +143,59 @@ export const openApiSpec = {
         },
         required: ["id", "scope", "senderUserId", "senderName", "text", "createdAtTs"],
       },
+      LessonOption: {
+        type: "object",
+        properties: {
+          optionKey: { type: "string" },
+          label: { type: "string" },
+          value: { type: "object", nullable: true, additionalProperties: true },
+          displayOrder: { type: "integer" },
+        },
+        required: ["optionKey", "label", "displayOrder"],
+      },
+      LessonStep: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          sequence: { type: "integer" },
+          type: { type: "string", enum: ["ACTION_STEP", "MCQ_STEP", "INFO_STEP"] },
+          snapshot: { type: "object", nullable: true, additionalProperties: true },
+          beforeInstructorMessage: { type: "string", nullable: true },
+          question: { type: "string", nullable: true },
+          followUpInstructorMessage: { type: "string", nullable: true },
+          options: {
+            type: "array",
+            items: { $ref: "#/components/schemas/LessonOption" },
+          },
+        },
+        required: ["id", "sequence", "type", "options"],
+      },
+      LessonSummary: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          slug: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string", nullable: true },
+          difficulty: { type: "string" },
+          estimatedMinutes: { type: "integer", nullable: true },
+          version: { type: "integer" },
+          totalSteps: { type: "integer" },
+        },
+        required: ["id", "slug", "title", "difficulty", "version", "totalSteps"],
+      },
+      LessonAttempt: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          lessonId: { type: "string" },
+          status: { type: "string" },
+          startedAt: { type: "string", format: "date-time" },
+          completedAt: { type: "string", format: "date-time", nullable: true },
+          scorePct: { type: "number", nullable: true },
+        },
+        required: ["id", "lessonId", "status", "startedAt"],
+      },
     },
   },
   paths: {
@@ -199,6 +262,10 @@ export const openApiSpec = {
             description: "Bad request",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
+          "429": {
+            description: "Too many requests",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/RateLimitError" } } },
+          },
         },
       },
     },
@@ -229,6 +296,10 @@ export const openApiSpec = {
           "401": {
             description: "Unauthorized",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "429": {
+            description: "Too many requests",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/RateLimitError" } } },
           },
         },
       },
@@ -1248,6 +1319,258 @@ export const openApiSpec = {
           },
           "400": {
             description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons": {
+      get: {
+        tags: ["lessons"],
+        operationId: "lessonsList",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "List available lessons and current mastery",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    lessons: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/LessonSummary" },
+                    },
+                    masteryByConceptCode: {
+                      type: "object",
+                      additionalProperties: true,
+                    },
+                  },
+                  required: ["lessons", "masteryByConceptCode"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons/mastery": {
+      get: {
+        tags: ["lessons"],
+        operationId: "lessonsMastery",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Concept mastery snapshot",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    concepts: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          conceptId: { type: "string" },
+                          code: { type: "string" },
+                          name: { type: "string" },
+                          masteryScore: { type: "number" },
+                          confidence: { type: "number" },
+                          lastUpdatedAt: { type: "string", format: "date-time" },
+                        },
+                        required: ["conceptId", "code", "name", "masteryScore", "confidence", "lastUpdatedAt"],
+                      },
+                    },
+                  },
+                  required: ["concepts"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons/{lessonId}": {
+      get: {
+        tags: ["lessons"],
+        operationId: "lessonsGet",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { in: "path", name: "lessonId", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Lesson details with ordered steps",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    lesson: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        slug: { type: "string" },
+                        title: { type: "string" },
+                        description: { type: "string", nullable: true },
+                        difficulty: { type: "string" },
+                        estimatedMinutes: { type: "integer", nullable: true },
+                        version: { type: "integer" },
+                        steps: {
+                          type: "array",
+                          items: { $ref: "#/components/schemas/LessonStep" },
+                        },
+                      },
+                      required: ["id", "slug", "title", "difficulty", "version", "steps"],
+                    },
+                  },
+                  required: ["lesson"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons/{lessonId}/attempts": {
+      post: {
+        tags: ["lessons"],
+        operationId: "lessonsAttemptStartOrResume",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { in: "path", name: "lessonId", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Attempt resumed",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    attempt: { $ref: "#/components/schemas/LessonAttempt" },
+                    resumed: { type: "boolean" },
+                  },
+                  required: ["attempt", "resumed"],
+                },
+              },
+            },
+          },
+          "201": {
+            description: "Attempt created",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    attempt: { $ref: "#/components/schemas/LessonAttempt" },
+                    resumed: { type: "boolean" },
+                  },
+                  required: ["attempt", "resumed"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons/{lessonId}/attempts/{attemptId}/steps/{stepId}/submit": {
+      post: {
+        tags: ["lessons"],
+        operationId: "lessonsSubmitStep",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { in: "path", name: "lessonId", required: true, schema: { type: "string" } },
+          { in: "path", name: "attemptId", required: true, schema: { type: "string" } },
+          { in: "path", name: "stepId", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  answer: { type: "object", additionalProperties: true },
+                },
+                required: ["answer"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Step submitted and graded",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    feedback: {
+                      type: "object",
+                      properties: {
+                        response: { type: "string" },
+                        followUpInstructorMessage: { type: "string" },
+                        isCorrect: { type: "boolean" },
+                        scoreDelta: { type: "number" },
+                      },
+                      required: ["response", "followUpInstructorMessage", "isCorrect", "scoreDelta"],
+                    },
+                    attempt: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        lessonId: { type: "string" },
+                        status: { type: "string" },
+                        scorePct: { type: "number" },
+                      },
+                      required: ["id", "lessonId", "status", "scorePct"],
+                    },
+                    gradingDebug: {
+                      type: "object",
+                      properties: {
+                        stepType: { type: "string" },
+                        gradingSpec: { type: "string" },
+                      },
+                      required: ["stepType", "gradingSpec"],
+                    },
+                  },
+                  required: ["feedback", "attempt", "gradingDebug"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

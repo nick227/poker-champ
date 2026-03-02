@@ -29,15 +29,19 @@ export function useOpenTableSync({
 }: UseOpenTableSyncOptions) {
   const lastOpenAttemptForTableRef = useRef<string | null>(null);
   const lastActiveAttemptForTableRef = useRef<string | null>(null);
+  const hasRefreshedLobbyWhenEmptyRef = useRef(false);
+  const syncDoneForTableIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (tableId && lobbyTableCount === 0) {
-      refreshLobby();
-    }
+    if (!tableId || lobbyTableCount > 0) return;
+    if (hasRefreshedLobbyWhenEmptyRef.current) return;
+    hasRefreshedLobbyWhenEmptyRef.current = true;
+    refreshLobby();
   }, [tableId, lobbyTableCount, refreshLobby]);
 
   useEffect(() => {
     if (!tableId) return;
+    if (syncDoneForTableIdRef.current === tableId) return;
     const hasOpenTable = openTableIds.includes(tableId);
     const shouldUseRouteBuyInOnOpen =
       Number.isInteger(routeBuyInCents) &&
@@ -49,17 +53,17 @@ export function useOpenTableSync({
         lastOpenAttemptForTableRef.current = tableId;
         openTable(tableId, shouldUseRouteBuyInOnOpen ? { buyInCents: routeBuyInCents as number } : undefined);
       }
-    } else {
-      lastOpenAttemptForTableRef.current = null;
+      syncDoneForTableIdRef.current = tableId;
+      return;
     }
+    lastOpenAttemptForTableRef.current = null;
 
-    if (activeTableId !== tableId) {
-      if (lastActiveAttemptForTableRef.current !== tableId) {
-        lastActiveAttemptForTableRef.current = tableId;
-        setActive(tableId);
-      }
-    } else {
+    if (activeTableId !== tableId && lastActiveAttemptForTableRef.current !== tableId) {
+      lastActiveAttemptForTableRef.current = tableId;
+      setActive(tableId);
+    } else if (activeTableId === tableId) {
       lastActiveAttemptForTableRef.current = null;
     }
+    syncDoneForTableIdRef.current = tableId;
   }, [tableId, routeBuyInCents, joinStateBuyInCents, openTableIds, activeTableId, openTable, setActive]);
 }

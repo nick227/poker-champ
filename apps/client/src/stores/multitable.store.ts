@@ -63,7 +63,12 @@ type MultiTableState = {
   scheduleActionRetry: (tableId: string, retryAfterSeconds?: number) => void;
   clearPendingAction: (tableId: string) => void;
   clearPendingActionIfMatch: (tableId: string, actionId?: string) => void;
+  registerTableDisconnect: (tableId: string, disconnect: (consented?: boolean) => void) => void;
+  unregisterTableDisconnect: (tableId: string) => void;
+  disconnectOtherTables: (exceptTableId: string) => void;
 };
+
+const tableDisconnectByTableId = new Map<string, (consented?: boolean) => void>();
 
 export const useMultiTableStore = create<MultiTableState>()(
   persist(
@@ -292,6 +297,24 @@ export const useMultiTableStore = create<MultiTableState>()(
           lastBuyInCentsByTableId: {},
           tableMetaUpdatedAt: {},
         }),
+      registerTableDisconnect: (tableId, disconnect) => {
+        tableDisconnectByTableId.set(tableId, disconnect);
+      },
+      unregisterTableDisconnect: (tableId) => {
+        tableDisconnectByTableId.delete(tableId);
+      },
+      disconnectOtherTables: (exceptTableId) => {
+        for (const [id, fn] of tableDisconnectByTableId.entries()) {
+          if (id !== exceptTableId) {
+            try {
+              fn(true);
+            } catch {
+              /* no-op */
+            }
+            tableDisconnectByTableId.delete(id);
+          }
+        }
+      },
     }),
     {
       name: "multitable-store",

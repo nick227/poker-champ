@@ -1,0 +1,82 @@
+﻿{
+  "lessonId": "L2_face_open_3bet_call_fold",
+  "title": "Punish Opens: 3-Bet / Call / Fold Buckets",
+  "version": 1,
+  "moduleCode": "A_STOP_BLEEDING_PREFLOP",
+  "recommendedOrder": 2,
+  "targetAudience": "serious online players moving up stakes",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 10,
+  "steps": [
+    {
+      "id": "L2_step_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "../_shared/snapshots/action_preflop_hero_to_act.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "If call is your default, you are usually capping edge.",
+      "question": "What determines whether this combo belongs in 3-bet/call/fold?",
+      "followUpInstructorMessage": "Bucket decisions should be role-based and pool-aware.",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Think in buckets, not in one-size-fits-all action."
+      }
+    },
+    {
+      "id": "L2_step_action",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "../_shared/snapshots/action_preflop_hero_to_act.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Commit your highest-EV baseline line.",
+      "question": "Use ActionBar now.",
+      "followUpInstructorMessage": "Initiative compounds EV downstream.",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "expectedAction": "RAISE",
+        "responseCorrect": "Correct. This line captures immediate and downstream EV.",
+        "responseIncorrect": "Not ideal for this node and pool profile.",
+        "followUpCorrect": "Good tree-wide decision quality.",
+        "followUpIncorrect": "Re-evaluate fold equity and realization.",
+        "runtime": {
+          "scenarioProviderKey": "static_snapshot",
+          "evaluatorKey": "action_rubric_eval",
+          "revealLayerKeys": ["ev_impact"],
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE"
+        }
+      },
+      "scenarioProviderKey": "static_snapshot",
+      "evaluatorKey": "action_rubric_eval",
+      "revealLayerKeys": ["ev_impact"],
+      "continuationKey": null,
+      "displayCategory": "WWYD_COMPARE"
+    },
+    {
+      "id": "L2_step_mcq",
+      "sequence": 3,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "../_shared/snapshots/flop_hu_top_pair.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Why is this line superior?",
+      "question": "Choose the strongest EV explanation.",
+      "followUpInstructorMessage": "Good decision quality includes tree-wide consequences.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "a",
+        "responseCorrect": "Correct. Initiative and domination control both matter.",
+        "responseIncorrect": "Not the strongest EV explanation for this node.",
+        "followUpCorrect": "Carry this logic into similar spots.",
+        "followUpIncorrect": "Focus on EV mechanism, not just action labels."
+      },
+      "options": [
+        { "optionKey": "a", "label": "Initiative + domination control + better realization", "displayOrder": 1 },
+        { "optionKey": "b", "label": "Looks aggressive so it must be right", "displayOrder": 2 },
+        { "optionKey": "c", "label": "Always call to keep ranges wide", "displayOrder": 3 }
+      ]
+    }
+  ]
+}

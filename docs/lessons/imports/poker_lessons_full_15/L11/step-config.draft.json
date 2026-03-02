@@ -1,0 +1,91 @@
+{
+  "lessonId": "L11",
+  "title": "A7s UTG Tournament",
+  "version": 1,
+  "moduleCode": "C_CLOSE_HAND_PROFITABLY",
+  "recommendedOrder": 11,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "importedFrom": "poker_lessons_full_15.json",
+  "importDraft": true,
+  "steps": [
+    {
+      "id": "L11_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 11: A7s UTG Tournament. What is your best action?",
+      "followUpInstructorMessage": "When ready, make your table decision.",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L11_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 11: A7s UTG Tournament. What is your best action?",
+      "followUpInstructorMessage": "Instructor analysis and community comparison placeholder.",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "FOLD",
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpCorrect": "Instructor analysis and community comparison placeholder.",
+        "followUpIncorrect": "Instructor analysis and community comparison placeholder.",
+        "runtime": {
+          "scenarioProviderKey": "static_snapshot",
+          "evaluatorKey": "action_rubric_eval",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "rubric": {
+          "acceptedAnswers": {
+            "STRONG": [
+              "fold"
+            ],
+            "REASONABLE": [
+              "raise"
+            ],
+            "WEAK": [
+              "call"
+            ]
+          }
+        }
+      },
+      "scenarioProviderKey": "static_snapshot",
+      "evaluatorKey": "action_rubric_eval",
+      "revealLayerKeys": [
+        "ev_impact",
+        "community_comparison"
+      ],
+      "continuationKey": null,
+      "displayCategory": "WWYD_COMPARE"
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "gradingPlanVersion": 1
+}

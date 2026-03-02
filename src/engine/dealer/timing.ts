@@ -4,4 +4,4 @@ export const NEXT_HAND_DELAY_MS = 0;
 
 // Bot \"thinking\" delay configuration (milliseconds)
 export const BOT_ACTION_DELAY_MIN_MS = 0;
-export const BOT_ACTION_DELAY_MAX_MS = 1500;
+export const BOT_ACTION_DELAY_MAX_MS = 1000;

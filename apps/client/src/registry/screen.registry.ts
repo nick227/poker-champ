@@ -1,4 +1,4 @@
-export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard" | "slots";
+export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard" | "slots" | "lessons";
 
 type ScreenDefinition = {
   path: string;
@@ -43,9 +43,17 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     path: "/history",
     authRequired: true,
     title: "Hand History",
-    showInBottomBar: true,
+    showInBottomBar: false,
     bottomBarLabel: "History",
     componentPath: "app/history.tsx",
+  },
+  lessons: {
+    path: "/lessons",
+    authRequired: true,
+    title: "Poker School",
+    showInBottomBar: true,
+    bottomBarLabel: "Lessons",
+    componentPath: "app/lessons.tsx",
   },
   leaderboard: {
     path: "/leaderboard",
@@ -60,14 +68,14 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     authRequired: false,
     title: "Slots",
     componentPath: "app/slots.tsx",
-    showInBottomBar: true,
+    showInBottomBar: false,
     bottomBarLabel: "Slots",
   },
   settings: {
     path: "/settings",
     authRequired: true,
     title: "Settings",
-    showInBottomBar: false,
+    showInBottomBar: true,
     bottomBarLabel: "Settings",
     componentPath: "app/settings.tsx",
   },

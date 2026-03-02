@@ -4,12 +4,20 @@ import type { ReplayController } from "@/types/replayController";
 import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
 import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
 
+export type ReplayMessage = {
+  id: string;
+  step: number;
+  body: string;
+  title?: string;
+};
+
 export type ReplaySource =
-  | { type: "handId"; handId: string }
+  | { type: "handId"; handId: string; messages?: readonly ReplayMessage[] }
   | {
       type: "snapshots";
       snapshots: readonly TableSnapshotPayload[];
       handId?: string;
+      messages?: readonly ReplayMessage[];
     };
 
 export type ReplayContentProps = {

@@ -1,0 +1,161 @@
+/** Response DTOs and shared types for lessons API. */
+
+export type LessonState = "not_started" | "in_progress" | "completed";
+export type LessonRole = "teaches" | "drills" | "tests";
+export type ModuleCode =
+  | "A_STOP_BLEEDING_PREFLOP"
+  | "B_WIN_MORE_FLOPS"
+  | "C_CLOSE_HAND_PROFITABLY";
+
+export interface LessonListLessonDto {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  difficulty: string;
+  estimatedMinutes: number | null;
+  version: number;
+  totalSteps: number;
+  tier: string | null;
+  applyCtaText: string | null;
+  progressState: LessonState;
+  inProgressAttemptId: string | null;
+  submittedStepCount?: number;
+  completedAttempts: number;
+  currentStepIndex: number;
+  currentStepId: string | null;
+  lastScorePct: number | null;
+  lastAttemptedAt: string | null;
+  bestScorePct: number | null;
+  hasAccess: boolean;
+  moduleCode: ModuleCode;
+  role: LessonRole;
+  repeatable: boolean;
+  recommendedOrder: number;
+  conceptTags: string[];
+}
+
+export interface LessonListResponseDto {
+  cadence: { completedAttemptsLast7Days: number };
+  lessons: LessonListLessonDto[];
+  masteryByConceptCode: Record<
+    string,
+    {
+      conceptId: string;
+      conceptName: string;
+      masteryScore: number;
+      confidence: number;
+      lastUpdatedAt: string;
+    }
+  >;
+}
+
+export interface LessonDetailStepDto {
+  id: string;
+  sequence: number;
+  type: string;
+  snapshot: unknown;
+  beforeInstructorMessage: string | null;
+  question: string | null;
+  followUpInstructorMessage: string | null;
+  options: Array<{
+    optionKey: string;
+    label: string;
+    value: unknown;
+    displayOrder: number;
+  }>;
+  scenarioProviderKey: string | null;
+  evaluatorKey: string | null;
+  revealLayerKeys: string[] | null;
+  continuationKey: string | null;
+  runtimeConfigJson: Record<string, unknown> | null;
+  displayCategory: string | null;
+}
+
+export interface LessonDetailResponseDto {
+  lesson: {
+    id: string;
+    slug: string;
+    title: string;
+    description: string | null;
+    difficulty: string;
+    estimatedMinutes: number | null;
+    version: number;
+    tier: string | null;
+    applyCtaText: string | null;
+    blogPostSlug: string | null;
+    replayHandId: string | null;
+    steps: LessonDetailStepDto[];
+  };
+}
+
+export interface StartAttemptResponseDto {
+  attempt: {
+    id: string;
+    lessonId: string;
+    status: string;
+    startedAt: string;
+    completedAt: string | null;
+    scorePct: number | null;
+    currentStepIndex: number;
+    submittedStepCount: number;
+    submittedSteps: Array<{
+      stepId: string;
+      feedback: Record<string, unknown> | null;
+      submittedAt: string | null;
+    }>;
+  };
+  resumed: boolean;
+}
+
+export interface SubmitFeedbackDto {
+  response: string;
+  followUpInstructorMessage: string;
+  isCorrect: boolean;
+  scoreDelta: number;
+  evBb?: number;
+  takeaway?: string;
+  frequencyPerMonth?: number;
+  gradeBand?: "STRONG" | "REASONABLE" | "WEAK";
+}
+
+export interface SubmitResponseDto {
+  feedback: SubmitFeedbackDto;
+  attempt: { id: string; lessonId: string; status: string; scorePct: number | null };
+  awardsGranted?: Array<{ awardId: string; reason: string }>;
+  gradingDebug?: { stepType: string; gradingSpec: string };
+  idempotentReplay?: boolean;
+}
+
+export interface GradeResult {
+  isCorrect: boolean;
+  response: string;
+  followUp: string;
+  scoreDelta: number;
+  gradeBand?: "STRONG" | "REASONABLE" | "WEAK" | null;
+  evBb?: number | null;
+  takeaway?: string | null;
+  frequencyPerMonth?: number | null;
+}
+
+/** Normalized grading spec (one-time parse from JSON, no per-submit walking). */
+export interface NormalizedGradingSpec {
+  type: string;
+  responseCorrect: string;
+  responseIncorrect: string;
+  followUpContent: string;
+  responseReasonable?: string;
+  evBb?: number | null;
+  evErrorBb?: number | null;
+  takeawayIncorrect?: string | null;
+  frequencyPerMonth?: number | null;
+  gradingMode?: string | null;
+  expectedAction?: string;
+  expectedOptionKey?: string;
+  rubric?: {
+    STRONG: string[];
+    REASONABLE: string[];
+    WEAK: string[];
+  } | null;
+  response?: string;
+}

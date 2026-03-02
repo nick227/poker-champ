@@ -138,5 +138,5 @@ export function useEmptyTableNotification(
     return {
       message: "Next hand starting soon…",
     };
-  }, [snapshot, opponents, onAddBot, onInvitePlayer, onResumeGame, isHost]);
+  }, [snapshot, opponents, onAddBot, onInvitePlayer]);
 }

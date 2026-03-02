@@ -32,6 +32,7 @@ export type TableSceneShellProps = {
   bottom: ReactNode;
   rootClassName?: string;
   immersiveBoard?: boolean;
+  hideBottomSection?: boolean;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -53,6 +54,7 @@ export function TableSceneShell({
   bottom,
   rootClassName,
   immersiveBoard = false,
+  hideBottomSection = false,
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
@@ -146,20 +148,22 @@ export function TableSceneShell({
                 </View>
               </View>
 
-              <View
-                collapsable={false}
-                style={[
-                  layoutStyles.actionBarSection,
-                  {
-                    height: ACTION_BAR_HEIGHT + insets.bottom,
-                    minHeight: ACTION_BAR_HEIGHT + insets.bottom,
-                    paddingBottom: insets.bottom,
-                  },
-                ]}
-                className="border-t border-border-subtle flex items-center justify-center"
-              >
-                {bottom}
-              </View>
+              {!hideBottomSection ? (
+                <View
+                  collapsable={false}
+                  style={[
+                    layoutStyles.actionBarSection,
+                    {
+                      height: ACTION_BAR_HEIGHT + insets.bottom,
+                      minHeight: ACTION_BAR_HEIGHT + insets.bottom,
+                      paddingBottom: insets.bottom,
+                    },
+                  ]}
+                  className="border-t border-border-subtle flex items-center justify-center"
+                >
+                  {bottom}
+                </View>
+              ) : null}
             </>
           )}
         </ScrollView>

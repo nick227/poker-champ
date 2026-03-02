@@ -7,7 +7,7 @@
  * - Services: Authentication, persistence, economy, and other business logic
  * - Utilities: Logging, rate limiting, bot management, etc.
  */
-import { Room, Client, CloseCode } from "@colyseus/core";
+import { Room, Client, CloseCode, matchMaker } from "@colyseus/core";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
 import { ActionPayloadSchema } from "../messages/schemas.js";
@@ -39,6 +39,7 @@ import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../engine/bots/BotCatalog.js";
 import { getPrisma } from "../db/prisma.js";
+import { awardService } from "../awards/index.js";
 
 /**
  * Type definition for join options when a client connects to the table
@@ -48,6 +49,11 @@ import { getPrisma } from "../db/prisma.js";
  * - tableId: Optional table identifier for routing
  */
 type JoinOptions = { name?: string; buyInCents?: number; password?: string; tableId?: string };
+
+/** Close code when leaving due to joining another table; client treats as non-error and does not reconnect. */
+/** Must differ from CloseCode.CONSENTED (4000) so onLeave can tell user leave from session-replaced. */
+const LEAVE_CODE_SESSION_REPLACED = 4001;
+
 /**
  * Authentication context returned after successful token validation
  * - userId: Unique identifier for the authenticated user
@@ -189,7 +195,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * Whether persistent seats feature is enabled. When enabled, player
    * seats and chip stacks survive disconnects and server restarts.
    */
-  private readonly persistentSeatsEnabled = isPersistentSeatsEnabled();
+  private get persistentSeatsEnabled(): boolean {
+    return isPersistentSeatsEnabled();
+  }
   /**
    * Whether table snapshot logging is enabled. When enabled, all game
    * state changes are logged for auditing, replay, and analysis.
@@ -341,6 +349,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return user
           ? { avatarUrl: user.avatarUrl ?? null, avatarVersion: user.avatarVersion ?? null }
           : { avatarUrl: null, avatarVersion: null };
+      },
+      onHandEndedAwards: async (handSummary, dealtUserIds, getSessionState) => {
+        await awardService.processHandEndAwards(handSummary, dealtUserIds, getSessionState);
       },
     });
 
@@ -786,6 +797,26 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return;
       }
 
+      // Remove user from any other table so only one table connection is valid (avoids double-join / black screen on quick switch).
+      const otherTableIds = presenceIndex.getTableIdsForUser(userId).filter((id) => id !== this.state.tableId);
+      if (otherTableIds.length > 0) {
+        type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string } };
+        const pokerRooms = (await matchMaker.query({ name: "poker" })) as PokerRoomRef[];
+        for (const otherTableId of otherTableIds) {
+          const otherRoom = pokerRooms.find((r) => r.metadata?.tableId === otherTableId);
+          if (otherRoom?.roomId) {
+            try {
+              await matchMaker.remoteRoomCall(otherRoom.roomId, "requestUserLeaveBecauseJoiningAnotherTable" as never, [userId], 5000);
+            } catch (err) {
+              logger.warn(
+                { err, roomId: this.roomId, tableId: this.state.tableId, otherTableId, userId },
+                "requestUserLeaveBecauseJoiningAnotherTable failed",
+              );
+            }
+          }
+        }
+      }
+
       // RESTORE mode: User already has a seat at this table, just reconnect
       if (this.dealer.hasPlayer(userId)) {
         this.rebindClientExclusive(userId, client);
@@ -974,7 +1005,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       );
       return;
     }
-    
+
     // Validate binding epoch to prevent race conditions
     if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
       logger.info(
@@ -997,7 +1028,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.removeTablePresence(userId);
     this.updateMetadataCounts();
 
-    // Handle intentional leaves (user clicked leave button)
+    // Handle intentional leaves (user clicked leave button). Check before SESSION_REPLACED
+    // because Colyseus uses CloseCode.CONSENTED === 4000, same as our LEAVE_CODE_SESSION_REPLACED.
     const consented = code === CloseCode.CONSENTED;
     if (consented) {
       await this.dealer.handleConsentedLeave(userId);
@@ -1011,6 +1043,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           handIdSnapshot: this.state.handId || undefined,
         });
       }
+      return;
+    }
+
+    // Session replaced (e.g. user joined another table). Already removed by requestUserLeaveBecauseJoiningAnotherTable; do not allow reconnection.
+    if (code === LEAVE_CODE_SESSION_REPLACED) {
+      this.bindingEpochBySessionId.delete(client.sessionId);
+      this.userIdBySessionId.delete(client.sessionId);
       return;
     }
 
@@ -1077,7 +1116,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           "POKER_LEAVE_STALE_EPOCH_AFTER_ALLOW_RECONNECT_IGNORED",
         );
         try {
-          reconnected.leave(4000);
+          reconnected.leave(LEAVE_CODE_SESSION_REPLACED);
         } catch {}
         return;
       }
@@ -1138,6 +1177,28 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       } catch {}
     }
     await this.dealer.kickUser(userId, reason);
+  }
+
+  /**
+   * Called remotely when the user is joining another table. Removes the user from this room
+   * (cash out, leave) and closes their connection with LEAVE_CODE_SESSION_REPLACED so they do not reconnect.
+   */
+  async requestUserLeaveBecauseJoiningAnotherTable(userId: string): Promise<void> {
+    if (!this.dealer.hasPlayer(userId)) return;
+    const client = this.getBoundClient(userId);
+    await this.dealer.handleConsentedLeave(userId);
+    this.dealer.unbindClient(userId);
+    this.removeTablePresence(userId);
+    if (client) {
+      this.userIdBySessionId.delete(client.sessionId);
+      this.bindingEpochBySessionId.delete(client.sessionId);
+      this.bindingEpochByUserId.delete(userId);
+      this.updateMetadataCounts();
+      try {
+        this.sendTableMessage(client, "ERROR", { code: "SESSION_REPLACED", message: "You joined another table." });
+        client.leave(LEAVE_CODE_SESSION_REPLACED);
+      } catch {}
+    }
   }
 
   /**
@@ -1368,7 +1429,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.sendTableMessage(oldClient, "ERROR", { code: "SESSION_REPLACED", message: "Session replaced by a newer connection." });
       } catch {}
       try {
-        oldClient.leave(4000);
+        oldClient.leave(LEAVE_CODE_SESSION_REPLACED);
       } catch {}
     }
     

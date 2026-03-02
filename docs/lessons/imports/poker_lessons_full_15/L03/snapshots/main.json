@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "snapshotId": "snapshot_3",
+  "snapshotSeq": 1,
+  "emittedAtTs": 1772440279689,
+  "serverTimeTs": 1772440279689,
+  "stateHash": "42538f992928d1680254276229f60b2611314e4f39765e6a9f7f2b0f31c854d4",
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-table",
+    "tableName": "Lesson Table",
+    "creatorId": "system",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 100,
+    "bigBlindCents": 200,
+    "minBuyInCents": 20000,
+    "maxBuyInCents": 200000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "hand_3",
+    "handNumber": 3,
+    "street": "FLOP",
+    "dealerSeat": 1,
+    "sbSeat": 2,
+    "bbSeat": 3,
+    "toActSeat": 1,
+    "actionCount": 3,
+    "roundCurrentBetCents": 1000,
+    "minRaiseCents": 2000,
+    "potCents": 3500,
+    "board": [
+      "Kh",
+      "9d",
+      "2s"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 20000,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": true,
+      "isToAct": true
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_2",
+      "isBot": false,
+      "name": "Villain1",
+      "status": "ACTIVE",
+      "stackCents": 40000,
+      "roundBetCents": 1000,
+      "committedCents": 1000,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 3,
+      "occupied": true,
+      "userId": "user_3",
+      "isBot": false,
+      "name": "Villain2",
+      "status": "WAITING",
+      "stackCents": 35000,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 1,
+    "holeCards": [
+      "Qs",
+      "Js"
+    ],
+    "actionOptions": {
+      "canFold": true,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": true,
+      "canAllIn": true,
+      "primaryWagerAction": "RAISE",
+      "callAmount": 1000,
+      "minRaiseTo": 2000,
+      "maxRaiseTo": 20000
+    },
+    "calculations": {
+      "mode": "LIVE_ADVISORY",
+      "stale": false,
+      "equityPct": 45,
+      "potOddsPct": 25,
+      "outs": 8,
+      "updatedAtTs": 1772440279689
+    },
+    "playerStats": {
+      "hands": 120,
+      "vpipPct": 24,
+      "pfrPct": 18
+    }
+  }
+}

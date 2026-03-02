@@ -1,0 +1,69 @@
+{
+  "lessonId": "L02",
+  "title": "Flush Draw vs Pot Bet",
+  "version": 1,
+  "moduleCode": "A_STOP_BLEEDING_PREFLOP",
+  "recommendedOrder": 2,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L02_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 2: Flush Draw vs Pot Bet. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L02_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 2: Flush Draw vs Pot Bet. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Flush draw: 9 outs, ~36% equity. Pot bet (1:1) → need 50%. You'll miss more than you hit; by pot odds alone call is -EV. Implied odds can make call +EV when you'll get paid when you hit. Core lesson: A pot-sized bet demands 50% equity—a flush draw doesn't have it. Only call when the price is good or implied odds (stack depth, opponent tendency) make up the gap."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

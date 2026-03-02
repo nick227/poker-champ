@@ -114,6 +114,31 @@ export default [
       },
     },
   },
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      // TypeScript already resolves identifiers/types; core no-undef is noisy in TS.
+      "no-undef": "off",
+      "no-redeclare": "off",
+      "@typescript-eslint/no-redeclare": "error",
+    },
+  },
+  {
+    files: ["**/*.{test,spec}.{js,jsx,ts,tsx}", "src/**/__tests__/**/*.{js,jsx,ts,tsx}"],
+    languageOptions: {
+      globals: {
+        describe: "readonly",
+        it: "readonly",
+        test: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+        vi: "readonly",
+      },
+    },
+  },
   // Guardrail: table domain components remain store-free.
   {
     files: ["src/components/domain/table/**/*.{ts,tsx}"],

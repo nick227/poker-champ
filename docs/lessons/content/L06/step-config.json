@@ -1,0 +1,69 @@
+{
+  "lessonId": "L06",
+  "title": "KK SB vs BB",
+  "version": 1,
+  "moduleCode": "B_WIN_MORE_FLOPS",
+  "recommendedOrder": 6,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L06_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 6: KK SB vs BB. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L06_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 6: KK SB vs BB. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "ALL_IN",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "all_in"
+        ],
+        "followUpContent": "KK vs BB. ~79% equity. Getting it in is +EV; you're a big favourite. Heads-up with a premium pair, commit when the price is right. Core lesson: With a premium pair and a clear edge, get the money in. Don't slowplay when you're a big favourite—you want the chips in the middle. The mistake is folding or flatting when the math says all-in is correct."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

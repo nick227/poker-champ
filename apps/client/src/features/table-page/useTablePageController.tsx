@@ -148,7 +148,7 @@ export function useTablePageController({
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
   const seatContext = useMemo(
     () => (snapshot ? buildSeatContext(snapshot) : undefined),
-    [snapshot?.seats, snapshot?.hero?.seat, snapshot?.hero?.userId, snapshot?.hero?.youAreSeated],
+    [snapshot],
   );
   const heroUserId = snapshot?.hero?.userId;
   const chatMessagesForOverlay = useMemo(() => {
@@ -425,7 +425,7 @@ export function useTablePageController({
     if (!snapshot?.hero.youAreSeated || activeOrLastHandId == null) return null;
     if (heroStackCents > 0 || (heroStatus !== "OUT" && heroStatus !== "ABANDONED")) return null;
     return activeOrLastHandId;
-  }, [snapshot?.hero.youAreSeated, heroStackCents, heroStatus, activeOrLastHandId]);
+  }, [snapshot, heroStackCents, heroStatus, activeOrLastHandId]);
 
   useEffect(() => {
     if (outOfChipsHandId == null) return;

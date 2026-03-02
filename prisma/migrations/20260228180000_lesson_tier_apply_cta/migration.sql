@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `Lesson` ADD COLUMN `tier` VARCHAR(191) NULL DEFAULT 'pro',
+    ADD COLUMN `applyCtaText` VARCHAR(500) NULL;

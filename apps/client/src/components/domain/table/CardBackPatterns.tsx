@@ -2,10 +2,10 @@ import React from "react";
 import { View } from "react-native";
 import { vars } from "nativewind";
 
-export type CardBackPattern = "classic" | "geometric" | "ornate" | "minimal" | "gradient";
+export type CardBackPatternVariant = "classic" | "geometric" | "ornate" | "minimal" | "gradient";
 
 interface CardBackPatternProps {
-  pattern: CardBackPattern;
+  pattern: CardBackPatternVariant;
   hue: number;
   saturation: number;
   lightness: number;

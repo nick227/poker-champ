@@ -1,0 +1,79 @@
+{
+  "lessonId": "L14",
+  "title": "Two Pair on Flush Board",
+  "version": 1,
+  "moduleCode": "C_CLOSE_HAND_PROFITABLY",
+  "recommendedOrder": 14,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L14_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Review the situation before acting.",
+      "question": "Lesson 14: Two Pair on Flush Board. What is your best action?",
+      "gradingSpecJson": {
+        "type": "INFO_STEP",
+        "response": "Scenario loaded."
+      }
+    },
+    {
+      "id": "L14_decision",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Take your best line using the real ActionBar.",
+      "question": "Lesson 14: Two Pair on Flush Board. What is your best action?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "Two pair (A-K) on flush board. ~54% equity. Bet 3k into 15k → need 20%. Call is +EV. You're not always ahead—flush and full house are possible—but the price makes calling correct here. Core lesson: On coordinated boards (flush, straight possible), two pair is strong but not unbeatable. When pot odds justify it, call; you're not always ahead, but the price makes the call +EV. When the price is wrong or the runout is scary, be willing to fold."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

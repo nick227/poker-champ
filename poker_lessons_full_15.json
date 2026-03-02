@@ -1,0 +1,1862 @@
+[
+  {
+    "lessonId": "L01",
+    "title": "OESD vs Half-Pot",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_1",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "8f78e811d3538277ca1762fb1c0157a1847210f375408f608161a9899fe31ba6",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_1",
+        "handNumber": 1,
+        "street": "FLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 1250,
+        "minRaiseCents": 2500,
+        "potCents": 2500,
+        "board": [
+          "Tc",
+          "9d",
+          "2s"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 1250,
+          "committedCents": 1250,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "Qs",
+          "Js"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 1250,
+          "minRaiseTo": 2500,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 47,
+          "potOddsPct": 33,
+          "outs": 8,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 1: OESD vs Half-Pot. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L02",
+    "title": "Flush Draw vs Pot Bet",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_2",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "7eec32fef6be7ad466b20148eab3f74a8392f6a70cfa52402ee36d0c44e857b9",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_2",
+        "handNumber": 2,
+        "street": "FLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 3000,
+        "minRaiseCents": 6000,
+        "potCents": 3000,
+        "board": [
+          "Kh",
+          "9h",
+          "2c"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 3000,
+          "committedCents": 3000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "Ah",
+          "5h"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 3000,
+          "minRaiseTo": 6000,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 36,
+          "potOddsPct": 50,
+          "outs": 9,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 2: Flush Draw vs Pot Bet. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L03",
+    "title": "Combo Draw vs All-In",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_3",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "42538f992928d1680254276229f60b2611314e4f39765e6a9f7f2b0f31c854d4",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_3",
+        "handNumber": 3,
+        "street": "FLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 15000,
+        "minRaiseCents": 200,
+        "potCents": 18500,
+        "board": [
+          "Th",
+          "9h",
+          "2c"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 15000,
+          "committedCents": 15000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "Qh",
+          "Jh"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": false,
+          "canAllIn": false,
+          "primaryWagerAction": "NONE",
+          "callAmount": 15000,
+          "minRaiseTo": 200,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 48,
+          "potOddsPct": 45,
+          "outs": 15,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 3: Combo Draw vs All-In. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L04",
+    "title": "Top Pair vs Pot Bet",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_4",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "fcee4ba2ffb5a429992cdb8ac34c9da00579b1dea6654213410c30daaafa8bc7",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_4",
+        "handNumber": 4,
+        "street": "FLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 4000,
+        "minRaiseCents": 8000,
+        "potCents": 4000,
+        "board": [
+          "Ah",
+          "8c",
+          "4d"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 4000,
+          "committedCents": 4000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "Qd"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 4000,
+          "minRaiseTo": 8000,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 73,
+          "potOddsPct": 50,
+          "outs": 5,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 4: Top Pair vs Pot Bet. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L05",
+    "title": "Two Overcards vs Min Bet",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_5",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "cf76e1ef0d7f531f59d3da112d66689ebe578e987ce7397524dbbb40fb92f214",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_5",
+        "handNumber": 5,
+        "street": "FLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 200,
+        "minRaiseCents": 400,
+        "potCents": 4500,
+        "board": [
+          "9h",
+          "6c",
+          "2d"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 200,
+          "committedCents": 200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "Kd"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 200,
+          "minRaiseTo": 400,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 28,
+          "potOddsPct": 4,
+          "outs": 6,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 5: Two Overcards vs Min Bet. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L06",
+    "title": "KK SB vs BB",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_6_corrected",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "f4730375e6d10e10134fef9c294943b2cb96b9f7e6ef841f0621cd3099f8e72f",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table-l06",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 2,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_6",
+        "handNumber": 6,
+        "street": "PREFLOP",
+        "dealerSeat": 0,
+        "sbSeat": 0,
+        "bbSeat": 1,
+        "toActSeat": 0,
+        "actionCount": 3,
+        "roundCurrentBetCents": 2400,
+        "minRaiseCents": 4600,
+        "potCents": 3500,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 0,
+          "occupied": true,
+          "userId": "user_hero",
+          "isBot": false,
+          "name": "Hero (SB)",
+          "status": "ACTIVE",
+          "stackCents": 18800,
+          "roundBetCents": 1200,
+          "committedCents": 1200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_villain",
+          "isBot": false,
+          "name": "Villain (BB)",
+          "status": "ACTIVE",
+          "stackCents": 17600,
+          "roundBetCents": 2400,
+          "committedCents": 2400,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_hero",
+        "youAreSeated": true,
+        "seat": 0,
+        "holeCards": [
+          "Kh",
+          "Kc"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 1200,
+          "minRaiseTo": 4600,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 79,
+          "potOddsPct": 25,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      },
+      "lastAction": {
+        "handId": "hand_6",
+        "seq": 3,
+        "street": "PREFLOP",
+        "actorUserId": "user_villain",
+        "actorKind": "HUMAN",
+        "action": "RAISE",
+        "amountCents": 2400,
+        "raiseToCents": 2400,
+        "potAfterCents": 3500,
+        "origin": "PLAYER",
+        "createdAtTs": 1772440279689
+      }
+    },
+    "question": "Lesson 6: KK SB vs BB. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L07",
+    "title": "88 vs Two All-Ins",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_7",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "a127293db400150d3c3ac10cfe6e83b555ba8e1470a74c685151a58123f690c5",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_7",
+        "handNumber": 7,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 4,
+        "roundCurrentBetCents": 35000,
+        "minRaiseCents": 0,
+        "potCents": 55300,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 20000,
+          "committedCents": 20000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 35000,
+          "committedCents": 35000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "8h",
+          "8s"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": false,
+          "canAllIn": false,
+          "primaryWagerAction": "NONE",
+          "callAmount": 20000,
+          "minRaiseTo": 200,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 33,
+          "potOddsPct": 36,
+          "outs": 2,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 7: 88 vs Two All-Ins. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L08",
+    "title": "AK vs Two All-Ins",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_8",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "ecaaa66d4c2c160897bd1312f056dfb6cf2d36b7eb12441a1dc0ec324bf2cee0",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_8",
+        "handNumber": 8,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 4,
+        "roundCurrentBetCents": 35000,
+        "minRaiseCents": 0,
+        "potCents": 55300,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 20000,
+          "committedCents": 20000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 35000,
+          "committedCents": 35000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "Kd"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": false,
+          "canAllIn": false,
+          "primaryWagerAction": "NONE",
+          "callAmount": 20000,
+          "minRaiseTo": 200,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 41,
+          "potOddsPct": 36,
+          "outs": 6,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 8: AK vs Two All-Ins. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L09",
+    "title": "AK vs Two Limpers",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_9",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "b0df0019c08bde40d1b5289bbd505a3930838c932ba404683d8decb1d738d928",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_9",
+        "handNumber": 9,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 200,
+        "minRaiseCents": 400,
+        "potCents": 700,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 200,
+          "committedCents": 200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "ACTIVE",
+          "stackCents": 35000,
+          "roundBetCents": 200,
+          "committedCents": 200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "Kd"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 200,
+          "minRaiseTo": 400,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 64,
+          "potOddsPct": 22,
+          "outs": 6,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 9: AK vs Two Limpers. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L10",
+    "title": "AA UTG 9-Handed",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_10",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "8ee57d332cd69fe8e075eabd8fb9eed2d936a8857d4c50d79ec7510b82597ed8",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_10",
+        "handNumber": 10,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 200,
+        "minRaiseCents": 400,
+        "potCents": 300,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 1000,
+          "committedCents": 1000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "Ac"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 200,
+          "minRaiseTo": 400,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 85,
+          "potOddsPct": 22,
+          "outs": 2,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 10: AA UTG 9-Handed. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L11",
+    "title": "A7s UTG Tournament",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_11",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "47b653df3aa83ee8ade67133077d9be5a0699d707e1d5344953e90246c7500e2",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_11",
+        "handNumber": 11,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 200,
+        "minRaiseCents": 400,
+        "potCents": 300,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 1000,
+          "committedCents": 1000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "As",
+          "7s"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 200,
+          "minRaiseTo": 400,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 41,
+          "potOddsPct": 22,
+          "outs": 3,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 11: A7s UTG Tournament. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L12",
+    "title": "Low Flush vs Double All-In",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_12",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "12c4fc8d81efac9183aa223df9956bebea500f7ec7a64242accf6e40732239b1",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_12",
+        "handNumber": 12,
+        "street": "RIVER",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 18000,
+        "minRaiseCents": 200,
+        "potCents": 31200,
+        "board": [
+          "Ah",
+          "Kh",
+          "Qh",
+          "2c",
+          "9d"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 12000,
+          "committedCents": 12000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "ALL_IN",
+          "stackCents": 0,
+          "roundBetCents": 18000,
+          "committedCents": 18000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "5h",
+          "4h"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": false,
+          "canAllIn": false,
+          "primaryWagerAction": "NONE",
+          "callAmount": 18000,
+          "minRaiseTo": 200,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 39,
+          "potOddsPct": 37,
+          "outs": 0,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 12: Low Flush vs Double All-In. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L13",
+    "title": "Middle Pair vs Half-Pot Turn",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_13",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "5e7a1ceee74370551c95a6c0999749fe12e1e1987dcfad8f316393b7010d151c",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_13",
+        "handNumber": 13,
+        "street": "TURN",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 4250,
+        "minRaiseCents": 8500,
+        "potCents": 8500,
+        "board": [
+          "Kc",
+          "9s",
+          "2d",
+          "Th"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 4250,
+          "committedCents": 4250,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "9d",
+          "8c"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 4250,
+          "minRaiseTo": 8500,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 54,
+          "potOddsPct": 33,
+          "outs": 5,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 13: Middle Pair vs Half-Pot Turn. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L14",
+    "title": "Two Pair on Flush Board",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_14_corrected",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "14f9316243ab6cc9f4ff18e74a8928b7d2ce8f7f2c95ed20cb4dddf2f0d8e2f6",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table-l14",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 2,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_14",
+        "handNumber": 14,
+        "street": "RIVER",
+        "dealerSeat": 0,
+        "sbSeat": 0,
+        "bbSeat": 1,
+        "toActSeat": 0,
+        "actionCount": 6,
+        "roundCurrentBetCents": 3000,
+        "minRaiseCents": 6000,
+        "potCents": 15000,
+        "board": [
+          "Ah",
+          "Kh",
+          "7h",
+          "2c",
+          "4d"
+        ]
+      },
+      "seats": [
+        {
+          "seat": 0,
+          "occupied": true,
+          "userId": "user_hero",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 17000,
+          "roundBetCents": 0,
+          "committedCents": 4200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_villain",
+          "isBot": false,
+          "name": "Villain",
+          "status": "ACTIVE",
+          "stackCents": 23000,
+          "roundBetCents": 3000,
+          "committedCents": 7200,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_hero",
+        "youAreSeated": true,
+        "seat": 0,
+        "holeCards": [
+          "Ad",
+          "Kd"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 3000,
+          "minRaiseTo": 6000,
+          "maxRaiseTo": 17000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 54,
+          "potOddsPct": 20,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      },
+      "lastAction": {
+        "handId": "hand_14",
+        "seq": 6,
+        "street": "RIVER",
+        "actorUserId": "user_villain",
+        "actorKind": "HUMAN",
+        "action": "BET",
+        "amountCents": 3000,
+        "potAfterCents": 15000,
+        "origin": "PLAYER",
+        "createdAtTs": 1772440279689
+      }
+    },
+    "question": "Lesson 14: Two Pair on Flush Board. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  },
+  {
+    "lessonId": "L15",
+    "title": "22 Chip Leader vs Raise",
+    "snapshot": {
+      "version": 1,
+      "snapshotId": "snapshot_15",
+      "snapshotSeq": 1,
+      "emittedAtTs": 1772440279689,
+      "serverTimeTs": 1772440279689,
+      "stateHash": "97b9ae8fd7e5e1d6e0c7ead1cff7437d6ab619ed1d257b06d1313e2037918725",
+      "reason": "ACTION_ACCEPTED",
+      "table": {
+        "tableId": "lesson-table",
+        "tableName": "Lesson Table",
+        "creatorId": "system",
+        "visibility": "PUBLIC",
+        "maxSeats": 9,
+        "smallBlindCents": 100,
+        "bigBlindCents": 200,
+        "minBuyInCents": 20000,
+        "maxBuyInCents": 200000,
+        "showStats": true
+      },
+      "hand": {
+        "handId": "hand_15",
+        "handNumber": 15,
+        "street": "PREFLOP",
+        "dealerSeat": 1,
+        "sbSeat": 2,
+        "bbSeat": 3,
+        "toActSeat": 1,
+        "actionCount": 3,
+        "roundCurrentBetCents": 2000,
+        "minRaiseCents": 4000,
+        "potCents": 2300,
+        "board": []
+      },
+      "seats": [
+        {
+          "seat": 1,
+          "occupied": true,
+          "userId": "user_1",
+          "isBot": false,
+          "name": "Hero",
+          "status": "ACTIVE",
+          "stackCents": 20000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": true,
+          "isToAct": true
+        },
+        {
+          "seat": 2,
+          "occupied": true,
+          "userId": "user_2",
+          "isBot": false,
+          "name": "Villain1",
+          "status": "ACTIVE",
+          "stackCents": 40000,
+          "roundBetCents": 2000,
+          "committedCents": 2000,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        },
+        {
+          "seat": 3,
+          "occupied": true,
+          "userId": "user_3",
+          "isBot": false,
+          "name": "Villain2",
+          "status": "WAITING",
+          "stackCents": 35000,
+          "roundBetCents": 0,
+          "committedCents": 0,
+          "connected": true,
+          "disconnectDeadlineTs": 1772440309689,
+          "isDealer": false,
+          "isToAct": false
+        }
+      ],
+      "hero": {
+        "userId": "user_1",
+        "youAreSeated": true,
+        "seat": 1,
+        "holeCards": [
+          "2h",
+          "2s"
+        ],
+        "actionOptions": {
+          "canFold": true,
+          "canCheck": false,
+          "canCall": true,
+          "canBet": false,
+          "canRaise": true,
+          "canAllIn": true,
+          "primaryWagerAction": "RAISE",
+          "callAmount": 2000,
+          "minRaiseTo": 4000,
+          "maxRaiseTo": 20000
+        },
+        "calculations": {
+          "mode": "LIVE_ADVISORY",
+          "stale": false,
+          "equityPct": 34,
+          "potOddsPct": 31,
+          "outs": 2,
+          "updatedAtTs": 1772440279689
+        },
+        "playerStats": {
+          "hands": 120,
+          "vpipPct": 24,
+          "pfrPct": 18
+        }
+      }
+    },
+    "question": "Lesson 15: 22 Chip Leader vs Raise. What is your best action?",
+    "response": "Instructor analysis and community comparison placeholder."
+  }
+]

@@ -1,0 +1,59 @@
+# Dependencies (EAS runs install on the server)
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build / output
+dist
+**/dist
+build
+**/build
+.expo
+**/.expo
+*.tsbuildinfo
+.vercel
+
+# Environment (use EAS env or secrets)
+.env
+.env.*
+!.env.example
+
+# Logs & debug
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test / tooling
+coverage
+**/coverage
+.nyc_output
+playwright-report
+test-results
+**/test-results
+
+# IDE / OS
+.idea
+.vscode
+.cursor
+.DS_Store
+Thumbs.db
+
+# Native (EAS generates if needed)
+android
+ios
+
+# Keys / certs (use EAS credentials)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Tauri desktop (not needed for Android build)
+tauri/target
+**/tauri/target
+
+# Docs / misc
+docs
+*.md
+!README.md

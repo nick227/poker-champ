@@ -41,6 +41,9 @@ export type ActiveTableViewProps = {
   onPressRebuy?: () => void;
   heroAvatarUrlOverride?: string;
   onHeroAvatarPress?: () => void;
+  tableMode?: "live" | "replay";
+  forceDisableActions?: boolean;
+  disabledActionMessage?: string;
 };
 
 export function ActiveTableView({
@@ -61,7 +64,11 @@ export function ActiveTableView({
   onPressRebuy,
   heroAvatarUrlOverride,
   onHeroAvatarPress,
+  tableMode = "live",
+  forceDisableActions = false,
+  disabledActionMessage = "Waiting for lesson result...",
 }: ActiveTableViewProps) {
+  const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
@@ -159,61 +166,63 @@ export function ActiveTableView({
     }
   }, [actionContext.showActions, hasActionOptions, waitingBetweenHands]);
 
-  let bottom: ReactNode;
-  if (canRebuy && onPressRebuy) {
-    bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
-  } else if (!heroIsSeated) {
-    bottom = (
-      <View className="ui-p-inline-4">
-        <Text className="text-center">You are not seated at this table.</Text>
-      </View>
-    );
-  } else if (
-    waitingBetweenHands ||
-    !hasActionOptions ||
-    !actionContext.showActions ||
-    isPendingHeroAction
-  ) {
-    const textVariantClass = {
-      default: "text-center text-muted",
-      processing: "text-center text-info animate-pulse",
-      waiting: "text-center text-warning",
-    }[notification.variant];
-
-    bottom = (
-      <View className="ui-p-inline-4 gap-y-2">
-        <View className="flex-row items-center justify-center gap-x-2">
-          {notification.showLoadingIndicator && (
-            <ActivityIndicator 
-              size="small" 
-              className="opacity-70"
-            />
-          )}
-          <Text 
-            className={textVariantClass}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {notification.message}
-          </Text>
+  let bottom: ReactNode = null;
+  if (!isReplayMode) {
+    if (canRebuy && onPressRebuy) {
+      bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
+    } else if (!heroIsSeated) {
+      bottom = (
+        <View className="ui-p-inline-4">
+          <Text className="text-center">You are not seated at this table.</Text>
         </View>
-      </View>
-    );
-  } else {
-    bottom = (
-      <ActionBar
-        actionContext={actionContext}
-        heroStatus={heroStatus}
-        actionOptions={heroActionOptions}
-        potCents={potCents}
-        onAction={handleAction}
-      />
-    );
+      );
+    } else if (
+      forceDisableActions ||
+      waitingBetweenHands ||
+      !hasActionOptions ||
+      !actionContext.showActions ||
+      isPendingHeroAction
+    ) {
+      const textVariantClass = {
+        default: "text-center text-muted",
+        processing: "text-center text-info animate-pulse",
+        waiting: "text-center text-warning",
+      }[notification.variant];
+
+      bottom = (
+        <View className="ui-p-inline-4 gap-y-2">
+          <View className="flex-row items-center justify-center gap-x-2">
+            {notification.showLoadingIndicator && (
+              <ActivityIndicator
+                size="small"
+                className="opacity-70"
+              />
+            )}
+            <Text
+              className={textVariantClass}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {forceDisableActions ? disabledActionMessage : notification.message}
+            </Text>
+          </View>
+        </View>
+      );
+    } else {
+      bottom = (
+        <ActionBar
+          actionContext={actionContext}
+          heroStatus={heroStatus}
+          actionOptions={heroActionOptions}
+          potCents={potCents}
+          onAction={handleAction}
+        />
+      );
+    }
   }
 
-  if (__DEV__ && !bottom) {
+  if (__DEV__ && !bottom && !isReplayMode) {
     // This should never happen: ActiveTableView must always render a bottom CTA/state.
-    // eslint-disable-next-line no-console
     console.error("No bottom CTA rendered in ActiveTableView — illegal UI state", {
       hasHand: Boolean(snapshot.hand),
       heroIsSeated,
@@ -256,6 +265,7 @@ export function ActiveTableView({
         />
       }
       bottom={bottom}
+      hideBottomSection={isReplayMode}
     />
   );
 }

@@ -2,11 +2,16 @@ import { SDK_VERSION, auth, setApiBaseUrl, setAuthToken } from "@poker-champ/sdk
 import { preloadSounds, setSoundPlayer } from "@/lib/sound";
 import { createExpoAvPlayer } from "@/lib/soundPlayer";
 import { storeRegistry } from "@/registry/store.registry";
+import { parseProfileFromMe } from "@/lib/profileFromMe";
 import { DEFAULT_API_URL, PRELOAD_SOUNDS } from "@/constants";
 
 let booted = false;
 let bootPromise: Promise<void> | null = null;
 let versionCheckDone = false;
+const sdkApiBaseUrl = String(process.env.EXPO_PUBLIC_API_URL || DEFAULT_API_URL);
+
+// Ensure SDK requests have a base URL before React effects run.
+setApiBaseUrl(sdkApiBaseUrl);
 
 async function checkVersionMismatchOnce() {
   if (versionCheckDone) return;
@@ -35,11 +40,8 @@ export function bootstrapSdk() {
     if (booted) return;
 
     try {
-      const apiUrl =
-        process.env.EXPO_PUBLIC_API_URL ||
-        DEFAULT_API_URL;
-
-      setApiBaseUrl(String(apiUrl));
+      // Re-apply defensively in case runtime env changed.
+      setApiBaseUrl(sdkApiBaseUrl);
 
       // Store -> SDK context
       setAuthToken(storeRegistry.auth().token);
@@ -53,7 +55,10 @@ export function bootstrapSdk() {
       const token = storeRegistry.auth().token;
       if (token) {
         try {
-          await auth.me();
+          const me = await auth.me();
+          if (me && typeof me === "object") {
+            storeRegistry.profile().setProfile(parseProfileFromMe(me));
+          }
         } catch {
           storeRegistry.auth().logout();
         }

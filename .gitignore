@@ -69,6 +69,15 @@ web-build
 
 # Tauri (desktop)
 apps/client/src-tauri/target
+apps/client/tauri/target/
+apps/client/tauri/target/**
+apps/client/tauri/target/release/
+apps/client/tauri/target/release/deps/
+
+# Client build artifacts
+apps/client/dist/
+apps/client/playwright-report/
+apps/client/test-results/
 
 # Cache / temp
 .cache

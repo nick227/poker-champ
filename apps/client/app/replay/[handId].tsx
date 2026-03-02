@@ -17,7 +17,7 @@ export default function ReplayScreen() {
       <View className="flex-1 ui-stack-3">
         {content}
       </View>
-      <BottomBar active="history" />
+      <BottomBar active="lessons" />
     </Screen>
   );
 

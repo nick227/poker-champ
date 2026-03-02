@@ -288,7 +288,7 @@ export function useSlotSpin({
         lock.unlock();
       }
     }
-  }, [lock, bank, betCents, normalizeReelPositions, pressScale, engine, spinTo, setBank, payoutTiers, cueJackpot, cueSmallWin, onSpinComplete, jackpotPulse, winPulse, bannerFlash, buttonFlash, jackpotCelebration, celebrationStage, screenShake, victoryGlow, sparkleIntensity, victoryTextScale, victoryTextOpacity]);
+  }, [lock, bank, betCents, normalizeReelPositions, pressScale, engine, spinTo, setBank, payoutTiers, cueJackpot, cueSmallWin, onSpinComplete]);
 
   return {
     machineOutput,
