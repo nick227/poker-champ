@@ -271,11 +271,10 @@ const {
         return row;
       }),
     },
+    $transaction: vi.fn(async (fn: (tx: typeof prismaMock) => Promise<unknown>) => {
+      return fn(prismaMock);
+    }),
   };
-
-  prismaMock.$transaction = vi.fn(async (fn: (tx: typeof prismaMock) => Promise<unknown>) => {
-    return fn(prismaMock);
-  });
 
   return { state, prismaMock };
 });

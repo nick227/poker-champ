@@ -1,14 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import type { User } from "@prisma/client";
 import { AuthService } from "./AuthService.js";
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User;
-    }
-  }
-}
 
 function parseBearerToken(req: Request): string | null {
   const authHeader = req.headers.authorization;

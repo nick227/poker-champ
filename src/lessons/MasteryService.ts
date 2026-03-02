@@ -1,6 +1,12 @@
 import type { PrismaClient } from "@prisma/client";
 import { clamp01 } from "./utils/objectHelpers.js";
 
+/** Prisma client or transaction client (e.g. from $transaction callback). */
+type PrismaOrTx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 export interface ConceptLink {
   conceptId: string;
   weight: number;
@@ -11,7 +17,7 @@ export interface ConceptLink {
  * Uses batch upsert per concept; call inside transaction with tx.
  */
 export async function updateMasteryForStep(
-  prisma: PrismaClient,
+  prisma: PrismaOrTx,
   params: {
     userId: string;
     conceptLinks: ConceptLink[];
