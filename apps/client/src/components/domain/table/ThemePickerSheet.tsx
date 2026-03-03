@@ -26,6 +26,7 @@ const FELT_PRESETS: ReadonlyArray<FeltPreset> = [
   { name: "Blood", value: "0 30% 14%" },
   { name: "Void", value: "0 0% 5%" },
   { name: "Texture", imageId: "texture" },
+  { name: "Purple", imageId: "purple-bubbles" },
 ];
 
 export type ThemePickerSheetProps = {
