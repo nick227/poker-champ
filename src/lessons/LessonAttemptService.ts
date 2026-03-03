@@ -7,6 +7,7 @@ import { gradeStep, validateActionAnswer } from "./grading/LessonGradingEngine.j
 import { normalizeGradingSpec } from "./grading/normalizeGradingSpec.js";
 import { updateMasteryForStep } from "./MasteryService.js";
 import { computeCurrentStepIndex, scorePctFromCounts } from "./attemptHelpers.js";
+import { asObject } from "./utils/objectHelpers.js";
 import type {
   SubmitResponseDto,
   SubmitFeedbackDto,
