@@ -49,8 +49,6 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
     applyThemePack,
   } = usePreferencesStore();
 
-  const cardFacePackOptions = CARD_FACE_PACK_MANIFEST;
-
   const renderPackPreview = (packId: CardFacePackId, previewCardKeys: readonly string[]) => {
     const packMeta = getCardFacePackById(packId);
     if (!packMeta) {
@@ -102,7 +100,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
 
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Table Experience">
-      <ScrollView className="ui-p-stack-2" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1 ui-p-stack-2" showsVerticalScrollIndicator={false}>
         <Text variant="label" className="mb-3">Presets</Text>
         <View className="ui-row-wrap gap-3 mb-8">
           {THEME_PACK_CONFIG.map((pack) => {
@@ -191,7 +189,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
 
         <Text variant="label" className="mb-3">Card Faces</Text>
         <View className="ui-row-wrap gap-3 mb-8">
-          {cardFacePackOptions.map((pack) => {
+          {CARD_FACE_PACK_MANIFEST.map((pack) => {
             const packId = pack.id as CardFacePackId;
             const isSelected = cardFacePackId === packId;
             return (

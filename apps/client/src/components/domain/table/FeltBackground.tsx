@@ -54,15 +54,15 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
     backgroundColor: `hsl(${feltColor})`,
   };
 
-  const isGradient = feltGradient && feltGradient.colors.length >= 2;
+  const gradient = feltGradient && feltGradient.colors.length >= 2 ? feltGradient : null;
   const gradientStyle: ViewStyle =
-    Platform.OS === "web" && isGradient
-      ? buildFeltGradientStyle(feltGradient!)
-      : isGradient
-        ? { backgroundColor: `hsl(${feltGradient!.colors[0]})` }
+    Platform.OS === "web" && gradient
+      ? buildFeltGradientStyle(gradient)
+      : gradient
+        ? { backgroundColor: `hsl(${gradient.colors[0]})` }
         : solidStyle;
 
-  const resolvedStyle = isGradient ? gradientStyle : solidStyle;
+  const resolvedStyle = gradient ? gradientStyle : solidStyle;
 
   return (
     <View

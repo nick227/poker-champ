@@ -109,14 +109,18 @@ export function ModalSheet({
           }}
           pointerEvents="box-none"
         >
-          <Pressable className="max-h-[80%] bottom-sheet rounded-t-lg bg-panel" onPress={(e) => e.stopPropagation()}>
-            <View className="ui-row justify-between ui-border-b ui-p-inline-4 ui-p-stack-3">
+          <Pressable
+            style={{ maxHeight: SCREEN_HEIGHT * 0.7 }}
+            className="flex flex-col rounded-t-lg bg-panel bottom-sheet"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="ui-row justify-between ui-border-b ui-p-inline-4 ui-p-stack-3 shrink-0">
               <Text variant="h2">{title}</Text>
               <Pressable onPress={handleClose} className="ui-touch" style={({ pressed }) => ({ opacity: pressed ? PRESS_OPACITY.pressed : 1 })}>
                 <Text variant="muted">{MODAL.close}</Text>
               </Pressable>
             </View>
-            <View className="ui-p-4">{children}</View>
+            <View className="flex-1 min-h-0 ui-p-4">{children}</View>
           </Pressable>
         </Animated.View>
       </Pressable>

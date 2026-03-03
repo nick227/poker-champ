@@ -95,7 +95,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         switch (pack) {
           case "mono":
             set({
-              feltColor: "0 0 0%",
+              feltColor: "0 0% 0%",
               feltGradient: null,
               feltImageId,
               cardFaceColor: "0 50% 100%",
