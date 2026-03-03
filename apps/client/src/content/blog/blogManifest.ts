@@ -47,6 +47,3 @@ export function getRelatedArticles(currentSlug: string, limit = 4): BlogArticleM
     .slice(0, limit)
     .map(({ body: _, ...meta }) => meta);
 }
-
-/** Slugs to feature on the lobby (e.g. first 2). */
-export const featuredSlugs: string[] = ["why-position-matters-6max", "how-to-use-hand-replay"];

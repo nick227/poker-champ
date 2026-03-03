@@ -7,7 +7,6 @@ import { gradeStep, validateActionAnswer } from "./grading/LessonGradingEngine.j
 import { normalizeGradingSpec } from "./grading/normalizeGradingSpec.js";
 import { updateMasteryForStep } from "./MasteryService.js";
 import { computeCurrentStepIndex, scorePctFromCounts } from "./attemptHelpers.js";
-import { asObject } from "./utils/objectHelpers.js";
 import type {
   SubmitResponseDto,
   SubmitFeedbackDto,
@@ -178,32 +177,6 @@ export async function submitStep(
   const existingSubmission = await prisma.lessonAttemptStep.findUnique({
     where: { attemptId_stepId: { attemptId, stepId } },
   });
-  if (existingSubmission) {
-    const feedback = asObject(existingSubmission.feedbackJson) as SubmitFeedbackDto | null;
-    const attemptRow = await prisma.lessonAttempt.findUnique({
-      where: { id: attemptId },
-      select: { id: true, lessonId: true, status: true, scorePct: true },
-    });
-    return {
-      ok: true,
-      body: {
-        feedback: feedback ?? {
-          response: "Already submitted.",
-          followUpInstructorMessage: "This step was already graded for this attempt.",
-          isCorrect: existingSubmission.isCorrect,
-          scoreDelta: 0,
-        },
-        attempt: {
-          id: attemptRow!.id,
-          lessonId: attemptRow!.lessonId,
-          status: attemptRow!.status,
-          scorePct: attemptRow!.scorePct,
-        },
-        gradingDebug: { stepType: step.type, gradingSpec: JSON.stringify(step.gradingSpecJson) },
-        idempotentReplay: true,
-      },
-    };
-  }
 
   const spec = normalizeGradingSpec(step.gradingSpecJson, step.followUpMessage);
   const grade = gradeStep(spec, step.type, answer);
@@ -214,22 +187,34 @@ export async function submitStep(
   }));
 
   const result = await prisma.$transaction(async (tx) => {
-    await tx.lessonAttemptStep.create({
-      data: {
-        id: `attempt_step_${nanoid(16)}`,
-        attemptId,
-        stepId,
-        submittedAnswerJson: answer as object,
-        isCorrect: grade.isCorrect,
-        feedbackJson: feedback as object,
-      },
-    });
+    if (existingSubmission) {
+      await tx.lessonAttemptStep.update({
+        where: { attemptId_stepId: { attemptId, stepId } },
+        data: {
+          submittedAnswerJson: answer as object,
+          isCorrect: grade.isCorrect,
+          feedbackJson: feedback as object,
+          submittedAt: new Date(),
+        },
+      });
+    } else {
+      await tx.lessonAttemptStep.create({
+        data: {
+          id: `attempt_step_${nanoid(16)}`,
+          attemptId,
+          stepId,
+          submittedAnswerJson: answer as object,
+          isCorrect: grade.isCorrect,
+          feedbackJson: feedback as object,
+        },
+      });
 
-    await updateMasteryForStep(tx, {
-      userId,
-      conceptLinks: step.concepts.map((c) => ({ conceptId: c.conceptId, weight: c.weight })),
-      isCorrect: grade.isCorrect,
-    });
+      await updateMasteryForStep(tx, {
+        userId,
+        conceptLinks: step.concepts.map((c) => ({ conceptId: c.conceptId, weight: c.weight })),
+        isCorrect: grade.isCorrect,
+      });
+    }
 
     const [gradedTotal, gradedCorrect] = await Promise.all([
       tx.lessonAttemptStep.count({
@@ -258,7 +243,7 @@ export async function submitStep(
       data: {
         scorePct,
         status: isComplete ? "COMPLETED" : attempt.status,
-        completedAt: isComplete ? new Date() : null,
+        completedAt: isComplete ? attempt.completedAt ?? new Date() : null,
         masteryDeltaJson: { lastStepId: step.id, updatedAt: new Date().toISOString() },
       },
     });

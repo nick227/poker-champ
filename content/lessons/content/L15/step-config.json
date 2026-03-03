@@ -1,0 +1,65 @@
+{
+  "lessonId": "L15",
+  "title": "22 Chip Leader vs Raise",
+  "version": 1,
+  "moduleCode": "MODULE_C",
+  "recommendedOrder": 15,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L15_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’re the chip leader holding 22 facing a single open—this is a classic spot to leverage your stack by set‑mining correctly.",
+      "question": "With pocket deuces as the big stack versus one preflop raise, do you flat and take a flop, turn your hand into a bluff, or muck the small pair?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "Small pairs like 22 are rarely thrilled to play big pots preflop, but they shine when you can see a cheap flop with deep stacks behind as the covering player. As chip leader versus a single open, calling allows you to set‑mine profitably: you’ll miss the flop most of the time and simply fold, but when you do flop a set you have the stack depth and positional leverage to win a large pot or apply serious pressure on later streets. Three‑betting preflop tends to fold out all the hands you dominate and isolate you against stronger ranges, turning 22 into a bluff catcher at best and killing the very implied odds you were trying to realize. The key is to be realistic about your plan: you’re not trying to \"win with deuces\" by showdown; you’re trying to win big the small fraction of the time you hit hard while losing small when you miss. With the right price and position, that tradeoff favours a flat call, not a hero raise, and over time this disciplined approach to set‑mining is a quiet but powerful edge."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "drills",
+  "repeatable": true
+}

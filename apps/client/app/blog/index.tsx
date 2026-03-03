@@ -4,6 +4,8 @@ import { useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
+import { Surface } from "@/components/containers/Surface";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
@@ -43,14 +45,16 @@ export default function BlogListScreen() {
 
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={cents}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={cents}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
@@ -58,10 +62,12 @@ export default function BlogListScreen() {
       >
         <View className="gap-5">
           {articles.map((a) => (
-            <Pressable
+            <Surface
               key={a.slug}
+              as={Pressable}
+              styleId="surface.list.panel"
               onPress={() => openArticle(a.slug)}
-              className="rounded-xl border border-border bg-panel p-4 active:opacity-90"
+              className="active:opacity-90"
             >
               <Text variant="h2" className="text-base">
                 {a.title}
@@ -72,7 +78,7 @@ export default function BlogListScreen() {
               <Text variant="caption" className="mt-2 text-muted">
                 {formatDate(a.publishedAt)}
               </Text>
-            </Pressable>
+            </Surface>
           ))}
         </View>
       </ScrollView>

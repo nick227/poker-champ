@@ -75,14 +75,22 @@ export type SnapshotEmitHook = (args: {
  */
 export type SnapshotReason = TableSnapshotPayload["reason"];
 
-/**
- * Environment flag for snapshot validation
- * Enables additional validation in non-production environments
- */
-const VALIDATE_SNAPSHOTS = process.env.NODE_ENV !== "production";
+/** Schema version for ERROR payloads; must match realtime-contract. */
+const ERROR_PAYLOAD_VERSION = 1;
+
+/** User-facing message when snapshot validation fails; client can show Retry/Leave. */
+const SNAPSHOT_INVALID_MESSAGE =
+  "Table failed to load due to a server error. Please try again or leave the table.";
 
 /** Max wait for avatar fetch so snapshot emission never blocks the action queue. */
 const AVATAR_FETCH_TIMEOUT_MS = 2000;
+
+/** One-line searchable first failing path from Zod error (e.g. "payload.snapshotSeq"). */
+function getFirstFailingPath(err: { issues?: Array<{ path?: PropertyKey[] }> }): string | null {
+  const first = err.issues?.[0];
+  if (!first?.path?.length) return null;
+  return first.path.map((segment) => String(segment)).join(".");
+}
 
 // ============================================================================
 // MAIN CLASS - Snapshot Management & Broadcasting
@@ -117,10 +125,8 @@ export class SnapshotService {
   
   /** Hand calculations coordinator for odds and statistics */
   private readonly handCalculations = new HandCalculationsCoordinator();
-  /** Global snapshot sequence counter for all-client broadcasts */
+  /** Global snapshot sequence counter (shared by broadcast and user-targeted snapshots; contract requires positive) */
   private snapshotSeq = 0;
-  /** Individual user snapshot sequence counter for user-specific emissions (starts at -1 and decrements) */
-  private userSnapshotSeq = -1;
   /** Last hand key for detecting hand changes */
   private lastHandKey: string | null = null;
 
@@ -206,15 +212,27 @@ export class SnapshotService {
     const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId), "SYSTEM");
     this.emitSnapshotHook(systemPayload, reason);
 
+    const tableId = this.deps.state.tableId;
     for (const [userId, client] of this.deps.clientsByUserId.entries()) {
       const payload = await this.buildHeroPatch(userId, base, toActUserId);
       const final = this.finalizePayload(payload, userId);
-      if (VALIDATE_SNAPSHOTS) {
-        const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
-        if (!parsed.success) {
-          logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
-          continue;
-        }
+      const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
+      if (!parsed.success) {
+        const path = getFirstFailingPath(parsed.error);
+        logger.warn(
+          { reason, userId, tableId, snapshotSeq, path, errors: parsed.error.flatten() },
+          "SNAPSHOT_DROP tableId=%s userId=%s reason=%s path=%s",
+          tableId,
+          userId,
+          reason,
+          path ?? "unknown",
+        );
+        client.send("ERROR", {
+          version: ERROR_PAYLOAD_VERSION,
+          code: "SNAPSHOT_INVALID",
+          message: SNAPSHOT_INVALID_MESSAGE,
+        });
+        continue;
       }
       client.send("TABLE_SNAPSHOT", final);
       snapshotMetrics.emitSnapshot();
@@ -227,7 +245,7 @@ export class SnapshotService {
     if (!client) return;
 
     const t0 = performance.now();
-    const snapshotSeq = this.nextUserSnapshotSeq();
+    const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
     const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
     const toActUserId = this.deps.state.street !== "WAITING"
@@ -236,12 +254,24 @@ export class SnapshotService {
     const payload = await this.buildHeroPatch(userId, base, toActUserId);
     const final = this.finalizePayload(payload, userId);
 
-    if (VALIDATE_SNAPSHOTS) {
-      const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
-      if (!parsed.success) {
-        logger.warn({ reason, userId, errors: parsed.error.flatten() }, "Dropping invalid TABLE_SNAPSHOT payload");
-        return;
-      }
+    const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
+    if (!parsed.success) {
+      const tableId = this.deps.state.tableId;
+      const path = getFirstFailingPath(parsed.error);
+      logger.warn(
+        { reason, userId, tableId, snapshotSeq, path, errors: parsed.error.flatten() },
+        "SNAPSHOT_DROP tableId=%s userId=%s reason=%s path=%s",
+        tableId,
+        userId,
+        reason,
+        path ?? "unknown",
+      );
+      client.send("ERROR", {
+        version: ERROR_PAYLOAD_VERSION,
+        code: "SNAPSHOT_INVALID",
+        message: SNAPSHOT_INVALID_MESSAGE,
+      });
+      return;
     }
     client.send("TABLE_SNAPSHOT", final);
     snapshotMetrics.emitSnapshot();
@@ -322,20 +352,6 @@ export class SnapshotService {
   private nextSnapshotSeq(): number {
     this.snapshotSeq += 1;
     return this.snapshotSeq;
-  }
-
-  /**
-   * Generate next user-specific snapshot sequence number
-   * 
-   * PURPOSE:
-   * Provides sequential numbering for user-specific snapshots
-   * Uses negative numbers to avoid conflicts with global sequences
-   * 
-   * @returns Next user snapshot sequence number
-   */
-  private nextUserSnapshotSeq(): number {
-    this.userSnapshotSeq -= 1;
-    return this.userSnapshotSeq;
   }
 
   /**

@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [toastMessage, toastVariant]);
 
   return (
-    <View className="flex-1 bg-bg min-h-full">
+    <View className="flex-1 bg-bg min-h-full" style={{ backgroundColor: "#0d0d0d" }}>
       {children}
       {process.env.NODE_ENV !== "production" ? (
         <View

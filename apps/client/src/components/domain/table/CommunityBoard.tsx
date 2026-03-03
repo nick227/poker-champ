@@ -1,6 +1,5 @@
 import { View } from "react-native";
 import { PlayingCard } from "./PlayingCard";
-import { PotChipStack } from "./PotChipStack";
 import type { UiCard } from "./table.adapter";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import {
@@ -8,6 +7,7 @@ import {
   COMMUNITY_CARD_GAP,
   COMMUNITY_CARD_SCALE,
 } from "./constants/components/communityBoard.layout";
+import { FeltBackground } from "./FeltBackground";
 
 /** Stable keys for 5 community card slots. */
 const COMMUNITY_CARD_KEYS = ["flop1", "flop2", "flop3", "turn", "river"] as const;
@@ -16,9 +16,8 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
 
   return (
-    <View
-      collapsable={false}
-      className="bg-felt justify-center rounded-sm"
+    <FeltBackground
+      className="justify-center rounded-sm"
       style={{ flexDirection: "column", height: COMMUNITY_BOARD_HEIGHT }}
     >
       <View
@@ -53,6 +52,6 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
           })}
         </View>
       </View>
-    </View>
+    </FeltBackground>
   );
 }

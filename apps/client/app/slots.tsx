@@ -4,6 +4,7 @@ import { Screen } from "@/components/containers/Screen";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { storeRegistry } from "@/registry/store.registry";
@@ -40,14 +41,16 @@ export default function SlotsScreen() {
 
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={currentBankroll}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={currentBankroll}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
 
       <View className="flex-1 slot-container">
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>

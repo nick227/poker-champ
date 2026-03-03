@@ -151,7 +151,10 @@ describe("table adapter money mapping", () => {
   });
 
   it("maps opponent cards as face-down while hand is active", () => {
-    const snapshot = makeSnapshot();
+    const snapshot: TableSnapshotPayload = {
+      ...makeSnapshot(),
+      lastHandResult: undefined,
+    };
     const opponents = mapSeatsToOpponents(snapshot);
     expect(opponents[0]?.cards).toEqual({ faceDown: true, visible: true });
   });
@@ -164,6 +167,17 @@ describe("table adapter money mapping", () => {
     };
 
     const opponents = mapSeatsToOpponents(noHandSnapshot);
+    expect(opponents[0]?.cards).toEqual({
+      left: { rank: "K", suit: "h" },
+      right: { rank: "Q", suit: "h" },
+      faceDown: false,
+      visible: true,
+    });
+  });
+
+  it("maps opponent showdown cards as face-up even when hand frame is present", () => {
+    const snapshot = makeSnapshot();
+    const opponents = mapSeatsToOpponents(snapshot);
     expect(opponents[0]?.cards).toEqual({
       left: { rank: "K", suit: "h" },
       right: { rank: "Q", suit: "h" },

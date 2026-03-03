@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { View, Pressable } from "react-native";
+import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { HandList } from "@/components/domain/history/HandList";
 import { HandDetailModal } from "@/components/domain/history/HandDetailModal";
 import { HistoryOverviewTab } from "@/components/domain/history/HistoryOverviewTab";
-import { ReplaySheet } from "@/components/replay/ReplaySheet";
-import type { ReplaySource } from "@/components/replay/replay.types";
 import { historyService, type HistoryOverview } from "@/services/history.service";
 import { storeRegistry } from "@/registry/store.registry";
 import { useAuthStore } from "@/stores/auth.store";
@@ -44,10 +43,10 @@ export type HandHistorySectionProps = {
 };
 
 export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<HistoryTab>("overview");
   const [overview, setOverview] = useState<HistoryOverview | null>(null);
   const [selectedHandId, setSelectedHandId] = useState<string | null>(null);
-  const [replaySheetSource, setReplaySheetSource] = useState<ReplaySource | null>(null);
 
   const token = useAuthStore((s) => s.token);
   const historyStore = storeRegistry.use.history();
@@ -122,6 +121,13 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
     setSelectedHandId(null);
   }, []);
 
+  const openReplay = useCallback(
+    (handId: string) => {
+      router.push(`/replay/${encodeURIComponent(handId)}`);
+    },
+    [router],
+  );
+
   return (
     <>
       <HistoryTabs activeTab={activeTab} onChange={setActiveTab} />
@@ -134,7 +140,7 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
             hasMore={historyStore.hasMore}
             onLoadMore={loadMoreHands}
             onHandPress={openHand}
-            onReplayPress={(handId) => setReplaySheetSource({ type: "handId", handId })}
+            onReplayPress={openReplay}
             error={historyStore.error}
           />
         )}
@@ -144,12 +150,7 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
         hand={historyStore.selectedHand}
         onClose={closeHand}
         currentUserId={currentUserId}
-        onReplayPress={(handId) => setReplaySheetSource({ type: "handId", handId })}
-      />
-      <ReplaySheet
-        visible={!!replaySheetSource}
-        source={replaySheetSource}
-        onClose={() => setReplaySheetSource(null)}
+        onReplayPress={openReplay}
       />
     </>
   );

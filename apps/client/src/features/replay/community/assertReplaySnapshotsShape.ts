@@ -29,5 +29,28 @@ export function assertReplaySnapshotsShape(
     }
   }
 
+  const finalSnapshot = snapshots[snapshots.length - 1];
+  if (finalSnapshot.reason !== "HAND_END") {
+    throw new Error(`Community hand "${handId}" must end on HAND_END snapshot.`);
+  }
+
+  const result = finalSnapshot.lastHandResult;
+  if (!result) {
+    throw new Error(`Community hand "${handId}" final snapshot missing lastHandResult.`);
+  }
+  if (result.reason !== "SHOWDOWN") {
+    throw new Error(`Community hand "${handId}" final snapshot must use SHOWDOWN result.`);
+  }
+
+  const hasWinner = Boolean(result.winnerId) || Object.keys(result.payoutsByUserId ?? {}).length > 0;
+  if (!hasWinner) {
+    throw new Error(`Community hand "${handId}" final snapshot missing winner/payout data.`);
+  }
+
+  const showdownByUser = result.showdownHoleCardsByUserId ?? {};
+  if (Object.keys(showdownByUser).length < 2) {
+    throw new Error(`Community hand "${handId}" must include showdown hole cards for both players.`);
+  }
+
   return snapshots;
 }

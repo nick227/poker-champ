@@ -87,15 +87,10 @@ export function LessonInstructorPanel({
   const userPercentile = communityComparison?.userPercentile ?? null;
 
   return (
-    <View className="mx-4 mt-3 rounded-xl border border-border bg-panel p-3">
+    <View className="mx-4 mt-3">
       {step.beforeInstructorMessage ? (
         <Text variant="muted" className="text-xs">
           {step.beforeInstructorMessage}
-        </Text>
-      ) : null}
-      {step.question ? (
-        <Text variant="h2" className="mt-2 text-base">
-          {step.question}
         </Text>
       ) : null}
       {feedback ? (
@@ -136,21 +131,14 @@ export function LessonInstructorPanel({
           {communityStatus === "loading" || communityStatus === "ready" ? (
             <View className="mt-2 rounded-lg border border-border bg-panel px-2.5 py-2">
               <Text variant="label" className="text-xs">
-                Community Comparison
-              </Text>
-              <Text variant="muted" className="mt-1 text-xs">
-                {communityStatus === "loading"
-                  ? "Loading community..."
-                  : communityHasSufficientSample
-                    ? `${communitySampleSize} responses in this spot`
-                    : `Baseline building (${communitySampleSize}/${communityMinimumSampleSize})`}
+                Community
               </Text>
               {userPercentile != null ? (
                 <Text variant="muted" className="mt-1 text-xs">
                   You are at the {Math.round(userPercentile)}th percentile on this question.
                 </Text>
               ) : null}
-              <View className="mt-1.5 gap-1">
+              <View className="mt-1.5 gap-1 flex-row flex-wrap w-full">
                 {communityRows.map(([responseKey, pct]) => (
                   <Text key={responseKey} variant="muted" className="text-xs">
                     {formatCommunityResponseLabel(step, responseKey)}: {Math.round(pct)}%

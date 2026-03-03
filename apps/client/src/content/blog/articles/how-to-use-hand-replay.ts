@@ -31,7 +31,7 @@ That’s how patterns show up. Maybe you’re calling too much on the river. May
 
 ## How we built replay for you
 
-Here you can replay **your last hand** as soon as you finish it. No export, no notepad—just open the lobby and hit **Replay your last hand**. You’ll see the same table, the same cards, the same action. Scrub through street by street. Pause at the decision you want to review. Ask yourself: *Would I do the same again?*
+Here you can replay **your last hand** as soon as you finish it. No export, no notepad—just open the lobby and hit **Replay last hand**. You’ll see the same table, the same cards, the same action. Scrub through street by street. Pause at the decision you want to review. Ask yourself: *Would I do the same again?*
 
 We also ship a **Community Hand**: a curated hand (with snapshots) that you can step through even if you’ve never played a hand on the site. Use it to see how a tough spot plays out from start to finish—then try your own hands the same way.
 
@@ -45,6 +45,6 @@ You don’t need to replay every hand. Aim for:
 
 Over time, you’ll start to see the same mistakes. Those are your leaks. Fix one at a time.
 
-## Replay your last hand or try the Community Hand
+## Replay last hand or try the Community Hand
 
-[Replay your last hand](/lobby) (from the lobby) · [Open a community hand](/lobby) (same place—try the walkthrough hand) · [Back to the tables](/lobby)`;
+[Replay last hand](/lobby) (from the lobby) · [Open a community hand](/lobby) (same place—try the walkthrough hand) · [Back to the tables](/lobby)`;

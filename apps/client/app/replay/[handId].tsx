@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { BottomBar } from "@/components/containers/BottomBar";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";
 import { useLocalSearchParams } from "expo-router";
 import { Text as BaseText } from "@/components/base/Text";
@@ -13,11 +14,13 @@ export default function ReplayScreen() {
 
   const wrapWithShell = (content: ReactNode) => (
     <Screen>
-      <Masthead />
+      <HeaderStack>
+        <Masthead />
+      </HeaderStack>
       <View className="flex-1 ui-stack-3">
         {content}
       </View>
-      <BottomBar active="lessons" />
+      <BottomBar active="lobby" />
     </Screen>
   );
 

@@ -3,7 +3,7 @@
 ## Scope
 Add two lobby entry points:
 
-1. `Replay your last hand`
+1. `Replay last hand`
 2. `Community Hand`
 
 Both should open replay using the existing table-based replay experience, where replay controls are the primary interaction and table actions are hidden.
@@ -51,7 +51,7 @@ For lesson-style walkthroughs, architecture is ready because snapshots-based rep
 
 ## Product Proposal
 
-### 1) Lobby link: `Replay your last hand`
+### 1) Lobby link: `Replay last hand`
 - Add a quick action in lobby (primary).
 - Behavior:
   - If user has a replayable hand, open `ReplaySheet` with `source={{ type: "handId", handId }}`.
@@ -121,7 +121,7 @@ For lesson-style walkthroughs, architecture is ready because snapshots-based rep
 ## Implementation Plan
 
 1. Add lobby replay quick-link UI and wire `ReplaySheet` in `app/lobby.tsx`.
-2. Implement `useLatestReplayHand` and enabled/disabled state for `Replay your last hand`.
+2. Implement `useLatestReplayHand` and enabled/disabled state for `Replay last hand`.
 3. Add `features/replay/community/communityHands.ts` with one predefined hand and schema/version assertions.
 4. Add replay visual mode polish (`tableMode="replay"`) and hide live action UI in replay.
 5. Add hermetic guardrail tests.
@@ -154,12 +154,12 @@ For lesson-style walkthroughs, architecture is ready because snapshots-based rep
   - lobby/presence state unchanged
 
 ### E2E (optional phase 1)
-- From lobby, open `Replay your last hand` and scrub steps.
+- From lobby, open `Replay last hand` and scrub steps.
 - From lobby, open `Community Hand` and scrub/play through.
 
 ## Acceptance Criteria
-- Lobby shows both links: `Replay your last hand`, `Community Hand`.
-- `Replay your last hand` opens latest replayable hand when available.
+- Lobby shows both links: `Replay last hand`, `Community Hand`.
+- `Replay last hand` opens latest replayable hand when available.
 - `Community Hand` opens predefined walkthrough hand via snapshots source.
 - Replay controls are the only bottom interaction surface in replay.
 - Replay open path triggers zero realtime socket/room/presence activity.

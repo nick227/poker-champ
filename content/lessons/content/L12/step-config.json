@@ -1,0 +1,65 @@
+{
+  "lessonId": "L12",
+  "title": "Low Flush vs Double All-In",
+  "version": 1,
+  "moduleCode": "MODULE_C",
+  "recommendedOrder": 12,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L12_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve made a low flush on a very high, connected board and two players are already all-in—this is about respecting how bad your relative hand strength is.",
+      "question": "Holding the small flush on an A‑K‑Q high board with two opponents already jamming, do you put in the rest or find a disciplined fold?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "fold"
+            ],
+            "REASONABLE": [
+              "call"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "FOLD",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "A low flush looks strong at first glance, but on an A‑K‑Q high board with heavy action it’s often just a bluff-catcher against ranges that include higher flushes, boats, and nut draws that have you in bad shape. Two players going all-in into this texture signal that very strong made hands or big combo draws are in play, and your small flush frequently sits near the bottom of its value range, crushed by the top of their combined ranges. While raw equity numbers might look close in a vacuum, in practice your reverse implied odds are brutal: when you’re ahead you often win small, and when you’re behind you lose everything and rarely get away. The high-level adjustment is to treat low ends of strong-looking hands—like baby flushes and wheel straights on scary boards—as folding candidates when the pot goes nuclear multi-way, especially when stack‑off ranges are heavily weighted toward nutted combos. Listening to what the board, the bet sizing, and the number of willing all‑in opponents are telling you will save entire buy‑ins over the long run."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

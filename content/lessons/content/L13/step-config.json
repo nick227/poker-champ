@@ -1,0 +1,65 @@
+{
+  "lessonId": "L13",
+  "title": "Middle Pair vs Half-Pot Turn",
+  "version": 1,
+  "moduleCode": "MODULE_C",
+  "recommendedOrder": 13,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L13_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve made middle pair on the turn and face a half-pot barrel—this is about living with a marginal hand when the math backs you up.",
+      "question": "With middle pair on K‑9‑2‑T facing a half-pot turn bet, do you continue to showdown, raise, or release the hand now?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "On a board like K‑9‑2‑T with middle pair, you’re in that uncomfortable but common spot where your hand is too strong to auto-fold and too weak to start building a huge pot. Against a typical betting range your equity can hover in the low‑to‑mid‑50s, while a half‑pot turn bet only requires about 33% equity to continue profitably. That gap means a call is mathematically sound even though you’ll still lose your fair share of the time. Raising here is often counterproductive: better hands continue, worse hands fold, and you bloat the pot with a medium-strength holding that doesn’t want to play for stacks. Strong players accept that profitable poker includes calling down with hands that sometimes lose but are clearly ahead of the betting range overall, and they size their aggression for hands that want folds more often. The key is to anchor your decision in pot odds and range thinking rather than fear of being shown top pair at showdown, and to be comfortable living with variance when the math is on your side."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

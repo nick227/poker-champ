@@ -33,7 +33,7 @@ export const LESSON_CONTENT_COPY = {
     tierPrefix: "Included in:",
     showLesson: "Show Lesson",
     stepLabel: "Step",
-    actionHint: "Answer with the live table action controls below.",
+    actionHint: "Answer with the table controls.",
   },
   states: {
     disabled: "Poker School is disabled.",
@@ -41,7 +41,7 @@ export const LESSON_CONTENT_COPY = {
     unavailable: "Lesson unavailable.",
     snapshotUnavailable: "Lesson snapshot unavailable.",
     evaluatingDecision: "Evaluating decision...",
-    actionLocked: "Action locked. Continue in the lesson panel.",
+    actionLocked: "Waiting...",
   },
 } as const;
 

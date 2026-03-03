@@ -24,7 +24,7 @@ Do one lesson or one concept. Not the whole curriculum in a day—one thing. For
 Go to the lobby and play. While you’re playing, **focus on that one thing**. If you trained open-raise discipline, then at the table your job is to open the right hands from the right seats. You’ll forget sometimes. That’s fine. The goal is to create real situations where the lesson applies.
 
 **3. Review (replay)**  
-After the session—or after a specific hand—replay. Use **Replay your last hand** or rewatch the hand that felt messy. Did you do what the lesson said? If not, what would you do next time? You’re not grading yourself harshly; you’re closing the loop between “what I learned” and “what I did.”
+After the session—or after a specific hand—replay. Use **Replay last hand** or rewatch the hand that felt messy. Did you do what the lesson said? If not, what would you do next time? You’re not grading yourself harshly; you’re closing the loop between “what I learned” and “what I did.”
 
 Then repeat. Next concept. Next session. Next replay.
 
@@ -50,6 +50,6 @@ One focus. Play with that in mind. Replay the hands where it mattered. Next week
 
 [Open Poker School](/lessons) and pick one lesson.  
 [Play at the table](/lobby) and focus on that one thing.  
-[Replay your last hand](/lobby) from the lobby when you’re done.
+[Replay last hand](/lobby) from the lobby when you’re done.
 
 You’ve got the content. Now make it part of your play.`;

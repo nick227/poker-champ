@@ -107,7 +107,7 @@ async function loadCanonicalLessons(contentRoot: string): Promise<
 async function seedLessons() {
   const args = parseArgs(process.argv.slice(2));
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const contentRoot = path.resolve(root, "docs/lessons/content");
+  const contentRoot = path.resolve(root, "content/lessons/content");
   const prisma = getPrisma() as any;
   const lessons = await loadCanonicalLessons(contentRoot);
 
@@ -282,3 +282,4 @@ seedLessons()
     await disconnectPrisma();
     process.exit(1);
   });
+

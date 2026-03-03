@@ -1,32 +1,46 @@
 import React from "react";
 import { View } from "react-native";
 import { vars } from "nativewind";
+import type { CardBackPatternId } from "@/assets/cards/cardBackProcedural";
 
-export type CardBackPatternVariant = "classic" | "geometric" | "ornate" | "minimal" | "gradient";
+export type CardBackPatternVariant = CardBackPatternId;
+
+/** Parse "H S% L%" and return HSL components. */
+function parseHsl(hsl: string): { h: number; s: number; l: number } {
+  const m = hsl.trim().match(/^(\d+)\s+(\d+)%\s+(\d+)%$/);
+  if (!m) return { h: 0, s: 0, l: 22 };
+  return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) };
+}
+
+function toHslCss(h: number, s: number, l: number): string {
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+function derivePatternColors(patternHsl: string): { lighter: string; darker: string } {
+  const { h, s, l } = parseHsl(patternHsl);
+  return {
+    lighter: toHslCss(h, s, Math.min(100, l + 15)),
+    darker: toHslCss(h, s, Math.max(0, l - 10)),
+  };
+}
 
 interface CardBackPatternProps {
-  pattern: CardBackPatternVariant;
-  hue: number;
-  saturation: number;
-  lightness: number;
+  pattern: CardBackPatternId;
+  backgroundHsl: string;
+  patternHsl: string;
   width: number;
   height: number;
 }
 
-/** Fixed size so patterns align consistently */
-const PATTERN_SIZE = 60;
-
-export function CardBackPattern({ 
-  pattern, 
-  hue, 
-  saturation, 
-  lightness, 
+export function CardBackPattern({
+  pattern,
+  backgroundHsl,
+  patternHsl,
   width,
   height,
 }: CardBackPatternProps) {
-  const baseColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  const lighterColor = `hsl(${hue}, ${saturation}%, ${Math.min(100, lightness + 15)}%)`;
-  const darkerColor = `hsl(${hue}, ${saturation}%, ${Math.max(0, lightness - 10)}%)`;
+  const baseColor = `hsl(${backgroundHsl})`;
+  const { lighter: lighterColor, darker: darkerColor } = derivePatternColors(patternHsl);
 
   switch (pattern) {
     case "classic":
@@ -273,18 +287,21 @@ export function CardBackPattern({
           <View className="flex-1 justify-center items-center">
             <View className="relative w-full h-full">
               {/* Create gradient effect with overlapping rectangles */}
-              {[0, 1, 2, 3, 4, 5].map((index) => (
-                <View
-                  key={index}
-                  className="absolute left-0 right-0"
-                  style={{
-                    height: "20%",
-                    backgroundColor: `hsl(${hue}, ${saturation}%, ${lightness - index * 3}%)`,
-                    top: `${index * 16.67}%`,
-                    opacity: 1 - index * 0.15
-                  }}
-                />
-              ))}
+              {(() => {
+                const { h, s, l } = parseHsl(patternHsl);
+                return [0, 1, 2, 3, 4, 5].map((index) => (
+                  <View
+                    key={index}
+                    className="absolute left-0 right-0"
+                    style={{
+                      height: "20%",
+                      backgroundColor: toHslCss(h, s, Math.max(0, l - index * 3)),
+                      top: `${index * 16.67}%`,
+                      opacity: 1 - index * 0.15,
+                    }}
+                  />
+                ));
+              })()}
               {/* Overlay pattern */}
               <View 
                 className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"

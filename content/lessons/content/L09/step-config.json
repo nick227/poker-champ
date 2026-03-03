@@ -1,0 +1,55 @@
+{
+  "lessonId": "L09",
+  "title": "AK vs Two Limpers",
+  "version": 1,
+  "moduleCode": "MODULE_B",
+  "recommendedOrder": 9,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L09_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You wake up with AK after two players limp—this is a textbook chance to punish dead money, not join the parade.",
+      "question": "With AK facing two limpers, do you just call along, over-limp, or raise and punish the dead money in the middle?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "When two players limp and you hold AK, the pot is already seeded with dead money and both ranges are capped and weak—exactly the profile you want to attack. Raising isolates you against the limpers, builds a pot where you’re often far ahead, and gives you the betting lead on the flop, which massively improves your equity realization compared to over-limping. If you just call, you invite more players in behind, see a muddier flop, and risk being outflopped or sucked out on when you could have thinned the field and forced dominated hands to pay. Over time, consistently raising your premium hands over limpers is one of the cleanest ways to print EV in small and mid-stakes games because population tendencies are to limp too wide and fold too often versus aggression. The pattern is simple: strong hand, weak limpers, position to apply pressure—reach for the raise button, not the call."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

@@ -4,6 +4,7 @@ import { View, Pressable } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ArticleLayout } from "@/components/domain/blog/ArticleLayout";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { BottomBar } from "@/components/containers/BottomBar";
@@ -36,14 +37,16 @@ export default function BlogArticleScreen() {
   if (!article) {
     return (
       <Screen>
-        <Masthead />
-        <AppTopNav
-          username={profile.username ?? "Player"}
-          onlineLabel={onlineLabel}
-          onPressOnline={openOnlineSheet}
-          amountCents={cents}
-          avatarUrl={profile.avatarUrl}
-        />
+        <HeaderStack>
+          <Masthead />
+          <AppTopNav
+            username={profile.username ?? "Player"}
+            onlineLabel={onlineLabel}
+            onPressOnline={openOnlineSheet}
+            amountCents={cents}
+            avatarUrl={profile.avatarUrl}
+          />
+        </HeaderStack>
         <View className="flex-1 items-center justify-center p-6">
           <Text variant="muted">Article not found.</Text>
           <Pressable onPress={goToBlog} className="mt-2">
@@ -66,14 +69,16 @@ export default function BlogArticleScreen() {
   const { body, ...meta } = article;
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={cents}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={cents}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
       <View className="flex-1">
         <Pressable onPress={goToBlog} className="px-4 py-2 self-start" hitSlop={8}>
           <Text variant="body" className="text-accent">← Back to Blog</Text>

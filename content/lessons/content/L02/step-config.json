@@ -1,0 +1,55 @@
+{
+  "lessonId": "L02",
+  "title": "Flush Draw vs Pot Bet",
+  "version": 1,
+  "moduleCode": "MODULE_A",
+  "recommendedOrder": 2,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L02_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve flopped a naked flush draw and face a full pot bet—this is a pure math test of discipline with draws.",
+      "question": "Facing a pot-sized bet with only a flush draw, do you continue, raise, or let this one go?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "With a standard flush draw you have 9 outs and roughly 36% equity from flop to river, while a pot-sized bet is laying you only 1:1 and demanding around 50% equity to be breakeven on immediate odds. On pure math, calling every pot-sized bet with a bare flush draw is -EV and will quietly burn money over a big sample. The decision improves only when you factor in implied odds: stack depth, how often worse hands will pay you when you hit, how capped villain’s range is, and how dominated your draw might be when the money really goes in. Strong players also pay attention to SPR—at low SPR you want to avoid bloating pots with bluff-catchers and weak draws, while at higher SPR you can justify calling more often with big draws that win huge pots when they come in. The key is to avoid autopiloting calls just because you \"have a big draw\"—you want to continue when the combination of immediate price, implied odds, and stack geometry gets you comfortably above that 50% threshold, not just because the hand feels too pretty to fold."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

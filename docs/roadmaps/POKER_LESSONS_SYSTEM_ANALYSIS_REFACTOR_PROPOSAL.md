@@ -234,7 +234,7 @@ Current system has split lesson sources:
 
 ### Reseed design decisions (required)
 1. Pick one ID convention for all lessons.
-2. Make `docs/lessons/content/*` canonical source for seed generation.
+2. Make `content/lessons/content/*` canonical source for seed generation.
 3. Generate module/order/role metadata from canonical config (not hardcoded router map).
 4. Define per-step authoring support for both `MCQ_STEP` and `ACTION_STEP` under same grading envelope.
 
@@ -339,7 +339,7 @@ Current system has split lesson sources:
 - Status: PENDING.
 
 9. Implement canonical-content-driven seed compiler.
-- Add script to read `docs/lessons/content/*/step-config.json` and upsert lessons/steps/options/concepts.
+- Add script to read `content/lessons/content/*/step-config.json` and upsert lessons/steps/options/concepts.
 - Keep `scripts/check-lessons-content.ts` as mandatory pre-seed gate.
 - Replace dependency on template-only seed logic in `scripts/seed-lessons-v1.ts`.
 - Status: PENDING.
@@ -385,3 +385,4 @@ Current system has split lesson sources:
 - Lessons feel like real-table training, not quiz-in-modal content.
 - MCQ and action questions behave consistently as event-driven graded decisions.
 - Curriculum/seed pipeline is coherent and ready for full rewrite + reseed.
+

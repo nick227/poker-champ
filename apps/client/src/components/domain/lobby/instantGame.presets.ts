@@ -7,7 +7,6 @@ type InstantGamePreset = {
   id: InstantGamePresetId;
   title: string;
   body: string;
-  subtitle: string;
   cta: string;
   helper: string;
   maxSeats: number;
@@ -22,20 +21,18 @@ const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
   SIX_BOT_RING: {
     id: "SIX_BOT_RING",
     title: "6-Bot Ring",
-    body: "Start a full table instantly with five bots.",
-    subtitle: "You + 5 bots | Random table name",
+    body: "Battle with five bots.",
     cta: "Start 6-Bot Game",
-    helper: "One tap: create, join, and auto-fill",
+    helper: "",
     maxSeats: 6,
     targetBotCount: 5,
   },
   HEADS_UP_BOT: {
     id: "HEADS_UP_BOT",
-    title: "Heads-Up Bot Duel",
-    body: "Warm up quickly in a one-on-one bot battle.",
-    subtitle: "You + 1 bot | Random table name",
+    title: "Heads-Up Duel",
+    body: "One-on-one bot battle.",
     cta: "Start Heads-Up",
-    helper: "One tap: create and play",
+    helper: "",
     maxSeats: 2,
     targetBotCount: 1,
   },

@@ -19,6 +19,7 @@ export const openApiSpec = {
     { name: "lessons" },
     { name: "bots" },
     { name: "admin" },
+    { name: "awards" },
   ],
   components: {
     securitySchemes: {
@@ -195,6 +196,70 @@ export const openApiSpec = {
           scorePct: { type: "number", nullable: true },
         },
         required: ["id", "lessonId", "status", "startedAt"],
+      },
+      AwardCatalogEntry: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          reasonTemplate: { type: "string" },
+          graphic: { type: "string" },
+          tier: { type: "string", enum: ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"] },
+          tierWeight: { type: "integer" },
+          priorityWeight: { type: "integer" },
+          earnType: { type: "string", enum: ["ONE_TIME", "REPEATABLE"] },
+          source: { type: "string", enum: ["LESSON", "TABLE", "REPLAY", "SYSTEM"] },
+          category: { type: "string" },
+          version: { type: "integer" },
+        },
+        required: [
+          "id",
+          "name",
+          "reasonTemplate",
+          "graphic",
+          "tier",
+          "tierWeight",
+          "priorityWeight",
+          "earnType",
+          "source",
+          "category",
+          "version",
+        ],
+      },
+      UserAwardItem: {
+        type: "object",
+        properties: {
+          awardId: { type: "string" },
+          name: { type: "string" },
+          graphic: { type: "string" },
+          tier: { type: "string", enum: ["COMMON", "UNCOMMON", "RARE", "LEGENDARY"] },
+          tierWeight: { type: "integer" },
+          priorityWeight: { type: "integer" },
+          category: { type: "string" },
+          reason: { type: "string" },
+          earnedAt: { type: "string", format: "date-time" },
+          lastEarnedAt: { type: "string", format: "date-time" },
+          count: { type: "integer" },
+          contextType: {
+            type: "string",
+            nullable: true,
+            enum: ["LESSON", "HAND", "REPLAY", "SESSION"],
+          },
+          contextId: { type: "string", nullable: true },
+        },
+        required: [
+          "awardId",
+          "name",
+          "graphic",
+          "tier",
+          "tierWeight",
+          "priorityWeight",
+          "category",
+          "reason",
+          "earnedAt",
+          "lastEarnedAt",
+          "count",
+        ],
       },
     },
   },
@@ -1660,6 +1725,75 @@ export const openApiSpec = {
           },
           "404": {
             description: "Bot not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/awards/catalog": {
+      get: {
+        tags: ["awards"],
+        operationId: "awardsCatalog",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Awards catalog with tiers and metadata",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/AwardCatalogEntry" },
+                    },
+                    version: { type: "integer" },
+                  },
+                  required: ["items", "version"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/awards/me": {
+      get: {
+        tags: ["awards"],
+        operationId: "awardsMe",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 100 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Earned awards for the authenticated user",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/UserAwardItem" },
+                    },
+                  },
+                  required: ["items"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

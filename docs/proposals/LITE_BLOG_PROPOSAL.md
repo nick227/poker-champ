@@ -151,7 +151,7 @@ Aligned with your Phase 1 curriculum and lobby/replay features:
 |---|------|--------|--------|--------|
 | 1 | `why-position-matters-6max` | Why Position Matters in 6-Max Cash | Core concept; drives preflop discipline | → L1 (open raise), lobby |
 | 2 | `3bet-or-fold-stop-flat-calling` | 3-Bet or Fold: Stop Flat-Calling Yourself Into Trouble | Preflop 3-bet/fold; reduces passive flats | → 3-bet lesson, lobby |
-| 3 | `how-to-use-hand-replay` | How to Use Hand Replay to Fix Leaks | Replay value and workflow | → Replay your last hand, Community Hand, lobby |
+| 3 | `how-to-use-hand-replay` | How to Use Hand Replay to Fix Leaks | Replay value and workflow | → Replay last hand, Community Hand, lobby |
 | 4 | `pot-odds-plain-english` | Pot Odds in Plain English | Foundational; supports flop decisions | → Flop pot odds lesson, lobby |
 | 5 | `building-preflop-opening-range` | Building a Preflop Opening Range (6-Max) | RFI by position; ties to L1 | → L1, lessons index, lobby |
 | 6 | `practice-to-tables` | From Practice to Tables: Getting the Most From Poker School | How to combine lessons + play | → Lessons, lobby, replay |

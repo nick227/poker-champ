@@ -187,6 +187,60 @@ describe("useLessonSession", () => {
     expect(result.current.attempt?.scorePct).toBe(66.67);
   });
 
+  it("allows retry to clear feedback and re-submit the same step", async () => {
+    submitStepMock.mockImplementation(async ({ answer }: { answer: { optionKey: string } }) => ({
+      feedback: {
+        response: answer.optionKey === "b" ? "wrong" : "correct",
+        followUpInstructorMessage: "follow up",
+        isCorrect: answer.optionKey === "a",
+        scoreDelta: answer.optionKey === "a" ? 1 : 0,
+      },
+      attempt: {
+        id: "attempt_1",
+        lessonId: "lesson_1",
+        status: "IN_PROGRESS",
+        scorePct: answer.optionKey === "a" ? 100 : 0,
+      },
+    }));
+
+    const { result } = renderHook(() => useLessonSession("lesson_1", true));
+
+    await waitFor(() => {
+      expect(result.current.currentStep?.id).toBe("step_action");
+    });
+
+    act(() => {
+      result.current.goNext();
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentStep?.id).toBe("step_mcq");
+    });
+
+    await act(async () => {
+      await result.current.submitMcqOption("step_mcq", "b");
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentFeedback?.response).toBe("wrong");
+    });
+
+    act(() => {
+      result.current.retryCurrentStep();
+    });
+
+    expect(result.current.currentFeedback).toBeNull();
+
+    await act(async () => {
+      await result.current.submitMcqOption("step_mcq", "a");
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentFeedback?.response).toBe("correct");
+    });
+    expect(submitStepMock).toHaveBeenCalledTimes(2);
+  });
+
   it("skips redundant intro INFO step when it duplicates the next ACTION prompt", async () => {
     const introFirstLesson: LessonDefinition = {
       ...mockLesson,

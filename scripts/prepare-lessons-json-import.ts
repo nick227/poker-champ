@@ -14,7 +14,7 @@ type GradingMode = "OBJECTIVE_SINGLE" | "RUBRIC_SUBJECTIVE";
 
 const ROOT = process.cwd();
 const INPUT_PATH = path.resolve(ROOT, "poker_lessons_full_15.json");
-const OUTPUT_ROOT = path.resolve(ROOT, "docs/lessons/imports/poker_lessons_full_15");
+const OUTPUT_ROOT = path.resolve(ROOT, "content/lessons/imports/poker_lessons_full_15");
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -142,7 +142,7 @@ async function main() {
           snapshotVersion: 1,
           snapshotPath: snapshotRelPath,
           gradingVersion: 1,
-          beforeInstructorMessage: "Take your best line using the real ActionBar.",
+          beforeInstructorMessage: "",
           question: lesson.question,
           followUpInstructorMessage: lesson.response,
           gradingSpecJson: {
@@ -196,7 +196,7 @@ async function main() {
     [
       `Prepared draft import for ${lessons.length} lessons.`,
       `Output: ${path.relative(ROOT, OUTPUT_ROOT)}`,
-      "Review grading-review.csv and each step-config.draft.json before moving into docs/lessons/content.",
+      "Review grading-review.csv and each step-config.draft.json before moving into content/lessons/content.",
     ].join("\n"),
   );
 }
@@ -206,3 +206,4 @@ main().catch((error) => {
   console.error(error?.stack || error?.message || String(error));
   process.exitCode = 1;
 });
+

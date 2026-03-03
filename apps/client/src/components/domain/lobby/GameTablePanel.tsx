@@ -1,13 +1,12 @@
 import { Animated, Easing, Pressable, View } from "react-native";
 import { useRef, useState } from "react";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
-import { Text } from "@/components/base/Text";
-import { ConfirmButton } from "@/components/base/ConfirmButton";
 import { GamePanelFooter } from "./GamePanelFooter";
 import { GamePanelHeader } from "./GamePanelHeader";
 import { GamePanelPrimaryLine } from "./GamePanelPrimaryLine";
 import { GamePanelStats } from "./GamePanelStats";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
+import { Surface } from "@/components/containers/Surface";
 
 export function GameTablePanel({
   table,
@@ -35,8 +34,9 @@ export function GameTablePanel({
     connectedHumanCount === 0;
 
   return (
-    <Animated.View
-      className="ui-surface-card rounded-2xl border border-border p-4"
+    <Surface
+      as={Animated.View}
+      styleId="surface.list.panel"
       data-table-id={table.id}
       style={{
         minHeight: GAME_PANEL_LAYOUT.cardMinHeight,
@@ -92,33 +92,14 @@ export function GameTablePanel({
         </View>
       </Pressable>
       <View className="mt-3 pt-3 border-t border-border/60" style={{ minHeight: GAME_PANEL_LAYOUT.footerMinHeight }}>
-        <View className="ui-row items-center justify-between gap-3 min-h-[40px]">
-          <View className="flex-1 min-h-[16px] justify-center">
-            <Text
-              variant="muted"
-              className="text-[11px]"
-              numberOfLines={1}
-              style={{ opacity: canJoin ? 0 : 1 }}
-            >
-              Insufficient balance for min buy-in
-            </Text>
-          </View>
-          <View className="ui-row items-center gap-2">
-            <View className="w-8 h-8">
-              {canDelete ? (
-                <Pressable
-                  onPress={() => onDelete?.(table.id)}
-                  className="w-8 h-8 rounded-full border border-border bg-panel items-center justify-center"
-                  accessibilityRole="button"
-                  accessibilityLabel="Delete table"
-                >
-                  <Text variant="body" className="text-sm">...</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        </View>
+        <GamePanelFooter
+          canJoin={canJoin}
+          onJoin={onJoin}
+          isJoining={isJoining}
+          canDelete={Boolean(canDelete)}
+          onDelete={() => onDelete?.(table.id)}
+        />
       </View>
-    </Animated.View>
+    </Surface>
   );
 }

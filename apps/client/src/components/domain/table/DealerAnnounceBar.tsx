@@ -3,11 +3,11 @@
  * No other component should show "Connecting", "Error", "Waiting" etc. See TABLE_SCENE_VIEWS_OVERVIEW.md.
  */
 import { useEffect, useState } from "react";
-import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HandResultMessage } from "./table.types";
+import { Surface } from "@/components/containers/Surface";
 
 type Hand = { street: string; potCents: number };
 
@@ -19,13 +19,13 @@ function deriveMessage(
   handResultMessage: HandResultMessage | undefined,
   tableStatus?: string,
 ): string {
-  if (hand && actionMessage) return actionMessage;
   if (handResultMessage) {
     const line = `${handResultMessage.winnerName} ${TABLE.wins} ${formatCents(handResultMessage.amountCents)}`;
     return handResultMessage.winningHandDescr
       ? `${line} - ${handResultMessage.winningHandDescr}`
       : line;
   }
+  if (hand && actionMessage) return actionMessage;
   if (hand) return `${hand.street} - Pot ${formatCents(hand.potCents)}`;
   return tableStatus ? `${TABLE.waitingForHandStatus}${tableStatus}` : TABLE.waitingForHand;
 }
@@ -69,27 +69,25 @@ export function DealerAnnounceBar({
   const message =
     statusMessage ?? deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
 
-  const bgClass =
-    remaining > 0
-      ? "bg-brand/20"        // ← choose your highlight
-      : "ui-surface";
+  const styleId = remaining > 0
+    ? "surface.sim.table.announce.highlight"
+    : "surface.sim.table.announce";
 
   return (
-    <View
+    <Surface
+      styleId={styleId}
       collapsable={false}
-      className={`relative h-9 mb-2 px-4 ui-row flex-shrink-0 items-center w-full justify-center ${bgClass}`}
+      className="relative flex-shrink-0"
     >
-      <View className="min-w-0 justify-center">
-        <Text
-          variant="body"
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          className="text-center"
-          allowFontScaling={false}
-        >
-          {message}
-        </Text>
-      </View>
-    </View>
+      <Text
+        variant="body"
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        className="text-center"
+        allowFontScaling={false}
+      >
+        {message}
+      </Text>
+    </Surface>
   );
 }

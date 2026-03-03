@@ -1,0 +1,55 @@
+{
+  "lessonId": "L06",
+  "title": "KK SB vs BB",
+  "version": 1,
+  "moduleCode": "MODULE_B",
+  "recommendedOrder": 6,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L06_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Short-stacked in the small blind with kings facing the big blind—this is a spot about committing cleanly with a premium, not tiptoeing.",
+      "question": "Holding KK in the small blind versus the big blind with stacks set up to play for it all, do you rip it in, take a smaller line, or get scared off?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "ALL_IN",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "all_in"
+        ],
+        "followUpContent": "With KK blind versus blind and effective stacks shallow enough to play for stacks preflop, you’re sitting on roughly 79% equity against a realistic calling range—that’s a dream spot to shovel chips in. Trying to get tricky with flats or tiny raises just invites awkward postflop runouts where you allow dominated hands to realize equity and scare cards to kill your action. Jamming here simplifies the decision tree, punishes dominated pairs and broadways, and locks in your edge while the deck is still clean, which is exactly what strong players mean when they talk about \"realizing equity\" with premiums. Weak players second-guess themselves and shy away from committing because \"it’s a lot of chips,\" but strong players recognize that this is exactly what premium pairs are for and that avoiding high‑EV all-ins is its own form of risk aversion leak. The big idea: when you hold a clear front‑runner and the stacks are set up for it, don’t nurse your hand—lean in, play for stacks, and trust that getting it in good is what drives your long‑term winrate."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

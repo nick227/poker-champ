@@ -3,6 +3,8 @@ import { Pressable, ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
+import { Surface } from "@/components/containers/Surface";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
@@ -41,12 +43,12 @@ function LeaderboardLoadingSkeleton() {
   return (
     <View className="ui-stack-2">
       {Array.from({ length: 6 }).map((_, index) => (
-        <View key={index} className="ui-surface-card rounded-xl px-3 py-3">
+        <Surface key={index} styleId="surface.list.row">
           <View className="ui-row items-center justify-between">
             <View className="h-4 w-40 rounded bg-border-subtle" />
             <View className="h-4 w-20 rounded bg-border-subtle" />
           </View>
-        </View>
+        </Surface>
       ))}
     </View>
   );
@@ -132,14 +134,16 @@ export default function LeaderboardScreen() {
 
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={currentBankroll}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={currentBankroll}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
 
       <View className="flex-1 ui-stack-3 m-4">
 
@@ -162,22 +166,22 @@ export default function LeaderboardScreen() {
           {loading ? (
             <LeaderboardLoadingSkeleton />
           ) : error ? (
-            <View className="ui-surface-card rounded-xl px-4 py-5 ui-stack-2">
+            <Surface styleId="surface.list.panel" className="ui-stack-2">
               <Text variant="danger">{error}</Text>
               <Button title="Retry" variant="ghost" onPress={() => setRefreshNonce((v) => v + 1)} />
-            </View>
+            </Surface>
           ) : entries.length === 0 ? (
-            <View className="ui-surface-card rounded-xl px-4 py-5">
+            <Surface styleId="surface.list.panel">
               <Text variant="muted">
                 {computedAt
                   ? "No qualifying players in this period yet. Play some hands to climb the ranks."
                   : "No leaderboard data available yet."}
               </Text>
-            </View>
+            </Surface>
           ) : (
             <View className={`ui-stack-2 pb-4 ${isRefreshing ? "opacity-50" : ""}`}>
               {entries.map((entry) => (
-                <View key={`${entry.rank}-${entry.userId}`} className="ui-surface-card rounded-xl px-3 py-3">
+                <Surface key={`${entry.rank}-${entry.userId}`} styleId="surface.list.row">
                   <View className="ui-row items-center justify-between">
                     <View className="ui-row items-center gap-3">
                       <Text variant="h2" className="text-base">{entry.rank}</Text>
@@ -188,7 +192,7 @@ export default function LeaderboardScreen() {
                     </View>
                     <Text variant="body">{entry.value}</Text>
                   </View>
-                </View>
+                </Surface>
               ))}
             </View>
           )}

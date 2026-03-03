@@ -1,6 +1,7 @@
 import { Animated, Easing, View } from "react-native";
 import { useEffect, useRef } from "react";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
+import { Surface } from "@/components/containers/Surface";
 
 export function GameTablePanelSkeleton() {
   const pulse = useRef(new Animated.Value(0.7)).current;
@@ -27,8 +28,9 @@ export function GameTablePanelSkeleton() {
   }, [pulse]);
 
   return (
-    <Animated.View
-      className="ui-surface-card rounded-2xl border border-border p-4"
+    <Surface
+      as={Animated.View}
+      styleId="surface.list.panel"
       style={{ opacity: pulse, minHeight: GAME_PANEL_LAYOUT.cardMinHeight }}
     >
       <View className="ui-stack-3" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
@@ -57,6 +59,6 @@ export function GameTablePanelSkeleton() {
         <View className="h-3 w-28 rounded bg-panel border border-border/50" />
         <View className="h-10 w-28 rounded-md bg-panel border border-border/50" />
       </View>
-    </Animated.View>
+    </Surface>
   );
 }

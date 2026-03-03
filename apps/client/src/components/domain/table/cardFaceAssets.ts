@@ -1,7 +1,9 @@
 import type { ImageSourcePropType } from "react-native";
 import {
+  CARD_BACK_PACKS,
   CARD_FACE_PACKS,
   DEFAULT_CARD_FACE_PACK_ID,
+  type CardBackPackId,
   type CardFacePackId,
 } from "../../../assets/cards/packs";
 
@@ -102,5 +104,12 @@ export function getCardFaceSource(
   if (!pack) return null;
 
   const source = pack[key as keyof typeof pack] as ImageSourcePropType | undefined;
+  return source ?? null;
+}
+
+export function getCardBackSource(packId: CardBackPackId): ImageSourcePropType | null {
+  const source = Object.prototype.hasOwnProperty.call(CARD_BACK_PACKS, packId)
+    ? (CARD_BACK_PACKS as Record<string, ImageSourcePropType>)[packId as string]
+    : undefined;
   return source ?? null;
 }

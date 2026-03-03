@@ -20,13 +20,13 @@ function assertCondition(condition: unknown, message: string): asserts condition
 }
 
 async function readLockFile(root: string): Promise<LockFile> {
-  const lockPath = path.resolve(root, "docs/lessons/content/curriculum.lock.json");
+  const lockPath = path.resolve(root, "content/lessons/content/curriculum.lock.json");
   const raw = await fs.readFile(lockPath, "utf8");
   return JSON.parse(raw) as LockFile;
 }
 
 async function readCanonicalLessonIds(root: string): Promise<string[]> {
-  const contentRoot = path.resolve(root, "docs/lessons/content");
+  const contentRoot = path.resolve(root, "content/lessons/content");
   const entries = await fs.readdir(contentRoot, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isDirectory() && /^L\d{2}$/i.test(entry.name))
@@ -109,3 +109,4 @@ run()
     await disconnectPrisma();
     process.exit(1);
   });
+

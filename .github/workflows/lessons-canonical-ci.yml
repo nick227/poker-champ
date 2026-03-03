@@ -3,7 +3,7 @@ name: Lessons Canonical CI
 on:
   pull_request:
     paths:
-      - "docs/lessons/content/**"
+      - "content/lessons/content/**"
       - "scripts/seed-lessons-content.ts"
       - "scripts/check-lessons-seed-integrity.ts"
       - "scripts/check-lessons-content.ts"
@@ -33,15 +33,15 @@ jobs:
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
           CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
-          if ! echo "$CHANGED" | grep -q "^docs/lessons/content/"; then
+          if ! echo "$CHANGED" | grep -q "^content/lessons/content/"; then
             echo "No canonical content changes."
             exit 0
           fi
-          if echo "$CHANGED" | grep -q "^docs/lessons/content/curriculum.lock.json$"; then
+          if echo "$CHANGED" | grep -q "^content/lessons/content/curriculum.lock.json$"; then
             echo "Curriculum lock updated with content changes."
             exit 0
           fi
-          echo "docs/lessons/content changed without updating docs/lessons/content/curriculum.lock.json"
+          echo "content/lessons/content changed without updating content/lessons/content/curriculum.lock.json"
           echo "Bump curriculum lock to explicitly acknowledge canonical content mutation."
           exit 1
 

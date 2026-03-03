@@ -1,0 +1,55 @@
+{
+  "lessonId": "L01",
+  "title": "OESD vs Half-Pot",
+  "version": 1,
+  "moduleCode": "MODULE_A",
+  "recommendedOrder": 1,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L01_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You're facing a half-pot bet with an open-ended straight draw—treat this as a pure pot-odds decision, not a \"feel\" spot.",
+      "question": "Villain fires half-pot into your open-ended straight draw—do you continue or let it go?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Here you hold an open-ended straight draw with roughly 8 clean outs and about 32% equity by the rule of 4. A half-pot bet is laying you 2:1 on a call, which means you need around 33% equity to break even on pure pot odds. That makes this call slightly marginal on raw math alone—but stack depth, implied odds, and the chance to win extra chips when you hit push the decision into the profitable range. Against typical population tendencies, players under-bluff these spots and still size too small with value, which means you often realize more equity than the raw numbers predict. The key mistake many players make is auto-folding because they \"missed\" or auto-calling every draw without checking the price; in these high-frequency nodes, you want a repeatable process: estimate outs, convert to equity, compare to the price, then adjust for implied odds and position before you click call."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

@@ -4,6 +4,7 @@ import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { AvatarImage } from "@/components/base/AvatarImage";
 import { formatCents } from "@/lib/format";
+import { Surface } from "@/components/containers/Surface";
 
 const TOP_NAV_AVATAR_SIZE = 40;
 
@@ -26,7 +27,7 @@ export function AppTopNav({
   const initial = (username || "P").slice(0, 1).toUpperCase();
 
   return (
-    <View className="ui-section mb-2 ui-row items-center justify-between ui-inline-3">
+    <Surface styleId="surface.nav.top">
       <View className="ui-row items-center ui-inline-3 flex-1">
         <AvatarImage
           avatarUrl={avatarUrl}
@@ -49,7 +50,7 @@ export function AppTopNav({
             borderRadius: TOP_NAV_AVATAR_SIZE / 2,
           }}
         />
-        <Pressable onPress={() => router.push("/settings")} className="flex-1">
+        <Pressable onPress={() => router.push("/settings")} className="flex-1 min-h-[44px] justify-center">
           <Text numberOfLines={1} variant="body">
             {username}
           </Text>
@@ -65,6 +66,6 @@ export function AppTopNav({
         onPress={onPressOnline ?? (() => {})}
         disabled={!onPressOnline}
       />
-    </View>
+    </Surface>
   );
 }

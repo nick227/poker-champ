@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const contentRoot = path.resolve(root, "docs/lessons/content");
+const contentRoot = path.resolve(root, "content/lessons/content");
 
 async function recover() {
   const prisma = getPrisma() as any;
@@ -93,3 +93,4 @@ recover()
     await disconnectPrisma();
     process.exit(1);
   });
+

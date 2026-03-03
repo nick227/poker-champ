@@ -1,7 +1,7 @@
 # Replay Snapshot Persistence Fix
 
 ## Problem
-`Replay your last hand` remained unavailable even for users with hand history because no replay frames were persisted.
+`Replay last hand` remained unavailable even for users with hand history because no replay frames were persisted.
 
 Observed for `test@example.com`:
 - User had many completed hands.

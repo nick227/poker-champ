@@ -6,6 +6,7 @@ import { useTablePageController } from "./useTablePageController";
 import { TableSceneRouter } from "./TableSceneRouter";
 import { TablePageOverlays } from "./TablePageOverlays";
 import { useTableAwardsToast } from "@/hooks/useTableAwardsToast";
+import { Surface } from "@/components/containers/Surface";
 
 export function TablePage() {
   const { id, buyInCents: buyInCentsParam } = useLocalSearchParams<{
@@ -23,7 +24,9 @@ export function TablePage() {
 
   return (
     <Screen>
-      <TableSceneRouter scene={scene} renderModel={renderModel} actions={actions} />
+      <Surface styleId="surface.sim.table" className="flex-1">
+        <TableSceneRouter scene={scene} renderModel={renderModel} actions={actions} />
+      </Surface>
       {newAwards.length > 0 ? (
         <AwardToaster awards={newAwards} onDismiss={dismissAwards} />
       ) : null}

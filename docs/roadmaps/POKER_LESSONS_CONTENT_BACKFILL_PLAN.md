@@ -1,4 +1,4 @@
-Ôªø# Poker Lessons Content Backfill And Preparation Plan
+# Poker Lessons Content Backfill And Preparation Plan
 
 ## 1) Goal
 Establish a reliable content pipeline for lesson backfill so lesson quality, grading determinism, and release safety are consistent as we scale.
@@ -24,9 +24,9 @@ Does not cover:
 Use a single canonical content source per lesson, versioned in git.
 
 Recommended structure:
-- `docs/lessons/content/<lesson-id>/lesson.md` (human narrative)
-- `docs/lessons/content/<lesson-id>/step-config.json` (runtime config + grading keys)
-- `docs/lessons/content/<lesson-id>/snapshots/*.json` (snapshot payloads)
+- `content/lessons/content/<lesson-id>/lesson.md` (human narrative)
+- `content/lessons/content/<lesson-id>/step-config.json` (runtime config + grading keys)
+- `content/lessons/content/<lesson-id>/snapshots/*.json` (snapshot payloads)
 
 Why:
 - Human-readable instruction copy stays reviewable.
@@ -98,7 +98,7 @@ Backfill in this order for maximum learning ROI and product credibility:
 Reason:
 - High-frequency nodes first
 - Fast measurable impact
-- Strong ‚Äúmust-have‚Äù perception early
+- Strong ìmust-haveî perception early
 
 ## 8) Seed And Migration Strategy
 Phase A (V1-safe):
@@ -149,3 +149,4 @@ Foundation is complete when:
 - Validation script catches malformed snapshot/step configs.
 - At least one migrated V2 step per lesson is seeded and testable.
 - QA checklist is documented and used in staging signoff.
+

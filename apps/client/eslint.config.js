@@ -200,6 +200,62 @@ export default [
       ],
     },
   },
+  // Soft guardrail for MVP migration: keep P0 container surfaces on Surface styleId.
+  {
+    files: [
+      "src/components/containers/**/*.{ts,tsx}",
+      "src/components/base/Panel.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "JSXAttribute[name.name='className'] Literal[value=/ui-surface-card|ui-bottom-bar|bg-bg px-4/]",
+          message:
+            "Prefer <Surface styleId=\"...\"> over direct container surface classes.",
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='className'] JSXExpressionContainer TemplateLiteral TemplateElement[value.raw=/ui-surface-card|ui-bottom-bar|bg-bg px-4/]",
+          message:
+            "Prefer <Surface styleId=\"...\"> over direct container surface classes.",
+        },
+      ],
+    },
+  },
+  // Migration guardrails: keep surface styling centralized.
+  {
+    files: ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name='unsafeStyle']",
+          message:
+            "unsafeStyle is migration-only and restricted to Surface.tsx. Move visual updates to surfaceRegistry.",
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='Surface'] JSXAttribute[name.name='className'] Literal[value=/\\b(bg-|shadow-|rounded-|border-|ring-)/]",
+          message:
+            "Surface className extensions must be layout-only. Move visual styles to surfaceRegistry.",
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='Surface'] JSXAttribute[name.name='className'] JSXExpressionContainer TemplateLiteral TemplateElement[value.raw=/\\b(bg-|shadow-|rounded-|border-|ring-)/]",
+          message:
+            "Surface className extensions must be layout-only. Move visual styles to surfaceRegistry.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/components/containers/Surface.tsx"],
+    rules: {
+      "no-restricted-syntax": "off",
+    },
+  },
   // Separate config for CommonJS files
   {
     files: ["**/*.cjs"],

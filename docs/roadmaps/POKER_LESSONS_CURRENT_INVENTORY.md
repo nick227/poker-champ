@@ -8,13 +8,13 @@
 
 ## Executive summary
 
-- **Single catalog:** 15 lessons (L01–L15) from `docs/lessons/content`. Seed: `scripts/seed-lessons-content.ts` only.
+- **Single catalog:** 15 lessons (L01–L15) from `content/lessons/content`. Seed: `scripts/seed-lessons-content.ts` only.
 - **Metadata in DB:** `Lesson` has `moduleCode`, `recommendedOrder`, `role`, `repeatable`, `curriculumVersion`. API and UI use these for grouping and ordering; no hardcoded lesson-id map.
 - **Legacy:** V1 seed (`scripts/seed-lessons-v1.ts`) and `LESSON_UI_META` in the router have been removed or deprecated. Lobby "Poker School" links to `/lessons` (not a fixed lesson id).
 
 ## Current catalog (what `/api/lessons` serves)
 
-- **Source:** `docs/lessons/content/L01` … `L15` → `scripts/seed-lessons-content.ts` → DB.
+- **Source:** `content/lessons/content/L01` … `L15` → `scripts/seed-lessons-content.ts` → DB.
 - **IDs:** L01, L02, … L15.
 - **Step pattern:** 2 steps per lesson: INFO_STEP then ACTION_STEP. No MCQ in canonical content.
 - **Module / role / repeatable / order:** In each lesson’s `step-config.json` (`moduleCode`, `recommendedOrder`, `role`, `repeatable`) and persisted to `Lesson` by the seed.
@@ -44,7 +44,7 @@
 ## Scripts and references
 
 - **Seed:** `pnpm lessons:seed:content` (option: `--replace-noncanonical` to delete non-canonical lessons from DB).
-- **Content check:** `pnpm lessons:content:check` (validates `docs/lessons/content`).
+- **Content check:** `pnpm lessons:content:check` (validates `content/lessons/content`).
 - **API:** `src/http/LessonsRouter.ts` — list ordered by `moduleCode`, `recommendedOrder`, `createdAt`; lesson fields from DB.
 - **Client:** `apps/client/app/lessons.tsx` — catalog and module sections from API payload.
 
@@ -56,3 +56,4 @@
 ## Next steps (from LESSONS_PAGE_INVENTORY)
 
 - **Instructor analysis:** Add real `followUpCorrect` / `followUpIncorrect` (and `followUpReasonable` where needed) in ACTION_STEP `gradingSpecJson` in step-configs; reseed; optionally relax placeholder detection in `LessonInstructorPanel`. See section 7 of `docs/LESSONS_PAGE_INVENTORY.md`.
+

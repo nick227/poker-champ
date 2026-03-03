@@ -29,7 +29,7 @@ type GradingPlanSummary = {
 };
 
 const ROOT = process.cwd();
-const IMPORT_ROOT = path.resolve(ROOT, "docs/lessons/imports/poker_lessons_full_15");
+const IMPORT_ROOT = path.resolve(ROOT, "content/lessons/imports/poker_lessons_full_15");
 const PLAN_PATH = path.resolve(IMPORT_ROOT, "grading-plan-summary.json");
 const CURRICULUM_VERSION = "poker_lessons_full_15_v1";
 
@@ -125,3 +125,4 @@ main().catch((error) => {
   console.error(error?.stack || error?.message || String(error));
   process.exitCode = 1;
 });
+

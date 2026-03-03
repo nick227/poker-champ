@@ -68,7 +68,7 @@ Low-cost implementation path:
 
 ### Panel 2: Heads-Up Bot
 - Eyebrow: `Instant Game`
-- Title: `Heads-Up Bot Duel`
+- Title: `Heads-Up Duel`
 - Body: `Warm up fast in a heads-up battle. We create a public 2-seat game with one bot and seat you immediately.`
 - Meta line: `You + 1 bot | Random table name`
 - CTA: `Start Heads-Up`

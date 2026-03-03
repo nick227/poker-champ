@@ -1,0 +1,65 @@
+{
+  "lessonId": "L11",
+  "title": "A7s UTG Tournament",
+  "version": 1,
+  "moduleCode": "MODULE_C",
+  "recommendedOrder": 11,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L11_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Tournament setting, full table, and you’re first in with A7 suited under the gun—this is about preflop discipline, not falling in love with suited aces.",
+      "question": "Holding A7s UTG in a tournament with a full field behind, do you open, limp, or simply fold and wait for a cleaner spot?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "call"
+            ],
+            "STRONG": [
+              "fold"
+            ],
+            "REASONABLE": [
+              "raise"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "FOLD",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "A7s looks pretty in isolation, but from UTG in a tournament with a full table left to act it’s a classic dominated trap: when you make top pair, you’re often up against better aces, and when you make a flush, someone can still have you pipped. Opening this hand invites 3-bets from stronger ranges and awkward postflop spots out of position where your equity realization suffers, especially as stacks get shallower and ICM pressure ramps up. Folding instead keeps your range tight in early position, protects your stack from being chipped away by marginal opens, and reserves suited aces for later positions where you can see how many players enter the pot first before committing chips. The overall pattern: tighten your opening range as you move earlier, lean on hands that perform well against strong continue ranges, and let go of the cute-but-dominated suited aces when you’re first to speak—those small preflop folds compound into a big edge over time."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "drills",
+  "repeatable": true
+}

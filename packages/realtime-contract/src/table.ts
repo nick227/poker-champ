@@ -16,6 +16,7 @@ export const TableErrorCodeEnum = z.enum([
   "TABLE_GONE",
   "BUYIN_INVALID",
   "UNAUTHORIZED",
+  "SNAPSHOT_INVALID",
 ]);
 
 const SnapshotReasonEnum = z.enum([

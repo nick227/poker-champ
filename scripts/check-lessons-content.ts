@@ -1,9 +1,9 @@
-﻿import fs from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { TableSnapshotPayloadSchema } from "@poker-champ/realtime-contract";
 
 const ROOT = process.cwd();
-const CONTENT_ROOT = path.resolve(ROOT, "docs/lessons/content");
+const CONTENT_ROOT = path.resolve(ROOT, "content/lessons/content");
 
 function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -272,3 +272,4 @@ main().catch((error) => {
   console.error(error?.stack || error?.message || String(error));
   process.exitCode = 1;
 });
+

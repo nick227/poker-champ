@@ -6,6 +6,7 @@ import { Toggle } from "@/components/base/Toggle";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
@@ -66,14 +67,16 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        amountCents={bankroll.cents}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          amountCents={bankroll.cents}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <ProfileAvatarSection
           avatarUrl={profile.avatarUrl}

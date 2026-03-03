@@ -186,7 +186,7 @@ export function TableLoadingLanding({
       }}
     >
       <View
-        className="mx-auto w-full overflow-hidden rounded-3xl border border-border-subtle bg-bg px-5 py-5 shadow-lg"
+        className="mx-auto w-full loading-inner-container px-5 py-5"
         style={{ maxWidth: LANDING_MAX_WIDTH, paddingHorizontal: compact ? 14 : 20, paddingVertical: compact ? 14 : 20 }}
       >
         <View

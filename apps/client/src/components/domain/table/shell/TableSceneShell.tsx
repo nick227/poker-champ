@@ -8,6 +8,7 @@ import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { TableGameTopBar } from "../TableGameTopBar";
 import { OpponentStrip, type Opponent } from "../OpponentStrip";
+import { Surface } from "@/components/containers/Surface";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableLayoutHeights } from "../hooks/useTableLayoutHeights";
 import { layoutStyles } from "../tableLayout.styles";
@@ -149,7 +150,9 @@ export function TableSceneShell({
               </View>
 
               {!hideBottomSection ? (
-                <View
+                <Surface
+                  as={View}
+                  styleId="surface.sim.table.actionbar"
                   collapsable={false}
                   style={[
                     layoutStyles.actionBarSection,
@@ -159,10 +162,9 @@ export function TableSceneShell({
                       paddingBottom: insets.bottom,
                     },
                   ]}
-                  className="border-t border-border-subtle flex items-center justify-center"
                 >
                   {bottom}
-                </View>
+                </Surface>
               ) : null}
             </>
           )}

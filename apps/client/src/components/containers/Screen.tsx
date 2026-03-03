@@ -1,6 +1,11 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
+import { Surface } from "@/components/containers/Surface";
 
 export function Screen({ children }: { children: ReactNode }) {
-  return <SafeAreaView className="flex-1 bg-bg px-4">{children}</SafeAreaView>;
+  return (
+    <Surface as={SafeAreaView} styleId="surface.screen.base">
+      {children}
+    </Surface>
+  );
 }

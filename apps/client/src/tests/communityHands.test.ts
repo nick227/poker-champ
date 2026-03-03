@@ -11,8 +11,11 @@ describe("community replay hands", () => {
     expect(hand.difficulty).toBeTruthy();
     const finalFrame = hand.snapshots[hand.snapshots.length - 1];
     expect(finalFrame.lastHandResult).toBeDefined();
+    expect(finalFrame.reason).toBe("HAND_END");
+    expect(finalFrame.lastHandResult?.reason).toBe("SHOWDOWN");
     expect(finalFrame.lastHandResult?.winnerId).toBeTruthy();
     expect(Object.keys(finalFrame.lastHandResult?.payoutsByUserId ?? {}).length).toBeGreaterThan(0);
+    expect(Object.keys(finalFrame.lastHandResult?.showdownHoleCardsByUserId ?? {}).length).toBeGreaterThanOrEqual(2);
   });
 
   it("finds hand by id", () => {
@@ -85,5 +88,20 @@ describe("community replay hands", () => {
         "bad",
       ),
     ).toThrow(/unsupported snapshot version/i);
+  });
+
+  it("fails assertion when final snapshot omits showdown details", () => {
+    const base = getDefaultCommunityHand().snapshots;
+    const badFinal: TableSnapshotPayload = {
+      ...base[base.length - 1],
+      reason: "HAND_END",
+      lastHandResult: {
+        ...base[base.length - 1].lastHandResult!,
+        reason: "SHOWDOWN",
+        showdownHoleCardsByUserId: { "hero-user": ["As", "Kd"] },
+      },
+    };
+    const bad = [...base.slice(0, -1), badFinal];
+    expect(() => assertReplaySnapshotsShape(bad, "bad-showdown")).toThrow(/showdown hole cards/i);
   });
 });

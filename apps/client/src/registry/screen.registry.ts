@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+
 export type ScreenKey = "index" | "login" | "lobby" | "table" | "settings" | "history" | "leaderboard" | "slots" | "lessons";
 
 type ScreenDefinition = {
@@ -7,9 +9,8 @@ type ScreenDefinition = {
   showInBottomBar?: boolean;
   bottomBarLabel?: string;
   componentPath: string;
+  icon?: keyof typeof Ionicons.glyphMap;
 };
-
-const isLeaderboardTabEnabled = process.env.EXPO_PUBLIC_ENABLE_LEADERBOARD !== "false";
 
 const screenByKey: Record<ScreenKey, ScreenDefinition> = {
   index: {
@@ -24,21 +25,6 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     title: "Login",
     componentPath: "app/login.tsx",
   },
-  lobby: {
-    path: "/lobby",
-    authRequired: true,
-    title: "Lobby",
-    showInBottomBar: true,
-    bottomBarLabel: "Lobby",
-    componentPath: "app/lobby.tsx",
-  },
-  table: {
-    path: "/table/[id]",
-    authRequired: true,
-    title: "Table",
-    showInBottomBar: false, // Changed: no longer in bottom bar
-    componentPath: "app/table/[id].tsx",
-  },
   history: {
     path: "/history",
     authRequired: true,
@@ -46,22 +32,6 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     showInBottomBar: false,
     bottomBarLabel: "History",
     componentPath: "app/history.tsx",
-  },
-  lessons: {
-    path: "/lessons",
-    authRequired: true,
-    title: "Poker School",
-    showInBottomBar: true,
-    bottomBarLabel: "Lessons",
-    componentPath: "app/lessons.tsx",
-  },
-  leaderboard: {
-    path: "/leaderboard",
-    authRequired: true,
-    title: "Leaderboard",
-    showInBottomBar: isLeaderboardTabEnabled,
-    bottomBarLabel: "Leaderboard",
-    componentPath: "app/leaderboard.tsx",
   },
   slots: {
     path: "/slots",
@@ -71,12 +41,47 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     showInBottomBar: false,
     bottomBarLabel: "Slots",
   },
+  table: {
+    path: "/table/[id]",
+    authRequired: true,
+    title: "Table",
+    showInBottomBar: false, // Changed: no longer in bottom bar
+    componentPath: "app/table/[id].tsx",
+  },
+  lobby: {
+    path: "/lobby",
+    authRequired: true,
+    title: "Lobby",
+    showInBottomBar: true,
+    bottomBarLabel: "Lobby",
+    componentPath: "app/lobby.tsx",
+    icon: 'home',
+  },
+  lessons: {
+    path: "/lessons",
+    authRequired: true,
+    title: "Poker School",
+    showInBottomBar: true,
+    bottomBarLabel: "Learn",
+    componentPath: "app/lessons.tsx",
+    icon: 'book',
+  },
+  leaderboard: {
+    path: "/leaderboard",
+    authRequired: true,
+    title: "Leaderboard",
+    showInBottomBar: true,
+    bottomBarLabel: "Board",
+    componentPath: "app/leaderboard.tsx",
+    icon: 'bar-chart',
+  },
   settings: {
     path: "/settings",
     authRequired: true,
     title: "Settings",
+    icon: 'person',
     showInBottomBar: true,
-    bottomBarLabel: "Settings",
+    bottomBarLabel: "You",
     componentPath: "app/settings.tsx",
   },
 };

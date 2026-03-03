@@ -47,7 +47,7 @@ Target topology:
 
 **Tables:** Prisma migrations must be applied before the app (or the lessons seed) uses the DB. **The build does not run migrations.**
 
-**Lessons:** The catalog (L01–L15) and follow-up content live in `docs/lessons/content` and are loaded by `pnpm lessons:seed:content`. The seed requires the `Lesson` and `LessonStep` tables to exist.
+**Lessons:** The catalog (L01–L15) and follow-up content live in `content/lessons/content` and are loaded by `pnpm lessons:seed:content`. The seed requires the `Lesson` and `LessonStep` tables to exist.
 
 **Recommended:** Set the api-realtime **Start command** to:
 
@@ -64,3 +64,4 @@ That runs in order: `pnpm db:migrate` (create/update tables), then `pnpm lessons
 - `railway.json` only defines builder. Set build/start commands per Railway service in the UI.
 - No reverse proxy required for initial rollout.
 - Security: rotate the database password after initial setup because it has been shared in plaintext.
+

@@ -69,7 +69,7 @@ It validates:
 
 It writes:
 
-- [cardFacePackRegistry.ts](C:\wamp64\www\poker-champ\apps\client\src\assets\cards\generated\cardFacePackRegistry.ts)
+- [cardPackRegistry.ts](apps/client/src/assets/cards/generated/cardPackRegistry.ts)
 
 ## Step 4: Verify In App
 

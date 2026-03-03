@@ -41,15 +41,15 @@ The screen shows:
 | **DB** | `Lesson` (with canonical fields), `LessonStep`, `LessonAttempt`, etc. Populated by **content seed only**. |
 | **Module / role / order** | **In DB.** `Lesson.moduleCode`, `Lesson.recommendedOrder`, `Lesson.role`, `Lesson.repeatable` are persisted by `scripts/seed-lessons-content.ts` from each lesson's `step-config.json`. API returns these from the lesson row; no hardcoded map. |
 
-Single source of truth: canonical content in `docs/lessons/content/L01`–`L15` and the content seed. Legacy V1 seed and `LESSON_UI_META` have been removed.
+Single source of truth: canonical content in `content/lessons/content/L01`–`L15` and the content seed. Legacy V1 seed and `LESSON_UI_META` have been removed.
 
 ---
 
 ## 3. Catalog: canonical content only
 
-- **Source:** `docs/lessons/content/L01` … `L15` (one directory per lesson).
+- **Source:** `content/lessons/content/L01` … `L15` (one directory per lesson).
 - **Seed:** `scripts/seed-lessons-content.ts` — reads each `step-config.json`, upserts `Lesson` by `config.lessonId` (e.g. `L01`), and persists **moduleCode**, **recommendedOrder**, **role**, **repeatable**, **curriculumVersion**, plus title, description, difficulty, estimatedMinutes, steps, etc.
-- **Lock:** `docs/lessons/content/curriculum.lock.json` — 15 lessons, 30 steps, gradingVersion 1.
+- **Lock:** `content/lessons/content/curriculum.lock.json` — 15 lessons, 30 steps, gradingVersion 1.
 - **Step-config requirements (lesson-level):** `lessonId`, `title`, `moduleCode`, `recommendedOrder`, `role`, `repeatable`, `steps`; optional `version`, `difficulty`, `estimatedMinutes`, `curriculumVersion`.
 
 All 15 lessons (L01–L15) are listed in section 4. Module/role/order are defined in content and stored in the DB; the API does not use any lesson-id–keyed metadata map.
@@ -145,3 +145,4 @@ All have the same step shape: **2 steps** — `INFO_STEP` (intro) then `ACTION_S
 - [ ] Reseed with `pnpm lessons:seed:content` (and `--replace-noncanonical` if desired).
 - [ ] Verify one lesson end-to-end; then backfill remaining lessons.
 - [ ] Optionally remove or narrow `isPlaceholderInstructorMessage()` in `LessonInstructorPanel` once placeholders are gone.
+

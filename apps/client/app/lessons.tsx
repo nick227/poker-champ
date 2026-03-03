@@ -6,6 +6,7 @@ import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { storeRegistry } from "@/registry/store.registry";
@@ -69,14 +70,16 @@ export default function LessonsScreen() {
 
   return (
     <Screen>
-      <Masthead />
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={bankroll.cents}
-        avatarUrl={profile.avatarUrl}
-      />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={bankroll.cents}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 28 }} showsVerticalScrollIndicator>
         <LessonsHeroCard vm={vm} onOpenLesson={openLesson} />

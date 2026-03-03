@@ -1,0 +1,55 @@
+{
+  "lessonId": "L08",
+  "title": "AK vs Two All-Ins",
+  "version": 1,
+  "moduleCode": "MODULE_B",
+  "recommendedOrder": 8,
+  "targetAudience": "serious online players",
+  "difficulty": "INTERMEDIATE",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L08_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You pick up AK and two players are already all-in—this is where understanding multi-way equity matters more than loving big slick.",
+      "question": "With AKo facing two committed all-ins, are you willing to gamble for everything or do you release and wait for a cleaner spot?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "FOLD",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "fold"
+        ],
+        "followUpContent": "AK offsuit is a powerhouse heads-up, but when two players are already all-in their combined ranges are usually packed with pairs and premium hands that put you in rough shape. Against one opponent you might be flipping or slightly ahead; against two, you’re often up against at least one overpair and sometimes even dominated by another AK or stronger Ax that shares outs with you. That means your share of the pot drops sharply while the amount you risk stays huge, turning what feels like a strong hand into a poor gamble from an ICM and chip-EV perspective. The disciplined play is to fold and preserve your stack for better spots where your edge is clearer, your equity is cleaner, and the pot isn’t already spoken for by two committed ranges. The lesson here: AK is not an automatic \"go with it\" hand—multi-way all-ins, price, and stack dynamics can and should talk you into the muck, and learning to let go in these cooler-looking spots is a big part of serious tournament poker."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

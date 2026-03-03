@@ -16,7 +16,7 @@ export function PasswordInput({ label, value, onChangeText, placeholder }: Props
   return (
     <View className="ui-stack-2">
       {label ? <Text variant="muted">{label}</Text> : null}
-      <View className="ui-row ui-inline-2 ui-surface ui-p-md">
+      <View className="ui-row ui-inline-2 ui-surface ui-p-md min-h-[44px] items-center">
         <Text variant="muted">🔒</Text>
         <TextInput
           value={value}
@@ -26,7 +26,7 @@ export function PasswordInput({ label, value, onChangeText, placeholder }: Props
           secureTextEntry={!visible}
           autoCapitalize="none"
           autoCorrect={false}
-          className="flex-1 py-1 text-text"
+          className="flex-1 py-2 text-text"
         />
         <Pressable
           onPress={() => setVisible(!visible)}

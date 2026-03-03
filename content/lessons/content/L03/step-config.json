@@ -1,0 +1,56 @@
+{
+  "lessonId": "L03",
+  "title": "Combo Draw vs All-In",
+  "version": 1,
+  "moduleCode": "MODULE_A",
+  "recommendedOrder": 3,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L03_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve picked up a combo draw and villain has moved all-in—this is where strong players lean on equity, not fear.",
+      "question": "Facing an all-in with a flush + straight combo draw, are you committing the stack or folding a huge opportunity?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "call",
+          "all_in"
+        ],
+        "followUpContent": "With a strong combo draw—flush draw plus straight draw—you can easily have 14–15 outs and around 48% equity, which is massive when you’re being laid a good price to continue versus an all-in. Calling 15k into an 18.5k pot gives you roughly 31% required equity, so your actual equity crushes the price and makes continuing clearly +EV even though you’re technically still an underdog to hit by the river. This is one of the rare spots where being an underdog in a single hand doesn’t matter because the pot odds are so skewed in your favour. The real leak here is folding because the pot is \"big\" or because you’re scared of busting instead of trusting the math; another is slowplaying and just calling in spots where jamming as the aggressor would fold out some equity and deny your opponents clean realization. Strong players recognize that these high-equity combo draws are the hands they want to stack off with, while weaker players pass on them and instead commit stacks with dominated top pairs or weak overpairs. When the pot odds and your draw both line up, you don’t hesitate—you commit and let the math work for you over time."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "drills",
+  "repeatable": true
+}

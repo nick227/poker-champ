@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, View, Pressable, PanResponder } from "react-native";
+import { ScrollView, View, Pressable, PanResponder, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
@@ -17,7 +17,6 @@ import type { LessonDefinition } from "./lesson.types";
 import { useLessonContentViewModel } from "./useLessonContentViewModel";
 import type { AwardGrant } from "@/types/awards";
 import { AwardToaster } from "@/components/domain/awards/AwardToaster";
-import { ACTION_BAR_HEIGHT } from "@/components/domain/table/constants/tableLayout.constants";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   LESSON_CONTENT_BUTTON_KEYS,
@@ -161,7 +160,7 @@ function LessonCompletionView({
           </View>
         ) : null}
 
-        <Text variant="h1" className="mt-2 text-xl font-bold">
+        <Text variant="body" className="mt-2">
           {lesson.title}
         </Text>
 
@@ -246,11 +245,13 @@ export function LessonContent({
   onApplyAtTable?: () => void;
   onOpenLesson?: (nextLessonId: string) => void;
 }) {
+  const { height: windowHeight } = useWindowDimensions();
   const authHydrated = useAuthStore((s) => s.hydrated);
   const session = useLessonSession(lessonId, enabled && authHydrated);
   const [bootCampComplete, setBootCampComplete] = useState<boolean>(false);
   const [advancing, setAdvancing] = useState(false);
   const [sheetMinimized, setSheetMinimized] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     // Re-open the lesson sheet when advancing/retrying so users don't miss new prompts.
@@ -385,11 +386,10 @@ export function LessonContent({
   const showInfoNavigation = step?.type === "INFO_STEP";
   const showQuestionNavigation = answeredQuestionStep;
   const showStepNavigation = showInfoNavigation || showQuestionNavigation;
-  const needsActionBarSpace = step?.type === "ACTION_STEP" && awaitingQuestionAnswer;
 
   const tierLabel =
     session.lesson?.tier === "elite" ? "Elite" : session.lesson?.tier === "pro" ? "Pro" : null;
-  const lessonSheetBottom = needsActionBarSpace ? ACTION_BAR_HEIGHT + 10 : 12;
+  const lessonSheetMaxHeight = windowHeight * 0.7;
   const { headerBadges, navigationButtons } = useLessonContentViewModel({
     tierLabel,
     showStepNavigation,
@@ -398,7 +398,10 @@ export function LessonContent({
     canGoPrev: session.canGoPrev,
     isMigratedActionStep,
     advancing,
-    onRetry: session.retryCurrentStep,
+    onRetry: () => {
+      session.retryCurrentStep();
+      setRetryNonce((prev) => prev + 1);
+    },
     onReloadDecisionRuntime: () => {
       resetDecisionRuntime();
       void loadDecisionRuntime();
@@ -449,6 +452,7 @@ export function LessonContent({
       <View className="flex-1">
         {sceneModel ? (
           <ActiveTableView
+            key={`${step.id}:${retryNonce}`}
             snapshot={stepSnapshot}
             sceneModel={sceneModel}
             onAction={handleAction}
@@ -470,12 +474,12 @@ export function LessonContent({
         ) : null}
       </View>
 
-      <View className="absolute inset-x-0" style={{ bottom: lessonSheetBottom }}>
+      <View className="mt-2">
         {sheetMinimized ? (
           <View className="mx-3">
             <Pressable
               onPress={() => setSheetMinimized(false)}
-              className="rounded-2xl border border-border bg-panel/95 px-4 py-3"
+              className="rounded-t-2xl border-t-2 border-border bg-panel-elevated px-4 py-3 shadow-lg"
               {...expandPanResponder.panHandlers}
             >
               <View className="items-center">
@@ -492,13 +496,18 @@ export function LessonContent({
             </Pressable>
           </View>
         ) : (
-          <View className="mx-3 max-h-[58%] overflow-hidden rounded-2xl border border-border bg-panel/95">
-            <ScrollView contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator>
+          <View
+            className="mx-3 overflow-hidden rounded-t-2xl border-t-2 border-border bg-panel-elevated shadow-2xl"
+            style={{ maxHeight: lessonSheetMaxHeight }}
+          >
+            <View className="flex-col" style={{ maxHeight: lessonSheetMaxHeight }}>
               <View className="mx-4 mt-2 items-center" {...collapsePanResponder.panHandlers}>
                 <View className="h-1 w-10 rounded-full bg-border" />
               </View>
 
-              <View className="mx-4 mt-3 flex-row items-center justify-between gap-2">
+              <View className="mx-4 mt-2 h-[1px] bg-border/60" />
+
+              <View className="mx-4 mt-3 mb-2 flex-row items-center justify-between gap-2">
                 <View className="flex-row items-center gap-2 flex-wrap">
                   {headerBadges.map((badge) =>
                     badge.type === "chip" ? (
@@ -536,33 +545,41 @@ export function LessonContent({
                 )}
               </View>
 
-              <LessonInstructorPanel
-                step={step}
-                feedback={session.currentFeedback}
-                communityComparison={session.currentCommunityComparison}
-                communityStatus={session.currentCommunityStatus}
-                evaluating={isMigratedActionStep && (session.submitting || decisionRuntimeState === "SUBMITTING")}
-                revealResults={isMigratedActionStep && decisionRuntimeState === "COMPLETE" ? revealResults : []}
-              />
+              <View style={{ flexGrow: 1, flexShrink: 1 }}>
+                <ScrollView
+                  style={{ flexGrow: 1 }}
+                  contentContainerStyle={{ paddingBottom: 12 }}
+                  showsVerticalScrollIndicator
+                >
+                  <LessonInstructorPanel
+                    step={step}
+                    feedback={session.currentFeedback}
+                    communityComparison={session.currentCommunityComparison}
+                    communityStatus={session.currentCommunityStatus}
+                    evaluating={isMigratedActionStep && (session.submitting || decisionRuntimeState === "SUBMITTING")}
+                    revealResults={isMigratedActionStep && decisionRuntimeState === "COMPLETE" ? revealResults : []}
+                  />
 
-              <LessonQuestionPanel
-                step={step}
-                selectedOptionKey={session.selectedOptionKey}
-                onSelectOption={(optionKey) => void session.submitMcqOption(step.id, optionKey)}
-                loading={session.submitting}
-                disabled={session.currentFeedback != null}
-              />
+                  <LessonQuestionPanel
+                    step={step}
+                    selectedOptionKey={session.selectedOptionKey}
+                    onSelectOption={(optionKey) => void session.submitMcqOption(step.id, optionKey)}
+                    loading={session.submitting}
+                    disabled={session.currentFeedback != null}
+                  />
 
-              {step.type === "ACTION_STEP" && session.currentFeedback == null ? (
-                <View className="mx-4 mt-2 rounded-lg border border-border bg-panel p-3">
-                  <Text variant="muted" className="text-xs">
-                    {LESSON_CONTENT_COPY.panel.actionHint}
-                  </Text>
-                </View>
-              ) : null}
+                  {step.type === "ACTION_STEP" && session.currentFeedback == null ? (
+                    <View className="mx-4 mt-2 rounded-lg border border-border bg-panel p-3">
+                      <Text variant="muted" className="text-xs">
+                        {LESSON_CONTENT_COPY.panel.actionHint}
+                      </Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
+              </View>
 
               {showStepNavigation ? (
-                <View className="mx-4 mt-3 flex-row gap-2">
+                <View className="mx-4 mb-3 mt-3 flex-row gap-2">
                   {navigationButtons.map((button) => (
                     <View key={button.id} className="flex-1">
                       <Button
@@ -577,7 +594,7 @@ export function LessonContent({
                   ))}
                 </View>
               ) : null}
-            </ScrollView>
+            </View>
           </View>
         )}
       </View>

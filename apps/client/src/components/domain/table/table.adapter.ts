@@ -188,19 +188,17 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
     if (!seat.occupied || !seat.userId || seat.userId === heroId) continue;
 
     let cards: Opponent["cards"] | undefined;
-    if (snapshot.hand) {
+    const showdownCards = showdownHoleCardsByUserId?.[seat.userId];
+    if (showdownCards) {
+      cards = {
+        left: decodeCard(showdownCards[0]),
+        right: decodeCard(showdownCards[1]),
+        faceDown: false,
+        visible: true,
+      };
+    } else if (snapshot.hand) {
       const isInHand = seat.status === "ACTIVE" || seat.status === "FOLDED" || seat.status === "ALL_IN";
       if (isInHand) cards = { faceDown: true, visible: true };
-    } else {
-      const showdownCards = showdownHoleCardsByUserId?.[seat.userId];
-      if (showdownCards) {
-        cards = {
-          left: decodeCard(showdownCards[0]),
-          right: decodeCard(showdownCards[1]),
-          faceDown: false,
-          visible: true,
-        };
-      }
     }
 
     opponents.push({

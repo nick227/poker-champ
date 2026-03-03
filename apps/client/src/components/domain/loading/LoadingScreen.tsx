@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Loader } from "@/components/base/Loader";
 import { LOADING_MESSAGES } from "@/constants/copy";
+import { Screen } from "@/components/containers/Screen";
 
 export function LoadingScreen() {
   const [msgIndex, setMsgIndex] = useState(0);
@@ -15,11 +16,13 @@ export function LoadingScreen() {
   }, []);
 
   return (
-    <View className="flex-1 ui-center bg-bg">
-      <Loader />
-      <Text variant="muted" className="mt-4">
-        {LOADING_MESSAGES[msgIndex]}
-      </Text>
-    </View>
+    <Screen>
+      <View className="flex-1 ui-center">
+        <Loader />
+        <Text variant="muted" className="mt-4">
+          {LOADING_MESSAGES[msgIndex]}
+        </Text>
+      </View>
+    </Screen>
   );
 }

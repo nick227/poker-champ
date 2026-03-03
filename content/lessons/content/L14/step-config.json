@@ -1,0 +1,65 @@
+{
+  "lessonId": "L14",
+  "title": "Two Pair on Flush Board",
+  "version": 1,
+  "moduleCode": "MODULE_C",
+  "recommendedOrder": 14,
+  "targetAudience": "serious online players",
+  "difficulty": "ADVANCED",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L14_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve turned two pair on a three‑flush board and face a small bet—this spot is about respecting the draw but not overfolding strong hands to tiny sizing.",
+      "question": "With A‑K two pair on a completed flush board facing a small stab, do you pay to see showdown, raise for value, or muck a hand that often wins?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "rubric": {
+          "acceptedAnswers": {
+            "WEAK": [
+              "raise"
+            ],
+            "STRONG": [
+              "call"
+            ],
+            "REASONABLE": [
+              "fold"
+            ]
+          }
+        },
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "RUBRIC_SUBJECTIVE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "followUpContent": "On a flush board with A‑K two pair you’re sitting in that awkward middle zone: far ahead of all the one‑pair hands and bluffs, but behind completed flushes and boats. Against a reasonable betting range your equity can be roughly in the mid‑50s, while a small bet of 3k into a 15k pot is offering you around 20% required equity to continue. That’s an enormous gap in your favour, which means folding two pair to this sizing is giving up too much, too often, especially versus populations that over‑c‑bet these textures with hands you beat. Raising tends to fold out the hands you crush and get action mainly from the ones that already beat you, so calling and taking the cheap showdown is the most efficient way to realize your equity and control pot size. The meta-lesson is that when bet size is small, you can and should defend wider—even on scary textures—while still being ready to fold if the price skyrockets, the action polarizes, or the runout gets dramatically worse for your hand."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "tests",
+  "repeatable": false
+}

@@ -2,15 +2,17 @@ import { useMemo, useState } from "react";
 import { Image, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { getProceduralCardBackById } from "../../../assets/cards/cardBackProcedural";
 import {
   DEFAULT_CARD_FACE_PACK_ID,
+  isCardBackPackId,
   type CardFacePackId,
 } from "../../../assets/cards/packs";
 import { getCardFacePackById } from "../../../assets/cards/packManifest";
 import { BuiltinCardFace } from "./BuiltinCardFace";
 import { CardBackPattern } from "./CardBackPatterns";
 import { DEFAULT_CARD_DIMENSIONS } from "./constants/cardDimensions.constants";
-import { getCardFaceSource } from "./cardFaceAssets";
+import { getCardBackSource, getCardFaceSource } from "./cardFaceAssets";
 
 const SUITS: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
 const RANKS: Record<string, string> = {
@@ -127,17 +129,40 @@ export function PlayingCard({
 }
 
 export function CardBack() {
+  const cardBackPackId = usePreferencesStore((state) => state.cardBackPackId);
   const cardBackPattern = usePreferencesStore((state) => state.cardBackPattern);
-  const cardBackHue = usePreferencesStore((state) => state.cardBackHue);
-  const cardBackSaturation = usePreferencesStore((state) => state.cardBackSaturation);
-  const cardBackLightness = usePreferencesStore((state) => state.cardBackLightness);
+
+  if (cardBackPackId != null && isCardBackPackId(cardBackPackId)) {
+    const source = getCardBackSource(cardBackPackId);
+    if (source) {
+      return (
+        <View
+          renderToHardwareTextureAndroid
+          style={[cardStyle, { backfaceVisibility: "hidden" as const }]}
+          className="rounded-card border border-border-subtle overflow-hidden"
+        >
+          <Image
+            source={source}
+            style={{
+              width: DEFAULT_CARD_DIMENSIONS.width,
+              height: DEFAULT_CARD_DIMENSIONS.height,
+            }}
+            resizeMode="contain"
+          />
+        </View>
+      );
+    }
+  }
+
+  const procedural =
+    getProceduralCardBackById(cardBackPattern) ?? getProceduralCardBackById("classic");
+  if (!procedural) return null;
 
   return (
     <CardBackPattern
-      pattern={cardBackPattern}
-      hue={cardBackHue}
-      saturation={cardBackSaturation}
-      lightness={cardBackLightness}
+      pattern={procedural.id}
+      backgroundHsl={procedural.background}
+      patternHsl={procedural.pattern}
       width={DEFAULT_CARD_DIMENSIONS.width}
       height={DEFAULT_CARD_DIMENSIONS.height}
     />

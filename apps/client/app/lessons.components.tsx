@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { Surface } from "@/components/containers/Surface";
 import {
   LESSONS_BUTTON_KEYS,
   LESSONS_PAGE_COPY,
@@ -115,11 +116,11 @@ export function ContinueSection({
   const stepNumber = Math.max(1, (currentLesson.currentStepIndex ?? 0) + 1);
 
   return (
-    <View className="mt-5 rounded-xl border border-border bg-panel p-3">
+    <Surface styleId="surface.list.panel" className="mt-5">
       <Text variant="h2" className="text-base">
         {LESSONS_PAGE_COPY.sections.continue.title}
       </Text>
-      <View className="mt-3 rounded-lg border border-border bg-background p-3" testID={`continue-card-${currentLesson.id}`}>
+      <Surface styleId="surface.list.row" className="mt-3" testID={`continue-card-${currentLesson.id}`}>
         <Text variant="label">{LESSONS_PAGE_COPY.sections.continue.cardHeading}</Text>
         <Text variant="body" className="mt-1 font-semibold">
           {currentLesson.title}
@@ -135,8 +136,8 @@ export function ContinueSection({
             className="w-full"
           />
         </View>
-      </View>
-    </View>
+      </Surface>
+    </Surface>
   );
 }
 
@@ -150,7 +151,7 @@ export function DailyChallengesSection({
   if (vm.dailyChallenges.length === 0) return null;
 
   return (
-    <View className="mt-5 rounded-xl border border-border bg-panel p-3">
+    <Surface styleId="surface.list.panel" className="mt-5">
       <View className="flex-row items-center justify-between">
         <Text variant="h2" className="text-base">
           {LESSONS_PAGE_COPY.sections.dailyChallenges.title}
@@ -171,10 +172,12 @@ export function DailyChallengesSection({
               : LESSONS_BUTTON_KEYS.CHALLENGE_START;
 
           return (
-            <Pressable
+            <Surface
               key={lesson.id}
+              as={Pressable}
+              styleId="surface.list.row"
               onPress={() => onOpenLesson(lesson.id, lesson.enabled)}
-              className="rounded-lg border border-border bg-background p-3 active:opacity-85"
+              className="active:opacity-85"
               testID={`daily-challenge-${lesson.id}`}
             >
               <View className="flex-row items-center justify-between">
@@ -227,11 +230,11 @@ export function DailyChallengesSection({
                   className="w-full"
                 />
               </View>
-            </Pressable>
+            </Surface>
           );
         })}
       </View>
-    </View>
+    </Surface>
   );
 }
 
@@ -245,16 +248,18 @@ export function RecentCompletedSection({
   if (vm.recentCompletedLessons.length === 0) return null;
 
   return (
-    <View className="mt-5 rounded-xl border border-border bg-panel p-3">
+    <Surface styleId="surface.list.panel" className="mt-5">
       <Text variant="h2" className="text-base">
         {LESSONS_PAGE_COPY.sections.recentCompleted.title}
       </Text>
       <View className="mt-3 gap-2">
         {vm.recentCompletedLessons.map((lesson) => (
-          <Pressable
+          <Surface
             key={lesson.id}
+            as={Pressable}
+            styleId="surface.list.row"
             onPress={() => onOpenLesson(lesson.id, lesson.enabled)}
-            className="rounded-lg border border-border bg-background p-3 active:opacity-85"
+            className="active:opacity-85"
             testID={`recent-completed-${lesson.id}`}
           >
             <View className="flex-row items-center justify-between">
@@ -266,10 +271,10 @@ export function RecentCompletedSection({
             <Text variant="muted" className="mt-1 text-xs">
               {formatLessonsCompletedDate(lesson.lastAttemptedAt)}
             </Text>
-          </Pressable>
+          </Surface>
         ))}
       </View>
-    </View>
+    </Surface>
   );
 }
 
@@ -283,7 +288,7 @@ export function ModulesSection({
   return (
     <View className="mt-5 gap-4">
       {vm.moduleCards.map((moduleCard) => (
-        <View key={moduleCard.moduleCode} className="rounded-xl border border-border bg-panel p-3">
+        <Surface key={moduleCard.moduleCode} styleId="surface.list.panel">
           <View className="flex-row items-center justify-between">
             <Text variant="h2" className="text-base">
               {moduleCard.meta.title}
@@ -303,10 +308,12 @@ export function ModulesSection({
             {moduleCard.lessons.map((item) => {
               const tierLabel = item.tier === "elite" ? "Elite" : item.tier === "pro" ? "Pro" : null;
               return (
-                <Pressable
+                <Surface
                   key={item.id}
+                  as={Pressable}
+                  styleId="surface.list.row"
                   onPress={() => onOpenLesson(item.id, item.enabled)}
-                  className="rounded-lg border border-border bg-background p-3 active:opacity-85"
+                  className="active:opacity-85"
                   testID={`lesson-card-${item.id}`}
                 >
                   <View className="flex-row items-center justify-between flex-wrap gap-1">
@@ -365,20 +372,20 @@ export function ModulesSection({
                       variant={item.actionButton.variant}
                     />
                   </View>
-                </Pressable>
+                </Surface>
               );
             })}
           </View>
-        </View>
+        </Surface>
       ))}
 
       {vm.moduleCards.length === 0 ? (
-        <View className="rounded-xl border border-border bg-panel p-3">
+        <Surface styleId="surface.list.panel">
           <Text variant="label">{LESSONS_PAGE_COPY.states.emptyModulesTitle}</Text>
           <Text variant="muted" className="mt-1 text-xs">
             {LESSONS_PAGE_COPY.states.emptyModulesBody}
           </Text>
-        </View>
+        </Surface>
       ) : null}
     </View>
   );
@@ -405,9 +412,9 @@ export function StatusBanners({ vm }: { vm: LessonsPageViewModel }) {
   return (
     <>
       {banners.map((banner) => (
-        <View key={banner.id} className="mt-4 rounded-xl border border-border bg-panel p-3">
+        <Surface key={banner.id} styleId="surface.list.panel" className="mt-4">
           <Text variant={banner.tone === "danger" ? "danger" : "muted"}>{banner.message}</Text>
-        </View>
+        </Surface>
       ))}
     </>
   );

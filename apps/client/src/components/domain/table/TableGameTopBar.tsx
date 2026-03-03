@@ -4,6 +4,7 @@ import { Text } from "@/components/base/Text";
 import { Icon } from "@/components/base/Icons";
 import { formatCents } from "@/lib/format";
 import { tableChromeStyles } from "./tableChrome.styles";
+import { Surface } from "@/components/containers/Surface";
 
 export type TableGameTopBarProps = {
   tableName: string;
@@ -23,11 +24,11 @@ export function TableGameTopBar({
   const displayName = userName?.trim() || "Player";
 
   return (
-    <View className="mb-2 ui-row items-center justify-between ui-inline-3">
-      <View className="pt-2 pl-2 ui-row items-center ui-inline-3 flex-1">
+    <Surface styleId="surface.sim.table.topbar">
+      <View className="ui-row items-center ui-inline-3 flex-1">
         <Pressable
           onPress={onLogoPress}
-          className="h-10 w-10 rounded-full ui-surface ui-center border border-border-subtle"
+          className="h-11 w-11 rounded-full ui-surface ui-center border border-border-subtle"
         >
           <Icon name="logo" size={18} />
         </Pressable>
@@ -47,6 +48,6 @@ export function TableGameTopBar({
         </View>
       </View>
       <View className="items-end justify-center">{right}</View>
-    </View>
+    </Surface>
   );
 }

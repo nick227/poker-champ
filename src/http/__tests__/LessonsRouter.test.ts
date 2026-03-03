@@ -270,6 +270,14 @@ const {
         state.attemptSteps.push(row);
         return row;
       }),
+      update: vi.fn(async ({ where, data }: any) => {
+        const idx = state.attemptSteps.findIndex(
+          (s) => s.attemptId === where.attemptId_stepId.attemptId && s.stepId === where.attemptId_stepId.stepId,
+        );
+        if (idx === -1) return null;
+        state.attemptSteps[idx] = { ...state.attemptSteps[idx], ...data };
+        return state.attemptSteps[idx];
+      }),
     },
     $transaction: vi.fn(async (fn: (tx: typeof prismaMock) => Promise<unknown>) => {
       return fn(prismaMock);
@@ -421,7 +429,7 @@ describe("LessonsRouter", () => {
     expect(secondBody.attempt.currentStepIndex).toBe(0);
   });
 
-  it("is idempotent on re-submit and does not double-apply mastery", async () => {
+  it("re-grades re-submissions and does not double-apply mastery", async () => {
     const attemptRes = await post("/api/lessons/lesson_test/attempts");
     const attemptBody = await attemptRes.json();
     const attemptId = attemptBody.attempt.id;
@@ -445,7 +453,8 @@ describe("LessonsRouter", () => {
     );
     expect(submit2.status).toBe(200);
     const body2 = await submit2.json();
-    expect(body2.idempotentReplay).toBe(true);
+    expect(body2.feedback.isCorrect).toBe(false);
+    expect(body2.feedback.response).toBe("Incorrect");
     expect(body2.attempt.status).toBe("COMPLETED");
 
     const masteryAfterSecond = state.mastery.find((m) => m.userId === "user_test_1" && m.conceptId === "concept_position");

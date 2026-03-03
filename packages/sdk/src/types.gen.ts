@@ -516,6 +516,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/awards/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["awardsCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/awards/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["awardsMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users": {
         parameters: {
             query?: never;
@@ -746,6 +778,41 @@ export interface components {
             /** Format: date-time */
             completedAt?: string | null;
             scorePct?: number | null;
+        };
+        AwardCatalogEntry: {
+            id: string;
+            name: string;
+            reasonTemplate: string;
+            graphic: string;
+            /** @enum {string} */
+            tier: "COMMON" | "UNCOMMON" | "RARE" | "LEGENDARY";
+            tierWeight: number;
+            priorityWeight: number;
+            /** @enum {string} */
+            earnType: "ONE_TIME" | "REPEATABLE";
+            /** @enum {string} */
+            source: "LESSON" | "TABLE" | "REPLAY" | "SYSTEM";
+            category: string;
+            version: number;
+        };
+        UserAwardItem: {
+            awardId: string;
+            name: string;
+            graphic: string;
+            /** @enum {string} */
+            tier: "COMMON" | "UNCOMMON" | "RARE" | "LEGENDARY";
+            tierWeight: number;
+            priorityWeight: number;
+            category: string;
+            reason: string;
+            /** Format: date-time */
+            earnedAt: string;
+            /** Format: date-time */
+            lastEarnedAt: string;
+            count: number;
+            /** @enum {string|null} */
+            contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | null;
+            contextId?: string | null;
         };
     };
     responses: never;
@@ -2166,6 +2233,71 @@ export interface operations {
             };
             /** @description Bot not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    awardsCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Awards catalog with tiers and metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AwardCatalogEntry"][];
+                        version: number;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    awardsMe: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Earned awards for the authenticated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["UserAwardItem"][];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

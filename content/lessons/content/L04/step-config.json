@@ -1,0 +1,55 @@
+{
+  "lessonId": "L04",
+  "title": "Top Pair vs Pot Bet",
+  "version": 1,
+  "moduleCode": "MODULE_A",
+  "recommendedOrder": 4,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L04_decision",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You’ve flopped top pair and now face a full pot bet—this is a test of how you treat one-pair hands against pressure.",
+      "question": "With top pair facing a pot-sized stab on this board, are you continuing, fighting back, or getting out of the way?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "continuationKey": null,
+          "displayCategory": "WWYD_COMPARE",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "scenarioProviderKey": "static_snapshot"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Good line for this situation.",
+        "responseIncorrect": "There is a better line in this node.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Here you’re holding top pair with a solid kicker and, against a reasonable range, you often have something like 70%+ equity while facing a pot-sized bet that only asks you to win around half the time. That gap between your actual equity and the price being offered is where your long-term profit comes from—folding hands this strong to single-pot bets simply gives away too much. At the same time, you don’t want to bloat the pot unnecessarily by raising when many worse hands will fold and better hands or strong draws continue; that line is more suited to polarized ranges, not medium-strength value. The real art is in reading how the board interacts with villain’s range: dry textures and wide opens favour more calls with top pair, while very wet, multi-way pots demand more discipline and tighter continues. In this spot, calling keeps in bluffs and dominated hands, controls the pot, and leverages your equity edge without overplaying a one-pair hand—the kind of solid, repeatable decision that quietly drives your winrate."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": false
+}

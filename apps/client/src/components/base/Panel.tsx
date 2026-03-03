@@ -1,5 +1,5 @@
-import { View } from "react-native";
 import type { ReactNode } from "react";
+import { Surface } from "@/components/containers/Surface";
 
 export function Panel({
   children,
@@ -9,8 +9,8 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <View className={`ui-surface-card ui-p-lg ${className}`}>
+    <Surface styleId="surface.card.primary" className={className}>
       {children}
-    </View>
+    </Surface>
   );
 }

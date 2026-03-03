@@ -4,18 +4,16 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
+import { HeaderStack } from "@/components/containers/HeaderStack";
 import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
 import { InstantGamePanels } from "@/components/domain/lobby/InstantGamePanels";
 import { ReplayQuickLinks } from "@/components/domain/lobby/ReplayQuickLinks";
-import { BlogFeaturedLinks } from "@/components/domain/lobby/BlogFeaturedLinks";
 import { GameTablePanel } from "@/components/domain/lobby/GameTablePanel";
 import { GameTablePanelSkeleton } from "@/components/domain/lobby/GameTablePanelSkeleton";
 import { EmptyState } from "@/components/domain/lobby/EmptyState";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { CreateGameModal } from "@/components/domain/lobby/CreateGameModal";
 import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
-import { ReplaySheet } from "@/components/replay/ReplaySheet";
-import type { ReplaySource } from "@/components/replay/replay.types";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
@@ -74,7 +72,6 @@ export default function LobbyScreen() {
     maxBuyInCents: number;
   } | null>(null);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
-  const [replaySheetSource, setReplaySheetSource] = useState<ReplaySource | null>(null);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
   const {
     latestHandId,
@@ -177,7 +174,16 @@ export default function LobbyScreen() {
 
   return (
     <Screen>
-      <Masthead />
+      <HeaderStack>
+        <Masthead />
+        <AppTopNav
+          username={profile.username ?? "Player"}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          amountCents={bankroll}
+          avatarUrl={profile.avatarUrl}
+        />
+      </HeaderStack>
       {showFromLessonNudge ? (
         <View className="mx-4 mt-2 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
           <Text variant="body" className="text-foreground flex-1 text-sm">
@@ -194,13 +200,6 @@ export default function LobbyScreen() {
           </Pressable>
         </View>
       ) : null}
-      <AppTopNav
-        username={profile.username ?? "Player"}
-        onlineLabel={onlineLabel}
-        onPressOnline={openOnlineSheet}
-        amountCents={bankroll}
-        avatarUrl={profile.avatarUrl}
-      />
       <ScrollView className="flex-1">
         <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <ReplayQuickLinks
@@ -208,18 +207,13 @@ export default function LobbyScreen() {
           latestHandLoading={latestReplayLoading}
           latestHandError={latestReplayError}
           lessonsEnabled
-          onReplayLastHand={(handId) => setReplaySheetSource({ type: "handId", handId })}
+          onReplayLastHand={(handId) => router.push(`/replay/${encodeURIComponent(handId)}`)}
           onCommunityHand={() => {
             const hand = getDefaultCommunityHand();
-            setReplaySheetSource({
-              type: "snapshots",
-              handId: `community:${hand.id}`,
-              snapshots: hand.snapshots,
-            });
+            router.push(`/replay/community/${encodeURIComponent(hand.id)}`);
           }}
           onPokerSchool={() => router.push("/lessons")}
         />
-        <BlogFeaturedLinks />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
         <View className="flex-1 ui-column gap-3 p-4">
           {busy ? (
@@ -268,11 +262,6 @@ export default function LobbyScreen() {
         loading={onlineBusy}
         error={onlineError}
         onRefresh={requestOnlinePlayers}
-      />
-      <ReplaySheet
-        visible={replaySheetSource != null}
-        source={replaySheetSource}
-        onClose={() => setReplaySheetSource(null)}
       />
       <BottomBar active="lobby" />
     </Screen>
