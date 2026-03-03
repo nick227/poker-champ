@@ -181,9 +181,9 @@ Credibility guardrails:
 Use both module and type taxonomy.
 
 Module taxonomy:
-- `A_STOP_BLEEDING_PREFLOP`
-- `B_WIN_MORE_FLOPS`
-- `C_CLOSE_HAND_PROFITABLY`
+- `MODULE_A`
+- `MODULE_B`
+- `MODULE_C`
 
 Lesson type taxonomy (editorial labels):
 - `Core Lesson`

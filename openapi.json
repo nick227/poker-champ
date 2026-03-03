@@ -68,6 +68,29 @@
           "error"
         ]
       },
+      "RateLimitError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "RATE_LIMITED"
+            ]
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "error",
+          "code",
+          "retryAfterSeconds"
+        ]
+      },
       "User": {
         "type": "object",
         "properties": {
@@ -562,6 +585,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitError"
+                }
+              }
+            }
           }
         }
       }
@@ -613,6 +646,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitError"
                 }
               }
             }
@@ -2456,10 +2499,45 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "cadence": {
+                      "type": "object",
+                      "properties": {
+                        "completedAttemptsLast7Days": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "completedAttemptsLast7Days"
+                      ]
+                    },
                     "lessons": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/LessonSummary"
+                      }
+                    },
+                    "dailyChallenges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lessonId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "recovery",
+                              "weak_spot",
+                              "fresh_rep",
+                              "repeatable"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "lessonId",
+                          "type"
+                        ]
                       }
                     },
                     "masteryByConceptCode": {
@@ -2468,7 +2546,9 @@
                     }
                   },
                   "required": [
+                    "cadence",
                     "lessons",
+                    "dailyChallenges",
                     "masteryByConceptCode"
                   ]
                 }

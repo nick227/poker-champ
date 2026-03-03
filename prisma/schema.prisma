@@ -363,7 +363,7 @@ model Lesson {
   slug             String          @unique
   title            String
   description      String?
-  moduleCode       String          @default("A_STOP_BLEEDING_PREFLOP")
+  moduleCode       String          @default("MODULE_A")
   recommendedOrder Int             @default(999)
   role             String          @default("teaches")
   repeatable       Boolean         @default(false)

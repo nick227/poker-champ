@@ -368,7 +368,7 @@ describe("LessonsRouter", () => {
       status: "PUBLISHED",
       estimatedMinutes: 3,
       version: 1,
-      moduleCode: "A_STOP_BLEEDING_PREFLOP",
+      moduleCode: "MODULE_A",
       recommendedOrder: 1,
       role: "teaches",
       repeatable: false,
@@ -472,6 +472,9 @@ describe("LessonsRouter", () => {
     expect(typeof beforeBody.lessons[0].recommendedOrder).toBe("number");
     expect(Array.isArray(beforeBody.lessons[0].conceptTags)).toBe(true);
     expect(typeof beforeBody.cadence?.completedAttemptsLast7Days).toBe("number");
+    expect(Array.isArray(beforeBody.dailyChallenges)).toBe(true);
+    expect(beforeBody.dailyChallenges[0]?.lessonId).toBe("lesson_test");
+    expect(typeof beforeBody.dailyChallenges[0]?.type).toBe("string");
 
     const attemptRes = await post("/api/lessons/lesson_test/attempts");
     const attemptBody = await attemptRes.json();
@@ -486,6 +489,15 @@ describe("LessonsRouter", () => {
     expect(afterBody.lessons[0].progressState).toBe("completed");
     expect(afterBody.lessons[0].completedAttempts).toBe(1);
     expect(afterBody.cadence?.completedAttemptsLast7Days).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(afterBody.dailyChallenges)).toBe(true);
+  });
+
+  it("normalizes legacy module codes in lessons list response", async () => {
+    state.lessons[0].moduleCode = "A_STOP_BLEEDING_PREFLOP";
+    const res = await get("/api/lessons");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.lessons[0].moduleCode).toBe("MODULE_A");
   });
 
   it("returns community comparison utility overview", async () => {

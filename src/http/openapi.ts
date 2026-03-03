@@ -1337,16 +1337,34 @@ export const openApiSpec = {
                 schema: {
                   type: "object",
                   properties: {
+                    cadence: {
+                      type: "object",
+                      properties: {
+                        completedAttemptsLast7Days: { type: "integer" },
+                      },
+                      required: ["completedAttemptsLast7Days"],
+                    },
                     lessons: {
                       type: "array",
                       items: { $ref: "#/components/schemas/LessonSummary" },
+                    },
+                    dailyChallenges: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          lessonId: { type: "string" },
+                          type: { type: "string", enum: ["recovery", "weak_spot", "fresh_rep", "repeatable"] },
+                        },
+                        required: ["lessonId", "type"],
+                      },
                     },
                     masteryByConceptCode: {
                       type: "object",
                       additionalProperties: true,
                     },
                   },
-                  required: ["lessons", "masteryByConceptCode"],
+                  required: ["cadence", "lessons", "dailyChallenges", "masteryByConceptCode"],
                 },
               },
             },

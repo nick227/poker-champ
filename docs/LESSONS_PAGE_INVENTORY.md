@@ -62,21 +62,21 @@ All have the same step shape: **2 steps** — `INFO_STEP` (intro) then `ACTION_S
 
 | # | Id | Title | Module | Difficulty | Expected action / grading |
 |---|----|-------|--------|------------|----------------------------|
-| 1 | L01 | OESD vs Half-Pot | A_STOP_BLEEDING_PREFLOP | BEGINNER | CALL (OBJECTIVE_SINGLE) |
-| 2 | L02 | Flush Draw vs Pot Bet | A_STOP_BLEEDING_PREFLOP | BEGINNER | CALL (OBJECTIVE_SINGLE) |
-| 3 | L03 | Combo Draw vs All-In | A_STOP_BLEEDING_PREFLOP | BEGINNER | CALL / ALL_IN (OBJECTIVE_SINGLE) |
-| 4 | L04 | Top Pair vs Pot Bet | A_STOP_BLEEDING_PREFLOP | BEGINNER | CALL (OBJECTIVE_SINGLE) |
-| 5 | L05 | Two Overcards vs Min Bet | A_STOP_BLEEDING_PREFLOP | BEGINNER | CALL (OBJECTIVE_SINGLE) |
-| 6 | L06 | KK SB vs BB | B_WIN_MORE_FLOPS | CORE | ALL_IN (OBJECTIVE_SINGLE) |
-| 7 | L07 | 88 vs Two All-Ins | B_WIN_MORE_FLOPS | CORE | FOLD (OBJECTIVE_SINGLE) |
-| 8 | L08 | AK vs Two All-Ins | B_WIN_MORE_FLOPS | CORE | FOLD (OBJECTIVE_SINGLE) |
-| 9 | L09 | AK vs Two Limpers | B_WIN_MORE_FLOPS | CORE | RAISE (OBJECTIVE_SINGLE) |
-| 10 | L10 | AA UTG 9-Handed | B_WIN_MORE_FLOPS | CORE | RAISE (OBJECTIVE_SINGLE) |
-| 11 | L11 | A7s UTG Tournament | C_CLOSE_HAND_PROFITABLY | ADVANCED | RUBRIC: STRONG=fold, REASONABLE=raise, WEAK=call |
-| 12 | L12 | Low Flush vs Double All-In | C_CLOSE_HAND_PROFITABLY | ADVANCED | RUBRIC: STRONG=fold, REASONABLE=call, WEAK=raise |
-| 13 | L13 | Middle Pair vs Half-Pot Turn | C_CLOSE_HAND_PROFITABLY | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
-| 14 | L14 | Two Pair on Flush Board | C_CLOSE_HAND_PROFITABLY | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
-| 15 | L15 | 22 Chip Leader vs Raise | C_CLOSE_HAND_PROFITABLY | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
+| 1 | L01 | OESD vs Half-Pot | MODULE_A | BEGINNER | CALL (OBJECTIVE_SINGLE) |
+| 2 | L02 | Flush Draw vs Pot Bet | MODULE_A | BEGINNER | CALL (OBJECTIVE_SINGLE) |
+| 3 | L03 | Combo Draw vs All-In | MODULE_A | BEGINNER | CALL / ALL_IN (OBJECTIVE_SINGLE) |
+| 4 | L04 | Top Pair vs Pot Bet | MODULE_A | BEGINNER | CALL (OBJECTIVE_SINGLE) |
+| 5 | L05 | Two Overcards vs Min Bet | MODULE_A | BEGINNER | CALL (OBJECTIVE_SINGLE) |
+| 6 | L06 | KK SB vs BB | MODULE_B | CORE | ALL_IN (OBJECTIVE_SINGLE) |
+| 7 | L07 | 88 vs Two All-Ins | MODULE_B | CORE | FOLD (OBJECTIVE_SINGLE) |
+| 8 | L08 | AK vs Two All-Ins | MODULE_B | CORE | FOLD (OBJECTIVE_SINGLE) |
+| 9 | L09 | AK vs Two Limpers | MODULE_B | CORE | RAISE (OBJECTIVE_SINGLE) |
+| 10 | L10 | AA UTG 9-Handed | MODULE_B | CORE | RAISE (OBJECTIVE_SINGLE) |
+| 11 | L11 | A7s UTG Tournament | MODULE_C | ADVANCED | RUBRIC: STRONG=fold, REASONABLE=raise, WEAK=call |
+| 12 | L12 | Low Flush vs Double All-In | MODULE_C | ADVANCED | RUBRIC: STRONG=fold, REASONABLE=call, WEAK=raise |
+| 13 | L13 | Middle Pair vs Half-Pot Turn | MODULE_C | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
+| 14 | L14 | Two Pair on Flush Board | MODULE_C | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
+| 15 | L15 | 22 Chip Leader vs Raise | MODULE_C | ADVANCED | RUBRIC: STRONG=call, REASONABLE=fold, WEAK=raise |
 
 **Module distribution:** A (L01–L05), B (L06–L10), C (L11–L15).
 

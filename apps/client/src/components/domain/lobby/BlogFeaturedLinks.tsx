@@ -40,7 +40,7 @@ export function BlogFeaturedLinks({ compact }: BlogFeaturedLinksProps = {}) {
         ))}
         <Pressable onPress={() => router.push("/blog")} className="py-2">
           <Text variant="muted" className="text-sm text-accent">
-            See all articles →
+            See all articles
           </Text>
         </Pressable>
       </View>

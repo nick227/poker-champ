@@ -29,7 +29,7 @@
     }
   },
   "ignoreUnresolved": ["babel-preset-expo", "expo-router/entry"],
-  "ignoreBinaries": ["eas", "tauri"],
+  "ignoreBinaries": ["eas", "tauri", "playwright"],
   "ignoreDependencies": [
     "@vitest/coverage-v8",
     "expo-updates",
@@ -61,3 +61,4 @@
     "apps/client/src/assets/cards/generated/cardFacePackRegistry.ts": ["exports"]
   }
 }
+

@@ -3,9 +3,9 @@
 export type LessonState = "not_started" | "in_progress" | "completed";
 export type LessonRole = "teaches" | "drills" | "tests";
 export type ModuleCode =
-  | "A_STOP_BLEEDING_PREFLOP"
-  | "B_WIN_MORE_FLOPS"
-  | "C_CLOSE_HAND_PROFITABLY";
+  | "MODULE_A"
+  | "MODULE_B"
+  | "MODULE_C";
 
 export interface LessonListLessonDto {
   id: string;
@@ -38,6 +38,10 @@ export interface LessonListLessonDto {
 export interface LessonListResponseDto {
   cadence: { completedAttemptsLast7Days: number };
   lessons: LessonListLessonDto[];
+  dailyChallenges: Array<{
+    lessonId: string;
+    type: "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
+  }>;
   masteryByConceptCode: Record<
     string,
     {

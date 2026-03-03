@@ -30,7 +30,7 @@ type StepConfigStep = {
 type LessonStepConfig = {
   lessonId: string;
   title: string;
-  moduleCode: "A_STOP_BLEEDING_PREFLOP" | "B_WIN_MORE_FLOPS" | "C_CLOSE_HAND_PROFITABLY";
+  moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C";
   recommendedOrder: number;
   role: "teaches" | "drills" | "tests";
   repeatable: boolean;

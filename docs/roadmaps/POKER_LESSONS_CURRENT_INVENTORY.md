@@ -39,7 +39,7 @@
 |14 | L14 | Two Pair on Flush Board       | C       | teaches | no         |
 |15 | L15 | 22 Chip Leader vs Raise       | C       | teaches | no         |
 
-(Exact role/repeatable per lesson come from step-config; above assumes current content. Module A/B/C = A_STOP_BLEEDING_PREFLOP, B_WIN_MORE_FLOPS, C_CLOSE_HAND_PROFITABLY.)
+(Exact role/repeatable per lesson come from step-config; above assumes current content. Module A/B/C = MODULE_A, MODULE_B, MODULE_C.)
 
 ## Scripts and references
 

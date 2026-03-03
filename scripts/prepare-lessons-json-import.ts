@@ -44,9 +44,9 @@ function inferGradingMode(lesson: RawLesson): GradingMode {
 }
 
 function moduleCodeByIndex(idx: number): string {
-  if (idx < 5) return "A_STOP_BLEEDING_PREFLOP";
-  if (idx < 10) return "B_WIN_MORE_FLOPS";
-  return "C_CLOSE_HAND_PROFITABLY";
+  if (idx < 5) return "MODULE_A";
+  if (idx < 10) return "MODULE_B";
+  return "MODULE_C";
 }
 
 function difficultyByIndex(idx: number): string {

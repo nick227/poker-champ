@@ -99,7 +99,7 @@ Premium copy standard:
 ### Lesson 1
 - `lessonId`: `L1_open_raise_position_6max`
 - Title: Stop Bleeding: RFI Discipline By Position
-- Module: `A_STOP_BLEEDING_PREFLOP`
+- Module: `MODULE_A`
 - Difficulty: `BEGINNER`
 - Target: serious 50NL-200NL players leaking EP opens
 - Learning objective:
@@ -117,7 +117,7 @@ Premium copy standard:
 ### Lesson 2
 - `lessonId`: `L2_face_open_3bet_call_fold`
 - Title: Punish Opens: 3-Bet/Call/Fold Buckets
-- Module: `A_STOP_BLEEDING_PREFLOP`
+- Module: `MODULE_A`
 - Difficulty: `BEGINNER`
 - Learning objective:
 - Choose profitable preflop response buckets versus opens
@@ -134,7 +134,7 @@ Premium copy standard:
 ### Lesson 3
 - `lessonId`: `L3_blind_defense_bb_vs_btn`
 - Title: Stop Overfolding Your Big Blind
-- Module: `A_STOP_BLEEDING_PREFLOP`
+- Module: `MODULE_A`
 - Difficulty: `CORE`
 - Learning objective:
 - Apply defend thresholds by price and playability
@@ -151,7 +151,7 @@ Premium copy standard:
 ### Lesson 4
 - `lessonId`: `L4_iso_raise_vs_limpers`
 - Title: Isolate For EV: Versus Limp-Heavy Pools
-- Module: `A_STOP_BLEEDING_PREFLOP`
+- Module: `MODULE_A`
 - Difficulty: `CORE`
 - Learning objective:
 - Attack limp-heavy pools with profitable isolation sizings
@@ -168,7 +168,7 @@ Premium copy standard:
 ### Lesson 5
 - `lessonId`: `L5_cbet_dry_board`
 - Title: Static Boards: High-Frequency Small C-Bets
-- Module: `B_WIN_MORE_FLOPS`
+- Module: `MODULE_B`
 - Difficulty: `CORE`
 - Learning objective:
 - Maximize EV on static flops using range advantage
@@ -185,7 +185,7 @@ Premium copy standard:
 ### Lesson 6
 - `lessonId`: `L6_check_back_control`
 - Title: Pot Control Nodes: Check-Back Discipline
-- Module: `B_WIN_MORE_FLOPS`
+- Module: `MODULE_B`
 - Difficulty: `CORE`
 - Learning objective:
 - Distinguish mandatory c-bets from profitable controls
@@ -202,7 +202,7 @@ Premium copy standard:
 ### Lesson 7
 - `lessonId`: `L7_draws_and_pot_odds`
 - Title: Draws Without Spew: Price, Equity, Realization
-- Module: `B_WIN_MORE_FLOPS`
+- Module: `MODULE_B`
 - Difficulty: `CORE`
 - Learning objective:
 - Convert pot price and draw equity into profitable continue/fold
@@ -219,7 +219,7 @@ Premium copy standard:
 ### Lesson 8
 - `lessonId`: `L8_flop_defense_leaks`
 - Title: 3 Flop Defense Leaks Costing You Money
-- Module: `B_WIN_MORE_FLOPS`
+- Module: `MODULE_B`
 - Difficulty: `CORE`
 - Learning objective:
 - Correct overfold and overcall leaks versus c-bets
@@ -236,7 +236,7 @@ Premium copy standard:
 ### Lesson 9
 - `lessonId`: `L9_turn_barrel_or_slow`
 - Title: Turn Barrel Discipline Versus Pool Tendencies
-- Module: `C_CLOSE_HAND_PROFITABLY`
+- Module: `MODULE_C`
 - Difficulty: `ADVANCED`
 - Learning objective:
 - Barrel high-EV runouts and slow down on equity-killing turns
@@ -253,7 +253,7 @@ Premium copy standard:
 ### Lesson 10
 - `lessonId`: `L10_river_value_vs_check`
 - Title: Thin Value Discipline At 100bb
-- Module: `C_CLOSE_HAND_PROFITABLY`
+- Module: `MODULE_C`
 - Difficulty: `ADVANCED`
 - Learning objective:
 - Target worse hands precisely on river
@@ -270,7 +270,7 @@ Premium copy standard:
 ### Lesson 11
 - `lessonId`: `L11_bluff_catch_fundamentals`
 - Title: River Bluff-Catch: Don't Torch Buy-Ins
-- Module: `C_CLOSE_HAND_PROFITABLY`
+- Module: `MODULE_C`
 - Difficulty: `ADVANCED`
 - Learning objective:
 - Use blockers and line credibility to select bluff-catches
@@ -287,7 +287,7 @@ Premium copy standard:
 ### Lesson 12
 - `lessonId`: `L12_capstone_mixed_spot`
 - Title: Capstone Hand Review: Think Like A Winning Reg
-- Module: `C_CLOSE_HAND_PROFITABLY`
+- Module: `MODULE_C`
 - Difficulty: `ADVANCED`
 - Learning objective:
 - Execute coherent cross-street EV planning

@@ -23,6 +23,73 @@ type AttemptRow = Awaited<
   steps: Array<{ step: { sequence: number } }>;
 };
 
+type DailyChallengeType = "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
+
+function normalizeModuleCode(value: string | null | undefined): LessonListLessonDto["moduleCode"] {
+  if (value === "MODULE_A" || value === "A_STOP_BLEEDING_PREFLOP") return "MODULE_A";
+  if (value === "MODULE_B" || value === "B_WIN_MORE_FLOPS") return "MODULE_B";
+  if (value === "MODULE_C" || value === "C_CLOSE_HAND_PROFITABLY") return "MODULE_C";
+  return "MODULE_A";
+}
+
+function buildDailyChallenges(lessons: LessonListLessonDto[]): LessonListResponseDto["dailyChallenges"] {
+  const enabled = lessons.filter((lesson) => lesson.hasAccess);
+  const selected: LessonListResponseDto["dailyChallenges"] = [];
+  const seen = new Set<string>();
+  const add = (lesson: LessonListLessonDto | null | undefined, type: DailyChallengeType) => {
+    if (!lesson || seen.has(lesson.id) || selected.length >= 3) return;
+    selected.push({ lessonId: lesson.id, type });
+    seen.add(lesson.id);
+  };
+
+  add(enabled.find((lesson) => lesson.progressState === "in_progress"), "recovery");
+
+  add(
+    [...enabled]
+      .filter((lesson) => lesson.progressState === "completed")
+      .sort((a, b) => {
+        const aScore = a.bestScorePct ?? a.lastScorePct ?? 50;
+        const bScore = b.bestScorePct ?? b.lastScorePct ?? 50;
+        if (aScore !== bScore) return aScore - bScore;
+        return a.title.localeCompare(b.title);
+      })[0] ?? null,
+    "weak_spot",
+  );
+
+  add(
+    [...enabled]
+      .filter((lesson) => lesson.progressState === "not_started")
+      .sort((a, b) => {
+        if (a.moduleCode !== b.moduleCode) return a.moduleCode.localeCompare(b.moduleCode);
+        if (a.recommendedOrder !== b.recommendedOrder) return a.recommendedOrder - b.recommendedOrder;
+        return a.title.localeCompare(b.title);
+      })[0] ?? null,
+    "fresh_rep",
+  );
+
+  const repeatableFallback = [...enabled]
+    .filter((lesson) => lesson.repeatable || lesson.role === "drills")
+    .sort((a, b) => {
+      if (a.progressState !== b.progressState) {
+        if (a.progressState === "in_progress") return -1;
+        if (b.progressState === "in_progress") return 1;
+      }
+      return a.title.localeCompare(b.title);
+    });
+  for (const lesson of repeatableFallback) {
+    add(lesson, "repeatable");
+    if (selected.length >= 3) break;
+  }
+
+  if (selected.length === 0) {
+    for (const lesson of enabled.slice(0, 3)) {
+      add(lesson, "fresh_rep");
+    }
+  }
+
+  return selected;
+}
+
 export async function listLessons(
   prisma: PrismaClient,
   userId: string,
@@ -87,10 +154,12 @@ export async function listLessons(
       accessMap.get(lesson.id)?.hasAccess ?? false,
     ),
   );
+  const dailyChallenges = buildDailyChallenges(lessonsDto);
 
   return {
     cadence: { completedAttemptsLast7Days },
     lessons: lessonsDto,
+    dailyChallenges,
     masteryByConceptCode,
   };
 }
@@ -180,7 +249,7 @@ function assembleLessonListItem(
     lastAttemptedAt: latestAttempt?.updatedAt?.toISOString?.() ?? null,
     bestScorePct,
     hasAccess,
-    moduleCode: lesson.moduleCode as LessonListLessonDto["moduleCode"],
+    moduleCode: normalizeModuleCode(lesson.moduleCode),
     role: lesson.role as LessonListLessonDto["role"],
     repeatable: lesson.repeatable,
     recommendedOrder: lesson.recommendedOrder,

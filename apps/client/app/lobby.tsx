@@ -7,6 +7,7 @@ import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
 import { InstantGamePanels } from "@/components/domain/lobby/InstantGamePanels";
 import { ReplayQuickLinks } from "@/components/domain/lobby/ReplayQuickLinks";
+import { BlogFeaturedLinks } from "@/components/domain/lobby/BlogFeaturedLinks";
 import { GameTablePanel } from "@/components/domain/lobby/GameTablePanel";
 import { GameTablePanelSkeleton } from "@/components/domain/lobby/GameTablePanelSkeleton";
 import { EmptyState } from "@/components/domain/lobby/EmptyState";
@@ -218,6 +219,7 @@ export default function LobbyScreen() {
           }}
           onPokerSchool={() => router.push("/lessons")}
         />
+        <BlogFeaturedLinks />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
         <View className="flex-1 ui-column gap-3 p-4">
           {busy ? (

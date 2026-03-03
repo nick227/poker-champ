@@ -6,6 +6,13 @@ type NormalizedAction = {
   amountCents?: number;
 };
 
+function toGradingActionKey(type: NormalizedAction["type"] | undefined): string {
+  if (!type) return "";
+  const t = type.toLowerCase();
+  if (t === "bet" || t === "raise" || t === "all_in") return "raise";
+  return t;
+}
+
 function normalizeLessonAction(answer: unknown): NormalizedAction | null {
   const obj = asObject(answer);
   if (!obj) return null;
@@ -52,7 +59,7 @@ export function gradeStep(
   if (spec.type === "ACTION_STEP") {
     const normalized = normalizeLessonAction(answer);
     if (spec.gradingMode === "RUBRIC_SUBJECTIVE" && spec.rubric) {
-      const submitted = normalized?.type?.toLowerCase() ?? "";
+      const submitted = toGradingActionKey(normalized?.type);
       const strong = spec.rubric.STRONG.includes(submitted);
       const reasonable = spec.rubric.REASONABLE.includes(submitted);
       const weak = spec.rubric.WEAK.includes(submitted);
@@ -85,7 +92,11 @@ export function gradeStep(
       };
     }
     const expected = (spec.expectedAction ?? "").toUpperCase();
-    const submitted = normalized?.type ? normalized.type.toUpperCase() : "";
+    const submittedRaw = normalized?.type ? normalized.type.toUpperCase() : "";
+    const submitted =
+      expected === "RAISE" && (submittedRaw === "BET" || submittedRaw === "ALL_IN")
+        ? "RAISE"
+        : submittedRaw;
     const isCorrect = submitted === expected;
     const evBb = isCorrect ? spec.evBb : spec.evErrorBb;
     return {

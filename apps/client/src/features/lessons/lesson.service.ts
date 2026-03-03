@@ -10,6 +10,10 @@ import type {
 
 type LessonsListResponse = {
   cadence?: { completedAttemptsLast7Days: number };
+  dailyChallenges?: Array<{
+    lessonId: string;
+    type: "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
+  }>;
   lessons: Array<{
     id: string;
     slug: string;
@@ -31,7 +35,7 @@ type LessonsListResponse = {
     tier?: string | null;
     applyCtaText?: string | null;
     hasAccess?: boolean;
-    moduleCode: "A_STOP_BLEEDING_PREFLOP" | "B_WIN_MORE_FLOPS" | "C_CLOSE_HAND_PROFITABLY";
+    moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C";
     role: "teaches" | "drills" | "tests";
     repeatable: boolean;
     recommendedOrder: number;
@@ -39,6 +43,8 @@ type LessonsListResponse = {
   }>;
   masteryByConceptCode: Record<string, unknown>;
 };
+
+type LessonListItem = LessonsListResponse["lessons"][number];
 
 type LessonDetailResponse = {
   lesson: LessonDefinition;
@@ -65,8 +71,30 @@ type LessonMasteryResponse = {
 };
 
 class LessonService {
+  private static sortLessonsForCurriculum(items: LessonListItem[]): LessonListItem[] {
+    return [...items]
+      .filter((item) => item.hasAccess !== false)
+      .sort((a, b) => {
+        const aModule = a.moduleCode;
+        const bModule = b.moduleCode;
+        if (aModule !== bModule) return aModule.localeCompare(bModule);
+        const aOrder = a.recommendedOrder;
+        const bOrder = b.recommendedOrder;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.title.localeCompare(b.title);
+      });
+  }
+
   listLessons() {
     return request<LessonsListResponse>("GET", "/api/lessons");
+  }
+
+  async getNextLessonId(currentLessonId: string): Promise<string | null> {
+    const listRes = await this.listLessons();
+    const sortedLessons = LessonService.sortLessonsForCurriculum(listRes.lessons ?? []);
+    const currentIndex = sortedLessons.findIndex((item) => item.id === currentLessonId);
+    if (currentIndex < 0) return null;
+    return sortedLessons[currentIndex + 1]?.id ?? null;
   }
 
   getLesson(lessonId: string) {

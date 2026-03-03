@@ -159,7 +159,7 @@ function validateTopLevel(config, dirName) {
   if (!asObject(config)) throw new Error(`${dirName}: config must be an object`);
   if (!isNonEmptyString(config.lessonId)) throw new Error(`${dirName}: lessonId required`);
   if (!isNonEmptyString(config.title)) throw new Error(`${dirName}: title required`);
-  if (!["A_STOP_BLEEDING_PREFLOP", "B_WIN_MORE_FLOPS", "C_CLOSE_HAND_PROFITABLY"].includes(config.moduleCode)) {
+  if (!["MODULE_A", "MODULE_B", "MODULE_C"].includes(config.moduleCode)) {
     throw new Error(`${dirName}: moduleCode must be canonical module code`);
   }
   if (!["teaches", "drills", "tests"].includes(config.role)) {

@@ -12,6 +12,7 @@ export default [
       "node_modules/**",
       "coverage/**",
       "build/**",
+      "tauri/target/**",
       ".expo/**",
       "expo-env.d.ts",
       "*.bundle.js",
@@ -208,6 +209,7 @@ export default [
       globals: {
         console: "readonly",
         process: "readonly",
+        Buffer: "readonly",
         __dirname: "readonly",
         __filename: "readonly",
         require: "readonly",

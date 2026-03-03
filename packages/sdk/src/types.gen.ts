@@ -635,6 +635,12 @@ export interface components {
         Error: {
             error: string;
         };
+        RateLimitError: {
+            error: string;
+            /** @enum {string} */
+            code: "RATE_LIMITED";
+            retryAfterSeconds: number;
+        };
         User: {
             id: string;
             email: string;
@@ -829,6 +835,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitError"];
+                };
+            };
         };
     };
     authLogin: {
@@ -864,6 +879,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitError"];
                 };
             };
         };
@@ -1849,7 +1873,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        cadence: {
+                            completedAttemptsLast7Days: number;
+                        };
                         lessons: components["schemas"]["LessonSummary"][];
+                        dailyChallenges: {
+                            lessonId: string;
+                            /** @enum {string} */
+                            type: "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
+                        }[];
                         masteryByConceptCode: {
                             [key: string]: unknown;
                         };
