@@ -22,28 +22,39 @@ export function AwardToaster({
 
   return (
     <Pressable
+  onPress={onDismiss}
+  className="mx-4 mt-2 mb-4 flex-row items-start gap-3 rounded-xl border-2 border-brand/50 bg-brand/10 p-3"
+>
+  {/* Icon */}
+  <View className="rounded-lg bg-panel p-2 min-w-[44px] items-center justify-center">
+    <Text variant="h1" className="text-2xl">
+      {parseGraphic(first.graphic)}
+    </Text>
+  </View>
+
+  {/* Info block (expands) */}
+  <View className="flex-1 min-w-0">
+    <Text variant="label" className="text-brand font-semibold">
+      {first.name}
+    </Text>
+    <Text variant="body" className="text-sm mt-0.5">
+      {first.reason}
+    </Text>
+    {restCount > 0 && (
+      <Text variant="muted" className="text-xs mt-1">
+        +{restCount} more award{restCount === 1 ? "" : "s"} earned
+      </Text>
+    )}
+  </View>
+
+  {/* Button */}
+  <View className="justify-start">
+    <Button
+      title="Got it"
+      variant="ghost"
       onPress={onDismiss}
-      className="mx-4 mt-2 rounded-xl border-2 border-brand/50 bg-brand/10 p-3 flex-row items-start gap-3"
-    >
-      <View className="rounded-lg bg-panel p-2 min-w-[44px] items-center justify-center">
-        <Text variant="h1" className="text-2xl">
-          {parseGraphic(first.graphic)}
-        </Text>
-      </View>
-      <View className="flex-1 min-w-0">
-        <Text variant="label" className="text-brand font-semibold">
-          {first.name}
-        </Text>
-        <Text variant="body" className="text-sm mt-0.5">
-          {first.reason}
-        </Text>
-        {restCount > 0 ? (
-          <Text variant="muted" className="text-xs mt-1">
-            +{restCount} more award{restCount === 1 ? "" : "s"} earned
-          </Text>
-        ) : null}
-        <Button title="Got it" variant="ghost" onPress={onDismiss} className="mt-2 self-start" />
-      </View>
-    </Pressable>
+    />
+  </View>
+</Pressable>
   );
 }

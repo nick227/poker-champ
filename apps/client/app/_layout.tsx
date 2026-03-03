@@ -2,6 +2,7 @@ import "./global.css";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { Ionicons } from "@expo/vector-icons";
 import { AppShell } from "@/components/containers/AppShell";
 import { InjectWebTheme } from "@/components/domain/auth/InjectWebTheme";
 import { bootstrapSdk } from "@/bootstrap/sdk";
@@ -10,6 +11,7 @@ import { LobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 
 export default function RootLayout() {
   useEffect(() => {
+    void Ionicons.loadFont();
     storeRegistry.tables().pruneExpiredTables();
     void bootstrapSdk();
   }, []);
