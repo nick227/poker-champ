@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { ScrollView, View } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Button } from "@/components/base/Button";
@@ -14,7 +14,7 @@ import {
   getMaxBuyInCents,
 } from "./createGame.constants";
 
-const DEFAULT_BLINDS_INDEX = 3; // $1 / $2
+const DEFAULT_BLINDS_INDEX = 0; // $1 / $2
 
 export type CreateGameConfig = {
   name: string;
@@ -37,36 +37,46 @@ type CreateGameModalProps = {
 export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalProps) {
   const [name, setName] = useState(getRandomTableName());
   const [blindsIndex, setBlindsIndex] = useState(DEFAULT_BLINDS_INDEX);
-  const [seats, setSeats] = useState<3 | 6>(6);
+  const [seats, setSeats] = useState<3 | 6 | 9 | 18>(6);
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [password, setPassword] = useState("");
   const [showStats, setShowStats] = useState(true);
 
-  const { smallBlindCents, bigBlindCents } = BLINDS_OPTIONS[blindsIndex];
-  const buyInOptions = useMemo(() => getBuyInOptions(bigBlindCents), [bigBlindCents]);
-  const defaultMinCents = useMemo(() => getDefaultMinBuyInCents(bigBlindCents), [bigBlindCents]);
-  const [minBuyInCents, setMinBuyInCents] = useState(defaultMinCents);
+  const blinds = BLINDS_OPTIONS[blindsIndex] ?? BLINDS_OPTIONS[DEFAULT_BLINDS_INDEX];
+  const { bigBlindCents, smallBlindCents } = blinds;
 
-  const effectiveMinBuyInCents = buyInOptions.some((o) => o.minBuyInCents === minBuyInCents)
-    ? minBuyInCents
-    : defaultMinCents;
+  const buyInOptions = getBuyInOptions(bigBlindCents);
+  const [minBuyInCents, setMinBuyInCents] = useState(() =>
+    getDefaultMinBuyInCents(BLINDS_OPTIONS[DEFAULT_BLINDS_INDEX].bigBlindCents)
+  );
+  const defaultMinCents = getDefaultMinBuyInCents(bigBlindCents);
 
-  const handleBlindsChange = (index: number) => {
-    setBlindsIndex(index);
-    const bb = BLINDS_OPTIONS[index].bigBlindCents;
+  useEffect(() => {
+    if (!visible) return;
+    const bb = BLINDS_OPTIONS[DEFAULT_BLINDS_INDEX].bigBlindCents;
+    setName(getRandomTableName());
+    setBlindsIndex(DEFAULT_BLINDS_INDEX);
+    setSeats(6);
+    setVisibility("PUBLIC");
+    setPassword("");
+    setShowStats(true);
     setMinBuyInCents(getDefaultMinBuyInCents(bb));
-  };
+  }, [visible]);
+
+  const effectiveMinBuyInCents =
+    buyInOptions.find((o) => o.minBuyInCents === minBuyInCents)?.minBuyInCents ?? defaultMinCents;
 
   const handleSubmit = () => {
+    const cleanName = name.trim().slice(0, 40) || getRandomTableName();
     onSubmit({
-      name,
+      name: cleanName,
       maxSeats: seats,
       smallBlindCents,
       bigBlindCents,
       minBuyInCents: effectiveMinBuyInCents,
       maxBuyInCents: getMaxBuyInCents(bigBlindCents),
       visibility,
-      password: visibility === "PRIVATE" ? password : undefined,
+      password: visibility === "PRIVATE" && password ? password : undefined,
       showStats,
     });
     onClose();
@@ -76,17 +86,17 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
     <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame} heightFraction={0.99}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
       <View className="">
-        <Input style={{ marginTop: 4 }} label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
+        <Input className="mb-8" label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
         <View>
           <Text variant="label">Blinds</Text>
-          <View className="flex-row flex-wrap gap-2">
+          <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
             {BLINDS_OPTIONS.map((opt, i) => (
               <ChipButton
                 key={opt.label}
                 title={opt.label}
                 selected={blindsIndex === i}
-                onPress={() => handleBlindsChange(i)}
+                onPress={() => setBlindsIndex(i)}
               />
             ))}
           </View>
@@ -124,13 +134,15 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
           />
         )}
 
-        <View>
-          <Text variant="label">Num Players</Text>
-          <View className="ui-row ui-inline-2 mb-8 mt-2">
-            <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
-            <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
-          </View>
+      <View>
+        <Text variant="label">Num Players</Text>
+        <View className="ui-row ui-inline-2 mb-8 mt-2">
+          <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
+          <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
+          <ChipButton title="9 Players" selected={seats === 9} onPress={() => setSeats(9)} />
+          <ChipButton title="18 Players" selected={seats === 18} onPress={() => setSeats(18)} />
         </View>
+      </View>
 
         <View>
           <Text variant="label">Show Stats</Text>

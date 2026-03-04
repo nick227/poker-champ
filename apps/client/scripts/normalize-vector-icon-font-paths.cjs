@@ -6,7 +6,7 @@ const JS_DIR = path.join(DIST_DIR, "_expo", "static", "js");
 const FONTS_OUT_DIR = path.join(DIST_DIR, "assets", "fonts");
 
 const FONT_URL_PATTERN =
-  /\/assets\/__node_modules\/\.pnpm\/[^"'\\\s]+\/node_modules\/@expo\/vector-icons\/build\/vendor\/react-native-vector-icons\/Fonts\/([A-Za-z0-9_]+\.[a-f0-9]+\.(?:ttf|otf))/g;
+  /\/assets\/__node_modules\/[^"'\\]+?\/Fonts\/([A-Za-z0-9._-]+\.(?:ttf|otf))/g;
 
 function walkFiles(dir, ext, out = []) {
   if (!fs.existsSync(dir)) return out;
