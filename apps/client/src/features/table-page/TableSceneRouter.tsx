@@ -50,7 +50,7 @@ async function shareTable(tableUrl: string) {
   try {
     await Share.share({
       title: "Poker Champ Table",
-      message: `Join my table: ${tableUrl}`,
+      message: `Join my table:`,
       url: tableUrl,
     });
   } catch (err) {
