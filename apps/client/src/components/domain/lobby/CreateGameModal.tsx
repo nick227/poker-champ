@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Button } from "@/components/base/Button";
 import { Input } from "@/components/base/Input";
@@ -73,6 +73,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
 
   return (
     <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
       <View className="">
         <Input style={{ marginTop: 4 }} label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
@@ -143,6 +144,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
           <Button variant="primary" title="Apply" onPress={handleSubmit} />
         </View>
       </View>
+      </ScrollView>
     </ModalSheet>
   );
 }
