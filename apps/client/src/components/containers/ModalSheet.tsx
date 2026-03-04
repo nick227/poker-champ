@@ -10,16 +10,21 @@ import { emitSoundEvent } from "@/sound/emitSoundEvent";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
+const DEFAULT_HEIGHT_FRACTION = 0.7;
+
 export function ModalSheet({
   visible,
   onClose,
   title,
   children,
+  heightFraction = DEFAULT_HEIGHT_FRACTION,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** Fraction of screen height (0–1), default 0.7 */
+  heightFraction?: number;
 }) {
   const [isExiting, setIsExiting] = useState(false);
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -110,7 +115,7 @@ export function ModalSheet({
           pointerEvents="box-none"
         >
           <Pressable
-            style={{ maxHeight: SCREEN_HEIGHT * 0.7 }}
+            style={{ height: SCREEN_HEIGHT * heightFraction, maxHeight: SCREEN_HEIGHT * heightFraction }}
             className="flex flex-col rounded-t-lg bg-panel bottom-sheet"
             onPress={(e) => e.stopPropagation()}
           >
@@ -120,7 +125,7 @@ export function ModalSheet({
                 <Text variant="muted">{MODAL.close}</Text>
               </Pressable>
             </View>
-            <View className="flex-1 min-h-0 ui-p-4">{children}</View>
+            <View style={{ flex: 1, minHeight: 0 }} className="ui-p-4">{children}</View>
           </Pressable>
         </Animated.View>
       </Pressable>

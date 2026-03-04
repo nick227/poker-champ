@@ -9,7 +9,7 @@
     "dev": "expo start",
     "dev:web": "node scripts/watch-tokens-web.cjs",
     "sync-tokens": "node scripts/sync-tokens-web.cjs",
-    "build:web": "node scripts/sync-tokens-web.cjs && expo export --platform web --output-dir dist",
+    "build:web": "node scripts/sync-tokens-web.cjs && expo export --platform web --output-dir dist && node scripts/normalize-vector-icon-font-paths.cjs",
     "test": "vitest",
     "test:run": "vitest run",
     "test:voice": "vitest run src/tests/voice.webrtc-stun.test.ts",

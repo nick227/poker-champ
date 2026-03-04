@@ -9,7 +9,7 @@ import { MODAL } from "@/constants/copy";
 import { getRandomTableName } from "@/services/tableNames";
 import {
   BLINDS_OPTIONS,
-  getValidMinBuyInOptions,
+  getBuyInOptions,
   getDefaultMinBuyInCents,
   getMaxBuyInCents,
 } from "./createGame.constants";
@@ -43,12 +43,13 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
   const [showStats, setShowStats] = useState(true);
 
   const { smallBlindCents, bigBlindCents } = BLINDS_OPTIONS[blindsIndex];
-  const validMinOptions = useMemo(() => getValidMinBuyInOptions(bigBlindCents), [bigBlindCents]);
+  const buyInOptions = useMemo(() => getBuyInOptions(bigBlindCents), [bigBlindCents]);
   const defaultMinCents = useMemo(() => getDefaultMinBuyInCents(bigBlindCents), [bigBlindCents]);
   const [minBuyInCents, setMinBuyInCents] = useState(defaultMinCents);
 
-  const currentMinValid = validMinOptions.some((o) => o.minBuyInCents === minBuyInCents);
-  const effectiveMinBuyInCents = currentMinValid ? minBuyInCents : defaultMinCents;
+  const effectiveMinBuyInCents = buyInOptions.some((o) => o.minBuyInCents === minBuyInCents)
+    ? minBuyInCents
+    : defaultMinCents;
 
   const handleBlindsChange = (index: number) => {
     setBlindsIndex(index);
@@ -72,8 +73,8 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
   };
 
   return (
-    <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
+    <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame} heightFraction={0.99}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
       <View className="">
         <Input style={{ marginTop: 4 }} label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
@@ -94,7 +95,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
         <View>
           <Text variant="label">Min buy-in</Text>
           <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
-            {validMinOptions.map((opt) => (
+            {buyInOptions.map((opt) => (
               <ChipButton
                 key={opt.minBuyInCents}
                 title={opt.label}
