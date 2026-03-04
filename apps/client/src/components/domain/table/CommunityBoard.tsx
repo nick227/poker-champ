@@ -1,16 +1,17 @@
-import { View, Text } from "react-native";
+import { View, useWindowDimensions } from "react-native";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { PlayingCard } from "./PlayingCard";
 import type { UiCard } from "./table.adapter";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import {
   COMMUNITY_BOARD_HEIGHT,
-  COMMUNITY_CARD_GAP,
+  COMMUNITY_CARD_GAP_DESKTOP,
+  COMMUNITY_CARD_GAP_MOBILE,
   COMMUNITY_CARD_SCALE,
   COMMUNITY_BOARD_HEIGHT_LANDSCAPE,
   COMMUNITY_CARD_SCALE_LANDSCAPE,
 } from "./constants/components/communityBoard.layout";
 import { FeltBackground } from "./FeltBackground";
-import { useWindowDimensions } from "react-native";
 
 function useOrientation() {
   const { width, height } = useWindowDimensions();
@@ -27,9 +28,12 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
   const communityBoardHeight = orientation === "landscape" ? COMMUNITY_BOARD_HEIGHT_LANDSCAPE : COMMUNITY_BOARD_HEIGHT;
   const communityCardScale = orientation === "landscape" ? COMMUNITY_CARD_SCALE_LANDSCAPE : COMMUNITY_CARD_SCALE;
 
+  const isMobile = useIsMobile();
+  const communityCardGap = isMobile ? COMMUNITY_CARD_GAP_MOBILE : COMMUNITY_CARD_GAP_DESKTOP;
+
   return (
     <FeltBackground
-      className="justify-center rounded-sm"
+      className="justify-center rounded-sm felt-container mx-4"
       style={{ flexDirection: "column", height: communityBoardHeight }}
     >
       <View
@@ -45,7 +49,7 @@ export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents:
           collapsable={false}
           className="ui-row ui-center"
           style={{
-            gap: COMMUNITY_CARD_GAP,
+            gap: communityCardGap,
             alignItems: "center",
             justifyContent: "center",
           }}

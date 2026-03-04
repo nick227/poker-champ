@@ -49,7 +49,6 @@ export const layoutStyles = StyleSheet.create({
   },
   dealerBar: {
     height: DEALER_BAR_HEIGHT,
-    minHeight: DEALER_BAR_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
   },

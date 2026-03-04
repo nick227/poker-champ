@@ -115,7 +115,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
     <View className="p-4 gap-y-3 mt-2">
       <View className="ui-row rounded-lg border border-border-subtle bg-panel-elevated p-3">
         <Image source={BOT_AVATAR_SOURCE} className="max-w-16 max-h-16 rounded-full" resizeMode="cover" />
-        <View className="ui-col p-4 flex-1 min-w-0 gap-2">
+        <View className="ui-col px-4 flex-1 min-w-0 gap-2">
 
           <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
             Share this game URL

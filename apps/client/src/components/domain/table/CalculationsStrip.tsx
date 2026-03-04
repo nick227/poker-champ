@@ -95,7 +95,7 @@ export function CalculationsStrip({
           opacity: visible ? opacity : 1,
         }}
       >
-        <View className="ui-row ui-inline-2 ui-p-stack-2" style={{ flexWrap: "nowrap" }}>
+        <View className="ui-row ui-inline-2 ui-p-stack-2 mx-2" style={{ flexWrap: "nowrap" }}>
           <View
             collapsable={false}
             className="min-w-[6rem] ui-inline-1 rounded-sm border-2 border-border px-3 py-1 bg-emerald-900 flex-shrink-0"

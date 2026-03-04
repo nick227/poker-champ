@@ -130,6 +130,11 @@ export function useActionMessages(
     if (activeHandId !== resultHandId) setHandResultMessage(null);
   }, [hand?.handId, lastHandResult?.handId, handResultMessage]);
 
+  // Clear dealer announcement when game is between hands (no active hand).
+  useEffect(() => {
+    if (!hand && handResultMessage) setHandResultMessage(null);
+  }, [hand, handResultMessage]);
+
   useEffect(() => {
     const prevCount = prevOccupiedHumanCountRef.current;
     prevOccupiedHumanCountRef.current = occupiedHumanCount;

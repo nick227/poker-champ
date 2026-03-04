@@ -3,7 +3,6 @@ import { Animated, Easing, Image, View, useWindowDimensions } from "react-native
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
-import { PokerTipCard } from "./PokerTipCard";
 import { getTipRotation } from "./loadingTips";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { useBankroll } from "@/hooks/useBankroll";
@@ -61,10 +60,6 @@ export function TableLoadingLanding({
   const tipReveal = useRef(new Animated.Value(0)).current;
   const slotReveal = useRef(new Animated.Value(0)).current;
   const actionReveal = useRef(new Animated.Value(0)).current;
-
-  const actionTitle = mode === "auth_required" ? "Go to login" : "Return to lobby";
-  const actionHandler = mode === "auth_required" ? (onGoToLogin ?? onReturnToLobby) : onReturnToLobby;
-  const tip = safeTips[tipIndex % safeTips.length];
 
   const { cents: bankroll } = useBankroll();
   const [slotBankroll, setSlotBankroll] = useState(bankroll);
@@ -216,7 +211,7 @@ export function TableLoadingLanding({
             </View>
           </Animated.View>
           <Text variant="label" className="normal-case text-xl tracking-normal text-text-subtle">
-            Poker Champ
+            Loading...
           </Text>
         </Animated.View>
 
@@ -224,9 +219,6 @@ export function TableLoadingLanding({
           className="mt-2"
           style={[revealStyle(tipReveal), { minHeight: compact ? 108 : TIP_BLOCK_MIN_HEIGHT }]}
         >
-          <Animated.View style={{ opacity: tipOpacity }}>
-            <PokerTipCard tip={tip} compact={compact} />
-          </Animated.View>
         </Animated.View>
 
         <Animated.View
@@ -246,13 +238,7 @@ export function TableLoadingLanding({
             </Text>
           </Animated.View>
         ) : null}
-
-        <Animated.View className="mt-5 items-center" style={revealStyle(actionReveal)}>
-          <View className="w-full my-4" style={compact ? undefined : { maxWidth: 280 }}>
-            <Button intent="ghost" title={actionTitle} onPress={actionHandler} />
-          </View>
-        </Animated.View>
-      </View>
+    </View>
     </View>
   );
 }

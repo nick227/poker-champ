@@ -183,10 +183,9 @@ export function ActiveTableView({
     onToggleSittingOut?.();
   }, [rejoinPending, onToggleSittingOut]);
 
-  const heroIsSittingOutWithStack =
+  const heroIsSittingOut =
     heroIsSeated &&
     heroStatus === "SITTING_OUT" &&
-    heroStackCents > 0 &&
     !!onToggleSittingOut;
 
   let bottom: ReactNode = null;
@@ -197,7 +196,7 @@ export function ActiveTableView({
           <Text className="text-center">You are not seated at this table.</Text>
         </View>
       );
-    } else if (heroIsSittingOutWithStack) {
+    } else if (heroIsSittingOut) {
       bottom = (
         <View className="ui-p-inline-4 gap-y-2 items-center">
           <Text className="text-center text-muted" numberOfLines={1}>
