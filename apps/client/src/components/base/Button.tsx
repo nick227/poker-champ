@@ -4,8 +4,8 @@ import { Text } from "./Text";
 import { PRESS_OPACITY } from "@/theme/animation";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
-type LegacyVariant = "primary" | "ghost" | "danger" | "link";
-export type ButtonIntent = "primary" | "secondary" | "neutral" | "danger" | "ghost";
+type LegacyVariant = "primary" | "ghost" | "danger" | "link" | "accent";
+export type ButtonIntent = "primary" | "secondary" | "neutral" | "danger" | "ghost" | "accent";
 export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonShape = "pill" | "row";
 
@@ -15,6 +15,7 @@ const INTENT_CLASS: Record<ButtonIntent, string> = {
   neutral: "btn-neutral",
   danger: "btn-danger",
   ghost: "btn-ghost",
+  accent: "btn-accent",
 };
 
 const SELECTED_CLASS: Record<ButtonIntent, string> = {
@@ -23,6 +24,7 @@ const SELECTED_CLASS: Record<ButtonIntent, string> = {
   neutral: "btn-neutral-selected",
   danger: "",
   ghost: "",
+  accent: "btn-accent-selected",
 };
 
 const INTENT_TEXT_CLASS: Record<ButtonIntent, string> = {
@@ -31,6 +33,7 @@ const INTENT_TEXT_CLASS: Record<ButtonIntent, string> = {
   neutral: "text-btn-neutral-text",
   danger: "text-btn-danger-text",
   ghost: "text-accent-purple",
+  accent: "text-btn-accent-text",
 };
 
 const SHAPE_SIZE_CLASS: Record<ButtonShape, Record<ButtonSize, string>> = {
@@ -55,6 +58,7 @@ function resolveIntent(intent?: ButtonIntent, variant?: LegacyVariant): ButtonIn
   if (variant === "ghost") return "secondary";
   if (variant === "danger") return "danger";
   if (variant === "link") return "ghost";
+  if (variant === "accent") return "accent";
   return "neutral";
 }
 

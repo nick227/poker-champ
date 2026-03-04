@@ -249,7 +249,7 @@ export function TableLoadingLanding({
 
         <Animated.View className="mt-5 items-center" style={revealStyle(actionReveal)}>
           <View className="w-full my-4" style={compact ? undefined : { maxWidth: 280 }}>
-            <Button variant="ghost" title={actionTitle} onPress={actionHandler} />
+            <Button intent="ghost" title={actionTitle} onPress={actionHandler} />
           </View>
         </Animated.View>
       </View>

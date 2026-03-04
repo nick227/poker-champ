@@ -74,8 +74,8 @@ export function ChooseTableModal({
           </>
         )}
         <View className="ui-row ui-inline-2">
-          <Button variant="ghost" title="Cancel" onPress={onClose} />
-          <Button variant="primary" title="Apply" onPress={handleApply} disabled={!canAffordMin} />
+          <Button intent="ghost" title="Cancel" onPress={onClose} />
+          <Button intent="primary" title="Apply" onPress={handleApply} disabled={!canAffordMin} />
         </View>
       </View>
     </ModalSheet>

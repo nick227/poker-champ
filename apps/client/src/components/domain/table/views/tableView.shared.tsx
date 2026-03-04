@@ -11,6 +11,9 @@ type TableShellBaseProps = Pick<
   | "tableName"
   | "balanceCents"
   | "playerStackCents"
+  | "smallBlindCents"
+  | "bigBlindCents"
+  | "minBuyInCents"
   | "topBarRight"
   | "opponents"
   | "opponentStripEmptyState"
@@ -43,10 +46,14 @@ export function useTableViewShellFrame({
 }: UseTableViewShellFrameParams) {
   const resolvedModel = useTableSceneModel(snapshot, handResultMessage ?? null, connectionStatus);
   const model = sceneModel ?? resolvedModel;
+  const { table } = snapshot;
   const shellBaseProps: TableShellBaseProps = {
     tableName: model.tableName,
     balanceCents,
     playerStackCents: model.heroStackCents,
+    smallBlindCents: table?.smallBlindCents,
+    bigBlindCents: table?.bigBlindCents,
+    minBuyInCents: table?.minBuyInCents,
     topBarRight,
     opponents,
     opponentStripEmptyState,

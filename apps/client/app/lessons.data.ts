@@ -83,7 +83,7 @@ const LESSONS_BUTTON_LABELS: Record<LessonsButtonKey, (context?: LessonsButtonCo
   HERO_START_FIRST: () => "Start First Lesson",
   LESSON_LOCKED: (context) => context?.lockedLabel?.trim() || "Locked",
   LESSON_RESUME_STEP: (context) => `Resume Step ${context?.stepNumber ?? 1}`,
-  LESSON_REVIEW: () => "Review",
+  LESSON_REVIEW: () => "Try Lesson",
   LESSON_START: () => "Start Lesson",
   CHALLENGE_RESUME: () => "Resume Challenge",
   CHALLENGE_START: () => "Start Challenge",

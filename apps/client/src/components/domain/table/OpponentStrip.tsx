@@ -97,7 +97,7 @@ export function OpponentStrip({
             const tile = (
               <View
                 collapsable={false}
-                className={`w-full px-4 border-border-subtle ${o.isActive ? "bg-dark-green-500" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
+                className={`w-full px-2 border-border-subtle ${o.isActive ? "bg-dark-green-500" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
                 style={[s.rowShell, o.isActive && s.rowShellActive]}
                 data-testid="opponent-tile"
                 data-opponent-id={o.id}

@@ -27,11 +27,16 @@ export const opponentStripStyles = StyleSheet.create({
     marginBottom: 10,
   },
   scrollContent: {
-    gap: ROW_GAP,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "stretch",
   },
   rowPressable: {
     position: "relative",
     borderRadius: TABLE_TILE_RADIUS,
+    width: "33.3333%",
+    paddingHorizontal: ROW_GAP / 2,
+    marginBottom: ROW_GAP,
   },
   rowShell: {
     flexDirection: "row",

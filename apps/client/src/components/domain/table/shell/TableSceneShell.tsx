@@ -15,13 +15,15 @@ import { layoutStyles } from "../tableLayout.styles";
 import {
   ACTION_BAR_HEIGHT,
 } from "../constants/tableLayout.constants";
-import { useProfile } from "@/hooks/useProfile";
 import { useRouter } from "expo-router";
 
 export type TableSceneShellProps = {
   tableName: string;
   balanceCents: number;
   playerStackCents?: number;
+  smallBlindCents?: number;
+  bigBlindCents?: number;
+  minBuyInCents?: number;
   topBarRight?: ReactNode;
   opponents: Opponent[];
   opponentStripEmptyState?: ReactNode;
@@ -44,6 +46,9 @@ export function TableSceneShell({
   tableName,
   balanceCents,
   playerStackCents,
+  smallBlindCents,
+  bigBlindCents,
+  minBuyInCents,
   topBarRight,
   opponents,
   opponentStripEmptyState,
@@ -60,7 +65,6 @@ export function TableSceneShell({
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
   const { insets, heroZoneHeight } = useTableLayoutHeights();
-  const profile = useProfile();
   const router = useRouter();
 
   const heroSectionStyle: ViewStyle =
@@ -93,8 +97,9 @@ export function TableSceneShell({
         <View collapsable={false} style={layoutStyles.titleSection}>
           <TableGameTopBar
             tableName={tableName}
-            userName={profile.username}
-            stackCents={playerStackCents ?? balanceCents}
+            smallBlindCents={smallBlindCents}
+            bigBlindCents={bigBlindCents}
+            minBuyInCents={minBuyInCents}
             onLogoPress={() => router.replace("/")}
             right={topBarRight}
           />

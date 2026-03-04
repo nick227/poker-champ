@@ -191,9 +191,7 @@ export function ActiveTableView({
 
   let bottom: ReactNode = null;
   if (!isReplayMode) {
-    if (canRebuy && onPressRebuy) {
-      bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
-    } else if (!heroIsSeated) {
+    if (!heroIsSeated) {
       bottom = (
         <View className="ui-p-inline-4">
           <Text className="text-center">You are not seated at this table.</Text>
@@ -212,6 +210,8 @@ export function ActiveTableView({
           />
         </View>
       );
+    } else if (canRebuy && onPressRebuy) {
+      bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
     } else if (
       forceDisableActions ||
       waitingBetweenHands ||

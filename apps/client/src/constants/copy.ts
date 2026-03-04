@@ -33,7 +33,7 @@ export const TABLE = {
   rejoin: "Rejoin",
   bankroll: "Bankroll",
   sort: "Sort",
-  createGame: "Create Game",
+  createGame: "New Game",
   defaultTableName: "Table",
   nextDeal: "Next deal:",
   reconnecting: "Reconnecting…",

@@ -172,6 +172,8 @@ export class Dealer {
 
   /** Deduplication key for the currently scheduled human turn timeout (if any). */
   private pendingHumanTurnTimeoutKey: string | null = null;
+  /** Timer handle for the currently scheduled human turn timeout (if any). */
+  private pendingHumanTurnTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
@@ -619,6 +621,7 @@ export class Dealer {
 
   /** Stats flush is done by flushSessionStatsOnly() before HAND_END snapshot; this only transitions and clears context. */
   private transitionToWaiting(): void {
+    this.clearPendingHumanTurnTimeout();
     this.state.street = "WAITING";
     this.state.runoutMode = "NONE";
     this.currentHand = null;
@@ -630,6 +633,7 @@ export class Dealer {
   // Hand initiation, street progression, and completion scenarios
 
   private async startHand() {
+    this.clearPendingHumanTurnTimeout();
     this.currentHand = new HandContext();
     try {
       const plans = await this.handLifecycleService.startHand();
@@ -690,7 +694,11 @@ export class Dealer {
           this.scheduleNextHand(plan.reason, plan.delayMs ?? 0);
           break;
         case "HAND_ENDED":
-          await this.runHandEndedAwards(plan);
+          try {
+            await this.runHandEndedAwards(plan);
+          } catch (err) {
+            logger.error({ err, handId: this.state.handId }, "HAND_ENDED side effects failed; continuing hand transition");
+          }
           break;
       }
     }
@@ -1178,9 +1186,13 @@ export class Dealer {
       // Timeout already scheduled for this exact turn snapshot.
       return;
     }
+    if (this.pendingHumanTurnTimeoutId != null) {
+      clearTimeout(this.pendingHumanTurnTimeoutId);
+      this.pendingHumanTurnTimeoutId = null;
+    }
     this.pendingHumanTurnTimeoutKey = key;
 
-    setTimeout(() => {
+    this.pendingHumanTurnTimeoutId = setTimeout(() => {
       void this.enqueueSerializedStateMutation(async () => {
         // If a newer timeout has been scheduled, this one is obsolete.
         if (this.pendingHumanTurnTimeoutKey !== key) return;
@@ -1190,6 +1202,20 @@ export class Dealer {
         if (staleReason) {
           if (this.pendingHumanTurnTimeoutKey === key) {
             this.pendingHumanTurnTimeoutKey = null;
+            this.pendingHumanTurnTimeoutId = null;
+          }
+          return;
+        }
+
+        if (
+          this.state.street === "WAITING" ||
+          this.state.street === "SHOWDOWN" ||
+          bettingRoundComplete(this.state) ||
+          noFurtherBettingPossible(this.state)
+        ) {
+          if (this.pendingHumanTurnTimeoutKey === key) {
+            this.pendingHumanTurnTimeoutKey = null;
+            this.pendingHumanTurnTimeoutId = null;
           }
           return;
         }
@@ -1204,6 +1230,7 @@ export class Dealer {
         ) {
           if (this.pendingHumanTurnTimeoutKey === key) {
             this.pendingHumanTurnTimeoutKey = null;
+            this.pendingHumanTurnTimeoutId = null;
           }
           return;
         }
@@ -1214,6 +1241,7 @@ export class Dealer {
 
         if (this.pendingHumanTurnTimeoutKey === key) {
           this.pendingHumanTurnTimeoutKey = null;
+          this.pendingHumanTurnTimeoutId = null;
         }
       });
     }, TURN_TIMEOUT_TOTAL_MS);
@@ -1264,7 +1292,16 @@ export class Dealer {
   /** Call when room is being destroyed to prevent timeout callbacks on dead instances */
   dispose(): void {
     this.disposed = true;
+    this.clearPendingHumanTurnTimeout();
     this.stopDisconnectSweep();
+  }
+
+  private clearPendingHumanTurnTimeout(): void {
+    this.pendingHumanTurnTimeoutKey = null;
+    if (this.pendingHumanTurnTimeoutId != null) {
+      clearTimeout(this.pendingHumanTurnTimeoutId);
+      this.pendingHumanTurnTimeoutId = null;
+    }
   }
 
   private async sweepDisconnectDeadlines(): Promise<void> {

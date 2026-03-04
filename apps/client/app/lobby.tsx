@@ -221,7 +221,7 @@ export default function LobbyScreen() {
           onPokerSchool={() => router.push("/lessons")}
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
-        <View className="flex-1 ui-row gap-3 py-4">
+        <View className="ui-row gap-3 mt-2">
           <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         </View>
         <View className="flex-1 ui-column gap-3 p-4">

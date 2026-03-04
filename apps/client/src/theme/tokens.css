@@ -40,6 +40,9 @@
   --btn-danger-bg: 0 78% 55%;
   --btn-danger-text: 0 0% 100%;
   --btn-danger-fg: var(--btn-danger-text);
+  --btn-accent-bg: var(--accent-purple);
+  --btn-accent-bg-strong: var(--accent-purple-strong);
+  --btn-accent-text: 0 0% 100%;
   --btn-icon-fg: 0 0% 100%;
 
   /* ---- Highlight (gold) ---- */
@@ -138,7 +141,7 @@ body {
   color: hsl(var(--c-placeholder));
 }
 
-#root button, #root [role="button"] {
+#root button:not(.btn), #root [role="button"]:not(.btn) {
   background-color: hsl(var(--c-brand));
   color: hsl(var(--c-text));
   border: none;

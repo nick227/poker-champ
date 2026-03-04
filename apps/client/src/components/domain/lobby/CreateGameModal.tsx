@@ -153,8 +153,8 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
         </View>
 
         <View className="ui-row ui-inline-2 justify-end w-full">
-          <Button variant="ghost" title="Cancel" onPress={onClose} />
-          <Button variant="primary" title="Apply" onPress={handleSubmit} />
+          <Button intent="ghost" title="Cancel" onPress={onClose} />
+          <Button intent="primary" title="Apply" onPress={handleSubmit} />
         </View>
       </View>
       </ScrollView>
