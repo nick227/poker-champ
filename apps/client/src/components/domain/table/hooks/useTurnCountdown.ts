@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
-const TURN_TIMEOUT_BASE_MS = 60_000;
-const TURN_TIMEOUT_TOTAL_MS = 60_000;
+const TURN_TIMEOUT_BASE_MS = 60_000 * 2;
+const TURN_TIMEOUT_TOTAL_MS = 60_000 * 3;
 
 export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): number | null {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);

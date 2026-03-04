@@ -140,7 +140,6 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
           <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
           <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
           <ChipButton title="9 Players" selected={seats === 9} onPress={() => setSeats(9)} />
-          <ChipButton title="18 Players" selected={seats === 18} onPress={() => setSeats(18)} />
         </View>
       </View>
 

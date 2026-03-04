@@ -1,5 +1,5 @@
 import { getRandomTableName } from "@/services/tableNames";
-import { BLINDS_OPTIONS, getDefaultMinBuyInCents, getMaxBuyInCents } from "./createGame.constants";
+import { BLINDS_OPTIONS, getMaxBuyInCents } from "./createGame.constants";
 
 export type InstantGamePresetId = "SIX_BOT_RING" | "HEADS_UP_BOT";
 
@@ -13,9 +13,10 @@ type InstantGamePreset = {
   targetBotCount: number;
 };
 
-const DEFAULT_BLINDS = BLINDS_OPTIONS[3];
-const DEFAULT_MIN_BUY_IN = getDefaultMinBuyInCents(DEFAULT_BLINDS.bigBlindCents);
-const DEFAULT_MAX_BUY_IN = getMaxBuyInCents(DEFAULT_BLINDS.bigBlindCents);
+/** 1/2 stakes, same default as CreateGameModal (DEFAULT_BLINDS_INDEX = 0). */
+const INSTANT_BLINDS = BLINDS_OPTIONS[0];
+const INSTANT_MIN_BUY_IN_CENTS = 2000; // $20 = 10 BB at 1/2
+const INSTANT_MAX_BUY_IN_CENTS = getMaxBuyInCents(INSTANT_BLINDS.bigBlindCents); // $200 = 100 BB
 
 const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
   SIX_BOT_RING: {
@@ -49,10 +50,10 @@ export function buildInstantCreateTableConfig(presetId: InstantGamePresetId) {
   return {
     name: getRandomTableName(),
     maxSeats: preset.maxSeats,
-    smallBlindCents: DEFAULT_BLINDS.smallBlindCents,
-    bigBlindCents: DEFAULT_BLINDS.bigBlindCents,
-    minBuyInCents: DEFAULT_MIN_BUY_IN,
-    maxBuyInCents: DEFAULT_MAX_BUY_IN,
+    smallBlindCents: INSTANT_BLINDS.smallBlindCents,
+    bigBlindCents: INSTANT_BLINDS.bigBlindCents,
+    minBuyInCents: INSTANT_MIN_BUY_IN_CENTS,
+    maxBuyInCents: INSTANT_MAX_BUY_IN_CENTS,
     visibility: "PUBLIC" as const,
     showStats: true,
   };
