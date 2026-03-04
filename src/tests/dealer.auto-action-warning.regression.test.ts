@@ -334,4 +334,62 @@ describe("dealer auto-action warning regressions", () => {
     assertChurnStateInvariants(state);
     detach();
   }, 20000);
+
+  it("AUTO-WARN-R04: auto-action cap re-syncs roundCurrentBet and preserves actionable toAct seat", async () => {
+    const prevCap = process.env.AUTO_ACTION_HAND_CAP;
+    process.env.AUTO_ACTION_HAND_CAP = "1";
+    try {
+      const state = new PokerState();
+      state.tableId = "table_auto_warn_regression_r04";
+      state.maxSeats = 6;
+      state.smallBlindCents = 50;
+      state.bigBlindCents = 100;
+      state.handId = "hand_auto_warn_regression_r04";
+      state.handNumber = 1;
+      state.street = "PREFLOP";
+      state.potCents = 150;
+      state.minRaiseCents = 100;
+      state.roundCurrentBetCents = 100;
+      state.toActSeat = 1;
+      state.seats.push("u1", "u2", "", "", "", "");
+
+      const capped = makePlayer({
+        id: "u1",
+        seat: 0,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "ACTIVE",
+        needsAction: false,
+      });
+      capped.connected = false;
+
+      const other = makePlayer({
+        id: "u2",
+        seat: 1,
+        kind: "HUMAN",
+        stackCents: 4950,
+        roundBetCents: 50,
+        committedCents: 50,
+        status: "ACTIVE",
+        needsAction: true,
+      });
+
+      state.playersById.set(capped.id, capped);
+      state.playersById.set(other.id, other);
+
+      const dealer = new Dealer(state);
+      (dealer as any).currentHandAutoActedUserIds.add("u1");
+
+      await (dealer as any).applyDisconnectedAutoActionCapForHand();
+
+      expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
+      expect(state.roundCurrentBetCents).toBe(50);
+      expect(state.toActSeat).toBe(1);
+      assertChurnStateInvariants(state);
+    } finally {
+      process.env.AUTO_ACTION_HAND_CAP = prevCap;
+    }
+  });
 });

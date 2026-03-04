@@ -19,6 +19,8 @@ export type OpponentStripProps = {
   opponents: Opponent[];
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** 0-1 when an opponent is to act (for countdown bar); null otherwise */
+  activeTurnProgress?: number | null;
 };
 
 function getStatusLabel(status: Opponent["status"]): string | null {
@@ -70,6 +72,7 @@ export function OpponentStrip({
   opponents,
   winnerName,
   onPlayerPress,
+  activeTurnProgress,
 }: OpponentStripProps) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const { height: windowHeight } = useWindowDimensions();
@@ -94,6 +97,7 @@ export function OpponentStrip({
             const inactive = o.status === "folded" || o.status === "sittingOut" || o.status === "reconnecting";
             const actionText = o.actionLabel ?? getStatusLabel(o.status) ?? "---";
             const isWinner = winnerName === o.name;
+            const showTurnBar = o.isActive && activeTurnProgress != null;
             const tile = (
               <View
                 collapsable={false}
@@ -104,28 +108,7 @@ export function OpponentStrip({
                 data-opponent-name={o.name}
                 data-stack-cents={String(o.stackCents ?? 0)}
               >
-                <View style={s.cardsCol} className="border-border-subtle">
-                  <OpponentCards opponent={o} packId={cardFacePackId} />
-                </View>
-                <View style={s.infoCol}>
-                  <View style={s.infoTopRow}>
-                    <View style={s.nameWrap}>
-                      <AvatarImage
-                        avatarUrl={o.avatarUrl}
-                        initial={o.name.slice(0, 1).toUpperCase()}
-                        style={s.avatar}
-                        imageStyle={s.avatarImage}
-                        className="bg-panel-elevated border border-border"
-                      />
-                      <Text variant="label" className="text-xs font-semibold" numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
-                        {o.name}{o.isBot ? " [BOT]" : ""}
-                      </Text>
-                    </View>
-                    {o.isDealer ? <DealerButton size="small" /> : null}
-                  </View>
-                  <Text numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false} style={s.stackText}>
-                    {formatCents(o.stackCents ?? 0)}
-                  </Text>
+                <View style={s.tileContentStack}>
                   <Text
                     variant="muted"
                     numberOfLines={1}
@@ -136,7 +119,40 @@ export function OpponentStrip({
                   >
                     {actionText}
                   </Text>
+                  <View style={s.cardsCol}>
+                    <OpponentCards opponent={o} packId={cardFacePackId} />
+                  </View>
+                  <AvatarImage
+                    avatarUrl={o.avatarUrl}
+                    initial={o.name.slice(0, 1).toUpperCase()}
+                    style={s.avatar}
+                    imageStyle={s.avatarImage}
+                    className="bg-panel-elevated border border-border"
+                  />
+                  <View style={s.infoCol}>
+                    <View style={s.nameRow}>
+                      <Text
+                        variant="label"
+                        className="text-xs font-semibold"
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        allowFontScaling={false}
+                        style={s.nameText}
+                      >
+                        {o.name}{o.isBot ? " [BOT]" : ""}
+                      </Text>
+                      {o.isDealer ? <DealerButton size="small" /> : null}
+                    </View>
+                    <Text numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false} style={s.stackText}>
+                      {formatCents(o.stackCents ?? 0)}
+                    </Text>
+                  </View>
                 </View>
+                {showTurnBar ? (
+                  <View style={s.turnBarTrack}>
+                    <View style={[s.turnBarFill, { width: `${activeTurnProgress * 100}%` }]} />
+                  </View>
+                ) : null}
               </View>
             );
             const content = (

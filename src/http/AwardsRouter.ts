@@ -14,7 +14,8 @@ router.get("/catalog", (_req, res) => {
 router.get("/me", async (req, res) => {
   const userId = req.user!.id;
   const limit = Math.min(Number(req.query.limit) || 100, 100);
-  const { items } = await awardService.getUserAwards(userId, { limit });
+  const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+  const { items, nextCursor } = await awardService.getUserAwards(userId, { limit, cursor });
   const byId = new Map(awardCatalog.getAll().map((e) => [e.id, e]));
   const joined = items
     .map((row) => {
@@ -47,7 +48,7 @@ router.get("/me", async (req, res) => {
     if (t !== 0) return t;
     return a.awardId.localeCompare(b.awardId);
   });
-  res.json({ items: joined });
+  res.json({ items: joined, nextCursor });
 });
 
 export const awardsRouter = router;

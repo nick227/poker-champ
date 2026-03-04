@@ -140,6 +140,20 @@ export default [
       },
     },
   },
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+    rules: {
+      "no-undef": "error",
+    },
+  },
   // Guardrail: table domain components remain store-free.
   {
     files: ["src/components/domain/table/**/*.{ts,tsx}"],

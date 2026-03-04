@@ -23,14 +23,14 @@ export default async function globalSetup() {
 
     if (lessonCount > 0) return;
 
-    console.log("[vitest] Lessons table empty. Running lessons:seed:v1...");
-    const result = spawnSync(getPnpmExecutable(), ["lessons:seed:v1"], {
+    console.log("[vitest] Lessons table empty. Running lessons:seed:legacy...");
+    const result = spawnSync(getPnpmExecutable(), ["lessons:seed:legacy"], {
       stdio: "inherit",
       env: process.env,
     });
 
     if (result.status !== 0) {
-      throw new Error(`lessons:seed:v1 failed with exit code ${result.status ?? "unknown"}`);
+      throw new Error(`lessons:seed:legacy failed with exit code ${result.status ?? "unknown"}`);
     }
   } finally {
     await prisma.$disconnect();

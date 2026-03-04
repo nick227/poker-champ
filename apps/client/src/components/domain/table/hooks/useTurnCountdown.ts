@@ -2,7 +2,57 @@ import { useEffect, useRef, useState } from "react";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 const TURN_TIMEOUT_BASE_MS = 60_000 * 2;
-const TURN_TIMEOUT_TOTAL_MS = 60_000 * 3;
+export const TURN_TIMEOUT_TOTAL_MS = 60_000 * 3;
+
+export function useTurnProgress(isToAct: boolean, enabled: boolean = true): number | null {
+  const [progress, setProgress] = useState<number | null>(null);
+  const startAtMsRef = useRef<number | null>(null);
+  const timerIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!enabled || !isToAct) {
+      if (timerIdRef.current != null) {
+        clearInterval(timerIdRef.current);
+        timerIdRef.current = null;
+      }
+      startAtMsRef.current = null;
+      setProgress(null);
+      return;
+    }
+
+    if (startAtMsRef.current == null) {
+      startAtMsRef.current = Date.now();
+    }
+
+    if (timerIdRef.current != null) {
+      return;
+    }
+
+    timerIdRef.current = setInterval(() => {
+      const startedAt = startAtMsRef.current;
+      if (startedAt == null) return;
+
+      const elapsed = Date.now() - startedAt;
+      const remainingMs = TURN_TIMEOUT_TOTAL_MS - elapsed;
+
+      if (remainingMs <= 0) {
+        setProgress(null);
+        return;
+      }
+
+      setProgress(remainingMs / TURN_TIMEOUT_TOTAL_MS);
+    }, 100);
+
+    return () => {
+      if (timerIdRef.current != null) {
+        clearInterval(timerIdRef.current);
+        timerIdRef.current = null;
+      }
+    };
+  }, [isToAct, enabled]);
+
+  return progress;
+}
 
 export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): number | null {
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);

@@ -29,6 +29,8 @@ export type TableSceneShellProps = {
   opponentStripEmptyState?: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** 0–1 when an opponent is to act (for countdown bar); null otherwise */
+  activeTurnProgress?: number | null;
   dealerBar: ReactNode;
   board: ReactNode;
   hero: ReactNode;
@@ -54,6 +56,7 @@ export function TableSceneShell({
   opponentStripEmptyState,
   winnerName,
   onPlayerPress,
+  activeTurnProgress,
   dealerBar,
   board,
   hero,
@@ -126,6 +129,7 @@ export function TableSceneShell({
                     opponents={opponents}
                     winnerName={winnerName}
                     onPlayerPress={onPlayerPress}
+                    activeTurnProgress={activeTurnProgress}
                   />
                 )}
               </View>

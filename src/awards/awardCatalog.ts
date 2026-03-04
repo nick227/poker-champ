@@ -85,7 +85,11 @@ export const awardCatalog = {
     return [...LESSON_CATALOG, ...HAND_CATALOG];
   },
   getLessonCompletionAwardId(lessonId: string): string {
-    const prefix = lessonId.split("_")[0];
+    const rawPrefix = lessonId.split("_")[0];
+    const normalized = /^L0([1-9])$/.test(rawPrefix)
+      ? rawPrefix.replace(/^L0([1-9])$/, "L$1")
+      : rawPrefix;
+    const prefix = normalized;
     return `lesson_complete_${prefix}`;
   },
 };

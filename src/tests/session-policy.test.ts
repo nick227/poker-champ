@@ -71,10 +71,10 @@ describe("disconnect policy", () => {
     const seat = p.seat;
     const stack = p.stackCents;
 
-    dealer.markDisconnected("u1", Date.now() + 60_000);
+    await dealer.markDisconnectedSerialized("u1", Date.now() + 60_000);
     expect(state.playersById.get("u1")?.connected).toBe(false);
 
-    dealer.markReconnected("u1");
+    await dealer.markReconnectedSerialized("u1");
     expect(state.playersById.get("u1")?.connected).toBe(true);
     expect(state.playersById.get("u1")?.seat).toBe(seat);
     expect(state.playersById.get("u1")?.stackCents).toBe(stack);
@@ -115,7 +115,7 @@ describe("disconnect policy", () => {
     u2.roundBetCents = 100;
     u2.committedCents = 100;
 
-    expect(() => dealer.markReconnected("u1")).not.toThrow();
+    await expect(dealer.markReconnectedSerialized("u1")).resolves.toBeUndefined();
     expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
     expect(state.playersById.get("u1")?.connected).toBe(true);
   });

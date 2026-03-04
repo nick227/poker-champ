@@ -388,7 +388,7 @@ export function SlotMachine({
   }, [betCents, game.jackpotKey, game.paytable, jackpotBannerCents]);
 
   return (
-    <View style={s.root}>
+    <View style={s.root} className="bg-black p-8  ">
       <View style={s.safe} className="justify-center">
         <View style={s.stack}>
           <Animated.View className="slot-machine-inner" style={[s.machine, screenShakeStyle]}>

@@ -18,7 +18,7 @@ import type { ConnectionStatus, HandResultMessage } from "../table.types";
 import { TableSceneShell } from "../shell/TableSceneShell";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
-import { useTurnCountdown } from "../hooks/useTurnCountdown";
+import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { TABLE } from "@/constants/copy";
 
 export type { Opponent };
@@ -106,6 +106,8 @@ export function ActiveTableView({
   } = model;
 
   const turnCountdownSeconds = useTurnCountdown(isHeroToAct, tableMode === "live");
+  const hasOpponentToAct = opponents.some((o) => o.isActive);
+  const activeTurnProgress = useTurnProgress(hasOpponentToAct, tableMode === "live");
 
   useEffect(() => {
     const handId = snapshot.hand?.handId ?? null;
@@ -268,6 +270,7 @@ export function ActiveTableView({
   return (
     <TableSceneShell
       {...shellBaseProps}
+      activeTurnProgress={activeTurnProgress}
       dealerBar={
         <DealerAnnounceBar
           hand={handSummary}

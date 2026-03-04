@@ -92,10 +92,13 @@ test.describe("canonical lessons runtime", () => {
     await expect(
       page.getByText(/Good line for this situation\.|There is a better line in this node\./i).first(),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Community Comparison", { exact: true }).first()).toBeVisible({ timeout: 12_000 });
+    const communityBlock = page.getByText("Community", { exact: true }).first();
+    await expect(communityBlock).toBeVisible({ timeout: 12_000 });
     await expect(
       page
-        .getByText(/responses in this spot|Baseline building|Community data is not available yet|Loading community/i)
+        .getByText(
+          /You are at the \d+th percentile on this question\.|(Fold|Check|Call|Bet|Raise|All-In|Option .+):\s*\d+%|responses in this spot|Baseline building|Community data is not available yet|Loading community/i,
+        )
         .first(),
     ).toBeVisible({ timeout: 12_000 });
 
@@ -126,10 +129,13 @@ test.describe("canonical lessons runtime", () => {
         .getByText(/Grade Band:\s*(STRONG|REASONABLE|WEAK)|Good line for this situation\.|There is a better line in this node\./i)
         .first(),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Community Comparison", { exact: true }).first()).toBeVisible({ timeout: 12_000 });
+    const communityBlock = page.getByText("Community", { exact: true }).first();
+    await expect(communityBlock).toBeVisible({ timeout: 12_000 });
     await expect(
       page
-        .getByText(/responses in this spot|Baseline building|Community data is not available yet|Loading community/i)
+        .getByText(
+          /You are at the \d+th percentile on this question\.|(Fold|Check|Call|Bet|Raise|All-In|Option .+):\s*\d+%|responses in this spot|Baseline building|Community data is not available yet|Loading community/i,
+        )
         .first(),
     ).toBeVisible({ timeout: 12_000 });
   });

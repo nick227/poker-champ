@@ -6,6 +6,7 @@ import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
 import { getTipRotation } from "./loadingTips";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { useBankroll } from "@/hooks/useBankroll";
+import { PokerTipCard } from "./PokerTipCard";
 
 export type TableLoadingMode = "auth_loading" | "auth_required" | "connecting";
 
@@ -60,6 +61,10 @@ export function TableLoadingLanding({
   const tipReveal = useRef(new Animated.Value(0)).current;
   const slotReveal = useRef(new Animated.Value(0)).current;
   const actionReveal = useRef(new Animated.Value(0)).current;
+
+  const actionTitle = mode === "auth_required" ? "Go to login" : "Return to lobby";
+  const actionHandler = mode === "auth_required" ? (onGoToLogin ?? onReturnToLobby) : onReturnToLobby;
+  const tip = safeTips[tipIndex % safeTips.length];
 
   const { cents: bankroll } = useBankroll();
   const [slotBankroll, setSlotBankroll] = useState(bankroll);
@@ -184,41 +189,15 @@ export function TableLoadingLanding({
         className="mx-auto w-full loading-inner-container px-5 py-5"
         style={{ maxWidth: LANDING_MAX_WIDTH, paddingHorizontal: compact ? 14 : 20, paddingVertical: compact ? 14 : 20 }}
       >
-        <View
-          className="absolute h-28 w-28 rounded-full bg-brand/10"
-          style={{ left: -28, top: -30 }}
-        />
-        <View
-          className="absolute h-24 w-24 rounded-full bg-felt/25"
-          style={{ bottom: -36, right: -24 }}
-        />
 
         <Animated.View
-          className="mb-4 flex-row items-center justify-center gap-2"
+          className="mb-8 flex-row items-center justify-center gap-2"
           accessibilityRole="header"
           style={revealStyle(brandReveal)}
         >
-          <Animated.View
-            className="h-9 w-9 items-center justify-center rounded-full bg-brand/10"
-            style={{ transform: [{ scale: pulseValue }] }}
-          >
-            <View className="h-7 w-7 overflow-hidden rounded-full border border-brand/30 bg-panel-elevated">
-              <Image
-                source={BRAND_MARK}
-                resizeMode="cover"
-                style={{ width: "100%", height: "100%" }}
-              />
-            </View>
-          </Animated.View>
-          <Text variant="label" className="normal-case text-xl tracking-normal text-text-subtle">
+          <Text variant="h1" className="normal-case text-xl tracking-normal text-text-subtle mb-4">
             Loading...
           </Text>
-        </Animated.View>
-
-        <Animated.View
-          className="mt-2"
-          style={[revealStyle(tipReveal), { minHeight: compact ? 108 : TIP_BLOCK_MIN_HEIGHT }]}
-        >
         </Animated.View>
 
         <Animated.View
@@ -238,6 +217,16 @@ export function TableLoadingLanding({
             </Text>
           </Animated.View>
         ) : null}
+
+        <Animated.View
+          className="my-2"
+          style={[revealStyle(tipReveal), { minHeight: compact ? 108 : TIP_BLOCK_MIN_HEIGHT }]}
+        >
+        </Animated.View>
+
+        <PokerTipCard tip={tip} compact={compact} />
+
+
     </View>
     </View>
   );

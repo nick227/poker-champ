@@ -4,19 +4,16 @@ import {
   STRIP_VERTICAL_PADDING,
   ROW_GAP,
   ROW_PADDING,
+  TILE_STACK_GAP,
   AVATAR_SIZE,
   OPPONENT_ROW_MIN_HEIGHT,
-  OPPONENT_CARDS_COL_WIDTH,
   OPPONENT_CARD_WIDTH,
   OPPONENT_CARD_HEIGHT,
   OPPONENT_CARD_GAP,
   OPPONENT_CARD_SCALE,
 } from "./constants/components/opponentStrip.layout";
 import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
-import {
-  ACTIVE_TILE_BORDER,
-  STACK_TEXT_COLOR,
-} from "./constants/style/tableColors";
+import { STACK_TEXT_COLOR } from "./constants/style/tableColors";
 
 export const opponentStripStyles = StyleSheet.create({
   strip: {
@@ -39,12 +36,20 @@ export const opponentStripStyles = StyleSheet.create({
     marginBottom: ROW_GAP,
   },
   rowShell: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
     minHeight: OPPONENT_ROW_MIN_HEIGHT,
     borderRadius: TABLE_TILE_RADIUS,
     borderWidth: 1,
     overflow: "hidden",
+  },
+  tileContentStack: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: TILE_STACK_GAP,
+    flex: 1,
+    padding: ROW_PADDING,
+    paddingBottom: ROW_PADDING + 4,
   },
   rowShellActive: {
     boxShadow: [
@@ -58,10 +63,7 @@ export const opponentStripStyles = StyleSheet.create({
     elevation: 6,
   },
   cardsCol: {
-    width: OPPONENT_CARDS_COL_WIDTH,
-    minHeight: OPPONENT_ROW_MIN_HEIGHT,
-    padding: ROW_PADDING,
-    borderRightWidth: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -85,23 +87,24 @@ export const opponentStripStyles = StyleSheet.create({
     height: OPPONENT_CARD_HEIGHT,
   },
   infoCol: {
-    flex: 1,
-    minHeight: OPPONENT_ROW_MIN_HEIGHT,
-    padding: ROW_PADDING,
-    justifyContent: "space-between",
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
   },
-  infoTopRow: {
+  nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 6,
+    justifyContent: "center",
+    width: "100%",
+    gap: 4,
+    minHeight: 14,
+    paddingHorizontal: 2,
   },
-  nameWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flex: 1,
-    minWidth: 0,
+  nameText: {
+    flexShrink: 1,
+    maxWidth: "78%",
+    textAlign: "center",
   },
   avatar: {
     width: AVATAR_SIZE,
@@ -116,14 +119,29 @@ export const opponentStripStyles = StyleSheet.create({
     height: AVATAR_SIZE,
   },
   stackText: {
-    fontSize: 13,
+    fontSize: 11,
+    lineHeight: 13,
     fontWeight: "600",
     fontVariant: ["tabular-nums"],
     color: STACK_TEXT_COLOR,
   },
   actionText: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 12,
+    minHeight: 12,
+    textAlign: "center",
+  },
+  turnBarTrack: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  turnBarFill: {
+    height: "100%",
+    backgroundColor: "hsl(142, 76%, 36%)",
   },
 });
 

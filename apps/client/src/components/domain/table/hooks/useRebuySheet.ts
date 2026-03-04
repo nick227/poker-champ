@@ -17,8 +17,6 @@ export function useRebuySheet(
   const canRebuy = useMemo(() => {
     if (!snapshot) return false;
 
-    // Never allow rebuy while a hand is in progress.
-    if (snapshot.hand) return false;
     // Must currently be seated to safely reason about stack/status.
     if (!snapshot.hero.youAreSeated) return false;
 
