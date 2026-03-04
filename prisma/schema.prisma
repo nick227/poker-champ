@@ -392,9 +392,9 @@ model LessonStep {
   snapshotVersion Int?
   snapshotJson    Json?
   gradingVersion  Int                 @default(1)
-  beforeMessage   String?
-  questionText    String?
-  followUpMessage String?
+  beforeMessage   String?             @db.Text
+  questionText    String?             @db.Text
+  followUpMessage String?             @db.Text
   gradingSpecJson Json?
   explanationJson Json?
   createdAt       DateTime            @default(now())
