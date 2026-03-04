@@ -200,7 +200,12 @@ export class SnapshotService {
    * @param actionId Optional action identifier
    * @returns void - Async broadcast operation
    */
-  async emitToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
+  /** When set, this recipient is sent the snapshot first even if not in clientsByUserId (avoids missing update if client was unbound during async build). */
+  async emitToAll(
+    reason: SnapshotReason,
+    actionId?: string,
+    ensureRecipient?: { userId: string; client: Client },
+  ): Promise<void> {
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
@@ -213,7 +218,7 @@ export class SnapshotService {
     this.emitSnapshotHook(systemPayload, reason);
 
     const tableId = this.deps.state.tableId;
-    for (const [userId, client] of this.deps.clientsByUserId.entries()) {
+    const sendToOne = async (userId: string, client: Client): Promise<boolean> => {
       const payload = await this.buildHeroPatch(userId, base, toActUserId);
       const final = this.finalizePayload(payload, userId);
       const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
@@ -232,10 +237,24 @@ export class SnapshotService {
           code: "SNAPSHOT_INVALID",
           message: SNAPSHOT_INVALID_MESSAGE,
         });
-        continue;
+        return false;
       }
-      client.send("TABLE_SNAPSHOT", final);
-      snapshotMetrics.emitSnapshot();
+      try {
+        client.send("TABLE_SNAPSHOT", final);
+        snapshotMetrics.emitSnapshot();
+        return true;
+      } catch (err) {
+        logger.warn({ err, userId, tableId, reason }, "SNAPSHOT_SEND_FAILED ensureRecipient");
+        return false;
+      }
+    };
+
+    if (ensureRecipient) {
+      await sendToOne(ensureRecipient.userId, ensureRecipient.client);
+    }
+    for (const [userId, client] of this.deps.clientsByUserId.entries()) {
+      if (ensureRecipient && userId === ensureRecipient.userId) continue;
+      await sendToOne(userId, client);
     }
     snapshotMetrics.observeBuildMs(performance.now() - t0);
   }

@@ -580,8 +580,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           "POKER_ACTION_ATTEMPT",
         );
         
-        // Execute the action through the dealer
-        await this.dealer.handleAction(userId, parsed.data, normalized.actionId);
+        // Execute the action through the dealer; pass client so actor receives post-action snapshot even if unbound during async emit
+        await this.dealer.handleAction(userId, parsed.data, normalized.actionId, client);
         this.lastAcceptedActionByUserId.set(userId, {
           action: parsed.data.action,
           amountCents: parsed.data.amountCents,

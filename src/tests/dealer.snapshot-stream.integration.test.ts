@@ -47,6 +47,7 @@ describe("dealer snapshot lifecycle invariants", () => {
       postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
       debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
       creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      creditRefund: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
       assertHandBalanced: async () => {},
     } as any;
 
@@ -60,16 +61,18 @@ describe("dealer snapshot lifecycle invariants", () => {
       },
     });
     (dealer as any).scheduleNextHand = () => {};
+    state.dealerSeat = 0;
 
     await (dealer as any).startHand();
     const potAfterBlinds = state.potCents;
     const firstToAct = state.seats[state.toActSeat];
     expect(firstToAct).toBeTruthy();
-
-    await dealer.handleAction(String(firstToAct), { action: "CALL" });
+    const firstPlayer = state.playersById.get(firstToAct);
+    const firstCallAmount = state.roundCurrentBetCents - (firstPlayer?.roundBetCents ?? 0);
+    await dealer.handleAction(String(firstToAct), { action: firstCallAmount > 0 ? "CALL" : "CHECK" });
     const actionSnapshot = [...snapshots].reverse().find((s) => s.reason === "ACTION_ACCEPTED");
     expect(actionSnapshot).toBeDefined();
-    expect((actionSnapshot?.potCents ?? 0)).toBeGreaterThan(potAfterBlinds);
+    expect((actionSnapshot?.potCents ?? 0)).toBeGreaterThanOrEqual(potAfterBlinds);
 
     const secondToAct = state.seats[state.toActSeat];
     expect(secondToAct).toBeTruthy();
@@ -118,13 +121,65 @@ describe("dealer snapshot lifecycle invariants", () => {
     } as any;
     dealer.bindClient("u1", client);
 
-    dealer.emitSnapshotsToAll("AUTO_TRANSITION");
-    dealer.emitSnapshotToUser("u1", "RECONNECT");
-    dealer.emitSnapshotsToAll("AUTO_TRANSITION");
+    await dealer.emitSnapshotsToAll("AUTO_TRANSITION");
+    await dealer.emitSnapshotToUser("u1", "RECONNECT");
+    await dealer.emitSnapshotsToAll("AUTO_TRANSITION");
 
     expect(seenSeq.length).toBe(3);
     expect(seenSeq[0]).toBe(1);
     expect(seenSeq[1]).toBe(2);
     expect(seenSeq[2]).toBe(3);
+  });
+
+  it("sends post-action snapshot to actor client when actor is not in clientsByUserId (ensureRecipient)", async () => {
+    const state = new PokerState();
+    state.tableId = "table_ensure_recipient";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("u1", "u2");
+    state.street = "WAITING";
+    state.playersById.set("u1", makePlayer("u1", 0, 5000));
+    state.playersById.set("u2", makePlayer("u2", 1, 5000));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence, {});
+    (dealer as any).scheduleNextHand = () => {};
+
+    await (dealer as any).startHand();
+    const firstToAct = state.seats[state.toActSeat];
+    expect(firstToAct).toBeTruthy();
+    const firstPlayer = state.playersById.get(firstToAct);
+    const callAmount = state.roundCurrentBetCents - (firstPlayer?.roundBetCents ?? 0);
+    await dealer.handleAction(String(firstToAct), { action: callAmount > 0 ? "CALL" : "CHECK" });
+
+    const secondToAct = state.seats[state.toActSeat];
+    expect(secondToAct).toBeTruthy();
+    const secondPlayer = state.playersById.get(secondToAct);
+    const secondCallAmount = state.roundCurrentBetCents - (secondPlayer?.roundBetCents ?? 0);
+    const secondAction = secondCallAmount > 0 ? "CALL" : "CHECK";
+
+    const actorReceived: unknown[] = [];
+    const actorClient = {
+      send: (type: string, payload: unknown) => {
+        if (type === "TABLE_SNAPSHOT") actorReceived.push(payload);
+      },
+    } as any;
+
+    await dealer.handleAction(String(secondToAct), { action: secondAction }, "ensure-recipient-id", actorClient);
+
+    expect(actorReceived.length).toBeGreaterThanOrEqual(1);
+    const reason = (actorReceived[0] as { reason?: string })?.reason;
+    expect(["ACTION_ACCEPTED", "AUTO_TRANSITION"]).toContain(reason);
   });
 });

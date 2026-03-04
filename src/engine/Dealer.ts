@@ -50,6 +50,7 @@ import {
   bettingRoundComplete,
   eligibleToAct,
   noFurtherBettingPossible,
+  syncRoundCurrentBetCents,
 } from "./rules/BettingRound.js";
 import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
@@ -477,7 +478,10 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Action queuing, deduplication, and execution pipeline
 
-  async handleAction(userId: string, msg: ActionPayload, actionId?: string) {
+  /** Set for the duration of a player action so post-action snapshot is sent to this client even if unbound during async build. */
+  private pendingActorRef: { userId: string; client: Client } | null = null;
+
+  async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
     if (this.pendingActionCount >= this.maxQueueDepth) {
       throw new PokerError("QUEUE_FULL", "Action queue full. Retry shortly.", {
         retryAfterSeconds: 2,
@@ -501,6 +505,7 @@ export class Dealer {
       })
       .then(async () => {
         try {
+          this.pendingActorRef = actorClient ? { userId, client: actorClient } : null;
           // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
           // If the hand changed in between, sameHand is false and we skip dedup (correct — no record in wrong hand).
           const handContext = this.currentHand;
@@ -547,6 +552,7 @@ export class Dealer {
           }
         } finally {
           this.pendingActionCount--;
+          this.pendingActorRef = null;
         }
       });
     this.actionQueue = queued;
@@ -1161,11 +1167,39 @@ export class Dealer {
 
   private isSkippableQueuedActionError(err: unknown): boolean {
     if (!(err instanceof PokerError)) return false;
-    return err.code === "HAND_NOT_STARTED" || err.code === "NOT_YOUR_TURN" || err.code === "NOT_ELIGIBLE";
+    return (
+      err.code === "HAND_NOT_STARTED" ||
+      err.code === "HAND_ALREADY_FINISHED" ||
+      err.code === "NOT_YOUR_TURN" ||
+      err.code === "NOT_ELIGIBLE"
+    );
   }
 
   private async applyDisconnectedAutoActionCapForHand() {
     await this.turnAutomationService.applyDisconnectedAutoActionCapForHand();
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") {
+      return;
+    }
+
+    // Auto-action cap can demote an ACTIVE actor to ABANDONED mid-hand.
+    // Re-sync bet level and advance turn if current toAct is no longer eligible.
+    syncRoundCurrentBetCents(this.state);
+
+    const toActId = this.state.seats[this.state.toActSeat] ?? "";
+    const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
+    if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
+      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+        await this.advanceStreetOrShowdown();
+        return;
+      }
+      const nextSeat = findNextToActSeat(this.state, this.state.toActSeat);
+      if (nextSeat === -1) {
+        await this.advanceStreetOrShowdown();
+        return;
+      }
+      this.state.toActSeat = nextSeat;
+      this.maybeActForBot();
+    }
   }
 
   /**
@@ -1336,7 +1370,10 @@ export class Dealer {
   // Internal snapshot emission (public API available for single-user emits)
 
   private async sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
-    await this.snapshotService.emitToAll(reason, actionId);
+    const ensureRecipient = this.pendingActorRef
+      ? { userId: this.pendingActorRef.userId, client: this.pendingActorRef.client }
+      : undefined;
+    await this.snapshotService.emitToAll(reason, actionId, ensureRecipient);
   }
 
   private normalizeQueuedAutoAction(userId: string, payload: ActionPayload): ActionPayload | null {

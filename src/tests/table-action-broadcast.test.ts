@@ -474,6 +474,70 @@ async function setupHumanVsBotRoom() {
     }
   });
 
+  it("after human calls bot bet, human receives snapshot with advanced state (toActSeat or street)", async () => {
+    vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+      if (ctx.heroActionOptions.canBet) return { action: "BET", amountCents: 200 };
+      if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+      if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+      return { action: "FOLD" };
+    });
+
+    const { room, clientA } = await setupHumanVsBotRoom();
+    try {
+      const initial = clientA.latestSnapshot!;
+      const humanSeat = initial.seats.find((s) => s.userId === "user_a")?.seat ?? 0;
+      const humanToActFirst = initial.seats.find((s) => s.seat === initial.hand?.toActSeat)?.userId === "user_a";
+
+      if (humanToActFirst) {
+        room.onMessageEvents.emit("ACTION", clientA as any, { action: "CHECK", actionId: "human-check-" + Date.now() });
+        await delay(200);
+      }
+
+      await waitFor(
+        () =>
+          Boolean(clientA.latestSnapshot?.hero?.actionOptions?.canCall) ||
+          clientA.latestSnapshot?.hand?.street !== "PREFLOP",
+        10000,
+        "human can call (bot bet) or street advanced",
+      );
+
+      if (!clientA.latestSnapshot?.hero?.actionOptions?.canCall) {
+        return;
+      }
+
+      const beforeCount = (clientA.sentByType.TABLE_SNAPSHOT ?? []).length;
+      room.onMessageEvents.emit("ACTION", clientA as any, { action: "CALL", actionId: "human-call-" + Date.now() });
+
+      await waitFor(
+        () => {
+          const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
+          const afterCall = snapshots.find((s) => s.reason === "ACTION_ACCEPTED" || s.reason === "BOT_ACTION");
+          if (!afterCall?.hand) return false;
+          const toActAfter = afterCall.hand.toActSeat;
+          const streetAfter = afterCall.hand.street;
+          return toActAfter !== humanSeat || streetAfter !== "PREFLOP";
+        },
+        10000,
+        "state advanced after human call",
+      );
+
+      const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
+      const afterCall = snapshots.find((s) => s.reason === "ACTION_ACCEPTED" || s.reason === "BOT_ACTION");
+      expect(afterCall).toBeDefined();
+      expect(afterCall?.hand).toBeDefined();
+      const toActAfter = afterCall!.hand!.toActSeat;
+      const streetAfter = afterCall!.hand!.street;
+      expect(
+        toActAfter !== humanSeat || streetAfter !== "PREFLOP",
+        `after human CALL, state must advance: toActSeat=${toActAfter} (humanSeat=${humanSeat}), street=${streetAfter}`,
+      ).toBe(true);
+    } finally {
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+    }
+  });
+
   it("emits winner-visible HAND_END snapshot when human folds to bot", async () => {
     const { room, clientA } = await setupHumanVsBotRoom();
     try {
