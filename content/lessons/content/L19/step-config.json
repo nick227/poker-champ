@@ -15,8 +15,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Equity is your chance to win the hand. For draws, we approximate it with outs. The rule of 4: on the flop, with two cards to come, multiply your outs by 4 to get your approximate equity by the river. A flush draw has 9 outs (nine cards of your suit left). Once you know your equity, you compare it to the break-even % from pot odds—if equity is higher, the call can be right.",
-      "question": "What approximate equity does a 9-out flush draw have by the river?",
+      "beforeInstructorMessage": "Equity is your chance to win (as a percentage). For draws we use outs. Rule of 4: on the flop with two cards to come, outs × 4 ≈ your equity by the river. A flush draw has 9 outs. Next you'll see a flush draw and pick its approximate equity by the river (a percentage).",
+      "question": "You will see a flush draw (9 outs) and pick its approximate equity by the river (a percentage).",
       "followUpInstructorMessage": "When ready, continue to the question."
     },
     {
@@ -26,8 +26,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "You have a flush draw on the flop (9 outs). You will see both the turn and the river.",
-      "question": "Approximately what is your chance to make the flush by the river?",
+      "beforeInstructorMessage": "Look at the table: you have a flush draw (9 outs, two cards to come). The rule of 4 says: outs × 4 ≈ your equity by the river. We want that equity as a percentage.",
+      "question": "Flush draw, 9 outs, two cards to come. What is your approximate equity (%) by the river? Pick one.",
       "followUpInstructorMessage": "Review the explanation and continue.",
       "gradingSpecJson": {
         "type": "MCQ_STEP",

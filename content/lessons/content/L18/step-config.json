@@ -15,8 +15,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "When you have to call an amount equal to the pot (common with all-ins or pot-sized bets), you're putting in half the final pot. So you need to win half the time just to break even—a true coin flip. That means you need a real hand or a very strong draw; marginal calls here are expensive.",
-      "question": "What break-even equity do you need when you call an amount equal to the pot?",
+      "beforeInstructorMessage": "When you must call an amount equal to the pot, you're putting in half the final pot—so you need to win half the time to break even (a coin flip). Next you'll see the spot and pick that break-even percentage.",
+      "question": "You will see pot and call amounts and pick the break-even win rate (a percentage).",
       "followUpInstructorMessage": "When ready, continue to the question."
     },
     {
@@ -26,8 +26,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "The pot is $100. You must call $100 to continue (e.g. an all-in or pot-sized call).",
-      "question": "Pot $100, you must call $100. What break-even equity do you need?",
+      "beforeInstructorMessage": "Look at the table: the pot is $100 and your call is $100. We want the break-even win rate—the percentage you must win for the call to be neutral (a coin flip).",
+      "question": "Pot $100, call $100. What win rate (%) do you need to break even on a call? Pick one.",
       "followUpInstructorMessage": "Review the explanation and continue.",
       "gradingSpecJson": {
         "type": "MCQ_STEP",

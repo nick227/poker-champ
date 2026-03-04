@@ -15,8 +15,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Pot odds are the price the pot is offering you: how much you have to call versus how much you can win. Your break-even equity is the win rate you need so that calling is neither profitable nor losing in the long run. If your actual equity is above that number, the call is +EV; if it's below, you're burning money. This drill locks in the math for a classic spot.",
-      "question": "Pot Odds Quick Check: What break-even equity do you need to call?",
+      "beforeInstructorMessage": "Pot odds are the price the pot is offering you: how much you have to call versus how much you can win. Your break-even equity is the win rate (as a percentage) you need so that calling is neither profitable nor losing. If your hand's equity is above that %, the call is +EV; if below, you're burning money. Next you'll see a spot and choose the correct break-even percentage.",
+      "question": "Pot Odds Quick Check: You will pick the break-even win rate (a percentage).",
       "followUpInstructorMessage": "When ready, continue to the question."
     },
     {
@@ -26,8 +26,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "The pot is $150. Villain bets $50. You must call $50 to continue.",
-      "question": "Pot $150, villain bets $50. What break-even equity do you need to call?",
+      "beforeInstructorMessage": "Look at the table: the pot is $150 and your call is $50. We want the break-even win rate—the percentage of the time you must win for calling to be neither profitable nor losing.",
+      "question": "Pot $150, call $50. What win rate (%) do you need to break even on a call? Pick one.",
       "followUpInstructorMessage": "Review the explanation and continue.",
       "gradingSpecJson": {
         "type": "MCQ_STEP",

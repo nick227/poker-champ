@@ -15,8 +15,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "An open-ended straight draw (OESD) has 8 outs—you can hit on either end of the straight. Same idea as the flush draw: use the rule of 4 on the flop (two cards to come). Fewer outs than a flush draw means less equity, so you need better pot odds (or implied odds) to call with an OESD than with a flush draw.",
-      "question": "What approximate equity does an 8-out straight draw have by the river?",
+      "beforeInstructorMessage": "An open-ended straight draw has 8 outs. Same idea: on the flop with two cards to come, use the rule of 4 (outs × 4 ≈ equity by the river). Next you'll see an OESD and pick its approximate equity by the river (a percentage).",
+      "question": "You will see an open-ended straight draw (8 outs) and pick its approximate equity by the river (a percentage).",
       "followUpInstructorMessage": "When ready, continue to the question."
     },
     {
@@ -26,8 +26,8 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/main.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "You have an open-ended straight draw on the flop (8 outs). You will see both the turn and the river.",
-      "question": "Approximately what is your chance to make the straight by the river?",
+      "beforeInstructorMessage": "Look at the table: you have an open-ended straight draw (8 outs, two cards to come). The rule of 4 says: outs × 4 ≈ your equity by the river. We want that equity as a percentage.",
+      "question": "Open-ended straight draw, 8 outs, two cards to come. What is your approximate equity (%) by the river? Pick one.",
       "followUpInstructorMessage": "Review the explanation and continue.",
       "gradingSpecJson": {
         "type": "MCQ_STEP",
