@@ -18,6 +18,8 @@ import type { ConnectionStatus, HandResultMessage } from "../table.types";
 import { TableSceneShell } from "../shell/TableSceneShell";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
+import { useTurnCountdown } from "../hooks/useTurnCountdown";
+import { TABLE } from "@/constants/copy";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -70,6 +72,7 @@ export function ActiveTableView({
 }: ActiveTableViewProps) {
   const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
+  const [rejoinPending, setRejoinPending] = useState(false);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
@@ -101,6 +104,8 @@ export function ActiveTableView({
     isHeroWinner,
     isHeroDealer,
   } = model;
+
+  const turnCountdownSeconds = useTurnCountdown(isHeroToAct, tableMode === "live");
 
   useEffect(() => {
     const handId = snapshot.hand?.handId ?? null;
@@ -166,6 +171,24 @@ export function ActiveTableView({
     }
   }, [actionContext.showActions, hasActionOptions, waitingBetweenHands]);
 
+  useEffect(() => {
+    if (heroStatus !== "SITTING_OUT") {
+      setRejoinPending(false);
+    }
+  }, [heroStatus]);
+
+  const handleRejoin = useCallback(() => {
+    if (rejoinPending) return;
+    setRejoinPending(true);
+    onToggleSittingOut?.();
+  }, [rejoinPending, onToggleSittingOut]);
+
+  const heroIsSittingOutWithStack =
+    heroIsSeated &&
+    heroStatus === "SITTING_OUT" &&
+    heroStackCents > 0 &&
+    !!onToggleSittingOut;
+
   let bottom: ReactNode = null;
   if (!isReplayMode) {
     if (canRebuy && onPressRebuy) {
@@ -174,6 +197,19 @@ export function ActiveTableView({
       bottom = (
         <View className="ui-p-inline-4">
           <Text className="text-center">You are not seated at this table.</Text>
+        </View>
+      );
+    } else if (heroIsSittingOutWithStack) {
+      bottom = (
+        <View className="ui-p-inline-4 gap-y-2 items-center">
+          <Text className="text-center text-muted" numberOfLines={1}>
+            You're sitting out.
+          </Text>
+          <Button
+            title={TABLE.rejoin}
+            onPress={handleRejoin}
+            disabled={rejoinPending}
+          />
         </View>
       );
     } else if (
@@ -257,6 +293,7 @@ export function ActiveTableView({
           isWinner={isHeroWinner}
           isDealer={isHeroDealer}
           isActiveTurn={isHeroToAct}
+          turnCountdownSeconds={turnCountdownSeconds ?? undefined}
           userName={heroName}
           avatarUrl={heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined}
           potCents={potCents}

@@ -15,6 +15,7 @@ export type SoundEvent =
   | "table.potWin"
   | "table.handReveal"
   | "table.notificationBell"
+  | "table.turnTimeoutWarning"
   | "app.toast"
   | "app.error"
   | "table.reconnectStart"
@@ -44,6 +45,7 @@ export const SOUND_EVENT_COOLDOWN_MS: Partial<Record<SoundEvent, number>> = {
   "table.potWin": 200,
   "table.handReveal": 120,
   "table.notificationBell": 180,
+  "table.turnTimeoutWarning": 500,
   "app.toast": 120,
   "app.error": 200,
   "table.reconnectStart": 300,

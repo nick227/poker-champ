@@ -1,8 +1,6 @@
 /** Single source of truth for procedural (code-rendered) card back patterns. */
 /** HSL format: "H S% L%" (e.g. "217 50% 22%"). Background = card base; pattern = shapes (lighter/darker derived in render). */
 
-export type CardBackPatternHsl = string;
-
 export const PROCEDURAL_CARD_BACK_PATTERNS = [
   { id: "classic", name: "Classic", icon: "♦", background: "217 50% 22%", pattern: "217 50% 35%" },
   { id: "geometric", name: "Geometric", icon: "▲", background: "340 55% 28%", pattern: "340 45% 45%" },

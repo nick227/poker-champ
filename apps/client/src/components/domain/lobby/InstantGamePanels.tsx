@@ -20,7 +20,6 @@ export function InstantGamePanels({ inFlightPreset, onStart }: InstantGamePanels
               <Text variant="label" className="text-[10px]">Instant Game</Text>
               <Text variant="h2" className="mt-1 text-base">{preset.title}</Text>
               <Text variant="muted" className="mt-1 text-xs">{preset.body}</Text>
-              <Text variant="muted" className="mt-1 text-xs">{preset.subtitle}</Text>
               <View className="mt-3">
                 <Button
                   title={isStarting ? "Starting..." : preset.cta}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
@@ -151,13 +151,16 @@ export default function LeaderboardScreen() {
             {CATEGORY_OPTIONS.map((option) => {
               const active = option.key === category;
               return (
-                <Pressable
+                <Button
                   key={option.key}
+                  title={option.label}
                   onPress={() => setCategory(option.key)}
-                  className={`rounded-full px-3 py-2 ${active ? "bg-brand border border-border-subtle" : "ui-surface border border-border-subtle"}`}
-                >
-                  <Text variant={active ? "body" : "muted"}>{option.label}</Text>
-                </Pressable>
+                  intent="neutral"
+                  size="sm"
+                  selected={active}
+                  className="min-h-[32px] px-3"
+                  textClassName={active ? "text-text" : "text-muted"}
+                />
               );
             })}
           </View>

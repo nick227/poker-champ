@@ -3,7 +3,7 @@
  * Do not introduce another shell (e.g. FooTableShell); see TABLE_SCENE_VIEWS_OVERVIEW.md guardrails.
  */
 import type { ReactNode } from "react";
-import { Platform, View, ScrollView } from "react-native";
+import { Platform, View, ScrollView, type ViewStyle } from "react-native";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { TableGameTopBar } from "../TableGameTopBar";
@@ -63,10 +63,12 @@ export function TableSceneShell({
   const profile = useProfile();
   const router = useRouter();
 
-  const heroSectionStyle =
+  const heroSectionStyle: ViewStyle =
     Platform.OS === "web"
-      ? { height: "var(--table-hero-zone-height)" as unknown as number }
+      ? ({ height: "var(--table-hero-zone-height)" } as unknown as ViewStyle)
       : { height: heroZoneHeight, minHeight: heroZoneHeight };
+
+  const actionBarHeight = ACTION_BAR_HEIGHT + insets.bottom;
 
   return (
     <View
@@ -93,25 +95,17 @@ export function TableSceneShell({
             tableName={tableName}
             userName={profile.username}
             stackCents={playerStackCents ?? balanceCents}
-            onLogoPress={() => router.push("/")}
+            onLogoPress={() => router.replace("/")}
             right={topBarRight}
           />
         </View>
 
-        <ScrollView contentContainerStyle={immersiveBoard ? { flexGrow: 1 } : undefined}>
-          {immersiveBoard ? (
-            <View
-              collapsable={false}
-              style={{
-                flexGrow: 1,
-                justifyContent: "center",
-              }}
-            >
-              <View collapsable={false} style={{ flex: 1, justifyContent: "center" }}>
-                {board}
-              </View>
-            </View>
-          ) : (
+        {immersiveBoard ? (
+          <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, justifyContent: "center" }}>{board}</View>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
             <>
               <View
                 collapsable={false}
@@ -157,8 +151,8 @@ export function TableSceneShell({
                   style={[
                     layoutStyles.actionBarSection,
                     {
-                      height: ACTION_BAR_HEIGHT + insets.bottom,
-                      minHeight: ACTION_BAR_HEIGHT + insets.bottom,
+                      height: actionBarHeight,
+                      minHeight: actionBarHeight,
                       paddingBottom: insets.bottom,
                     },
                   ]}
@@ -167,8 +161,8 @@ export function TableSceneShell({
                 </Surface>
               ) : null}
             </>
-          )}
-        </ScrollView>
+          </ScrollView>
+        )}
       </TableLayoutHeightProvider>
     </View>
   );

@@ -199,10 +199,11 @@ No domain components. Form is inline with base primitives.
 
 ### 4.5 Styling rules
 
-- Prefer `className` with Tailwind + `ui-*`; use `style` only when dynamic (e.g. Animated, or layout that can’t be expressed in classes).
+- Prefer `className` with Tailwind + `ui-*`; use `style` only when dynamic (e.g. Animated, or layout that cannot be expressed in classes).
 - Section spacing: `ui-section` or `ui-section-tight` for consistent padding and border.
-- Touch targets: `ui-touch` for buttons/controls that must be ≥44pt.
-
+- Touch targets: `ui-touch` for buttons/controls that must be >=44pt.
+- Button rule: keep `Button` layout-neutral. Put spacing (`gap-*`, `mt-*`, etc.) on the parent container, not on individual button instances.
+- Pressable rule: if a `Pressable` is acting as a semantic action/button, style it with `btn-*` utilities instead of ad-hoc `px/py/bg/rounded` classes.
 ---
 
 ## 5. File Map

@@ -1,16 +1,26 @@
-import { View, Pressable } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Share, View, Image } from "react-native";
+import * as Clipboard from "expo-clipboard";
+
 import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { EmptyTableView } from "@/components/domain/table/views/EmptyTableView";
 import { StatusTableView } from "@/components/domain/table/views/StatusTableView";
+
 import { Button } from "@/components/base/Button";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
 import { Text } from "@/components/base/Text";
+
 import type { TablePageController } from "@/types/tableSceneContract";
 import { tablePath } from "@/lib/nav";
+
 import { useProfile } from "@/hooks/useProfile";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { serviceRegistry } from "@/registry/service.registry";
+import { parseProfileFromMe } from "@/lib/profileFromMe";
 import { getAvatarUrlFromMeResponse } from "@/lib/meResponse";
+import { useToastStore } from "@/stores/toast.store";
+import { useProfileStore } from "@/stores/profile.store";
 
 export type TableSceneRouterProps = {
   scene: TablePageController["scene"];
@@ -18,67 +28,120 @@ export type TableSceneRouterProps = {
   actions: TablePageController["actions"];
 };
 
+const BOT_AVATAR_SOURCE = require("../../assets/images/cherry_002.jpg");
+
 function resolveShareTableUrl(tableId: string): string {
   const path = tablePath(tableId);
+
+  // Web
   if (typeof window !== "undefined" && window.location?.origin) {
     return `${window.location.origin}${path}`;
   }
+
+  // Native fallback (configured web origin)
   const origin = process.env.EXPO_PUBLIC_WEB_ORIGIN?.trim();
   if (origin) return `${origin.replace(/\/+$/, "")}${path}`;
+
+  // Last resort: relative path
   return path;
 }
 
-export function copyShareTableUrl(url?: string) {
-  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function" && url) {
-    navigator.clipboard.writeText(url).catch((err) => {
+async function shareTable(tableUrl: string) {
+  try {
+    await Share.share({
+      title: "Poker Champ Table",
+      message: `Join my table: ${tableUrl}`,
+      url: tableUrl,
+    });
+  } catch (err) {
+    console.error("Share failed:", err);
+  }
+}
+
+function copyShareTableUrl(url: string, showToast: (msg: string, variant?: "default" | "success" | "danger") => void) {
+  Clipboard.setStringAsync(url)
+    .then(() => showToast("Share table URL copied to clipboard!", "success"))
+    .catch((err) => {
       console.error("Failed to copy share table URL:", err);
     });
-    alert("Share table URL copied to clipboard!");
-  } else {
-    console.warn("Clipboard API not available. Cannot copy share table URL.");
-  }
 }
 
 export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRouterProps) {
   const { snapshot, currentUserAvatarUrl } = renderModel;
   const { mode } = scene;
+  const showToast = useToastStore((s) => s.show);
+
   const { refetch: refreshProfile, avatarUrl: profileAvatarUrl } = useProfile();
-  const [heroAvatarUrl, setHeroAvatarUrl] = useState<string | null | undefined>(currentUserAvatarUrl ?? profileAvatarUrl);
+
+  const profileOrCurrentUserUrl = currentUserAvatarUrl ?? profileAvatarUrl;
+
+  const [heroAvatarUrl, setHeroAvatarUrl] = useState<string | null | undefined>(profileOrCurrentUserUrl);
+
   const { pickAndUpload: pickAndUploadAvatar } = useAvatarUpload({
     onSuccess: (result) => {
       setHeroAvatarUrl(result.avatarUrl);
       void refreshProfile();
     },
   });
-  const profileOrCurrentUserUrl = currentUserAvatarUrl ?? profileAvatarUrl;
+
+  // Keep local hero avatar aligned with profile/currentUser, without clobbering any locally set override.
   useEffect(() => {
     setHeroAvatarUrl((prev) => profileOrCurrentUserUrl ?? prev);
   }, [profileOrCurrentUserUrl]);
+
+  // On active table, fetch /me once and update both profile store and hero avatar (server source of truth).
+  const setProfile = useProfileStore((s) => s.setProfile);
   useEffect(() => {
     if (mode !== "active") return;
+
     let cancelled = false;
-    Promise.all([serviceRegistry.get.me(), refreshProfile()]).then(([res]) => {
+    serviceRegistry.get.me().then((res) => {
       if (cancelled || !res.ok || !res.data) return;
+      setProfile(parseProfileFromMe(res.data));
       const url = getAvatarUrlFromMeResponse(res.data);
       setHeroAvatarUrl((prev) => url ?? prev);
     });
-    return () => { cancelled = true; };
-  }, [mode, refreshProfile]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, setProfile]);
+
+  const shareTableUrl = useMemo(() => resolveShareTableUrl(renderModel.tableId), [renderModel.tableId]);
+
   const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
-  const shareTableUrl = resolveShareTableUrl(renderModel.tableId);
+
   const emptyOpponentsState = showEmptyOpponentsState ? (
     <View className="p-4 gap-y-3 mt-2">
       <View className="ui-row rounded-lg border border-border-subtle bg-panel-elevated p-3">
-        <Button title="Add bot" onPress={actions.openAddBotPicker} />
-        <View className="ui-col p-4  flex-1 min-w-0">
+        <Image source={BOT_AVATAR_SOURCE} className="max-w-16 max-h-16 rounded-full" resizeMode="cover" />
+        <View className="ui-col p-4 flex-1 min-w-0 gap-2">
+
           <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
             Share this game URL
           </Text>
-          <Pressable onPress={() => copyShareTableUrl(shareTableUrl)}>
-            <Text numberOfLines={1} ellipsizeMode="tail" selectable className="w-full">
-              {shareTableUrl}
-            </Text>
-          </Pressable>
+
+          <Text numberOfLines={1} ellipsizeMode="tail" selectable className="w-full">
+            {shareTableUrl}
+          </Text>
+
+          <View className="flex-row gap-2">
+          <Button title="Add bot" onPress={actions.openAddBotPicker} />
+          
+            <Button
+              title="Copy URL"
+              onPress={() => copyShareTableUrl(shareTableUrl, showToast)}
+              intent="neutral"
+              size="sm"
+            />
+
+            <IconButton
+              icon={<Icon name="share" size={20} />}
+              intent="ghost"
+              size="md"
+              onPress={() => void shareTable(shareTableUrl)}
+            />
+          </View>
         </View>
       </View>
     </View>
@@ -88,18 +151,13 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
     case "auth_loading":
     case "auth_required":
     case "connecting":
-      return (
-        <StatusTableView
-          mode={mode}
-          scene={scene}
-          renderModel={renderModel}
-          actions={actions}
-        />
-      );
+      return <StatusTableView mode={mode} scene={scene} renderModel={renderModel} actions={actions} />;
+
     case "idle":
+      if (!snapshot) return null;
       return (
         <EmptyTableView
-          snapshot={snapshot!}
+          snapshot={snapshot}
           opponents={renderModel.opponents}
           balanceCents={renderModel.balanceCents}
           tableStatus={scene.tableStatus}
@@ -112,10 +170,12 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           onBackToLobby={actions.closeTableAndReturn}
         />
       );
+
     case "active":
+      if (!snapshot) return null;
       return (
         <ActiveTableView
-          snapshot={snapshot!}
+          snapshot={snapshot}
           opponents={renderModel.opponents}
           balanceCents={renderModel.balanceCents}
           tableStatus={scene.tableStatus}
@@ -133,6 +193,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           onHeroAvatarPress={pickAndUploadAvatar}
         />
       );
+
     default:
       return null;
   }

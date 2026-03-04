@@ -1,6 +1,4 @@
-import { Pressable, View } from "react-native";
-import { Text } from "./Text";
-import { PRESS_OPACITY } from "@/theme/animation";
+import { Button } from "./Button";
 
 export function ConfirmButton({
   title,
@@ -12,15 +10,12 @@ export function ConfirmButton({
   disabled?: boolean;
 }) {
   return (
-    <Pressable
+    <Button
+      title={title}
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => ({ opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
-      className="ui-touch rounded-md bg-brand border-t border-brand-bright/30 px-4 py-3"
-    >
-      <View>
-        <Text variant="body">{title}</Text>
-      </View>
-    </Pressable>
+      intent="primary"
+      size="lg"
+    />
   );
 }

@@ -29,7 +29,7 @@ export function GamePanelPrimaryLine({
       </View>
       {canJoin !== undefined && onJoin && (
         <View className="w-[120px]">
-          <ConfirmButton title={isJoining ? "Joining..." : "Join Table"} onPress={onJoin} disabled={!canJoin || isJoining} />
+          <ConfirmButton title={isJoining ? "Joining..." : "Join Table"} onPress={onJoin} disabled={isJoining} />
         </View>
       )}
     </View>

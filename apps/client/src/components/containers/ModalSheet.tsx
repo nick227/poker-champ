@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Modal, Platform, Pressable, View } from "react-native";
+import { Animated, Modal, Platform, Pressable, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 import { Text } from "@/components/base/Text";
 import { DURATION, PRESS_OPACITY } from "@/theme/animation";
@@ -7,7 +8,6 @@ import { BACKDROP_OVERLAY } from "@/theme/colors";
 import { MODAL } from "@/constants/copy";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 const DEFAULT_HEIGHT_FRACTION = 0.7;
@@ -26,9 +26,14 @@ export function ModalSheet({
   /** Fraction of screen height (0–1), default 0.7 */
   heightFraction?: number;
 }) {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const availableHeight = windowHeight - insets.top - insets.bottom;
+  const sheetHeight = Math.min(Math.round(availableHeight * heightFraction), availableHeight);
+
   const [isExiting, setIsExiting] = useState(false);
   const backdrop = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const slide = useRef(new Animated.Value(0)).current;
   const exitCancelRef = useRef<(() => void) | null>(null);
   const prevVisibleRef = useRef(visible);
 
@@ -44,6 +49,7 @@ export function ModalSheet({
 
   useEffect(() => {
     if (visible && !isExiting) {
+      slide.setValue(sheetHeight);
       Animated.parallel([
         Animated.timing(backdrop, {
           toValue: 1,
@@ -57,7 +63,7 @@ export function ModalSheet({
         }),
       ]).start();
     }
-  }, [visible, isExiting, backdrop, slide]);
+  }, [visible, isExiting, backdrop, slide, sheetHeight]);
 
   const runExit = () => {
     exitCancelRef.current?.();
@@ -69,7 +75,7 @@ export function ModalSheet({
         useNativeDriver: USE_NATIVE_DRIVER,
       }),
       Animated.timing(slide, {
-        toValue: SCREEN_HEIGHT,
+        toValue: sheetHeight,
         duration: DURATION.normal,
         useNativeDriver: USE_NATIVE_DRIVER,
       }),
@@ -91,9 +97,9 @@ export function ModalSheet({
   useEffect(() => {
     if (!visible && !isExiting) {
       backdrop.setValue(0);
-      slide.setValue(SCREEN_HEIGHT);
+      slide.setValue(sheetHeight);
     }
-  }, [visible, isExiting, backdrop, slide]);
+  }, [visible, isExiting, backdrop, slide, sheetHeight]);
 
   const showModal = visible || isExiting;
 
@@ -115,7 +121,11 @@ export function ModalSheet({
           pointerEvents="box-none"
         >
           <Pressable
-            style={{ height: SCREEN_HEIGHT * heightFraction, maxHeight: SCREEN_HEIGHT * heightFraction }}
+            style={{
+              height: sheetHeight,
+              maxHeight: sheetHeight,
+              paddingBottom: insets.bottom,
+            }}
             className="flex flex-col rounded-t-lg bg-panel bottom-sheet"
             onPress={(e) => e.stopPropagation()}
           >

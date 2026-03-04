@@ -200,3 +200,11 @@ Actionable tasks for the studio-quality upgrade. Reference: `UI_UPGRADE_PROPOSAL
 - [x] Board, bank, bet, actions visible in minimized mode
 - [x] Mobile-first: comfortable on phone
 - [x] Consistent dark theme and accent palette
+
+---
+
+## PR Guardrails (Buttons)
+
+- [ ] `Button` instances are layout-neutral; spacing lives on parent containers (`gap-*`, `mt-*`, etc.).
+- [ ] Raw `Pressable` used as a semantic action/button uses `btn-*` classes (no ad-hoc `px/py/bg/rounded` button styling).
+- [ ] Raw `Pressable` is reserved for structural interactions (backdrops, row wrappers, card surfaces) unless there is a clear reason otherwise.

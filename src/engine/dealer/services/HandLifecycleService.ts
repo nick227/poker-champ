@@ -624,6 +624,7 @@ export class HandLifecycleService {
 
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_POST_PAYOUT", true);
       await this.deps.applyDisconnectedAutoActionCapForHand();
+      syncRoundCurrentBetCents(state);
       await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
       this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_DEFENSIVE_PRE_FINALIZE", true);
       this.assertHandResultPayoutsOrThrow(payoutsByUserId, state.potCents, "HAND_END_LAST_STANDING_DEFENSIVE");
@@ -693,6 +694,7 @@ export class HandLifecycleService {
     // Step 3: Assert 100% of the pot is cleared.
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_POST_PAYOUT", true);
     await this.deps.applyDisconnectedAutoActionCapForHand();
+    syncRoundCurrentBetCents(state);
     await this.deps.settlementService.finalizePersistedHand("ALL_FOLDED");
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_PRE_FINALIZE", true);
     this.assertHandResultPayoutsOrThrow(payoutsByUserId, state.potCents, "HAND_END_LAST_STANDING");
@@ -865,6 +867,7 @@ export class HandLifecycleService {
     }
 
     await this.deps.applyDisconnectedAutoActionCapForHand();
+    syncRoundCurrentBetCents(state);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_SHOWDOWN" });
 
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);

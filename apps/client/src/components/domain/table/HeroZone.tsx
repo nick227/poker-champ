@@ -29,6 +29,7 @@ export type HeroZoneProps = {
   isWinner?: boolean;
   isDealer?: boolean;
   isActiveTurn?: boolean;
+  turnCountdownSeconds?: number;
   userName?: string;
   avatarUrl?: string | null;
   onAvatarPress?: () => void;
@@ -83,6 +84,7 @@ export function HeroZone({
   isWinner = false,
   isDealer = false,
   isActiveTurn = false,
+  turnCountdownSeconds,
   userName,
   avatarUrl,
   onAvatarPress,
@@ -115,7 +117,7 @@ export function HeroZone({
       style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, gap: 16 }]}
     >
       {isWinner ? <PotWinRing radius={0} /> : null}
-      {/* Top rail: calculation stats (always rendered to preserve layout height). */}
+      {/* Top rail: calculation stats (always rendered to preserve layout height) and optional turn countdown. */}
       <View style={s.calcStrip}>
         <CalculationsStrip
           equity={equity}
@@ -176,6 +178,24 @@ export function HeroZone({
         ) : null}
 
       </View>
+      
+      {isActiveTurn && typeof turnCountdownSeconds === "number" && turnCountdownSeconds > 0 ? (
+          <View className="p-2">
+            <Text variant="label" className="text-warning text-xl" allowFontScaling={false}>
+              {turnCountdownSeconds}s to act
+            </Text>
+          </View>
+        ) : null}
+        {isSittingOut ? (
+          <View style={s.sittingOutBadge} pointerEvents="none">
+            <View style={s.sittingOutBadgeInner}>
+              <Text variant="label" className="text-white font-medium" allowFontScaling={false}>
+                {TABLE.sittingOut}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
     </View>
   );
 

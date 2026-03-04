@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
+import { IconButton } from "@/components/base/IconButton";
 import { Text } from "@/components/base/Text";
 import { Icon } from "@/components/base/Icons";
 import { formatCents } from "@/lib/format";
@@ -26,12 +27,12 @@ export function TableGameTopBar({
   return (
     <Surface styleId="surface.sim.table.topbar">
       <View className="ui-row items-center ui-inline-3 flex-1">
-        <Pressable
+        <IconButton
+          intent="neutral"
+          size="md"
+          icon={<Icon name="logo" size={18} />}
           onPress={onLogoPress}
-          className="h-11 w-11 rounded-full ui-surface ui-center border border-border-subtle"
-        >
-          <Icon name="logo" size={18} />
-        </Pressable>
+        />
         <View className="flex-1">
           <Text
             variant="body"

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerRoom } from "../rooms/PokerRoom.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
@@ -6,7 +6,29 @@ import { TableSnapshotLogService } from "../engine/persistence/TableSnapshotLogS
 import { RandomBotBrain } from "../engine/bots/BotBrain.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
-vi.setConfig({ testTimeout: 15000 });
+vi.mock("../db/prisma.js", () => {
+  const mockTx = {
+    userAward: { findMany: () => Promise.resolve([]), create: () => Promise.resolve({}), update: () => Promise.resolve({}) },
+    userHandCount: { findMany: () => Promise.resolve([]), update: () => Promise.resolve({}) },
+    awardGrantEvent: { create: () => Promise.resolve({}) },
+    $executeRawUnsafe: () => Promise.resolve(0),
+  };
+  return {
+    getPrisma: () => ({
+      user: { findUnique: () => Promise.resolve(null), findMany: () => Promise.resolve([]) },
+      tableSnapshotLog: { create: () => Promise.resolve({}) },
+      $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx),
+    }),
+    disconnectPrisma: () => Promise.resolve(),
+  };
+});
+
+vi.setConfig({ testTimeout: 20000 });
+
+/** Let async message handlers (e.g. ACTION) run before asserting. */
+function flushAsync() {
+  return new Promise<void>((r) => setTimeout(r, 0));
+}
 
 type FakeClient = {
   sessionId: string;
@@ -95,6 +117,8 @@ describe("table action broadcasting", () => {
         createdAt: Date.now(),
       },
     });
+    // Prevent human turn timeout (40s) from being chained onto the action queue so tests don't block.
+    (room.dealer as { scheduleHumanTurnTimeout?: (userId: string) => void }).scheduleHumanTurnTimeout = () => {};
 
     const clientA = makeClient("sess_a");
     const clientB = makeClient("sess_b");
@@ -136,10 +160,11 @@ async function setupHumanVsBotRoom() {
     // startHand advances dealer to the next active seat; seed so first hand puts action on user_a.
     room.state.dealerSeat = 0;
 
+    (room.dealer as { scheduleHumanTurnTimeout?: (userId: string) => void }).scheduleHumanTurnTimeout = () => {};
     const clientA = makeClient("sess_human");
     await room.onJoin(clientA as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
     room.onMessageEvents.emit("ADD_BOT", clientA as any, { name: "Bot", buyInCents: 5000, botId: "chaos_carl" });
-
+    await flushAsync();
     await waitFor(
       () => getSnapshots(clientA).some((snap) => snap.seats.some((s) => s.isBot)),
       5000,
@@ -163,6 +188,7 @@ async function setupHumanVsBotRoom() {
       const errorCountBefore = wrongClient.sentByType.ERROR?.length ?? 0;
 
       room.onMessageEvents.emit("ACTION", wrongClient as any, { action: "FOLD", actionId: "test-reject-" + Date.now() });
+      await flushAsync();
       await waitFor(() => (wrongClient.sentByType.ERROR?.length ?? 0) > errorCountBefore, 2000, "error message");
 
       const errorCodes = ((wrongClient.sentByType.ERROR ?? []) as any[]).map((e) => e?.code);
@@ -191,7 +217,7 @@ async function setupHumanVsBotRoom() {
       const action = { ...pickLegalAction(actor.latestSnapshot!), actionId: "test-broadcast-" + Date.now() };
 
       room.onMessageEvents.emit("ACTION", actor as any, action);
-
+      await flushAsync();
       await waitFor(
         () =>
           (clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0) > beforeCountA &&

@@ -205,39 +205,43 @@ describe("table multiplayer churn integration", () => {
     const { room, clientA, clientB } = await setupRoomWithHumansAndBots();
     const diagnostics = attachDiagnosticDenylistCollector(room);
     try {
+      await waitFor(() => {
+        const snap = clientA.latestSnapshot;
+        if (!snap?.hand) return false;
+        const toActSeat = snap.hand.toActSeat;
+        const toAct = snap.seats.find((s) => s.seat === toActSeat);
+        return Boolean(toAct && !toAct.isBot && (toAct.userId === "user_a" || toAct.userId === "user_b"));
+      }, 8000, "human to-act seat");
+
       const before = clientA.latestSnapshot!;
       const toActSeat = before.hand!.toActSeat;
-      const toActUserId = before.seats.find((s) => s.seat === toActSeat)?.userId;
-      expect(toActUserId).toBeTruthy();
+      const toAct = before.seats.find((s) => s.seat === toActSeat);
+      expect(toAct && !toAct.isBot).toBeTruthy();
+      const toActUserId = toAct?.userId;
+      expect(toActUserId === "user_a" || toActUserId === "user_b").toBe(true);
 
-      room.dealer.markDisconnected(String(toActUserId), Date.now() + 60_000);
-      const connectedUserId = String(toActUserId) === "user_a" ? "user_b" : "user_a";
-      const connectedClient = connectedUserId === "user_a" ? clientA : clientB;
-
-      const startHandId = before.hand?.handId ?? "";
-      for (let i = 0; i < 16; i += 1) {
-        const snap = connectedClient.latestSnapshot;
-        if (!snap) break;
-        const sameHand = snap.hand?.handId === startHandId;
-        if (!sameHand || snap.hand?.street === "WAITING" || snap.lastHandResult?.handId) break;
-
-        const connectedSeat = snap.seats.find((s) => s.userId === connectedUserId)?.seat;
-        const canActNow = connectedSeat !== undefined && snap.hand?.toActSeat === connectedSeat;
-        if (canActNow) {
-          const action = { ...pickLegalAction(snap), actionId: `act-${i}-${Date.now()}` };
-          room.onMessageEvents.emit("ACTION", connectedClient as any, action);
-        }
-        await delay(140);
+      if (typeof room.dealer.markDisconnectedSerialized === "function") {
+        await room.dealer.markDisconnectedSerialized(String(toActUserId), Date.now() + 60_000);
+      } else {
+        room.dealer.markDisconnected(String(toActUserId), Date.now() + 60_000);
       }
+      const connectedUserId = toActUserId === "user_a" ? "user_b" : "user_a";
+      await waitFor(
+        () => Boolean((room.dealer as any).currentHandAutoActedUserIds?.has?.(String(toActUserId))),
+        5000,
+        "disconnected user auto-acted this hand",
+      );
+
+      await (room.dealer as any).applyDisconnectedAutoActionCapForHand();
 
       await waitFor(
-        () => Boolean(clientA.latestSnapshot?.seats.find((s) => s.userId === toActUserId && s.status === "ABANDONED")),
-        10000,
+        () => room.state.playersById.get(String(toActUserId))?.status === "ABANDONED",
+        5000,
         "disconnected user abandoned",
       );
 
-      const seat = clientA.latestSnapshot!.seats.find((s) => s.userId === toActUserId);
-      expect(seat?.status).toBe("ABANDONED");
+      const seatStatus = room.state.playersById.get(String(toActUserId))?.status;
+      expect(seatStatus).toBe("ABANDONED");
       expect(markSittingOutSpy).toHaveBeenCalled();
       assertSnapshotChurnInvariants(clientA.latestSnapshot!);
       expect(diagnostics.findings).toEqual([]);

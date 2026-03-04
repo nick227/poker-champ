@@ -5,3 +5,7 @@ export const NEXT_HAND_DELAY_MS = 0;
 // Bot \"thinking\" delay configuration (milliseconds)
 export const BOT_ACTION_DELAY_MIN_MS = 0;
 export const BOT_ACTION_DELAY_MAX_MS = 1000;
+
+// Human turn timeout configuration (milliseconds)
+// TURN_TIMEOUT_TOTAL_MS: total time before the server auto-sits-out the actor. Client countdown uses 30s base + 10s countdown.
+export const TURN_TIMEOUT_TOTAL_MS = 40_000;

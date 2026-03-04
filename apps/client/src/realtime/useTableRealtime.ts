@@ -61,7 +61,7 @@ export function useTableRealtime({
         ...(hasValidBuyIn ? { buyInCents: Number(buyInCents) } : {}),
         ...(password ? { password } : {}),
       }) as const,
-    [tableId, buyInCents, hasValidBuyIn, password],
+    [tableId, hasValidBuyIn, buyInCents, password],
   );
 
   // Disconnect any other table session so only one table connection is active (avoids black screen on quick table switch).
@@ -137,30 +137,32 @@ export function useTableRealtime({
     },
   });
 
-  // Update the send ref whenever realtime changes
-  realtimeSendRef.current = realtime.send;
-  realtimeDisconnectRef.current = realtime.disconnect;
-
   useEffect(() => {
     if (roomId && roomId.length > 0) {
-      const current = storeRegistry.tables().roomIdByTableId[tableId];
+      const tables = storeRegistry.tables();
+      const current = tables.roomIdByTableId?.[tableId];
       if (current !== roomId) {
-        storeRegistry.tables().setRoomForTable(tableId, roomId);
+        tables.setRoomForTable(tableId, roomId);
       }
     }
-    debugLog("CONNECT_CONFIG", {
-      tableId,
-      roomId: roomId ?? tableId,
-      enabled,
-      authHydrated,
-      hasValidBuyIn,
-      buyInCents: hasValidBuyIn ? Number(buyInCents) : undefined,
-      hasPassword: Boolean(password),
-    });
+    if (__DEV__) {
+      debugLog("CONNECT_CONFIG", {
+        tableId,
+        roomId: roomId ?? tableId,
+        enabled,
+        authHydrated,
+        hasValidBuyIn,
+        buyInCents: hasValidBuyIn ? Number(buyInCents) : undefined,
+        hasPassword: Boolean(password),
+      });
+    }
   }, [tableId, roomId, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
 
   useEffect(() => {
-    storeRegistry.tables().registerTableSender(tableId, realtimeSendRef.current);
+    realtimeSendRef.current = realtime.send;
+    realtimeDisconnectRef.current = realtime.disconnect;
+
+    storeRegistry.tables().registerTableSender(tableId, realtime.send);
     return () => {
       debugLog("DISPOSE", { tableId });
       storeRegistry.tables().unregisterTableDisconnect(tableId);
@@ -169,5 +171,5 @@ export function useTableRealtime({
       bridgedRoomRef.current = null;
       onReadyRoomRef.current?.(null);
     };
-  }, [tableId]);
+  }, [tableId, realtime.send, realtime.disconnect]);
 }

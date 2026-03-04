@@ -105,7 +105,9 @@ export default function SettingsScreen() {
         <View className="mt-4">
           <AwardsSection />
         </View>
-        <Button title="Logout" variant="danger" onPress={handleLogout} className="mt-4" />
+        <View className="mt-4">
+          <Button title="Logout" variant="danger" onPress={handleLogout} />
+        </View>
         <View className="mt-4 flex flex-col" style={{ height: 420 }}>
           <Text variant="label" className="mb-2">Hand History</Text>
           <View className="flex-1 min-h-0">

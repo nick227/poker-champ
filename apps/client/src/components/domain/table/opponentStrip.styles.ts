@@ -23,6 +23,8 @@ export const opponentStripStyles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: STRIP_HORIZONTAL_PADDING,
     paddingVertical: STRIP_VERTICAL_PADDING,
+    marginTop: 40,
+    marginBottom: 10,
   },
   scrollContent: {
     gap: ROW_GAP,

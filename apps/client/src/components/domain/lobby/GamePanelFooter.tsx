@@ -1,6 +1,7 @@
-import { Animated, Easing, Pressable, View } from "react-native";
+import { Animated, Easing, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { ConfirmButton } from "@/components/base/ConfirmButton";
+import { IconButton } from "@/components/base/IconButton";
 import { useEffect, useRef } from "react";
 
 export function GamePanelFooter({
@@ -40,14 +41,12 @@ export function GamePanelFooter({
         </Text>
       </View>
           {canDelete ? (
-            <Pressable
+            <IconButton
+              icon={<Text variant="body" className="text-sm">🗑️</Text>}
               onPress={onDelete}
-              className="ui-touch rounded-full border border-border !bg-transparent"
-              accessibilityRole="button"
-              accessibilityLabel="Delete table"
-            >
-              <Text variant="body" className="text-sm">🗑️</Text>
-            </Pressable>
+              intent="danger"
+              size="sm"
+            />
           ) : null}
     </View>
   );

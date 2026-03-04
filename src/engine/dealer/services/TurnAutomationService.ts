@@ -76,6 +76,7 @@ export class TurnAutomationService {
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
     enqueueAction: (userId: string, payload: ActionPayload, delayMs?: number) => void;
     getBotDelayMs: () => number;
+    scheduleHumanTurnTimeout?: (userId: string) => void;
     onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
   }) {}
 
@@ -153,7 +154,14 @@ export class TurnAutomationService {
       return;
     }
 
-    if (player.kind !== "BOT" && player.connected) return;
+    if (player.kind !== "BOT" && player.connected) {
+      // Connected human: start (or reuse) a server-side turn timeout for this actor,
+      // but only if they still need action for this turn.
+      if (player.needsAction && this.deps.scheduleHumanTurnTimeout) {
+        this.deps.scheduleHumanTurnTimeout(toActId);
+      }
+      return;
+    }
 
     if (player.kind !== "BOT" && !player.connected) {
       const payload: ActionPayload = options.canCheck ? { action: "CHECK" } : { action: "FOLD" };

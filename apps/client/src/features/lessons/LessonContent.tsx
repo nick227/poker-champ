@@ -195,15 +195,15 @@ function LessonCompletionView({
               </Text>
               <View className="mt-2 flex-row flex-wrap gap-2">
                 {relatedLinks.map((link) => (
-                  <Pressable
+                  <Button
                     key={link.id}
+                    title={getLessonButtonLabel(LESSON_CONTENT_BUTTON_KEYS[link.buttonKey])}
                     onPress={link.onPress}
-                    className="rounded-lg border border-border bg-background px-3 py-2 active:opacity-80"
-                  >
-                    <Text variant="body" className="text-sm text-brand">
-                      {getLessonButtonLabel(LESSON_CONTENT_BUTTON_KEYS[link.buttonKey])}
-                    </Text>
-                  </Pressable>
+                    intent="neutral"
+                    size="sm"
+                    textClassName="text-sm text-brand"
+                    className="min-h-[32px] border-border bg-background px-3 py-2"
+                  />
                 ))}
               </View>
             </View>
@@ -524,11 +524,14 @@ export function LessonContent({
                   )}
                 </View>
 
-                <Pressable onPress={() => setSheetMinimized(true)} className="rounded-full border border-border bg-panel px-3 py-1">
-                  <Text variant="muted" className="text-xs">
-                    {getLessonButtonLabel(LESSON_CONTENT_BUTTON_KEYS.MINIMIZE)}
-                  </Text>
-                </Pressable>
+                <Button
+                  title={getLessonButtonLabel(LESSON_CONTENT_BUTTON_KEYS.MINIMIZE)}
+                  onPress={() => setSheetMinimized(true)}
+                  intent="neutral"
+                  size="sm"
+                  textClassName="text-xs text-muted"
+                  className="min-h-[30px] bg-panel px-3 py-1"
+                />
               </View>
 
               <View className="mx-4 mt-2">

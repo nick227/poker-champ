@@ -210,6 +210,8 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     const normalized = message.toLowerCase();
     if (normalized.includes("room \"") && normalized.includes("\" not found")) return false;
     if (normalized.includes("missing_buy_in_cents")) return false;
+    if (normalized.includes("insufficient_bankroll")) return false;
+    if (normalized.includes("insufficient bankroll")) return false;
     if (normalized.includes("bad_join_options")) return false;
     if (normalized.includes("invalid or expired session")) return false;
     if (normalized.includes("authentication required")) return false;

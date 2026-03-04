@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Dimensions, Modal, Pressable, View } from "react-native";
 import { usePathname } from "expo-router";
+import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
-import { Text } from "@/components/base/Text";
 
 export type TableTopNavMenuProps = {
   chatBadge?: number;
@@ -72,23 +72,50 @@ export function TableTopNavMenu({
               className="min-w-[180px] rounded-lg border border-border-subtle px-2 py-2"
               style={{ backgroundColor: "rgba(20, 24, 30, 0.96)" }}
             >
-              <Pressable onPress={() => runAndClose(onOpenTheme)} className="px-2 py-2">
-                <Text variant="body">Theme</Text>
-              </Pressable>
-              <Pressable onPress={() => runAndClose(onToggleVoice)} className="px-2 py-2">
-                <Text variant="body">Voice chat: {voiceEnabled ? "On" : "Off"}</Text>
-              </Pressable>
-              <Pressable onPress={() => runAndClose(onOpenChat)} className="px-2 py-2">
-                <Text variant="body">Text chat{chatBadge ? ` (${chatBadge})` : ""}</Text>
-              </Pressable>
-              <Pressable onPress={() => runAndClose(onAddBot)} disabled={addBotDisabled} className="px-2 py-2">
-                <Text variant="body" className={addBotDisabled ? "text-text-subtle" : undefined}>
-                  Add bot
-                </Text>
-              </Pressable>
-              <Pressable onPress={() => runAndClose(onLeaveTable)} className="px-2 py-2">
-                <Text variant="body">Leave table</Text>
-              </Pressable>
+              <View className="mb-1">
+                <Button
+                  title="Theme"
+                  onPress={() => runAndClose(onOpenTheme)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title={`Voice chat: ${voiceEnabled ? "On" : "Off"}`}
+                  onPress={() => runAndClose(onToggleVoice)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title={`Text chat${chatBadge ? ` (${chatBadge})` : ""}`}
+                  onPress={() => runAndClose(onOpenChat)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title="Add bot"
+                  onPress={() => runAndClose(onAddBot)}
+                  disabled={addBotDisabled}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <Button
+                title="Leave table"
+                onPress={() => runAndClose(onLeaveTable)}
+                intent="danger"
+                shape="row"
+                size="md"
+              />
             </View>
           </View>
         </Modal>

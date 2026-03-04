@@ -158,7 +158,3 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
 export function getSurfaceDefinition(styleId: SurfaceStyleId): SurfaceDefinition {
   return surfaceRegistry[styleId];
 }
-
-export function getSurfaceContract(styleId: SurfaceStyleId): SurfaceContract {
-  return surfaceRegistry[styleId].contract;
-}

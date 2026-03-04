@@ -101,7 +101,9 @@
     "knip": "knip",
     "madge": "madge --circular --extensions ts,tsx src apps/client/src packages/sdk/src packages/realtime-contract/src",
     "verify": "pnpm sdk:check && pnpm api:shapes:check && pnpm test:client && pnpm test:client:money-safety && pnpm test:server:core && pnpm test:server:soak && pnpm realtime:check && pnpm harness:headless && pnpm ui:no-fetch && pnpm knip && pnpm madge",
-    "verify:ci": "pnpm verify && pnpm test:client:e2e:stack:ci"
+    "verify:ci": "pnpm verify && pnpm test:client:e2e:stack:ci",
+    "test:all": "pnpm verify && pnpm test:voice && pnpm test:client:lessons && pnpm test:server:history && pnpm test:server:churn:matrix && pnpm test:server:churn:integration && pnpm test:server:bot:heatmap:assert && pnpm test:server:bot:heatmap:profiles:assert && pnpm test:server:rejoin && pnpm test:client:e2e:stack:ci && pnpm test:client:e2e:churn && pnpm test:client:e2e:lessons:canonical",
+    "test:all:nightly": "pnpm test:all && pnpm test:server:soak:nightly && pnpm verify:churn:nightly"
   },
   "dependencies": {
     "@colyseus/core": "^0.17.36",

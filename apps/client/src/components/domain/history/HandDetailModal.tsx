@@ -1,4 +1,4 @@
-import { Modal, View, Pressable, ScrollView } from "react-native";
+import { Modal, View, ScrollView } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import type { HandHistoryDetail } from "@/services/history.service";
@@ -69,9 +69,7 @@ export function HandDetailModal({ visible, hand, onClose, currentUserId, onRepla
         {/* Header */}
         <View className="ui-header ui-row items-center justify-between p-4 border-b border-border">
           <Text variant="h1">Hand Details</Text>
-          <Pressable onPress={onClose} className="ui-surface p-2 rounded active:opacity-80">
-            <Text variant="body">Close</Text>
-          </Pressable>
+          <Button title="Close" onPress={onClose} intent="secondary" size="sm" />
         </View>
 
         <ScrollView className="flex-1 p-4">

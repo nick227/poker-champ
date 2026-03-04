@@ -15,6 +15,7 @@ export const ICONS = {
   lock: "🔒",
   theme: "🎨",
   logo: "♠",
+  share: "🔗",
 } as const;
 
 export const SUITS = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;

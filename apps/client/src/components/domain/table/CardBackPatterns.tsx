@@ -3,8 +3,6 @@ import { View } from "react-native";
 import { vars } from "nativewind";
 import type { CardBackPatternId } from "@/assets/cards/cardBackProcedural";
 
-export type CardBackPatternVariant = CardBackPatternId;
-
 /** Parse "H S% L%" and return HSL components. */
 function parseHsl(hsl: string): { h: number; s: number; l: number } {
   const m = hsl.trim().match(/^(\d+)\s+(\d+)%\s+(\d+)%$/);

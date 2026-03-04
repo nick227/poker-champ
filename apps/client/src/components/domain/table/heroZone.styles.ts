@@ -80,4 +80,14 @@ export const heroZoneStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  sittingOutBadge: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sittingOutBadgeInner: {
+    backgroundColor: "hsla(0, 0%, 0%, 0.75)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
 });

@@ -41,7 +41,7 @@ function getStatusLabel(status: Opponent["status"]): string | null {
 
 function OpponentCards({ opponent, packId }: { opponent: Opponent; packId: CardFacePackId }) {
   const { cards } = opponent;
-  if (!cards?.visible) {
+  if (!cards || !cards.visible) {
     return <View style={s.cardPlaceholder} />;
   }
   const left = cards.faceDown

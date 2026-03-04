@@ -60,7 +60,7 @@ import { ActionService, type ActionResult, type ActionServiceLastAction, type Ac
 import { SettlementService } from "./dealer/services/SettlementService.js";
 import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
 import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
-import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS } from "./dealer/timing.js";
+import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS, TURN_TIMEOUT_TOTAL_MS } from "./dealer/timing.js";
 import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
 import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
 import { SessionPlayerStatsTracker } from "./dealer/services/SessionPlayerStatsTracker.js";
@@ -170,6 +170,9 @@ export class Dealer {
   private readonly actionOptionsService = new ActionOptionsService();
   private readonly sessionStatsTracker = new SessionPlayerStatsTracker();
 
+  /** Deduplication key for the currently scheduled human turn timeout (if any). */
+  private pendingHumanTurnTimeoutKey: string | null = null;
+
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
 
@@ -278,6 +281,7 @@ export class Dealer {
         const span = max - min + 1;
         return min + Math.floor(Math.random() * span);
       },
+      scheduleHumanTurnTimeout: (userId) => this.scheduleHumanTurnTimeout(userId),
       onAutoSitOutReachedCap: this.onAutoSitOutReachedCap,
     });
     this.playerLifecycleService = new PlayerLifecycleService({
@@ -1154,6 +1158,65 @@ export class Dealer {
 
   private async applyDisconnectedAutoActionCapForHand() {
     await this.turnAutomationService.applyDisconnectedAutoActionCapForHand();
+  }
+
+  /**
+   * Schedule a human turn timeout for the current actor.
+   *
+   * - Uses the same queued mutation pipeline and turn token concept as auto-actions.
+   * - Dedupes per (handId, street, handActionSeq, toActSeat, toActUserId) so we only
+   *   have one timeout active per logical turn.
+   * - At fire time, re-validates that the token is still current and that the player
+   *   still needs action before auto-sitting them out.
+   */
+  private scheduleHumanTurnTimeout(userId: string): void {
+    const token = this.captureTurnToken(userId);
+    if (!token || !token.handId) return;
+
+    const key = `${token.handId}:${token.street}:${token.handActionSeq}:${token.toActSeat}:${token.toActUserId}`;
+    if (this.pendingHumanTurnTimeoutKey === key) {
+      // Timeout already scheduled for this exact turn snapshot.
+      return;
+    }
+    this.pendingHumanTurnTimeoutKey = key;
+
+    setTimeout(() => {
+      void this.enqueueSerializedStateMutation(async () => {
+        // If a newer timeout has been scheduled, this one is obsolete.
+        if (this.pendingHumanTurnTimeoutKey !== key) return;
+
+        // If the token is now stale (hand/seat advanced), skip.
+        const staleReason = this.getQueuedTurnTokenStaleReason(token);
+        if (staleReason) {
+          if (this.pendingHumanTurnTimeoutKey === key) {
+            this.pendingHumanTurnTimeoutKey = null;
+          }
+          return;
+        }
+
+        const player = this.state.playersById.get(userId);
+        if (
+          !player ||
+          player.kind !== "HUMAN" ||
+          !player.needsAction ||
+          player.seat !== this.state.toActSeat ||
+          player.userId !== token.toActUserId
+        ) {
+          if (this.pendingHumanTurnTimeoutKey === key) {
+            this.pendingHumanTurnTimeoutKey = null;
+          }
+          return;
+        }
+
+        // Auto-sit-out via the existing internal path; this will emit snapshots and
+        // advance the hand/turn as appropriate.
+        await this.setPlayerSittingOutInternal(userId, true);
+
+        if (this.pendingHumanTurnTimeoutKey === key) {
+          this.pendingHumanTurnTimeoutKey = null;
+        }
+      });
+    }, TURN_TIMEOUT_TOTAL_MS);
   }
 
   private enqueueSerializedStateMutation(work: () => Promise<void>): Promise<void> {

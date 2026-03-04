@@ -22,6 +22,26 @@
   --c-brand-soft: 158 35% 18%;
   --c-brand-bright: 158 55% 50%;
 
+  /* ---- Accent (button primary purple) ---- */
+  --accent-purple: 275 80% 58%;
+  --accent-purple-strong: 275 86% 64%;
+
+  /* ---- Button semantic tokens (dark UI) ---- */
+  --btn-primary-bg: 275 80% 58%;
+  --btn-primary-text: 0 0% 100%;
+  --btn-primary-fg: var(--btn-primary-text);
+  --btn-secondary-bg: 220 10% 28%;
+  --btn-secondary-bg-strong: 220 10% 34%;
+  --btn-secondary-text: 0 0% 100%;
+  --btn-secondary-fg: var(--btn-secondary-text);
+  --btn-neutral-bg: 220 12% 18%;
+  --btn-neutral-text: 0 0% 90%;
+  --btn-neutral-fg: var(--btn-neutral-text);
+  --btn-danger-bg: 0 78% 55%;
+  --btn-danger-text: 0 0% 100%;
+  --btn-danger-fg: var(--btn-danger-text);
+  --btn-icon-fg: 0 0% 100%;
+
   /* ---- Highlight (gold) ---- */
   --c-gold: 42 82% 50%;
   --c-gold-soft: 42 45% 28%;

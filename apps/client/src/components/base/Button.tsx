@@ -1,27 +1,77 @@
+import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { Text } from "./Text";
 import { PRESS_OPACITY } from "@/theme/animation";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
-type Variant = "primary" | "ghost" | "danger" | "link";
+type LegacyVariant = "primary" | "ghost" | "danger" | "link";
+export type ButtonIntent = "primary" | "secondary" | "neutral" | "danger" | "ghost";
+export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonShape = "pill" | "row";
 
-const base = "min-h-[48px] px-4 items-center justify-center flex-row gap-2";
-const variants: Record<Variant, string> = {
-  primary: "rounded-full bg-brand border-t border-brand-bright/30",
-  ghost: "rounded-full bg-transparent border border-border",
-  danger: "rounded-full bg-danger border-t border-white/10",
-  link: "rounded-full bg-transparent border border-transparent",
+const INTENT_CLASS: Record<ButtonIntent, string> = {
+  primary: "btn-primary",
+  secondary: "btn-secondary",
+  neutral: "btn-neutral",
+  danger: "btn-danger",
+  ghost: "btn-ghost",
+};
+
+const SELECTED_CLASS: Record<ButtonIntent, string> = {
+  primary: "btn-primary-selected",
+  secondary: "btn-secondary-selected",
+  neutral: "btn-neutral-selected",
+  danger: "",
+  ghost: "",
+};
+
+const INTENT_TEXT_CLASS: Record<ButtonIntent, string> = {
+  primary: "text-btn-primary-text",
+  secondary: "text-btn-secondary-text",
+  neutral: "text-btn-neutral-text",
+  danger: "text-btn-danger-text",
+  ghost: "text-accent-purple",
+};
+
+const SHAPE_SIZE_CLASS: Record<ButtonShape, Record<ButtonSize, string>> = {
+  pill: {
+    sm: "btn-pill-sm",
+    md: "btn-pill-md",
+    lg: "btn-pill-lg",
+  },
+  row: {
+    sm: "btn-row",
+    md: "btn-row",
+    lg: "btn-row",
+  },
 };
 
 const SPINNER_COLOR = "hsl(190 90% 55%)";
+const PRESSED_SCALE = 0.97;
+
+function resolveIntent(intent?: ButtonIntent, variant?: LegacyVariant): ButtonIntent {
+  if (intent) return intent;
+  if (variant === "primary") return "primary";
+  if (variant === "ghost") return "secondary";
+  if (variant === "danger") return "danger";
+  if (variant === "link") return "ghost";
+  return "neutral";
+}
 
 export function Button({
   title,
   onPress,
   disabled,
   loading,
-  variant = "primary",
+  intent,
+  size = "md",
+  shape = "pill",
+  selected = false,
+  variant,
+  leftIcon,
+  rightIcon,
   className = "",
+  textClassName = "",
   minWidth = 0,
   marginRight = 0,
   marginLeft = 0,
@@ -30,13 +80,33 @@ export function Button({
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: Variant;
+  intent?: ButtonIntent;
+  size?: ButtonSize;
+  shape?: ButtonShape;
+  selected?: boolean;
+  /** @deprecated use `intent` */
+  variant?: LegacyVariant;
+  leftIcon?: ReactNode;
+  rightIcon?: ReactNode;
   className?: string;
+  textClassName?: string;
   minWidth?: number;
   marginRight?: number;
   marginLeft?: number;
 }) {
   const isDisabled = disabled || loading;
+  const resolvedIntent = resolveIntent(intent, variant);
+  const resolvedClassName = [
+    "btn",
+    INTENT_CLASS[resolvedIntent],
+    SHAPE_SIZE_CLASS[shape][size],
+    selected ? `btn-selected ${SELECTED_CLASS[resolvedIntent]}` : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const resolvedTextClassName = [INTENT_TEXT_CLASS[resolvedIntent], textClassName].filter(Boolean).join(" ");
+
   const handlePress = () => {
     if (isDisabled) return;
     emitSoundEvent("ui.tap");
@@ -47,13 +117,24 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={isDisabled}
-      style={({ pressed }) => ({ opacity: isDisabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1 })}
-      className={className}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
+      className={resolvedClassName}
+      style={({ pressed }) => [
+        {
+          opacity: isDisabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1,
+          transform: [{ scale: isDisabled ? 1 : pressed ? PRESSED_SCALE : 1 }],
+        },
+        { minWidth, marginRight, marginLeft },
+      ]}
     >
-      <View className={`${base} ${variants[variant]} ${className}`} style={{ minHeight: 44, minWidth: minWidth, marginRight: marginRight, marginLeft: marginLeft }}>
-        <Text numberOfLines={1} variant="body" allowFontScaling={false}>
-        {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : title}
+      <View className="flex-row items-center justify-center gap-2">
+        {leftIcon}
+        {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : null}
+        <Text numberOfLines={1} variant="body" allowFontScaling={false} className={resolvedTextClassName}>
+          {title}
         </Text>
+        {rightIcon}
       </View>
     </Pressable>
   );

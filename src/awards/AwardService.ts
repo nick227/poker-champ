@@ -224,10 +224,18 @@ export class AwardService {
     getSessionState: (userId: string) => HandAwardSessionState
   ): Promise<void> {
     if (dealtUserIds.length === 0) return;
+    const prisma = getPrisma();
+    const existingUsers = await prisma.user.findMany({
+      where: { id: { in: dealtUserIds } },
+      select: { id: true },
+    });
+    const existingIds = new Set(existingUsers.map((u) => u.id));
+    const userIdsToProcess = dealtUserIds.filter((id) => existingIds.has(id));
+    if (userIdsToProcess.length === 0) return;
     try {
-      const { earnedByUserId, handsDealtByUserId } = await this.getEarnedAwardIdsAndHandCounts(dealtUserIds);
+      const { earnedByUserId, handsDealtByUserId } = await this.getEarnedAwardIdsAndHandCounts(userIdsToProcess);
       const { handId } = handSummary;
-      for (const userId of dealtUserIds) {
+      for (const userId of userIdsToProcess) {
         const earnedAwardIds = earnedByUserId.get(userId) ?? new Set();
         const handsBefore = handsDealtByUserId.get(userId) ?? 0;
         const lifetimeHands = handsBefore + 1;

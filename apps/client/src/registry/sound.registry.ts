@@ -29,7 +29,8 @@ export type SoundKey =
   | "slotReelStop"
   | "slotWin"
   | "slotJackpot"
-  | "slotJackpotFanfare";
+  | "slotJackpotFanfare"
+  | "donk";
 
 export type SoundDefinition = {
   asset: number;
@@ -53,6 +54,7 @@ const ACTION_ALL_IN_ASSET = require("../../assets/sounds/action/all-in.wav");
 const NOTIFICATION_TOAST_ASSET = require("../../assets/sounds/notification/toast.wav");
 const NOTIFICATION_ERROR_ASSET = require("../../assets/sounds/notification/error.wav");
 const NOTIFICATION_TABLE_BELL_ASSET = require("../../assets/sounds/notification/table-bell.wav");
+const NOTIFICATION_DONK_ASSET = require("../../assets/sounds/notification/donk.wav");
 const CARD_DEAL_ASSET = require("../../assets/sounds/table/card-deal.wav");
 const TABLE_CARD_FLIP_ASSET = require("../../assets/sounds/table/card-flip.wav");
 const TABLE_CHIP_STACK_ASSET = require("../../assets/sounds/table/chip-stack.wav");
@@ -105,6 +107,7 @@ const SOUND_MAP = {
   slotWin: { asset: SLOT_WIN_ASSET, category: "outcome", cooldownMs: 180, maxInstances: 1 },
   slotJackpot: { asset: SLOT_JACKPOT_ASSET, category: "outcome", cooldownMs: 500, maxInstances: 1 },
   slotJackpotFanfare: { asset: SLOT_JACKPOT_FANFARE_ASSET, category: "outcome", cooldownMs: 3000, maxInstances: 1 },
+  donk: { asset: NOTIFICATION_DONK_ASSET, category: "notification", cooldownMs: 500, maxInstances: 1 },
 } satisfies Record<SoundKey, SoundDefinition>;
 
 export { SOUND_MAP };

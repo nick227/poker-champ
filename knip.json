@@ -29,7 +29,7 @@
     }
   },
   "ignoreUnresolved": ["babel-preset-expo", "expo-router/entry"],
-  "ignoreBinaries": ["eas", "tauri", "playwright"],
+  "ignoreBinaries": ["eas", "playwright"],
   "ignoreDependencies": [
     "@vitest/coverage-v8",
     "expo-updates",

@@ -1,4 +1,6 @@
 import { Modal, Pressable, ScrollView, View } from "react-native";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { MODAL, TABLE } from "@/constants/copy";
@@ -34,9 +36,12 @@ export function ActiveTablesDropdown({
         >
           <View className="ui-row justify-between ui-border-b pb-2">
             <Text variant="h2">{MODAL.activeTables}</Text>
-            <Pressable onPress={onClose} className="ui-touch">
-              <Text variant="muted">✕</Text>
-            </Pressable>
+            <IconButton
+              icon={<Icon name="close" size={16} />}
+              onPress={onClose}
+              intent="neutral"
+              size="sm"
+            />
           </View>
           <ScrollView className="max-h-[60vh]">
             {tables.map((t) => (
@@ -46,13 +51,15 @@ export function ActiveTablesDropdown({
                   onSelectTable(t.id);
                   onClose();
                 }}
-                className={`ui-row justify-between ui-border-b py-3 ${t.isYourTurn ? "border-brand" : ""}`}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: false }}
+                className={`btn btn-neutral btn-row ui-border-b rounded-none ${t.isYourTurn ? "border-brand" : ""}`}
               >
                 <View>
                   <Text variant="body">{t.id.slice(0, 8)}</Text>
                   <Text variant="muted">
                     Pot {formatCents(t.potCents ?? 0)}
-                    {t.betCents != null ? ` • Bet ${formatCents(t.betCents)}` : ""}
+                    {t.betCents != null ? ` | Bet ${formatCents(t.betCents)}` : ""}
                   </Text>
                 </View>
                 <Text variant="body">{formatCents(t.bankCents ?? 0)}</Text>

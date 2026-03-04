@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, ScrollView, Pressable } from "react-native";
+import { View, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
@@ -105,11 +105,19 @@ export default function LobbyScreen() {
 
   const handleStartInstantGame = useCallback(async (presetId: InstantGamePresetId) => {
     if (instantStartInFlightPreset) return;
+
+    const createConfig = buildInstantCreateTableConfig(presetId);
+    if (bankroll < createConfig.minBuyInCents) {
+      useToastStore
+        .getState()
+        .show("Insufficient bankroll for instant game. Deposit or choose a lower-stakes table.", "danger");
+      return;
+    }
+
     setInstantStartInFlightPreset(presetId);
     const unlockTimer = setTimeout(() => setInstantStartInFlightPreset(null), 15000);
 
     try {
-      const createConfig = buildInstantCreateTableConfig(presetId);
       const created = await postCreateInstantGame({ presetId, config: createConfig });
       const tableId = String((created as { tableId?: string })?.tableId ?? "");
       if (!tableId) throw new Error("Failed to create instant game");
@@ -126,7 +134,7 @@ export default function LobbyScreen() {
       clearTimeout(unlockTimer);
       setInstantStartInFlightPreset(null);
     }
-  }, [instantStartInFlightPreset, openTable, refresh, router]);
+  }, [bankroll, instantStartInFlightPreset, openTable, refresh, router]);
 
   const handleJoinApply = useCallback((opts: { buyInCents: number }) => {
     if (!chooseTableModal) return;
@@ -189,19 +197,17 @@ export default function LobbyScreen() {
           <Text variant="body" className="text-foreground flex-1 text-sm">
             You just completed a lesson. Apply it at a table below.
           </Text>
-          <Pressable
+          <Button
+            title="Dismiss"
             onPress={() => setFromLessonDismissed(true)}
-            className="rounded px-2 py-1"
-            hitSlop={8}
-          >
-            <Text variant="caption" className="text-muted">
-              Dismiss
-            </Text>
-          </Pressable>
+            intent="neutral"
+            size="sm"
+            className="min-h-[30px] px-2 py-1"
+            textClassName="text-muted"
+          />
         </View>
       ) : null}
       <ScrollView className="flex-1">
-        <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
         <ReplayQuickLinks
           latestHandId={latestHandId}
           latestHandLoading={latestReplayLoading}
@@ -215,6 +221,9 @@ export default function LobbyScreen() {
           onPokerSchool={() => router.push("/lessons")}
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
+        <View className="flex-1 ui-row gap-3 py-4">
+          <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
+        </View>
         <View className="flex-1 ui-column gap-3 p-4">
           {busy ? (
             Array.from({ length: skeletonCount }).map((_, idx) => (
@@ -251,7 +260,7 @@ export default function LobbyScreen() {
           onClose={() => setChooseTableModal(null)}
           balanceCents={bankroll}
           minBuyInCents={chooseTableModal.minBuyInCents}
-          maxBuyInCents={Math.min(chooseTableModal.maxBuyInCents, bankroll)}
+          maxBuyInCents={chooseTableModal.maxBuyInCents}
           onApply={handleJoinApply}
         />
       )}

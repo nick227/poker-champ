@@ -28,6 +28,7 @@ export function ChooseTableModal({
   onApply,
   title,
 }: ChooseTableModalProps) {
+  const canAffordMin = balanceCents >= minBuyInCents;
   const maxAllowed = Math.min(maxBuyInCents, balanceCents);
   const [buyInCents, setBuyInCents] = useState(minBuyInCents);
   const [buyInAtMax, setBuyInAtMax] = useState(false);
@@ -37,6 +38,7 @@ export function ChooseTableModal({
   }, [buyInAtMax, maxAllowed]);
 
   const handleApply = () => {
+    if (!canAffordMin) return;
     onApply({ buyInCents });
     onClose();
   };
@@ -48,24 +50,32 @@ export function ChooseTableModal({
           <Text variant="label">Your Balance</Text>
           <Text variant="h2" className="text-brand">{formatCents(balanceCents)}</Text>
         </View>
-        <View className="ui-row justify-between">
-          <Text variant="label">Buy-in at max</Text>
-          <Toggle value={buyInAtMax} onValueChange={setBuyInAtMax} />
-        </View>
-        <View>
-          <Text variant="label">Buy-in</Text>
-          <Slider
-            value={buyInCents}
-            min={minBuyInCents}
-            max={maxAllowed}
-            onValueChange={(v) => { setBuyInCents(v); setBuyInAtMax(v >= maxAllowed); }}
-            step={100}
-            disabled={buyInAtMax}
-          />
-        </View>
+        {!canAffordMin ? (
+          <Text variant="body" className="text-danger">
+            Insufficient funds. Minimum buy-in is {formatCents(minBuyInCents)}. Deposit or choose another table.
+          </Text>
+        ) : (
+          <>
+            <View className="ui-row justify-between">
+              <Text variant="label">Buy-in at max</Text>
+              <Toggle value={buyInAtMax} onValueChange={setBuyInAtMax} />
+            </View>
+            <View>
+              <Text variant="label">Buy-in</Text>
+              <Slider
+                value={buyInCents}
+                min={minBuyInCents}
+                max={maxAllowed}
+                onValueChange={(v) => { setBuyInCents(v); setBuyInAtMax(v >= maxAllowed); }}
+                step={100}
+                disabled={buyInAtMax}
+              />
+            </View>
+          </>
+        )}
         <View className="ui-row ui-inline-2">
           <Button variant="ghost" title="Cancel" onPress={onClose} />
-          <Button variant="primary" title="Apply" onPress={handleApply} />
+          <Button variant="primary" title="Apply" onPress={handleApply} disabled={!canAffordMin} />
         </View>
       </View>
     </ModalSheet>

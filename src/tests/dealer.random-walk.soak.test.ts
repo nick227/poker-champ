@@ -120,6 +120,9 @@ describe("dealer random walk soak", () => {
         },
       });
       (dealer as any).scheduleNextHand = () => {};
+      // This soak test drives actions explicitly; with setTimeout mocked to immediate,
+      // turn-timeout automation would preempt the random-walk driver.
+      (dealer as any).scheduleHumanTurnTimeout = () => {};
 
       const optionsService = new ActionOptionsService();
       const handsToPlay = isNightlySoak ? 100 : 5;

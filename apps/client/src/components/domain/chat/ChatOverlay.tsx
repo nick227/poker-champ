@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { View, TextInput, Pressable, ScrollView } from "react-native";
+import { View, TextInput, ScrollView } from "react-native";
+import { Button } from "@/components/base/Button";
+import { IconButton } from "@/components/base/IconButton";
 import { Text } from "@/components/base/Text";
 import { Icon } from "@/components/base/Icons";
 import { ModalSheet } from "@/components/containers/ModalSheet";
@@ -39,9 +41,13 @@ export function ChatOverlay({
         <ScrollView className="max-h-64 ui-stack-2">
           {hasMore ? (
             <View className="items-center mb-2">
-              <Pressable onPress={onLoadOlder} disabled={loadingOlder} className="px-2 py-1">
-                <Text variant="muted">{loadingOlder ? "Loading..." : "Load older"}</Text>
-              </Pressable>
+              <Button
+                title={loadingOlder ? "Loading..." : "Load older"}
+                onPress={onLoadOlder ?? (() => {})}
+                disabled={loadingOlder || !onLoadOlder}
+                intent="ghost"
+                size="sm"
+              />
             </View>
           ) : null}
           {messages.length === 0 ? (
@@ -67,12 +73,15 @@ export function ChatOverlay({
             onSubmitEditing={handleSend}
             className="flex-1 ui-surface px-3 py-2 text-text"
           />
-          <Pressable onPress={handleSend} className="ui-touch rounded-md bg-brand">
-            <Icon name="send" size={18} />
-          </Pressable>
+          <IconButton
+            icon={<Icon name="send" size={18} />}
+            onPress={handleSend}
+            intent="primary"
+            size="md"
+            disabled={!input.trim()}
+          />
         </View>
       </View>
     </ModalSheet>
   );
 }
-
