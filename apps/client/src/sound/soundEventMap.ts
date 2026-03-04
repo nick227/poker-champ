@@ -18,6 +18,7 @@ export const SOUND_EVENT_MAP: Record<SoundEvent, SoundKey> = {
   "table.potWin": "potWin",
   "table.handReveal": "handReveal",
   "table.notificationBell": "tableBell",
+  "table.playerJoined": "playerJoined",
   "table.turnTimeoutWarning": "donk",
   "app.toast": "toast",
   "app.error": "error",

@@ -27,6 +27,7 @@ import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoin
 import { showVoiceErrorToast } from "@/voice/errors";
 import { useOpenTableSync } from "@/components/domain/table/hooks/useOpenTableSync";
 import { useTableConnection } from "@/components/domain/table/hooks/useTableConnection";
+import { usePlayerJoinedSound } from "@/components/domain/table/hooks/usePlayerJoinedSound";
 import { useTablePageStores } from "@/hooks/useTablePageStores";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
@@ -175,6 +176,7 @@ export function useTablePageController({
   });
 
   const { actionMessage, handResultMessage } = useActionMessages(tableId, snapshot);
+  usePlayerJoinedSound(snapshot);
 
   const { sceneMode, tableTopBarFlags } = useTableScene({
     authHydrated,

@@ -23,6 +23,7 @@ export type SoundKey =
   | "handReveal"
   | "toast"
   | "tableBell"
+  | "playerJoined"
   | "error"
   | "slotPull"
   | "slotReelSpin"
@@ -54,6 +55,7 @@ const ACTION_ALL_IN_ASSET = require("../../assets/sounds/action/all-in.wav");
 const NOTIFICATION_TOAST_ASSET = require("../../assets/sounds/notification/toast.wav");
 const NOTIFICATION_ERROR_ASSET = require("../../assets/sounds/notification/error.wav");
 const NOTIFICATION_TABLE_BELL_ASSET = require("../../assets/sounds/notification/table-bell.wav");
+const NOTIFICATION_BELL_ASSET = require("../../assets/sounds/notification/bell.wav");
 const NOTIFICATION_DONK_ASSET = require("../../assets/sounds/notification/donk.wav");
 const CARD_DEAL_ASSET = require("../../assets/sounds/table/card-deal.wav");
 const TABLE_CARD_FLIP_ASSET = require("../../assets/sounds/table/card-flip.wav");
@@ -100,6 +102,7 @@ const SOUND_MAP = {
   handReveal: { asset: OUTCOME_HAND_REVEAL_ASSET, category: "outcome", cooldownMs: 120, maxInstances: 1 },
   toast: { asset: NOTIFICATION_TOAST_ASSET, category: "notification", cooldownMs: 120, maxInstances: 1 },
   tableBell: { asset: NOTIFICATION_TABLE_BELL_ASSET, category: "notification", cooldownMs: 180, maxInstances: 1 },
+  playerJoined: { asset: NOTIFICATION_BELL_ASSET, category: "notification", cooldownMs: 180, maxInstances: 1 },
   error: { asset: NOTIFICATION_ERROR_ASSET, category: "notification", cooldownMs: 200, maxInstances: 1 },
   slotPull: { asset: SLOT_PULL_ASSET, category: "action", cooldownMs: 80, maxInstances: 1 },
   slotReelSpin: { asset: SLOT_REEL_SPIN_ASSET, category: "action", cooldownMs: 120, maxInstances: 1 },
