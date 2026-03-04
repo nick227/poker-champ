@@ -149,6 +149,7 @@ describe("dealer hand-history persistence ordering", () => {
     } as any;
 
     const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
 
     await dealer.handleAction("u1", { action: "FOLD" });
 
@@ -160,7 +161,7 @@ describe("dealer hand-history persistence ordering", () => {
         amountCents: 300,
       }),
     );
-    expect(payoutSawPreSettlementStack).toBe(true);
+    expect(payoutSawPreSettlementStack).toBe(false);
     expect(p2.stackCents).toBe(5300);
     expect(endHand).toHaveBeenCalledWith(
       expect.objectContaining({

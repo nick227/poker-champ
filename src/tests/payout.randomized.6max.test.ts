@@ -86,13 +86,6 @@ function pickRandomWeightedAction(
 describe("payout randomized 6-max accuracy", () => {
   it("matches precalculated payouts across randomized 6-player hands", async () => {
     const rng = mulberry32(602026);
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((handler: TimerHandler) => {
-        if (typeof handler === "function") handler();
-        return 0 as ReturnType<typeof setTimeout>;
-      }) as typeof setTimeout,
-    );
-
     try {
       const state = new PokerState();
       state.tableId = "table_payout_fuzz_6max";
@@ -263,7 +256,7 @@ describe("payout randomized 6-max accuracy", () => {
       expect(raiseOrBetCount).toBeGreaterThan(2);
       expect(showdownHands).toBeGreaterThanOrEqual(1);
     } finally {
-      setTimeoutSpy.mockRestore();
+      // no-op
     }
   }, 180_000);
 });

@@ -20,7 +20,7 @@ function isPlaceholderInstructorMessage(value: string | null | undefined): boole
 }
 
 function getCommunityFallbackRows(step: LessonStep): Array<[string, number]> {
-  if (step.type === "MCQ_STEP") {
+  if (step.type === "MCQ_STEP" && step.options?.length) {
     return step.options.map((option) => [`mcq:${option.optionKey}`, 0]);
   }
   return [
@@ -39,7 +39,9 @@ function mergeCommunityRows(
 ): Array<[string, number]> {
   const merged = new Map<string, number>(getCommunityFallbackRows(step));
   for (const [key, value] of Object.entries(communityComparison?.responseDistribution ?? {})) {
-    merged.set(key, Number.isFinite(value) ? Number(value) : 0);
+    if (!merged.has(key)) continue;
+    const num = Number(value);
+    merged.set(key, Number.isFinite(num) ? num : 0);
   }
   return Array.from(merged.entries());
 }
@@ -49,13 +51,13 @@ function formatCommunityResponseLabel(step: LessonStep, responseKey: string): st
     const actionKey = responseKey.slice(4);
     return ACTION_LABELS[actionKey] ?? actionKey;
   }
-  if (responseKey.startsWith("mcq:")) {
+  if (responseKey.startsWith("mcq:") && step.type === "MCQ_STEP" && step.options) {
     const mcqKey = responseKey.slice(4);
     return (
       step.options.find((option) => option.optionKey.toUpperCase() === mcqKey.toUpperCase())?.label ?? `Option ${mcqKey}`
     );
   }
-  if (step.type === "MCQ_STEP") {
+  if (step.type === "MCQ_STEP" && step.options) {
     return step.options.find((option) => option.optionKey === responseKey)?.label ?? responseKey;
   }
   return ACTION_LABELS[responseKey] ?? responseKey;
@@ -81,67 +83,59 @@ export function LessonInstructorPanel({
       ? (step.followUpInstructorMessage ?? feedback.followUpInstructorMessage)
       : (feedback?.followUpInstructorMessage ?? null);
   const communityRows = mergeCommunityRows(step, communityComparison);
-  const communitySampleSize = communityComparison?.sampleSize ?? 0;
-  const communityMinimumSampleSize = communityComparison?.minimumSampleSize ?? 0;
-  const communityHasSufficientSample = communityComparison?.hasSufficientSample ?? false;
   const userPercentile = communityComparison?.userPercentile ?? null;
 
   return (
-    <View className="mx-4 mt-3">
+    <View className="p-4">
       {step.beforeInstructorMessage ? (
-        <Text variant="muted" className="text-xs">
+        <Text variant="body">
           {step.beforeInstructorMessage}
         </Text>
       ) : null}
-      {feedback ? (
-        <View className="mt-3 rounded-lg border border-border bg-background px-3 py-2">
+      {feedback && !evaluating ? (
+        <View className="mt-3 bg-background p-2">
           <Text
             variant="body"
             className={feedback.gradeBand ? "text-foreground" : feedback.isCorrect ? "text-success" : "text-danger"}
           >
             {feedback.response}
           </Text>
-          {feedback.gradeBand ? (
-            <Text variant="label" className="mt-1.5 text-xs">
-              Grade Band: {feedback.gradeBand}
-            </Text>
-          ) : null}
           {feedback.evBb != null && Number.isFinite(feedback.evBb) ? (
-            <Text variant="label" className="mt-1.5 text-xs">
+            <Text variant="label" className="text-xs">
               {feedback.evBb >= 0 ? "+" : ""}
               {Number(feedback.evBb).toFixed(1)} bb EV
             </Text>
           ) : null}
           {!feedback.gradeBand && !feedback.isCorrect && feedback.takeaway ? (
-            <Text variant="label" className="mt-1.5 text-xs">
+            <Text variant="label" className="text-xs">
               Takeaway: {feedback.takeaway}
             </Text>
           ) : null}
           {feedback.frequencyPerMonth != null && Number.isFinite(feedback.frequencyPerMonth) ? (
-            <Text variant="muted" className="mt-1.5 text-xs">
-              You'll see this node ~{Math.round(feedback.frequencyPerMonth)} times per month.
+            <Text variant="muted" className="text-xs">
+              You'll see this node ~{Math.round(Number(feedback.frequencyPerMonth) || 0)} times per month.
             </Text>
           ) : null}
           {followUpMessage ? (
-            <Text variant="muted" className="mt-1 text-xs">
+            <Text variant="body">
               {followUpMessage}
             </Text>
           ) : null}
 
-          {communityStatus === "loading" || communityStatus === "ready" ? (
-            <View className="mt-2 rounded-lg border border-border bg-panel px-2.5 py-2">
+          {!evaluating && (communityStatus === "loading" || communityStatus === "ready") ? (
+            <View className="mt-2">
               <Text variant="label" className="text-xs">
                 Community
               </Text>
               {userPercentile != null ? (
                 <Text variant="muted" className="mt-1 text-xs">
-                  You are at the {Math.round(userPercentile)}th percentile on this question.
+                  You are at the {Math.round(Number(userPercentile) || 0)}th percentile on this question.
                 </Text>
               ) : null}
-              <View className="mt-1.5 gap-1 flex-row flex-wrap w-full">
+              <View className="gap-1 flex-row flex-wrap w-full py-4">
                 {communityRows.map(([responseKey, pct]) => (
-                  <Text key={responseKey} variant="muted" className="text-xs">
-                    {formatCommunityResponseLabel(step, responseKey)}: {Math.round(pct)}%
+                  <Text key={`${responseKey}-${step.id}`} variant="muted" className="text-xs">
+                    {formatCommunityResponseLabel(step, responseKey)}: {Math.round(Number(pct) || 0)}%
                   </Text>
                 ))}
               </View>
@@ -150,14 +144,14 @@ export function LessonInstructorPanel({
         </View>
       ) : null}
       {evaluating ? (
-        <View className="mt-3 rounded-lg border border-border bg-background px-3 py-2">
+        <View className="py-3 border-t border-border bg-background">
           <Text variant="muted" className="text-xs">
             Evaluating decision...
           </Text>
         </View>
       ) : null}
-      {revealResults.map((reveal) => (
-        <RevealCard key={reveal.key} reveal={reveal} />
+      {revealResults.map((reveal, index) => (
+        <RevealCard key={`reveal-${reveal.key}-${index}`} reveal={reveal} />
       ))}
     </View>
   );

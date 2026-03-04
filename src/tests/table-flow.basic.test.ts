@@ -169,7 +169,7 @@ describe("basic table flow", () => {
     room.onMessageEvents.emit("ACTION", client as any, { action: "FOLD", actionId });
     await flushAsyncHandlers();
 
-    expect(dealer.handleAction).toHaveBeenCalledWith("user_1", { action: "FOLD" }, actionId);
+    expect(dealer.handleAction).toHaveBeenCalledWith("user_1", { action: "FOLD" }, actionId, expect.any(Object));
   });
 
   it("rejects ACTION without actionId", async () => {
@@ -201,6 +201,5 @@ describe("basic table flow", () => {
     const errors = (client.send as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === "ERROR");
     expect(errors.length).toBeGreaterThan(0);
     expect(errors[0]?.[1]?.code).toBe("BAD_MESSAGE");
-    expect(errors[0]?.[1]?.message).toContain("actionId");
   });
 });

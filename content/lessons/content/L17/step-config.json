@@ -1,0 +1,50 @@
+{
+  "lessonId": "L17",
+  "title": "Pot $50, Bet $50",
+  "version": 1,
+  "moduleCode": "MODULE_D",
+  "recommendedOrder": 2,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 5,
+  "steps": [
+    {
+      "id": "L17_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "When villain makes a pot-sized bet (here, $50 into $50), the pot doubles and you're facing a steeper price. The break-even number tells you how often you must win for the call to be neutral. Stronger bets mean you need a stronger hand or a better draw—this spot is tougher than getting 3:1.",
+      "question": "Pot $50, villain bets $50. What break-even equity do you need?",
+      "followUpInstructorMessage": "When ready, continue to the question."
+    },
+    {
+      "id": "L17_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "The pot is $50. Villain bets $50. You must call $50 to continue.",
+      "question": "Pot $50, villain bets $50. What break-even equity do you need to call?",
+      "followUpInstructorMessage": "Review the explanation and continue.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "33",
+        "responseCorrect": "Correct. After villain's bet the pot is $100; you call $50. You're getting 2:1, so you need to win 1 in 3 times (33%) to break even. Tighter price than 3:1—you need more equity to call.",
+        "responseIncorrect": "Not quite. Pot is $50, villain bets $50 (pot is now $100), you call $50. You're getting 100:50 = 2:1, so you need 33% to break even.",
+        "followUpContent": "After villain's $50 bet, the pot is $100. You call $50, so you're putting in 1 for every 2 in the pot—2:1. You need to win 1 in 3 times = 33% to break even. Poker IQ: the bigger the bet you face, the more often you need to win. So you need a stronger hand or a better draw (or implied odds) when the price is 2:1 than when it's 3:1. Memorize the common ones: 3:1 → 25%, 2:1 → 33%, 1:1 (pot-sized) → 50%."
+      },
+      "options": [
+        { "optionKey": "25", "label": "25%", "displayOrder": 1 },
+        { "optionKey": "33", "label": "33%", "displayOrder": 2 },
+        { "optionKey": "40", "label": "40%", "displayOrder": 3 },
+        { "optionKey": "50", "label": "50%", "displayOrder": 4 }
+      ]
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": true
+}

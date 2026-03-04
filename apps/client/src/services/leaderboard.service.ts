@@ -15,9 +15,8 @@ export type LeaderboardEntry = {
   rank: number;
   userId: string;
   displayName: string;
+  avatarUrl?: string;
   value: string;
-  valueNumerator: number;
-  valueDenominator: number | null;
   handCount: number;
 };
 

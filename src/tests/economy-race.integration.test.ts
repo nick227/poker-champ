@@ -56,15 +56,14 @@ describe("Cashier Race Conditions", () => {
 
     const results = await Promise.allSettled([promiseA, promiseB]);
 
-    const successes = results.filter(r => r.status === "fulfilled");
-    const failures = results.filter(r => r.status === "rejected");
+    const fulfilled = results.filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled");
+    const succeeded = fulfilled.filter((r) => r.value?.success === true);
+    const nonSucceeded = results.length - succeeded.length;
 
-    expect(successes.length).toBe(1);
-    expect(failures.length).toBe(1);
-    
-    const failReason = (failures[0] as PromiseRejectedResult).reason.message;
-    console.log("RACE_FAILURE_REASON:", failReason);
-    // ...
+    // Accept both reject-style or success:false-style conflict responses,
+    // but exactly one true buy-in should win the race.
+    expect(succeeded.length).toBe(1);
+    expect(nonSucceeded).toBe(1);
 
     // Verify bankroll is exactly 0
     const prisma = getPrisma();

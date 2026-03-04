@@ -30,7 +30,7 @@ type StepConfigStep = {
 type LessonStepConfig = {
   lessonId: string;
   title: string;
-  moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C";
+  moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C" | "MODULE_D";
   recommendedOrder: number;
   role: "teaches" | "drills" | "tests";
   repeatable: boolean;

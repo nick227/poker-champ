@@ -91,6 +91,7 @@ function normalizeModuleCode(value: string | null | undefined): ModuleCode {
   if (value === "MODULE_A" || value === "A_STOP_BLEEDING_PREFLOP") return "MODULE_A";
   if (value === "MODULE_B" || value === "B_WIN_MORE_FLOPS") return "MODULE_B";
   if (value === "MODULE_C" || value === "C_CLOSE_HAND_PROFITABLY") return "MODULE_C";
+  if (value === "MODULE_D") return "MODULE_D";
   return "MODULE_A";
 }
 
@@ -346,6 +347,7 @@ export function useLessonsPageViewModel() {
       MODULE_A: [],
       MODULE_B: [],
       MODULE_C: [],
+      MODULE_D: [],
     };
     for (const item of catalog) grouped[item.moduleCode].push(item);
     return (Object.keys(grouped) as ModuleCode[])

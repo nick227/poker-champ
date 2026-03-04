@@ -1,133 +1,237 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import express from "express";
+import http from "node:http";
+import { nanoid } from "nanoid";
 import { getPrisma } from "../../db/prisma.js";
+import { handHistoryRouter } from "../HandHistoryRouter.js";
 import { createTestUser, createAuthToken, cleanupTestUsers } from "../../__tests__/testUtils.js";
 
 describe("Hand History Payout Integrity", () => {
-  let prisma = getPrisma();
-  let user: any;
-  let userToken: string;
-  let testHandId: string;
+  const prisma = getPrisma();
+  let server: http.Server;
+  let baseUrl: string;
+
+  let heroUser: { id: string; username: string | null };
+  let villainUser: { id: string; username: string | null };
+  let heroToken: string;
+
+  let tableId: string;
+  let heroPlayerId: string;
+  let villainPlayerId: string;
+  let payoutHandId: string;
+  let zeroPayoutHandId: string;
+
+  async function get(path: string, token: string) {
+    return fetch(`${baseUrl}${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+  }
 
   beforeAll(async () => {
-    // Create test user
-    user = await createTestUser("history-payout");
-    userToken = await createAuthToken(user.id);
-    
-    // Setup would create a test hand with known payouts
-    // For now, we'll use an existing hand or create via game engine
+    const app = express();
+    app.use(express.json());
+    app.use("/api/history", handHistoryRouter);
+
+    await new Promise<void>((resolve) => {
+      server = app.listen(0, () => {
+        const addr = server.address();
+        const port = typeof addr === "object" && addr ? addr.port : 0;
+        baseUrl = `http://127.0.0.1:${port}`;
+        resolve();
+      });
+    });
+
+    heroUser = await createTestUser(`history-payout-hero-${nanoid(6)}`);
+    villainUser = await createTestUser(`history-payout-villain-${nanoid(6)}`);
+    heroToken = await createAuthToken(heroUser.id);
+
+    tableId = `table_${nanoid(8)}`;
+    await prisma.pokerTable.create({
+      data: { id: tableId, name: "History Payout Table", maxSeats: 6 },
+    });
+
+    const heroPlayer = await prisma.pokerPlayer.create({
+      data: {
+        tableId,
+        externalId: heroUser.id,
+        userId: heroUser.id,
+        displayName: heroUser.username ?? "hero",
+        seat: 0,
+      },
+    });
+    heroPlayerId = heroPlayer.id;
+
+    const villainPlayer = await prisma.pokerPlayer.create({
+      data: {
+        tableId,
+        externalId: villainUser.id,
+        userId: villainUser.id,
+        displayName: villainUser.username ?? "villain",
+        seat: 1,
+      },
+    });
+    villainPlayerId = villainPlayer.id;
+
+    payoutHandId = `hand_${nanoid(10)}`;
+    await prisma.hand.create({
+      data: {
+        id: payoutHandId,
+        tableId,
+        dealerSeat: 0,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        endedAt: new Date(),
+        reason: "SHOWDOWN",
+        boardJson: ["Ah", "Kd", "2c", "7s", "9h"],
+        players: {
+          create: [
+            {
+              id: nanoid(),
+              playerId: heroPlayerId,
+              seat: 0,
+              startingStackCents: 5000,
+              endingStackCents: 5600,
+              holeCardsJson: ["As", "Ad"],
+            },
+            {
+              id: nanoid(),
+              playerId: villainPlayerId,
+              seat: 1,
+              startingStackCents: 5000,
+              endingStackCents: 4400,
+              holeCardsJson: ["Kh", "Kd"],
+            },
+          ],
+        },
+      },
+    });
+
+    await prisma.handPayout.createMany({
+      data: [
+        { id: nanoid(), handId: payoutHandId, playerId: heroPlayerId, payoutIndex: 0, amountCents: 600 },
+        { id: nanoid(), handId: payoutHandId, playerId: villainPlayerId, payoutIndex: 1, amountCents: 400 },
+      ],
+    });
+
+    await prisma.balanceTransaction.createMany({
+      data: [
+        {
+          id: nanoid(),
+          tableId,
+          userId: heroUser.id,
+          handId: payoutHandId,
+          amountCents: 600,
+          type: "PAYOUT",
+        },
+        {
+          id: nanoid(),
+          tableId,
+          userId: villainUser.id,
+          handId: payoutHandId,
+          amountCents: 400,
+          type: "PAYOUT",
+        },
+      ],
+    });
+
+    zeroPayoutHandId = `hand_${nanoid(10)}`;
+    await prisma.hand.create({
+      data: {
+        id: zeroPayoutHandId,
+        tableId,
+        dealerSeat: 1,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        endedAt: new Date(),
+        reason: "SHOWDOWN",
+        boardJson: ["2h", "3d", "4c", "5s", "6h"],
+        players: {
+          create: [
+            {
+              id: nanoid(),
+              playerId: heroPlayerId,
+              seat: 0,
+              startingStackCents: 5000,
+              endingStackCents: 5000,
+              holeCardsJson: ["7s", "8s"],
+            },
+            {
+              id: nanoid(),
+              playerId: villainPlayerId,
+              seat: 1,
+              startingStackCents: 5000,
+              endingStackCents: 5000,
+              holeCardsJson: ["9h", "Th"],
+            },
+          ],
+        },
+      },
+    });
   });
 
   afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await prisma.balanceTransaction.deleteMany({ where: { handId: { in: [payoutHandId, zeroPayoutHandId] } } });
+    await prisma.handPayout.deleteMany({ where: { handId: { in: [payoutHandId, zeroPayoutHandId] } } });
+    await prisma.handAction.deleteMany({ where: { handId: { in: [payoutHandId, zeroPayoutHandId] } } });
+    await prisma.handPlayer.deleteMany({ where: { handId: { in: [payoutHandId, zeroPayoutHandId] } } });
+    await prisma.hand.deleteMany({ where: { id: { in: [payoutHandId, zeroPayoutHandId] } } });
+    await prisma.pokerPlayer.deleteMany({ where: { id: { in: [heroPlayerId, villainPlayerId] } } });
+    await prisma.pokerTable.deleteMany({ where: { id: tableId } });
     await cleanupTestUsers();
   });
 
   it("should ensure payout sums match pot integrity", async () => {
-    // For this test, we'll create a dummy hand ID since we're just testing the API structure
-    testHandId = "test-hand-id";
-    
-    const response = await fetch(`http://localhost:3001/api/history/hands/${testHandId}`, {
-      headers: {
-        "Authorization": `Bearer ${userToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
+    const response = await get(`/api/history/hands/${payoutHandId}`, heroToken);
     expect(response.status).toBe(200);
-    
+
     const handDetail = await response.json();
-    
-    // Calculate total payouts
-    const totalPayouts = handDetail.payouts.reduce((sum: number, payout: any) => {
+    const totalPayouts = handDetail.payouts.reduce((sum: number, payout: { amountCents: number }) => {
       return sum + payout.amountCents;
     }, 0);
 
-    // Get pot size from hand actions or calculate from bets
-    // This would need to be calculated from the action sequence
-    // For now, we'll verify the payouts are positive and make sense
-    expect(totalPayouts).toBeGreaterThanOrEqual(0);
-    
-    // Verify each payout is positive
-    handDetail.payouts.forEach((payout: any) => {
+    expect(totalPayouts).toBe(1000);
+    handDetail.payouts.forEach((payout: { amountCents: number; userId: string; displayName: string }) => {
       expect(payout.amountCents).toBeGreaterThan(0);
-      expect(payout.userId).toBeDefined();
-      expect(payout.displayName).toBeDefined();
+      expect(payout.userId).toBeTruthy();
+      expect(payout.displayName).toBeTruthy();
     });
-
-    // Verify payouts match players who won
-    const payoutUserIds = new Set(handDetail.payouts.map((p: any) => p.userId));
-    const winningPlayers = handDetail.players.filter((p: any) => 
-      payoutUserIds.has(p.userId)
-    );
-    
-    expect(winningPlayers.length).toBe(payoutUserIds.size);
   });
 
   it("should maintain payout consistency with SettlementService", async () => {
-    // This test would compare history payouts with SettlementService records
-    // for the same hand to ensure consistency
-    
-    const response = await fetch(`http://localhost:3001/api/history/hands/${testHandId}`, {
-      headers: {
-        "Authorization": `Bearer ${userToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
+    const response = await get(`/api/history/hands/${payoutHandId}`, heroToken);
     expect(response.status).toBe(200);
-    
     const handDetail = await response.json();
-    
-    // Query BalanceTransaction records for this hand
+
     const transactions = await prisma.balanceTransaction.findMany({
-      where: {
-        handId: testHandId,
-        type: "PAYOUT",
-      },
+      where: { handId: payoutHandId, type: "PAYOUT" },
     });
 
-    // Sum transactions
     const transactionTotal = transactions.reduce((sum, tx) => sum + tx.amountCents, 0);
-    
-    // Sum history payouts
-    const historyTotal = handDetail.payouts.reduce((sum: number, payout: any) => 
-      sum + payout.amountCents, 0
-    );
+    const historyTotal = handDetail.payouts.reduce((sum: number, payout: { amountCents: number }) => {
+      return sum + payout.amountCents;
+    }, 0);
 
-    // They should match exactly
     expect(transactionTotal).toBe(historyTotal);
-    
-    // Each payout should have corresponding transaction
-    transactions.forEach(tx => {
-      const matchingPayout = handDetail.payouts.find((p: any) => 
-        p.userId === tx.userId && p.amountCents === tx.amountCents
-      );
+    for (const tx of transactions) {
+      const matchingPayout = handDetail.payouts.find((p: { userId: string; amountCents: number }) => {
+        return p.userId === tx.userId && p.amountCents === tx.amountCents;
+      });
       expect(matchingPayout).toBeDefined();
-    });
+    }
   });
 
   it("should handle zero-payout hands correctly", async () => {
-    // Test hands where no one won (rare edge cases)
-    // This would need a specific test hand setup
-    
-    const response = await fetch(`http://localhost:3001/api/history/hands/${testHandId}`, {
-      headers: {
-        "Authorization": `Bearer ${userToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
+    const response = await get(`/api/history/hands/${zeroPayoutHandId}`, heroToken);
     expect(response.status).toBe(200);
-    
+
     const handDetail = await response.json();
-    
-    // Should handle both cases: empty payouts array or valid payouts
-    if (handDetail.payouts.length === 0) {
-      // If no payouts, ensure this is intentional (e.g., game error)
-      expect(handDetail.reason).toBeDefined();
-    } else {
-      // If payouts exist, they should sum correctly
-      const total = handDetail.payouts.reduce((sum: number, p: any) => sum + p.amountCents, 0);
-      expect(total).toBeGreaterThan(0);
-    }
+    expect(Array.isArray(handDetail.payouts)).toBe(true);
+    expect(handDetail.payouts.length).toBe(0);
+    expect(handDetail.reason).toBeTruthy();
   });
 });

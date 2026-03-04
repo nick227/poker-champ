@@ -198,6 +198,15 @@ export class Dealer {
     getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number }
   ) => Promise<void>;
 
+  // Legacy test compatibility: older tests access dealer.holeCardsByPlayerId directly.
+  // Keep this bridge so tests can seed showdown cards without reaching into HandContext.
+  get holeCardsByPlayerId(): Map<string, string[]> {
+    if (!this.currentHand) {
+      this.currentHand = new HandContext();
+    }
+    return this.currentHand.holeCardsByPlayerId;
+  }
+
   // ---------------------------------------------------------------------------
   // CONSTRUCTOR - SERVICE WIRING & INITIALIZATION
   // ---------------------------------------------------------------------------
@@ -338,6 +347,10 @@ export class Dealer {
   }
   emitSnapshotsToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
     return this.snapshotService.emitToAll(reason, actionId);
+  }
+  // Legacy test compatibility shim: older tests call dealer.buildHeroActionOptions(userId).
+  buildHeroActionOptions(userId: string) {
+    return this.actionOptionsService.buildHeroActionOptions(this.state, userId);
   }
 
   // ---------------------------------------------------------------------------
@@ -505,6 +518,9 @@ export class Dealer {
       })
       .then(async () => {
         try {
+          if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
+            this.currentHand = new HandContext();
+          }
           this.pendingActorRef = actorClient ? { userId, client: actorClient } : null;
           // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
           // If the hand changed in between, sameHand is false and we skip dedup (correct — no record in wrong hand).
@@ -559,12 +575,20 @@ export class Dealer {
     return queued;
   }
 
+  // Legacy test compatibility shim.
+  async recordAcceptedPayout(playerId: string, amountCents: number): Promise<void> {
+    await this.settlementService.recordAcceptedPayout(playerId, amountCents);
+  }
+
   // ---------------------------------------------------------------------------
   // ACTION HANDLING - PRIVATE IMPLEMENTATION
   // ---------------------------------------------------------------------------
   // Core action execution, result application, and preflop statistics
 
   private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
+    if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
+      this.currentHand = new HandContext();
+    }
     const roundBetBefore = this.state.street === "PREFLOP" ? this.state.roundCurrentBetCents : 0;
     const execution = await this.actionService.execute({
       state: this.state,
@@ -1188,15 +1212,8 @@ export class Dealer {
     const toActId = this.state.seats[this.state.toActSeat] ?? "";
     const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
     if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
-      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown();
-        return;
-      }
       const nextSeat = findNextToActSeat(this.state, this.state.toActSeat);
-      if (nextSeat === -1) {
-        await this.advanceStreetOrShowdown();
-        return;
-      }
+      if (nextSeat === -1) return;
       this.state.toActSeat = nextSeat;
       this.maybeActForBot();
     }

@@ -1,0 +1,50 @@
+{
+  "lessonId": "L19",
+  "title": "Flush Draw: Rule of 4",
+  "version": 1,
+  "moduleCode": "MODULE_D",
+  "recommendedOrder": 4,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 5,
+  "steps": [
+    {
+      "id": "L19_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Equity is your chance to win the hand. For draws, we approximate it with outs. The rule of 4: on the flop, with two cards to come, multiply your outs by 4 to get your approximate equity by the river. A flush draw has 9 outs (nine cards of your suit left). Once you know your equity, you compare it to the break-even % from pot odds—if equity is higher, the call can be right.",
+      "question": "What approximate equity does a 9-out flush draw have by the river?",
+      "followUpInstructorMessage": "When ready, continue to the question."
+    },
+    {
+      "id": "L19_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You have a flush draw on the flop (9 outs). You will see both the turn and the river.",
+      "question": "Approximately what is your chance to make the flush by the river?",
+      "followUpInstructorMessage": "Review the explanation and continue.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "36",
+        "responseCorrect": "Correct. 9 outs × 4 = 36% by the river. So if you're getting 3:1 (need 25%), a flush draw has enough equity to call in a vacuum; at 2:1 (33%) it's close; at 1:1 (50%) you need implied odds or a read.",
+        "responseIncorrect": "Not quite. Rule of 4: on the flop with two cards to come, 9 outs × 4 = 36% chance to hit by the river.",
+        "followUpContent": "On the flop with two cards to come: multiply outs by 4. 9 × 4 = 36%. So a flush draw has about 36% equity by the river. Use the rule of 2 when you're facing a bet and only see one more card (e.g. turn): 9 × 2 = 18%. Poker IQ: compare your equity to the break-even % from pot odds. Flush draw (36%) fits well with 3:1 (25% needed) and is marginal at 2:1 (33%); at 50% you need extra value when you hit (implied odds) or a very passive opponent."
+      },
+      "options": [
+        { "optionKey": "18", "label": "18%", "displayOrder": 1 },
+        { "optionKey": "27", "label": "27%", "displayOrder": 2 },
+        { "optionKey": "36", "label": "36%", "displayOrder": 3 },
+        { "optionKey": "45", "label": "45%", "displayOrder": 4 }
+      ]
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": true
+}

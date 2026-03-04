@@ -1,16 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { HandCalculationsCoordinator } from "../engine/odds/HandCalculationsCoordinator.js";
-import { OddsCoordinator } from "../engine/odds/OddsCoordinator.js";
 import { SnapshotService } from "../engine/dealer/services/SnapshotService.js";
+import { PokerState } from "../state/PokerState.js";
+import { PlayerState } from "../state/PlayerState.js";
 
 // Mock the OddsCoordinator to simulate a total failure
 vi.mock("../engine/odds/OddsCoordinator.js", () => {
+  class FailingOddsCoordinator {
+    getEquitySync() {
+      throw new Error("Advisory Math Simulated Failure");
+    }
+  }
   return {
-    OddsCoordinator: vi.fn().mockImplementation(() => ({
-      getEquitySync: () => {
-        throw new Error("Advisory Math Simulated Failure");
-      },
-    })),
+    OddsCoordinator: FailingOddsCoordinator,
   };
 });
 
@@ -44,22 +46,56 @@ describe("Odds Subsystem Independence", () => {
   });
 
   it("should still provide pot odds via SnapshotService even if advisory math fails", async () => {
-    const state: any = {
-      tableId: "t1",
-      handId: "h1",
-      street: "FLOP",
-      board: ["As", "Kd", "Qh"],
-      potCents: 1000,
-      playersById: new Map([
-        ["u1", { id: "u1", seat: 0, status: "ACTIVE", stackCents: 1000, roundBetCents: 0, committedCents: 0 }],
-      ]),
-      seats: ["u1"],
-    };
+    const state = new PokerState();
+    state.tableId = "t1";
+    state.handId = "h1";
+    state.street = "FLOP";
+    state.board = ["As", "Kd", "Qh"];
+    state.potCents = 1000;
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 100;
+    state.maxBuyInCents = 100000;
+    state.seats = ["u1", "u2"];
+    state.toActSeat = 0;
 
+    const hero = new PlayerState();
+    hero.id = "u1";
+    hero.userId = "u1";
+    hero.name = "u1";
+    hero.kind = "HUMAN";
+    hero.seat = 0;
+    hero.status = "ACTIVE";
+    hero.stackCents = 1000;
+    hero.roundBetCents = 0;
+    hero.committedCents = 0;
+    state.playersById.set("u1", hero);
+
+    const villain = new PlayerState();
+    villain.id = "u2";
+    villain.userId = "u2";
+    villain.name = "u2";
+    villain.kind = "HUMAN";
+    villain.seat = 1;
+    villain.status = "ACTIVE";
+    villain.stackCents = 1000;
+    villain.roundBetCents = 0;
+    villain.committedCents = 0;
+    state.playersById.set("u2", villain);
+
+    const client = {
+      send: vi.fn(),
+    } as any;
+    const clientsByUserId = new Map<string, any>([["u1", client]]);
     const snapshotService = new SnapshotService({
       state,
-      clientsByUserId: new Map(),
-      holeCardsByPlayerId: new Map([["u1", ["Ah", "Ad"]]]),
+      clientsByUserId,
+      getHoleCardsByPlayerId: () =>
+        new Map([
+          ["u1", ["Ah", "Ad"]],
+          ["u2", ["Ks", "Kh"]],
+        ]),
       getHeroActionOptions: () => ({ 
         canFold: true, canCheck: false, canCall: true, canBet: false, canRaise: false, canAllIn: false,
         primaryWagerAction: "NONE",
@@ -68,9 +104,8 @@ describe("Odds Subsystem Independence", () => {
       getLastAction: () => undefined,
       getLastHandResult: () => undefined,
     });
-
-    // @ts-ignore - access private buildTableSnapshot for verification
-    const snapshot = snapshotService.buildTableSnapshot("u1", "ACTION_ACCEPTED");
+    await snapshotService.emitToUser("u1", "ACTION_ACCEPTED");
+    const snapshot = client.send.mock.calls.at(-1)?.[1];
 
     // potOddsPct = 250 / (1000 + 250) = 250 / 1250 = 0.2 = 20%
     expect(snapshot.hero.calculations?.potOddsPct).toBe(20);

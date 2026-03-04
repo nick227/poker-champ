@@ -324,6 +324,14 @@ describe("hand-end fold detection regressions", () => {
     const disconnectedUserId = state.seats[state.toActSeat]!;
     await dealer.markDisconnectedSerialized(disconnectedUserId, Date.now() + 60_000);
     await dealer.markReconnectedSerialized(disconnectedUserId);
+    if (state.street === "WAITING") {
+      await dealer.forceAdvanceToNextHandForTest();
+    }
+    const started = Date.now();
+    while (Date.now() - started < 4000) {
+      if (state.street !== "WAITING" && state.seats[state.toActSeat]) break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
 
     const handEndBefore = reasons.filter((r) => r === "HAND_END").length;
     const currentToActUserId = state.seats[state.toActSeat]!;

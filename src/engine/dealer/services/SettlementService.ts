@@ -270,7 +270,7 @@ export class SettlementService {
         `LEDGER_BALANCE_MISMATCH ${dump}`,
       );
     }
-    if (this.deps.persistence.handHistory) {
+    if (typeof this.deps.persistence.handHistory?.recordBlindAction === "function") {
       const nextIndex = this.currentHandActionIndex + 1;
       await this.deps.persistence.handHistory.recordBlindAction({
         tableId: this.deps.state.tableId,
@@ -419,7 +419,7 @@ export class SettlementService {
     meta?: Record<string, unknown>;
   }): Promise<void> {
     const { state, persistence } = this.deps;
-    if (!persistence.enabled || !persistence.handHistory) return;
+    if (!persistence.enabled || typeof persistence.handHistory?.recordAction !== "function") return;
     if (!state.handId) throw new PokerError("BAD_STATE", "Cannot persist action without active handId.");
 
     const nextActionIndex = this.currentHandActionIndex + 1;
@@ -441,7 +441,7 @@ export class SettlementService {
 
   async recordAcceptedPayout(playerId: string, amountCents: number): Promise<void> {
     const { state, persistence } = this.deps;
-    if (!persistence.enabled || !persistence.handHistory) return;
+    if (!persistence.enabled || typeof persistence.handHistory?.recordPayout !== "function") return;
     if (!state.handId) throw new PokerError("BAD_STATE", "Cannot persist payout without active handId.");
 
     const nextPayoutIndex = this.currentHandPayoutIndex + 1;
@@ -578,14 +578,22 @@ export class SettlementService {
       potBefore: potCentsBefore,
       potAfter: this.deps.state.potCents,
     });
-    const persistedNext = await this.deps.persistence.creditRefund({
-      userId: player.id,
-      handId: this.deps.state.handId,
-      amountCents,
-      reason,
-      currentBalance: prevStackCents,
-      player,
-    });
+    const persistedNext = typeof this.deps.persistence.creditRefund === "function"
+      ? await this.deps.persistence.creditRefund({
+          userId: player.id,
+          handId: this.deps.state.handId,
+          amountCents,
+          reason,
+          currentBalance: prevStackCents,
+          player,
+        })
+      : await this.deps.persistence.creditPayout({
+          userId: player.id,
+          handId: this.deps.state.handId,
+          amountCents,
+          currentBalance: prevStackCents,
+          player,
+        });
     if (persistedNext !== next) {
       const dump = this.formatMoneyDump({
         actionType: "REFUND",
@@ -608,7 +616,7 @@ export class SettlementService {
 
   async finalizePersistedHand(reason: "SHOWDOWN" | "ALL_FOLDED"): Promise<void> {
     const { state, persistence } = this.deps;
-    if (!persistence.enabled || !persistence.handHistory) return;
+    if (!persistence.enabled || typeof persistence.handHistory?.endHand !== "function") return;
     if (!state.handId) throw new PokerError("BAD_STATE", "Cannot finalize hand without handId.");
 
     await persistence.handHistory.endHand({

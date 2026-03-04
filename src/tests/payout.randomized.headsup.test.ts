@@ -135,13 +135,6 @@ describe("payout randomized heads-up accuracy", () => {
     let allInCount = 0;
     let showdownCount = 0;
 
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((handler: TimerHandler) => {
-        if (typeof handler === "function") handler();
-        return 0 as ReturnType<typeof setTimeout>;
-      }) as typeof setTimeout,
-    );
-
     try {
       for (let seed = 1; seed <= runs; seed++) {
         const rng = mulberry32(seed);
@@ -221,7 +214,6 @@ describe("payout randomized heads-up accuracy", () => {
         const handResult = (dealer as any).lastHandResult as
           | { reason: "LAST_PLAYER" | "SHOWDOWN"; payoutsByUserId: Record<string, number>; winnerId?: string; board: string[] }
           | undefined;
-        const holeCards = (dealer as any).holeCardsByPlayerId as Map<string, string[]>;
         expect(handResult, `seed=${seed} trace=${trace.join("|")}`).toBeDefined();
 
         const expectedPot = (contributedByUserId.get("u1") ?? 0) + (contributedByUserId.get("u2") ?? 0);
@@ -239,8 +231,8 @@ describe("payout randomized heads-up accuracy", () => {
         } else {
           showdownCount += 1;
           const board = handResult?.board ?? [];
-          const h1 = holeCards.get("u1") ?? [];
-          const h2 = holeCards.get("u2") ?? [];
+          const h1 = (handResult as any)?.showdownHoleCardsByUserId?.u1 ?? [];
+          const h2 = (handResult as any)?.showdownHoleCardsByUserId?.u2 ?? [];
           if (h1.length !== 2 || h2.length !== 2 || board.length !== 5) {
             throw new Error(`Invalid showdown cards seed=${seed} board=${board.join(",")} h1=${h1.join(",")} h2=${h2.join(",")}`);
           }
@@ -289,7 +281,7 @@ describe("payout randomized heads-up accuracy", () => {
         }
       }
     } finally {
-      setTimeoutSpy.mockRestore();
+      // no-op
     }
 
     expect(raiseCount).toBeGreaterThan(4);

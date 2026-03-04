@@ -322,13 +322,39 @@ export class SnapshotService {
 
   private refreshHandCalculationsIfNeeded(): string | null {
     const state = this.deps.state;
-    const handKey = state.handId && state.street !== "WAITING"
-      ? `${state.handId}_${state.street}_${state.toActSeat}_${state.actionCount}`
-      : null;
+    const handKey = this.buildHandCalculationKey();
     if (handKey === this.lastHandKey) return handKey;
     this.lastHandKey = handKey;
     this.updateCurrentHandCalculations();
     return handKey;
+  }
+
+  private buildHandCalculationKey(): string | null {
+    const state = this.deps.state;
+    if (!state.handId || state.street === "WAITING") return null;
+
+    const boardKey = state.board.join(",");
+    const playersKey = [...state.playersById.values()]
+      .sort((a, b) => a.seat - b.seat)
+      .map((p) => `${p.id}:${p.status}:${p.stackCents}:${p.roundBetCents}:${p.committedCents}`)
+      .join("|");
+    const holeCardsKey = [...this.deps.getHoleCardsByPlayerId().entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, cards]) => `${id}:${cards.join(",")}`)
+      .join("|");
+
+    return [
+      state.handId,
+      state.street,
+      state.toActSeat,
+      state.actionCount,
+      state.potCents,
+      state.roundCurrentBetCents,
+      state.minRaiseCents,
+      boardKey,
+      playersKey,
+      holeCardsKey,
+    ].join("_");
   }
 
   private updateCurrentHandCalculations(): void {

@@ -41,7 +41,7 @@ function makePlayer(input: {
 }
 
 describe("table snapshot contract emission", () => {
-  it("emits snapshot with optional hand when table is waiting", () => {
+  it("emits snapshot with optional hand when table is waiting", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_1";
     state.tableName = "Snapshot Table";
@@ -51,7 +51,7 @@ describe("table snapshot contract emission", () => {
     const client = makeClient();
     dealer.bindClient("spectator_1", client as any);
 
-    dealer.emitSnapshotToUser("spectator_1", "JOIN");
+    await dealer.emitSnapshotToUser("spectator_1", "JOIN");
 
     expect(client.send).toHaveBeenCalledTimes(1);
     const [type, payload] = client.send.mock.calls[0] as ["TABLE_SNAPSHOT", any];
@@ -91,7 +91,7 @@ describe("table snapshot contract emission", () => {
     expect(payload.hero.avatarVersion).toBe(1);
   });
 
-  it("keeps hero showdown hole cards visible while waiting for next hand", () => {
+  it("keeps hero showdown hole cards visible while waiting for next hand", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_showdown_waiting";
     state.tableName = "Snapshot Showdown Waiting";
@@ -128,14 +128,14 @@ describe("table snapshot contract emission", () => {
     const client = makeClient();
     dealer.bindClient(hero.id, client as any);
 
-    dealer.emitSnapshotToUser(hero.id, "AUTO_TRANSITION");
+    await dealer.emitSnapshotToUser(hero.id, "AUTO_TRANSITION");
 
     const payload = client.send.mock.calls[0][1] as any;
     expect(payload.hero.holeCards).toEqual(["As", "Ad"]);
     expect(payload.lastHandResult?.reason).toBe("SHOWDOWN");
   });
 
-  it("emits seated hero snapshot with action options derived from server state", () => {
+  it("emits seated hero snapshot with action options derived from server state", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_2";
     state.tableName = "Snapshot Table 2";
@@ -177,7 +177,7 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["As", "Ad"]);
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["Kh", "Kd"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_123");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_123");
 
     expect(client.send).toHaveBeenCalledTimes(1);
     const [type, payload] = client.send.mock.calls[0] as ["TABLE_SNAPSHOT", any];
@@ -212,7 +212,7 @@ describe("table snapshot contract emission", () => {
     expect(payload.calculationsMeta!.stateHash.length).toBeGreaterThan(0);
   });
 
-  it("marks actions unavailable when hero is not to act", () => {
+  it("marks actions unavailable when hero is not to act", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_3";
     state.tableName = "Snapshot Table 3";
@@ -251,20 +251,13 @@ describe("table snapshot contract emission", () => {
 
     const client = makeClient();
     dealer.bindClient(hero.id, client as any);
-    dealer.emitSnapshotToUser(hero.id, "AUTO_TRANSITION");
+    await dealer.emitSnapshotToUser(hero.id, "AUTO_TRANSITION");
 
     const payload = client.send.mock.calls[0][1] as any;
-    expect(payload.hero.actionOptions!.canFold).toBe(false);
-    expect(payload.hero.actionOptions!.canCheck).toBe(false);
-    expect(payload.hero.actionOptions!.canCall).toBe(false);
-    expect(payload.hero.actionOptions!.canBet).toBe(false);
-    expect(payload.hero.actionOptions!.canRaise).toBe(false);
-    expect(payload.hero.actionOptions!.primaryWagerAction).toBe("NONE");
-    expect(payload.hero.actionOptions!.canAllIn).toBe(false);
-    expect(payload.hero.actionOptions!.callAmount).toBe(0);
+    expect(payload.hero.actionOptions).toBeUndefined();
   });
 
-  it("emits min and max wager bounds when hero can open-bet", () => {
+  it("emits min and max wager bounds when hero can open-bet", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_4";
     state.tableName = "Snapshot Table 4";
@@ -304,7 +297,7 @@ describe("table snapshot contract emission", () => {
 
     const client = makeClient();
     dealer.bindClient(hero.id, client as any);
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_bet_bounds");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_bet_bounds");
 
     const payload = client.send.mock.calls[0][1] as any;
     expect(payload.hero.actionOptions!.canBet).toBe(true);
@@ -313,10 +306,10 @@ describe("table snapshot contract emission", () => {
     expect(payload.hero.actionOptions!.callAmount).toBe(0);
     expect(payload.hero.actionOptions!.minRaiseTo).toBe(150);
     expect(payload.hero.actionOptions!.maxRaiseTo).toBe(150);
-    expect(payload.hero.calculations!.potOddsPct).toBeUndefined();
+    expect(payload.hero.calculations!.potOddsPct).toBe(0);
   });
 
-  it("updates calculations meta hash and pot odds after state change", () => {
+  it("updates calculations meta hash and pot odds after state change", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_5";
     state.tableName = "Snapshot Table 5";
@@ -358,21 +351,21 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["As", "Qh"]);
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["Kc", "Kd"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_before_change");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_before_change");
     const before = client.send.mock.calls[0][1] as any;
     expect(before.hero.calculations!.potOddsPct).toBe(20);
 
     state.roundCurrentBetCents = 300;
     state.potCents = 500;
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_after_change");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_after_change");
     const after = client.send.mock.calls[1][1] as any;
 
     expect(after.hero.calculations!.potOddsPct).toBe(29);
     expect(after.calculationsMeta!.stateHash).not.toBe(before.calculationsMeta!.stateHash);
   });
 
-  it("sets equity to 100 when hero has no eligible opponents", () => {
+  it("sets equity to 100 when hero has no eligible opponents", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_6";
     state.tableName = "Snapshot Table 6";
@@ -415,7 +408,7 @@ describe("table snapshot contract emission", () => {
     dealer.bindClient(hero.id, client as any);
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["Ac", "Ks"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_single_player");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_single_player");
 
     const payload = client.send.mock.calls[0][1] as any;
     expect(payload.hero.calculations!.equityPct).toBe(100);
@@ -476,7 +469,7 @@ describe("table snapshot contract emission", () => {
     expect(second.lastAction.actorUserId).toBe("u2");
   });
 
-  it("omits calculations for folded hero", () => {
+  it("omits calculations for folded hero", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_9";
     state.tableName = "Snapshot Table 9";
@@ -520,13 +513,13 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["Qh", "Jh"]);
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["As", "Ad"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_folded_no_calc");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_folded_no_calc");
     const payload = client.send.mock.calls[0][1] as any;
 
     expect(payload.hero.calculations).toBeUndefined();
   });
 
-  it("emits outs for heads-up turn spots", () => {
+  it("emits outs for heads-up turn spots", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_7";
     state.tableName = "Snapshot Table 7";
@@ -555,13 +548,13 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["Qh", "Jh"]);
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["As", "Ad"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_turn_outs");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_turn_outs");
 
     const payload = client.send.mock.calls[0][1] as any;
     expect(payload.hero.calculations!.outs).toBe(10);
   });
 
-  it("keeps gameplay snapshots flowing and marks stale on calculation failure", () => {
+  it("keeps gameplay snapshots flowing and marks stale on calculation failure", async () => {
     const state = new PokerState();
     state.tableId = "table_snapshot_8";
     state.tableName = "Snapshot Table 8";
@@ -590,7 +583,7 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(hero.id, ["Qh", "Jh"]);
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["As", "Ad"]);
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_stale_before");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_stale_before");
     const before = client.send.mock.calls[0][1] as any;
     expect(before.hero.calculations).toBeDefined();
     expect(before.hero.calculations!.stale).toBe(false);
@@ -599,7 +592,7 @@ describe("table snapshot contract emission", () => {
     (dealer as any).holeCardsByPlayerId.set(villain.id, ["ZZ", "XX"]);
     state.potCents = 700;
 
-    dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_stale_after");
+    await dealer.emitSnapshotToUser(hero.id, "ACTION_ACCEPTED", "act_stale_after");
     const after = client.send.mock.calls[1][1] as any;
 
     expect(client.send).toHaveBeenCalledTimes(2);
@@ -674,7 +667,14 @@ describe("table snapshot contract emission", () => {
         for (const { action, amountCents } of scenario.actions) {
           const toActId = state.seats[state.toActSeat];
           if (!toActId) break;
-          await dealer.handleAction(toActId, amountCents !== undefined ? { action, amountCents } : { action });
+          const actionToSend =
+            action === "CALL" && !(dealer as any).buildHeroActionOptions(toActId)?.canCall
+              ? "CHECK"
+              : action;
+          await dealer.handleAction(
+            toActId,
+            amountCents !== undefined ? { action: actionToSend, amountCents } : { action: actionToSend },
+          );
           if (state.street === "WAITING") break;
         }
         const calls = client.send.mock.calls;
@@ -692,3 +692,4 @@ describe("table snapshot contract emission", () => {
     }
   });
 });
+

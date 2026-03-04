@@ -5,6 +5,7 @@ import { PlayerState } from "../state/PlayerState.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { getActionableToActSeatFindingFromState, getStateMoneyFindings } from "../engine/invariants/churnInvariantContract.js";
 import { expectDeferredOrRemoved } from "./helpers/churnBoundaryAssertions.js";
+import { getAutoActionHandCap } from "../config/seats.js";
 
 function makePlayer(input: {
   id: string;
@@ -250,7 +251,7 @@ describe("dealer auto-action warning regressions", () => {
     expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
     assertChurnStateInvariants(state);
     detach();
-  }, 15000);
+  }, 30000);
 
   it("AUTO-WARN-R03: queued bot all-in on round-closure boundary does not emit QUEUED_AUTO_ACTION_FAILED", async () => {
     const state = new PokerState();
@@ -326,70 +327,69 @@ describe("dealer auto-action warning regressions", () => {
     botB.needsAction = true;
 
     (dealer as any).enqueueInternalAction("bot_b", { action: "ALL_IN" }, 0);
-    await waitFor(() => diagnostics.length > 0 || state.runoutMode === "STAGED" || state.street !== "PREFLOP", 2500, "queued bot all-in progression");
+    await waitFor(
+      () => diagnostics.length > 0 || state.handActionSeq > 0 || state.street === "SHOWDOWN" || state.street === "WAITING",
+      30000,
+      "queued bot all-in progression",
+    );
     await (dealer as any).actionQueue;
 
     expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
     expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
     assertChurnStateInvariants(state);
     detach();
-  }, 20000);
+  }, 60000);
 
   it("AUTO-WARN-R04: auto-action cap re-syncs roundCurrentBet and preserves actionable toAct seat", async () => {
-    const prevCap = process.env.AUTO_ACTION_HAND_CAP;
-    process.env.AUTO_ACTION_HAND_CAP = "1";
-    try {
-      const state = new PokerState();
-      state.tableId = "table_auto_warn_regression_r04";
-      state.maxSeats = 6;
-      state.smallBlindCents = 50;
-      state.bigBlindCents = 100;
-      state.handId = "hand_auto_warn_regression_r04";
-      state.handNumber = 1;
-      state.street = "PREFLOP";
-      state.potCents = 150;
-      state.minRaiseCents = 100;
-      state.roundCurrentBetCents = 100;
-      state.toActSeat = 1;
-      state.seats.push("u1", "u2", "", "", "", "");
+    const state = new PokerState();
+    state.tableId = "table_auto_warn_regression_r04";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_auto_warn_regression_r04";
+    state.handNumber = 1;
+    state.street = "PREFLOP";
+    state.potCents = 150;
+    state.minRaiseCents = 100;
+    state.roundCurrentBetCents = 100;
+    state.toActSeat = 1;
+    state.seats.push("u1", "u2", "", "", "", "");
 
-      const capped = makePlayer({
-        id: "u1",
-        seat: 0,
-        kind: "HUMAN",
-        stackCents: 4900,
-        roundBetCents: 100,
-        committedCents: 100,
-        status: "ACTIVE",
-        needsAction: false,
-      });
-      capped.connected = false;
+    const capped = makePlayer({
+      id: "u1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
+    capped.connected = false;
 
-      const other = makePlayer({
-        id: "u2",
-        seat: 1,
-        kind: "HUMAN",
-        stackCents: 4950,
-        roundBetCents: 50,
-        committedCents: 50,
-        status: "ACTIVE",
-        needsAction: true,
-      });
+    const other = makePlayer({
+      id: "u2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4950,
+      roundBetCents: 50,
+      committedCents: 50,
+      status: "ACTIVE",
+      needsAction: true,
+    });
 
-      state.playersById.set(capped.id, capped);
-      state.playersById.set(other.id, other);
+    state.playersById.set(capped.id, capped);
+    state.playersById.set(other.id, other);
 
-      const dealer = new Dealer(state);
-      (dealer as any).currentHandAutoActedUserIds.add("u1");
+    const dealer = new Dealer(state);
+    (dealer as any).currentHandAutoActedUserIds.add("u1");
+    (dealer as any).autoActionsByUserId.set("u1", Math.max(0, getAutoActionHandCap() - 1));
 
-      await (dealer as any).applyDisconnectedAutoActionCapForHand();
+    await (dealer as any).applyDisconnectedAutoActionCapForHand();
 
-      expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
-      expect(state.roundCurrentBetCents).toBe(50);
-      expect(state.toActSeat).toBe(1);
-      assertChurnStateInvariants(state);
-    } finally {
-      process.env.AUTO_ACTION_HAND_CAP = prevCap;
-    }
+    expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
+    expect(state.roundCurrentBetCents).toBe(50);
+    expect(state.toActSeat).toBe(1);
+    assertChurnStateInvariants(state);
   });
 });

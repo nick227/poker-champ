@@ -29,7 +29,7 @@ describe("snapshotMetrics load simulation", () => {
     (CashierService as any).processCashGameCashOut = cashOutSpy;
   });
 
-  it("equityRefreshes ≪ snapshotsEmitted under repeated emits with same hand state", async () => {
+  it("equityRefreshes << snapshotsEmitted under repeated emits with same hand state", async () => {
     (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
     (CashierService as any).processCashGameCashOut = async () => ({ success: true });
 
@@ -64,7 +64,7 @@ describe("snapshotMetrics load simulation", () => {
     const emitCount = 50;
 
     for (let i = 0; i < emitCount; i++) {
-      snapshotService.emitToAll("ACTION_ACCEPTED");
+      await snapshotService.emitToAll("ACTION_ACCEPTED");
     }
 
     expect(snapshotMetrics.snapshotsEmitted).toBe(emitCount * 2);

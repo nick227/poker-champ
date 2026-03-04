@@ -5,7 +5,8 @@ export type LessonRole = "teaches" | "drills" | "tests";
 export type ModuleCode =
   | "MODULE_A"
   | "MODULE_B"
-  | "MODULE_C";
+  | "MODULE_C"
+  | "MODULE_D";
 
 export interface LessonListLessonDto {
   id: string;

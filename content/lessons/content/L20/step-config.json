@@ -1,0 +1,50 @@
+{
+  "lessonId": "L20",
+  "title": "Open-Ended Straight: Rule of 4",
+  "version": 1,
+  "moduleCode": "MODULE_D",
+  "recommendedOrder": 5,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 5,
+  "steps": [
+    {
+      "id": "L20_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "An open-ended straight draw (OESD) has 8 outs—you can hit on either end of the straight. Same idea as the flush draw: use the rule of 4 on the flop (two cards to come). Fewer outs than a flush draw means less equity, so you need better pot odds (or implied odds) to call with an OESD than with a flush draw.",
+      "question": "What approximate equity does an 8-out straight draw have by the river?",
+      "followUpInstructorMessage": "When ready, continue to the question."
+    },
+    {
+      "id": "L20_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You have an open-ended straight draw on the flop (8 outs). You will see both the turn and the river.",
+      "question": "Approximately what is your chance to make the straight by the river?",
+      "followUpInstructorMessage": "Review the explanation and continue.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "32",
+        "responseCorrect": "Correct. 8 outs × 4 = 32% by the river. So an OESD has a bit less equity than a flush draw (36%); you need good pot odds or implied odds to call with it.",
+        "responseIncorrect": "Not quite. Rule of 4: on the flop with two cards to come, 8 outs × 4 = 32% chance to hit by the river.",
+        "followUpContent": "On the flop with two cards to come: 8 outs × 4 = 32%. An open-ended straight draw has 8 outs (four cards on each end of the straight). Use the rule of 2 for one card to come: 8 × 2 = 16%. Poker IQ: OESD (32%) is weaker than a flush draw (36%), so you need at least 3:1 (25% needed) to call in a vacuum, and at 2:1 (33%) you're slightly short—look for implied odds or fold. Knowing both your equity and the break-even % is how you stop calling or folding by feel."
+      },
+      "options": [
+        { "optionKey": "16", "label": "16%", "displayOrder": 1 },
+        { "optionKey": "24", "label": "24%", "displayOrder": 2 },
+        { "optionKey": "32", "label": "32%", "displayOrder": 3 },
+        { "optionKey": "40", "label": "40%", "displayOrder": 4 }
+      ]
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": true
+}

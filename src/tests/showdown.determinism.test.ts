@@ -57,10 +57,10 @@ function makeHarness() {
       finalizePersistedHand: async () => {},
       getCurrentHandPotDisbursedCents: () => disbursedCents,
     } as any,
-    holeCardsByPlayerId,
-    handStartingStacksByPlayerId,
+    getHoleCardsByPlayerId: () => holeCardsByPlayerId,
+    getHandStartingStacksByPlayerId: () => handStartingStacksByPlayerId,
     currentHandAutoActedUserIds,
-    processedActionIds,
+    getProcessedActionIds: () => processedActionIds,
     applyDisconnectedAutoActionCapForHand: async () => {},
     setLastHandResult: (value) => {
       lastHandResult = value as Record<string, unknown>;

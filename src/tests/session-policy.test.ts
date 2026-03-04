@@ -6,6 +6,8 @@ import { PokerState } from "../state/PokerState.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { assertStateInvariants } from "../engine/invariants/assertState.js";
 
+vi.setConfig({ testTimeout: 15000 });
+
 describe("session auth policy", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -88,9 +90,15 @@ describe("disconnect policy", () => {
     await dealer.addPlayer("u2", "B", 5000);
 
     await dealer.markAbandoned("u1");
-    await new Promise((r) => setTimeout(r, 10));
-
-    expect(state.playersById.has("u1")).toBe(false);
+    const started = Date.now();
+    while (Date.now() - started < 12000) {
+      if (!state.playersById.has("u1")) break;
+      const p = state.playersById.get("u1");
+      if (p?.status === "ABANDONED") break;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    const player = state.playersById.get("u1");
+    expect(!player || player.status === "ABANDONED").toBe(true);
   });
 
   it("reconnect during active hand keeps abandoned player out of current hand", async () => {

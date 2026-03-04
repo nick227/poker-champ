@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "snapshotId": "l16_pot_odds",
+  "snapshotSeq": 1,
+  "emittedAtTs": 1772440279689,
+  "serverTimeTs": 1772440279689,
+  "stateHash": "l16_pot_odds_25pct",
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-table",
+    "tableName": "Lesson Table",
+    "creatorId": "system",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 100,
+    "bigBlindCents": 200,
+    "minBuyInCents": 20000,
+    "maxBuyInCents": 200000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "hand_1",
+    "handNumber": 1,
+    "street": "FLOP",
+    "dealerSeat": 1,
+    "sbSeat": 2,
+    "bbSeat": 3,
+    "toActSeat": 1,
+    "actionCount": 3,
+    "roundCurrentBetCents": 5000,
+    "minRaiseCents": 10000,
+    "potCents": 15000,
+    "board": ["Tc", "9d", "2s"]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 20000,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": true,
+      "isToAct": true
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_2",
+      "isBot": false,
+      "name": "Villain",
+      "status": "ACTIVE",
+      "stackCents": 40000,
+      "roundBetCents": 5000,
+      "committedCents": 5000,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 3,
+      "occupied": true,
+      "userId": "user_3",
+      "isBot": false,
+      "name": "Villain2",
+      "status": "WAITING",
+      "stackCents": 35000,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 1,
+    "holeCards": ["Qs", "Js"],
+    "actionOptions": {
+      "canFold": true,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": true,
+      "canAllIn": true,
+      "primaryWagerAction": "RAISE",
+      "callAmount": 5000,
+      "minRaiseTo": 10000,
+      "maxRaiseTo": 20000
+    },
+    "calculations": {
+      "mode": "LIVE_ADVISORY",
+      "stale": false,
+      "equityPct": 32,
+      "potOddsPct": 25,
+      "outs": 8,
+      "updatedAtTs": 1772440279689
+    },
+    "playerStats": {
+      "hands": 120,
+      "vpipPct": 24,
+      "pfrPct": 18
+    }
+  }
+}

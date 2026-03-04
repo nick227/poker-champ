@@ -1,0 +1,50 @@
+{
+  "lessonId": "L16",
+  "title": "Pot Odds Quick Check",
+  "version": 1,
+  "moduleCode": "MODULE_D",
+  "recommendedOrder": 1,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 5,
+  "steps": [
+    {
+      "id": "L16_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Pot odds are the price the pot is offering you: how much you have to call versus how much you can win. Your break-even equity is the win rate you need so that calling is neither profitable nor losing in the long run. If your actual equity is above that number, the call is +EV; if it's below, you're burning money. This drill locks in the math for a classic spot.",
+      "question": "Pot Odds Quick Check: What break-even equity do you need to call?",
+      "followUpInstructorMessage": "When ready, continue to the question."
+    },
+    {
+      "id": "L16_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "The pot is $150. Villain bets $50. You must call $50 to continue.",
+      "question": "Pot $150, villain bets $50. What break-even equity do you need to call?",
+      "followUpInstructorMessage": "Review the explanation and continue.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "25",
+        "responseCorrect": "Correct. You're getting 3:1 on your call—you need to win 1 in 4 times (25%) to break even. Compare that to your hand's equity; if you have more than 25%, the call is profitable.",
+        "responseIncorrect": "Not quite. With $150 in the pot and a $50 call, you're getting 150:50 = 3:1. You need to win 1 in 4 times = 25% to break even.",
+        "followUpContent": "Pot odds: $150 in the pot, you call $50. That's 3:1 (for every $1 you put in, you're playing for $3). So you need to win 1 in 4 times = 25% to break even. In game: before you call, ask \"how often do I need to win?\" Then compare that number to your hand's equity (or your draw's chance to hit). If your equity is higher than the break-even %, calling is +EV; if not, fold unless implied odds change the picture."
+      },
+      "options": [
+        { "optionKey": "25", "label": "25%", "displayOrder": 1 },
+        { "optionKey": "33", "label": "33%", "displayOrder": 2 },
+        { "optionKey": "50", "label": "50%", "displayOrder": 3 },
+        { "optionKey": "67", "label": "67%", "displayOrder": 4 }
+      ]
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": true
+}

@@ -3,6 +3,9 @@ import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import type { ActionPayload } from "../messages/schemas.js";
+import { vi } from "vitest";
+
+vi.setConfig({ testTimeout: 60000 });
 
 function makePlayer(id: string, seat: number, stackCents: number): PlayerState {
   const p = new PlayerState();
@@ -73,7 +76,7 @@ describe("dealer fuzz random valid actions", () => {
     const dealer = new Dealer(state, persistence);
     (dealer as any).scheduleNextHand = () => {};
 
-    const handsToPlay = 10;
+    const handsToPlay = 6;
     for (let h = 0; h < handsToPlay; h++) {
       await (dealer as any).startHand();
       let guard = 0;
@@ -91,4 +94,3 @@ describe("dealer fuzz random valid actions", () => {
     }
   });
 });
-

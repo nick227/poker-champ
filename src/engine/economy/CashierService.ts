@@ -58,24 +58,14 @@ export class CashierService {
          return { success: true, newTableBalance: currentBal?.balanceCents ?? 0 };
       }
 
-      // 2. Refresh User & Check Bankroll
-      const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-      if (user.bankrollCents < amountCents) {
+      // 2. Atomically debit only if bankroll is sufficient. This avoids
+      // double-success races where two concurrent buy-ins read the same balance.
+      const debitResult = await tx.user.updateMany({
+        where: { id: userId, bankrollCents: { gte: amountCents } },
+        data: { bankrollCents: { decrement: amountCents } },
+      });
+      if (debitResult.count !== 1) {
         throw new Error("INSUFFICIENT_BANKROLL");
-      }
-
-      // 3. Debit User
-      try {
-        await tx.user.update({
-          where: { id: userId },
-          data: { bankrollCents: { decrement: amountCents } },
-        });
-      } catch (err: any) {
-        // If the DB check constraint triggers (MySQL error 3819 or P2010/P2002)
-        if (err.message?.includes("check_bankroll_non_negative") || err.code === "P2010" || err.code === "P2002") {
-          throw new Error("INSUFFICIENT_BANKROLL");
-        }
-        throw err;
       }
 
       // 4. Credit/Upsert PlayerBalance

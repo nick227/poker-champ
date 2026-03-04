@@ -35,7 +35,7 @@ type LessonsListResponse = {
     tier?: string | null;
     applyCtaText?: string | null;
     hasAccess?: boolean;
-    moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C";
+    moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C" | "MODULE_D";
     role: "teaches" | "drills" | "tests";
     repeatable: boolean;
     recommendedOrder: number;

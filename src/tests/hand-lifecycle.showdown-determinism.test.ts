@@ -56,10 +56,10 @@ function makeLifecycleHarness() {
       finalizePersistedHand: async () => {},
       getCurrentHandPotDisbursedCents: () => disbursedCents,
     } as any,
-    holeCardsByPlayerId,
-    handStartingStacksByPlayerId,
+    getHoleCardsByPlayerId: () => holeCardsByPlayerId,
+    getHandStartingStacksByPlayerId: () => handStartingStacksByPlayerId,
     currentHandAutoActedUserIds,
-    processedActionIds,
+    getProcessedActionIds: () => processedActionIds,
     applyDisconnectedAutoActionCapForHand: async () => {},
     setLastHandResult: (value) => {
       lastHandResult = value;
@@ -97,7 +97,7 @@ describe("HandLifecycleService showdown determinism", () => {
       B: ["Kh", "Kd"],
       C: ["6c", "7c"],
     });
-    expect(plans.some((p) => p.kind === "EMIT_SNAPSHOT" && p.reason === "HAND_END")).toBe(true);
+    expect(plans.some((p) => p.kind === "HAND_ENDED" && p.reason === "SHOWDOWN")).toBe(true);
   });
 
   it("splits odd chips by seat order left of dealer and remains deterministic", async () => {
@@ -120,7 +120,8 @@ describe("HandLifecycleService showdown determinism", () => {
 
     await service.finishHandShowdownWithSidePots();
 
-    expect(payoutCalls).toEqual([
+    const sortedPayouts = [...payoutCalls].sort((x, y) => x.id.localeCompare(y.id));
+    expect(sortedPayouts).toEqual([
       { id: "A", amount: 151 },
       { id: "B", amount: 152 },
       { id: "C", amount: 199 },

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, View, TouchableOpacity, Text } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
 import { BottomBar } from "@/components/containers/BottomBar";
-import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { Avatar } from "@/components/base/Avatar";
 import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/auth.store";
@@ -41,12 +41,21 @@ function formatComputedAt(input: string | null): string {
 
 function LeaderboardLoadingSkeleton() {
   return (
-    <View className="ui-stack-2">
+    <View className="flex-1">
       {Array.from({ length: 6 }).map((_, index) => (
-        <Surface key={index} styleId="surface.list.row">
-          <View className="ui-row items-center justify-between">
-            <View className="h-4 w-40 rounded bg-border-subtle" />
-            <View className="h-4 w-20 rounded bg-border-subtle" />
+        <Surface key={index} styleId="surface.list.row" className="mb-2">
+          <View className="flex-row items-center h-16 px-4">
+            <View className="w-8 items-end pr-1">
+              <View className="w-4 h-4 bg-gray-600 rounded" />
+            </View>
+            <View className="w-8 h-8 ml-2 bg-gray-600 rounded-full" />
+            <View className="flex-1 ml-4">
+              <View className="h-4 w-32 bg-gray-600 rounded mb-2" />
+              <View className="h-3 w-20 bg-gray-700 rounded" />
+            </View>
+            <View className="min-w-[88px] items-end">
+              <View className="h-4 w-16 bg-gray-600 rounded" />
+            </View>
           </View>
         </Surface>
       ))}
@@ -145,56 +154,82 @@ export default function LeaderboardScreen() {
         />
       </HeaderStack>
 
-      <View className="flex-1 ui-stack-3 m-4">
-
-          <View className="ui-row items-start gap-2 py-1 pr-2 h-[60]">
-            {CATEGORY_OPTIONS.map((option) => {
-              const active = option.key === category;
-              return (
-                <Button
-                  key={option.key}
-                  title={option.label}
-                  onPress={() => setCategory(option.key)}
-                  intent="neutral"
-                  size="sm"
-                  selected={active}
-                  className="min-h-[32px] px-3"
-                  textClassName={active ? "text-text" : "text-muted"}
-                />
-              );
-            })}
-          </View>
+      <View className="flex-1 p-4">
+        <View className="flex-row items-start gap-2 py-2 h-14">
+          {CATEGORY_OPTIONS.map((option) => {
+            const active = option.key === category;
+            return (
+              <Button
+                key={option.key}
+                title={option.label}
+                onPress={() => setCategory(option.key)}
+                intent="neutral"
+                size="sm"
+                selected={active}
+                className="min-h-[32px] px-3"
+                textClassName={active ? "text-text" : "text-muted"}
+              />
+            );
+          })}
+        </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {loading ? (
             <LeaderboardLoadingSkeleton />
           ) : error ? (
-            <Surface styleId="surface.list.panel" className="ui-stack-2">
-              <Text variant="danger">{error}</Text>
+            <Surface styleId="surface.list.panel" className="p-4">
+              <Text className="text-red-400 mb-3">{error}</Text>
               <Button title="Retry" variant="ghost" onPress={() => setRefreshNonce((v) => v + 1)} />
             </Surface>
           ) : entries.length === 0 ? (
-            <Surface styleId="surface.list.panel">
-              <Text variant="muted">
+            <Surface styleId="surface.list.panel" className="p-4">
+              <Text className="text-gray-400 text-center">
                 {computedAt
                   ? "No qualifying players in this period yet. Play some hands to climb the ranks."
                   : "No leaderboard data available yet."}
               </Text>
             </Surface>
           ) : (
-            <View className={`ui-stack-2 pb-4 ${isRefreshing ? "opacity-50" : ""}`}>
+            <View className={`pb-4 ${isRefreshing ? "opacity-50" : ""}`}>
               {entries.map((entry) => (
-                <Surface key={`${entry.rank}-${entry.userId}`} styleId="surface.list.row">
-                  <View className="ui-row items-center justify-between">
-                    <View className="ui-row items-center gap-3">
-                      <Text variant="h2" className="text-base">{entry.rank}</Text>
-                      <View>
-                        <Text variant="body">{entry.displayName}</Text>
-                        <Text variant="muted">{entry.handCount} hands</Text>
-                      </View>
+                <Surface key={entry.userId} styleId="surface.list.row" className="mb-2">
+                  <TouchableOpacity
+                    delayPressIn={50}
+                    className="flex-row items-center h-16 px-4"
+                  >
+                    {/* Rank - Right aligned */}
+                    <View className="w-8 items-end pr-1">
+                      <Text className="text-sm text-gray-300 font-medium">
+                        {entry.rank}
+                      </Text>
                     </View>
-                    <Text variant="body">{entry.value}</Text>
-                  </View>
+
+                    {/* Avatar - 32px with fallback */}
+                    <Avatar
+                      url={entry.avatarUrl}
+                      username={entry.displayName}
+                      size="sm"
+                      className="ml-2"
+                    />
+
+                    {/* Name block - Flexible center */}
+                    <View className="flex-1 ml-4">
+                      <Text className="text-base font-semibold text-white" numberOfLines={1}>
+                        {entry.displayName}
+                      </Text>
+                      <Text className="text-xs text-gray-400 mt-1">
+                        {entry.handCount} hands
+                      </Text>
+                    </View>
+
+                    {/* Amount - Fixed width, tabular numbers */}
+                    <Text
+                      className="min-w-[88px] text-right text-base font-bold text-green-400"
+                      style={{ fontVariant: ["tabular-nums"] }}
+                    >
+                      {entry.value}
+                    </Text>
+                  </TouchableOpacity>
                 </Surface>
               ))}
             </View>

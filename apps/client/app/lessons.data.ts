@@ -76,6 +76,10 @@ export const LESSONS_MODULE_META = {
     title: "Module C",
     promise: "Improving your win-rate.",
   },
+  MODULE_D: {
+    title: "Quick Checks",
+    promise: "Pot odds and poker math.",
+  },
 } as const;
 
 const LESSONS_BUTTON_LABELS: Record<LessonsButtonKey, (context?: LessonsButtonContext) => string> = {

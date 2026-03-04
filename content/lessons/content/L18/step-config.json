@@ -1,0 +1,50 @@
+{
+  "lessonId": "L18",
+  "title": "Call 100 to Win 100",
+  "version": 1,
+  "moduleCode": "MODULE_D",
+  "recommendedOrder": 3,
+  "targetAudience": "serious online players",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 5,
+  "steps": [
+    {
+      "id": "L18_intro",
+      "sequence": 1,
+      "type": "INFO_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "When you have to call an amount equal to the pot (common with all-ins or pot-sized bets), you're putting in half the final pot. So you need to win half the time just to break even—a true coin flip. That means you need a real hand or a very strong draw; marginal calls here are expensive.",
+      "question": "What break-even equity do you need when you call an amount equal to the pot?",
+      "followUpInstructorMessage": "When ready, continue to the question."
+    },
+    {
+      "id": "L18_mcq",
+      "sequence": 2,
+      "type": "MCQ_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/main.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "The pot is $100. You must call $100 to continue (e.g. an all-in or pot-sized call).",
+      "question": "Pot $100, you must call $100. What break-even equity do you need?",
+      "followUpInstructorMessage": "Review the explanation and continue.",
+      "gradingSpecJson": {
+        "type": "MCQ_STEP",
+        "expectedOptionKey": "50",
+        "responseCorrect": "Correct. You're calling $100 to win $100 (the pot). You're putting in half the final pot, so you need to win 50% of the time to break even—a coin flip. Only call with a real edge.",
+        "responseIncorrect": "Not quite. You call $100; the pot is $100, so the final pot is $200. You're putting in half, so you need to win half the time (50%) to break even.",
+        "followUpContent": "Pot $100, you call $100. Final pot is $200 and you contributed half, so you need to win 50% of the time to break even. Poker IQ: at 50% you need a genuine hand or a very strong draw. Don't call \"to see a card\" or with a weak draw here—you're paying maximum price. Save those calls for when you're getting better pot odds (e.g. 3:1 or 2:1)."
+      },
+      "options": [
+        { "optionKey": "33", "label": "33%", "displayOrder": 1 },
+        { "optionKey": "40", "label": "40%", "displayOrder": 2 },
+        { "optionKey": "50", "label": "50%", "displayOrder": 3 },
+        { "optionKey": "67", "label": "67%", "displayOrder": 4 }
+      ]
+    }
+  ],
+  "curriculumVersion": "poker_lessons_full_15_v1",
+  "role": "teaches",
+  "repeatable": true
+}

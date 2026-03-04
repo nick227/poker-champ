@@ -112,7 +112,7 @@ describe("ReplayFrameService", () => {
       where: {
         handId: "hand_123",
         payloadJson: {
-          path: ["hero", "userId"],
+          path: "$.hero.userId",
           equals: "SYSTEM",
         },
       },

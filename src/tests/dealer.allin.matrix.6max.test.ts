@@ -79,6 +79,7 @@ async function runShowdownMatrixScenario(input: {
     potCents += sp.committedCents;
   }
   state.potCents = potCents;
+  state.initialChipMassCents = potCents;
 
   const paidByUserId = new Map<string, number>();
   const persistence = {
@@ -164,69 +165,59 @@ describe("dealer all-in matrix 6-max", () => {
   });
 
   it("keeps toActSeat on ACTIVE players while multiple all-ins occur", async () => {
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((handler: TimerHandler) => {
-        if (typeof handler === "function") handler();
-        return 0 as ReturnType<typeof setTimeout>;
-      }) as typeof setTimeout,
-    );
-    try {
-      const state = baseState("table_toact_active_invariant");
-      for (let i = 0; i < 6; i++) {
-        const id = `u${i + 1}`;
-        state.playersById.set(id, makePlayer({ id, seat: i, stackCents: 1200 + i * 200 }));
-        state.seats[i] = id;
-      }
-
-      const persistence = {
-        enabled: false,
-        handHistory: null,
-        postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
-        debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
-        creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
-        assertHandBalanced: async () => {},
-      } as any;
-
-      const dealer = new Dealer(state, persistence);
-      (dealer as any).scheduleNextHand = () => {};
-      const optionsService = new ActionOptionsService();
-      await (dealer as any).startHand();
-
-      let guard = 0;
-      let allInCount = 0;
-      while (state.street !== "WAITING" && guard < 500) {
-        guard += 1;
-        const toActId = state.seats[state.toActSeat];
-        expect(toActId, "missing toAct seat id").toBeTruthy();
-        const toActPlayer = toActId ? state.playersById.get(toActId) : undefined;
-        expect(toActPlayer?.status).toBe("ACTIVE");
-
-        const options = toActId ? optionsService.buildHeroActionOptions(state, toActId) : undefined;
-        expect(options).toBeTruthy();
-        if (!toActId || !options) break;
-
-        if (options.canAllIn && allInCount < 3) {
-          await dealer.handleAction(toActId, { action: "ALL_IN" });
-          allInCount += 1;
-        } else if (options.canCall) {
-          await dealer.handleAction(toActId, { action: "CALL" });
-        } else if (options.canCheck) {
-          await dealer.handleAction(toActId, { action: "CHECK" });
-        } else if (options.canFold) {
-          await dealer.handleAction(toActId, { action: "FOLD" });
-        } else if (options.canAllIn) {
-          await dealer.handleAction(toActId, { action: "ALL_IN" });
-          allInCount += 1;
-        } else {
-          throw new Error(`No legal action for toAct=${toActId}`);
-        }
-      }
-
-      expect(guard).toBeLessThan(500);
-      expect(allInCount).toBeGreaterThanOrEqual(2);
-      expect(state.street).toBe("WAITING");
-    } finally {
-      setTimeoutSpy.mockRestore();
+    const state = baseState("table_toact_active_invariant");
+    for (let i = 0; i < 6; i++) {
+      const id = `u${i + 1}`;
+      state.playersById.set(id, makePlayer({ id, seat: i, stackCents: 1200 + i * 200 }));
+      state.seats[i] = id;
     }
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
+    const optionsService = new ActionOptionsService();
+    await (dealer as any).startHand();
+
+    let guard = 0;
+    let allInCount = 0;
+    while (state.street !== "WAITING" && guard < 500) {
+      guard += 1;
+      const toActId = state.seats[state.toActSeat];
+      expect(toActId, "missing toAct seat id").toBeTruthy();
+      const toActPlayer = toActId ? state.playersById.get(toActId) : undefined;
+      expect(toActPlayer?.status).toBe("ACTIVE");
+
+      const options = toActId ? optionsService.buildHeroActionOptions(state, toActId) : undefined;
+      expect(options).toBeTruthy();
+      if (!toActId || !options) break;
+
+      if (options.canAllIn && allInCount < 3) {
+        await dealer.handleAction(toActId, { action: "ALL_IN" });
+        allInCount += 1;
+      } else if (options.canCall) {
+        await dealer.handleAction(toActId, { action: "CALL" });
+      } else if (options.canCheck) {
+        await dealer.handleAction(toActId, { action: "CHECK" });
+      } else if (options.canFold) {
+        await dealer.handleAction(toActId, { action: "FOLD" });
+      } else if (options.canAllIn) {
+        await dealer.handleAction(toActId, { action: "ALL_IN" });
+        allInCount += 1;
+      } else {
+        throw new Error(`No legal action for toAct=${toActId}`);
+      }
+    }
+
+    expect(guard).toBeLessThan(500);
+    expect(allInCount).toBeGreaterThanOrEqual(2);
+    expect(state.street).toBe("WAITING");
   }, 120_000);
 });

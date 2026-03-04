@@ -29,6 +29,7 @@ function normalizeModuleCode(value: string | null | undefined): LessonListLesson
   if (value === "MODULE_A" || value === "A_STOP_BLEEDING_PREFLOP") return "MODULE_A";
   if (value === "MODULE_B" || value === "B_WIN_MORE_FLOPS") return "MODULE_B";
   if (value === "MODULE_C" || value === "C_CLOSE_HAND_PROFITABLY") return "MODULE_C";
+  if (value === "MODULE_D") return "MODULE_D";
   return "MODULE_A";
 }
 
