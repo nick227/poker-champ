@@ -1,5 +1,5 @@
 import "./global.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,11 +10,23 @@ import { storeRegistry } from "@/registry/store.registry";
 import { LobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 
 export default function RootLayout() {
+  const [iconsReady, setIconsReady] = useState(false);
+
   useEffect(() => {
-    void Ionicons.loadFont();
+    let isMounted = true;
+    void Ionicons.loadFont().finally(() => {
+      if (isMounted) {
+        setIconsReady(true);
+      }
+    });
     storeRegistry.tables().pruneExpiredTables();
     void bootstrapSdk();
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  if (!iconsReady) return null;
 
   return (
     <AppShell>
