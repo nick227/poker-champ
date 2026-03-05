@@ -4,14 +4,12 @@ import { PlayingCard } from "./PlayingCard";
 import type { UiCard } from "./table.adapter";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import {
-  COMMUNITY_BOARD_HEIGHT,
   COMMUNITY_CARD_GAP_DESKTOP,
   COMMUNITY_CARD_GAP_MOBILE,
   COMMUNITY_CARD_SCALE,
-  COMMUNITY_BOARD_HEIGHT_LANDSCAPE,
   COMMUNITY_CARD_SCALE_LANDSCAPE,
-} from "./constants/components/communityBoard.layout";
-import { FeltBackground } from "./FeltBackground";
+} from "./constants/tableLayout.constants";
+import { BASE_CARD_HEIGHT } from "./constants/cardDimensions.constants";
 
 function useOrientation() {
   const { width, height } = useWindowDimensions();
@@ -21,53 +19,40 @@ function useOrientation() {
 /** Stable keys for 5 community card slots. */
 const COMMUNITY_CARD_KEYS = ["flop1", "flop2", "flop3", "turn", "river"] as const;
 
-export function CommunityBoard({ cards, potCents }: { cards: UiCard[]; potCents: number }) {
+export function CommunityBoard({ cards }: { cards: UiCard[] }) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const orientation = useOrientation();
 
-  const communityBoardHeight = orientation === "landscape" ? COMMUNITY_BOARD_HEIGHT_LANDSCAPE : COMMUNITY_BOARD_HEIGHT;
   const communityCardScale = orientation === "landscape" ? COMMUNITY_CARD_SCALE_LANDSCAPE : COMMUNITY_CARD_SCALE;
+  /** Row height must match scaled card height so the container flexes correctly and centers. */
+  const communityBoardHeight = Math.round(BASE_CARD_HEIGHT * communityCardScale);
 
   const isMobile = useIsMobile();
   const communityCardGap = isMobile ? COMMUNITY_CARD_GAP_MOBILE : COMMUNITY_CARD_GAP_DESKTOP;
 
   return (
-    <FeltBackground
-      className="justify-center rounded-sm felt-container mx-4"
-      style={{ flexDirection: "column", height: communityBoardHeight }}
+    <View
+      collapsable={false}
+      className="ui-row ui-center"
+      style={{
+        gap: communityCardGap,
+        alignItems: "center",
+        justifyContent: "center",
+        height: communityBoardHeight,
+      }}
     >
-      <View
-        collapsable={false}
-        className="ui-stack-4"
-        style={{
-          flexDirection: "column",
-          flexGrow: 0,
-          flexShrink: 0,
-        }}
-      >
-        <View
-          collapsable={false}
-          className="ui-row ui-center"
-          style={{
-            gap: communityCardGap,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {cards.map((c, i) => {
-            const key = COMMUNITY_CARD_KEYS[i] ?? `card-${i}`;
-            return c ? (
-              <View key={key} style={{ transform: [{ scale: communityCardScale }] }}>
-                <PlayingCard rank={c.rank} suit={c.suit} packId={cardFacePackId} />
-              </View>
-            ) : (
-              <View key={key} style={{ transform: [{ scale: communityCardScale }] }}>
-                <PlayingCard faceDown />
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    </FeltBackground>
+      {cards.map((c, i) => {
+        const key = COMMUNITY_CARD_KEYS[i] ?? `card-${i}`;
+        return c ? (
+          <View key={key} style={{ transform: [{ scale: communityCardScale }] }}>
+            <PlayingCard rank={c.rank} suit={c.suit} packId={cardFacePackId} />
+          </View>
+        ) : (
+          <View key={key} style={{ transform: [{ scale: communityCardScale }] }}>
+            <PlayingCard faceDown />
+          </View>
+        );
+      })}
+    </View>
   );
 }

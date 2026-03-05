@@ -27,7 +27,14 @@ function deriveMessage(
   }
   if (hand && actionMessage) return actionMessage;
   if (hand) return `${hand.street} - Pot ${formatCents(hand.potCents)}`;
-  return tableStatus ? `${TABLE.waitingForHandStatus}${tableStatus}` : TABLE.waitingForHand;
+
+  // For a healthy connected table, show the generic "waiting for next hand" copy.
+  if (!tableStatus || tableStatus === "CONNECTED") {
+    return TABLE.waitingForHand;
+  }
+
+  // For other states (e.g. restoring session, errors), keep the prefixed status line.
+  return `${TABLE.waitingForHandStatus}${tableStatus}`;
 }
 
 export type DealerAnnounceBarProps = {

@@ -10,8 +10,8 @@ import {
   ACTION_BAR_HEIGHT,
   HERO_ZONE_HEIGHT,
   DEALER_BAR_HEIGHT,
+  BOARD_AREA_HEIGHT,
 } from "./constants/tableLayout.constants";
-import { COMMUNITY_BOARD_HEIGHT } from "./constants/components/communityBoard.layout";
 
 export const layoutStyles = StyleSheet.create({
   root: {
@@ -54,8 +54,8 @@ export const layoutStyles = StyleSheet.create({
   },
   feltArea: {
     width: "100%",
-    height: COMMUNITY_BOARD_HEIGHT,
-    minHeight: COMMUNITY_BOARD_HEIGHT,
+    height: BOARD_AREA_HEIGHT,
+    minHeight: BOARD_AREA_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
   },

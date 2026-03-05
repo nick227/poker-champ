@@ -41,7 +41,7 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
       <ImageBackground
         source={imageSource}
         resizeMode="cover"
-        style={[{ flex: 1 }, style]}
+        style={[{ width: "100%", alignSelf: "stretch" }, style]}
         className={className}
         imageStyle={{ flex: 1 }}
       >
@@ -67,7 +67,7 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
   return (
     <View
       collapsable={false}
-      style={[resolvedStyle, style]}
+      style={[{ width: "100%", alignSelf: "stretch" }, resolvedStyle, style]}
       className={className}
     >
       {children}
