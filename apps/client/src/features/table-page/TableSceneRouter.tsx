@@ -154,7 +154,9 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       return <StatusTableView mode={mode} scene={scene} renderModel={renderModel} actions={actions} />;
 
     case "idle":
-      if (!snapshot) return null;
+      if (!snapshot) {
+        return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
+      }
       return (
         <EmptyTableView
           snapshot={snapshot}
@@ -172,7 +174,9 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       );
 
     case "active":
-      if (!snapshot) return null;
+      if (!snapshot) {
+        return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
+      }
       return (
         <ActiveTableView
           snapshot={snapshot}
@@ -195,6 +199,6 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       );
 
     default:
-      return null;
+      return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
   }
 }

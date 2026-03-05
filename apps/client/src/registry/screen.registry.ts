@@ -50,7 +50,7 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
   },
   lobby: {
     path: "/lobby",
-    authRequired: true,
+    authRequired: false,
     title: "Lobby",
     showInBottomBar: true,
     bottomBarLabel: "Lobby",
@@ -101,6 +101,6 @@ export const screenRegistry = {
 
 export const bottomBarScreens = screenRegistry.bottomBar;
 
-export function getDefaultRoute(isAuthed: boolean): string {
-  return isAuthed ? screenRegistry.byKey.lobby.path : screenRegistry.byKey.login.path;
+export function getDefaultRoute(_isAuthed: boolean): string {
+  return screenRegistry.byKey.lobby.path;
 }

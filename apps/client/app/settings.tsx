@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { ScrollView, View } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Toggle } from "@/components/base/Toggle";
 import { Screen } from "@/components/containers/Screen";
@@ -22,9 +22,12 @@ import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
 import { postEconomyDeposit } from "@/services/post/economy.post";
 import { ProfileAvatarSection } from "@/components/domain/settings/ProfileAvatarSection";
 import { AwardsSection } from "@/components/domain/settings/AwardsSection";
+import { LoadingScreen } from "@/components/domain/loading/LoadingScreen";
+import { getProtectedRouteRedirect } from "@/lib/authNavigation";
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const hydrated = useAuthStore((s) => s.hydrated);
   const token = useAuthStore((s) => s.token);
   const logout = useAuthStore((s) => s.logout);
   const { refetch, ...profile } = useProfile();
@@ -41,6 +44,7 @@ export default function SettingsScreen() {
   } = storeRegistry.use.lobby();
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
+  const redirectPath = getProtectedRouteRedirect({ hydrated, token }, "/settings");
 
   const handleLogout = async () => {
     if (token) await postAuthLogout().catch(() => {});
@@ -64,6 +68,9 @@ export default function SettingsScreen() {
       useToastStore.getState().show((e as Error).message ?? "Deposit failed", "danger");
     }
   }, [bankroll]);
+
+  if (!hydrated) return <LoadingScreen />;
+  if (redirectPath) return <Redirect href={redirectPath} />;
 
   return (
     <Screen>

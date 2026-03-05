@@ -26,9 +26,10 @@ import { postCreateInstantGame, postCreateTable } from "@/services/post/lobby.po
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
-import { tablePath } from "@/lib/nav";
+import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
 import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
+import { useAuthStore } from "@/stores/auth.store";
 import {
   buildInstantCreateTableConfig,
   type InstantGamePresetId,
@@ -46,6 +47,7 @@ const SORT_CYCLE: Record<SortKey, SortKey> = { name: "players", players: "blinds
 
 export default function LobbyScreen() {
   const router = useRouter();
+  const authToken = useAuthStore((s) => s.token);
   const { fromLesson } = useLocalSearchParams<{ fromLesson?: string }>();
   const [fromLessonDismissed, setFromLessonDismissed] = useState(false);
   const showFromLessonNudge = Boolean(fromLesson && !fromLessonDismissed);
@@ -95,6 +97,10 @@ export default function LobbyScreen() {
   const cycleSort = useCallback(() => setSortKey((k) => SORT_CYCLE[k]), []);
 
   const handleCreateGame = async (config: Parameters<typeof postCreateTable>[0]) => {
+    if (!authToken) {
+      router.push(loginPathWithNext("/lobby"));
+      return;
+    }
     try {
       await postCreateTable(config);
       refresh();
@@ -104,6 +110,10 @@ export default function LobbyScreen() {
   };
 
   const handleStartInstantGame = useCallback(async (presetId: InstantGamePresetId) => {
+    if (!authToken) {
+      router.push(loginPathWithNext("/lobby"));
+      return;
+    }
     if (instantStartInFlightPreset) return;
 
     const createConfig = buildInstantCreateTableConfig(presetId);
@@ -134,7 +144,7 @@ export default function LobbyScreen() {
       clearTimeout(unlockTimer);
       setInstantStartInFlightPreset(null);
     }
-  }, [bankroll, instantStartInFlightPreset, openTable, refresh, router]);
+  }, [authToken, bankroll, instantStartInFlightPreset, openTable, refresh, router]);
 
   const handleJoinApply = useCallback((opts: { buyInCents: number }) => {
     if (!chooseTableModal) return;
@@ -222,7 +232,18 @@ export default function LobbyScreen() {
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
         <View className="ui-row gap-3 mt-2">
-          <GameListHeader onSort={cycleSort} onCreateGame={() => setCreateModalVisible(true)} sortLabel={`Sort: ${sortKey}`} />
+          <GameListHeader
+            onSort={cycleSort}
+            onCreateGame={() => {
+              if (!authToken) {
+                router.push(loginPathWithNext("/lobby"));
+                return;
+              }
+              setCreateModalVisible(true);
+            }}
+            sortLabel={`Sort: ${sortKey}`}
+            createLabel={authToken ? "New Game" : "Login / Register"}
+          />
         </View>
         <View className="flex-1 ui-column gap-3 p-4">
           {busy ? (
@@ -245,6 +266,10 @@ export default function LobbyScreen() {
                 currentUserId={profile.userId}
                 onJoin={() => {
                   if (isJoining(t.id)) return;
+                  if (!authToken) {
+                    router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
+                    return;
+                  }
                   setChooseTableModal({ id: t.id, minBuyInCents: t.minBuyInCents, maxBuyInCents: t.maxBuyInCents });
                 }}
                 onDelete={handleDeleteTable}

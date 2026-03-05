@@ -5,6 +5,8 @@ import { Button } from "@/components/base/Button";
 import { AvatarImage } from "@/components/base/AvatarImage";
 import { formatCents } from "@/lib/format";
 import { Surface } from "@/components/containers/Surface";
+import { useAuthStore } from "@/stores/auth.store";
+import { getSettingsTargetPath } from "@/lib/authNavigation";
 
 const TOP_NAV_AVATAR_SIZE = 40;
 
@@ -24,7 +26,10 @@ export function AppTopNav({
   avatarUrl,
 }: AppTopNavProps) {
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const hydrated = useAuthStore((s) => s.hydrated);
   const initial = (username || "P").slice(0, 1).toUpperCase();
+  const settingsTargetPath = getSettingsTargetPath({ hydrated, token });
 
   return (
     <Surface styleId="surface.nav.top">
@@ -32,7 +37,7 @@ export function AppTopNav({
         <AvatarImage
           avatarUrl={avatarUrl}
           initial={initial}
-          onPress={() => router.push("/settings")}
+          onPress={() => router.push(settingsTargetPath)}
           style={{
             width: TOP_NAV_AVATAR_SIZE,
             height: TOP_NAV_AVATAR_SIZE,
@@ -50,7 +55,7 @@ export function AppTopNav({
             borderRadius: TOP_NAV_AVATAR_SIZE / 2,
           }}
         />
-        <Pressable onPress={() => router.push("/settings")} className="flex-1 min-h-[44px] justify-center">
+        <Pressable onPress={() => router.push(settingsTargetPath)} className="flex-1 min-h-[44px] justify-center">
           <Text numberOfLines={1} variant="body">
             {username}
           </Text>

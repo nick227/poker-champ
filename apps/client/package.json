@@ -19,6 +19,8 @@
     "e2e:lessons:canonical": "node node_modules/@playwright/test/cli.js test e2e/lessons-canonical-runtime.spec.ts",
     "e2e:stack:ci": "set CI=1&& node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
     "e2e:churn": "node node_modules/@playwright/test/cli.js test e2e/churn-seat-dealin.spec.ts",
+    "e2e:auth-guard": "node node_modules/@playwright/test/cli.js test e2e/auth-guard-settings.spec.ts e2e/auth-guard-table.spec.ts",
+    "e2e:auth-guard:table": "node node_modules/@playwright/test/cli.js test e2e/auth-guard-table.spec.ts",
     "e2e:ui": "node node_modules/@playwright/test/cli.js test --ui",
     "e2e:install": "node node_modules/@playwright/test/cli.js install chromium",
     "typecheck": "tsc -p tsconfig.json --noEmit",

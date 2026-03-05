@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "expo-router";
 import { ScrollView, View, TouchableOpacity, Text } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/components/domain/lobby/Masthead";
@@ -20,6 +21,7 @@ import {
 } from "@/services/leaderboard.service";
 
 import { useBankroll } from "@/hooks/useBankroll";
+import { loginPathWithNext } from "@/lib/nav";
 
 const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
   { key: "biggest_winner", label: "Winners" },
@@ -64,6 +66,7 @@ function LeaderboardLoadingSkeleton() {
 }
 
 export default function LeaderboardScreen() {
+  const router = useRouter();
   const profile = useProfile();
   const token = useAuthStore((state) => state.token);
   const [category, setCategory] = useState<LeaderboardCategory>("biggest_winner");
@@ -75,6 +78,10 @@ export default function LeaderboardScreen() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
   const hasEntriesRef = useRef(false);
+  const authError = useMemo(
+    () => Boolean(error) && /authorization|unauthorized|sign in|session/i.test(error ?? ""),
+    [error],
+  );
 
   const {
     onlineTotal,
@@ -179,6 +186,13 @@ export default function LeaderboardScreen() {
           ) : error ? (
             <Surface styleId="surface.list.panel" className="p-4">
               <Text className="text-red-400 mb-3">{error}</Text>
+              {authError ? (
+                <Button
+                  title="Login / Register"
+                  variant="ghost"
+                  onPress={() => router.push(loginPathWithNext("/leaderboard"))}
+                />
+              ) : null}
               <Button title="Retry" variant="ghost" onPress={() => setRefreshNonce((v) => v + 1)} />
             </Surface>
           ) : entries.length === 0 ? (
