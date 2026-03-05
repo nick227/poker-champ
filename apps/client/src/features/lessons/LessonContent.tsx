@@ -46,6 +46,7 @@ function LessonStateView({
 function LessonCompletionView({
   lesson,
   scorePct,
+  ghostSummary = null,
   bootCampComplete,
   onApplyAtTable,
   onBackToBootCamp,
@@ -54,6 +55,7 @@ function LessonCompletionView({
 }: {
   lesson: LessonDefinition;
   scorePct: number | null;
+  ghostSummary?: { matchedProCount: number; totalDecisions: number; accuracyPercent: number } | null;
   bootCampComplete?: boolean;
   onApplyAtTable?: () => void;
   onBackToBootCamp: () => void;
@@ -71,6 +73,18 @@ function LessonCompletionView({
 
   const completionSections = useMemo(() => {
     const sections: Array<{ id: string; title: string; body: string }> = [];
+    if (ghostSummary && ghostSummary.totalDecisions > 0) {
+      sections.push({
+        id: "ghost-match",
+        title: "Decisions",
+        body: `You matched the pro on ${ghostSummary.matchedProCount} / ${ghostSummary.totalDecisions} decisions`,
+      });
+      sections.push({
+        id: "ghost-accuracy",
+        title: "Accuracy",
+        body: `${ghostSummary.accuracyPercent}%`,
+      });
+    }
     if (scorePct != null) {
       sections.push({
         id: "score",
@@ -86,7 +100,7 @@ function LessonCompletionView({
       });
     }
     return sections;
-  }, [disciplines, scorePct]);
+  }, [disciplines, scorePct, ghostSummary]);
 
   const relatedLinks = useMemo(() => {
     const links: Array<{ id: string; buttonKey: keyof typeof LESSON_CONTENT_BUTTON_KEYS; onPress: () => void }> = [];
@@ -103,13 +117,13 @@ function LessonCompletionView({
     if (replayHandId) {
       links.push({
         id: "replay-hand",
-        buttonKey: "REPLAY_HAND",
+        buttonKey: ghostSummary ? "WATCH_FULL_HAND" : "REPLAY_HAND",
         onPress: () => router.push(`/replay/${encodeURIComponent(replayHandId)}`),
       });
     }
 
     return links;
-  }, [lesson.blogPostSlug, lesson.replayHandId, router]);
+  }, [lesson.blogPostSlug, lesson.replayHandId, router, ghostSummary]);
 
   const actionButtons = useMemo(() => {
     const buttons: Array<{
@@ -389,9 +403,20 @@ export function LessonContent({
 
   const tierLabel =
     session.lesson?.tier === "elite" ? "Elite" : session.lesson?.tier === "pro" ? "Pro" : null;
+  const streetLabel =
+    stepSnapshot?.hand?.street != null
+      ? (["PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"] as const).includes(
+          String(stepSnapshot.hand.street).toUpperCase() as "PREFLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN",
+        )
+        ? { PREFLOP: "Preflop", FLOP: "Flop", TURN: "Turn", RIVER: "River", SHOWDOWN: "Showdown" }[
+            String(stepSnapshot.hand.street).toUpperCase() as "PREFLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN"
+          ]
+        : String(stepSnapshot.hand.street)
+      : null;
   const lessonSheetMaxHeight = windowHeight * 0.7;
   const { headerBadges, navigationButtons } = useLessonContentViewModel({
     tierLabel,
+    streetLabel,
     showStepNavigation,
     answeredQuestionStep,
     showInfoNavigation,
@@ -431,6 +456,7 @@ export function LessonContent({
       <LessonCompletionView
         lesson={session.lesson}
         scorePct={session.attempt?.scorePct ?? null}
+        ghostSummary={session.attempt?.summaryJson ?? null}
         bootCampComplete={bootCampComplete}
         onApplyAtTable={onApplyAtTable}
         onBackToBootCamp={() => onClose?.()}

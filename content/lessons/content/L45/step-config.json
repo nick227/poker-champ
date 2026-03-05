@@ -1,0 +1,224 @@
+{
+  "lessonId": "L45",
+  "title": "River thin value bet",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 2,
+  "heroPosition": "BTN",
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L45_step_01",
+      "sequence": 1,
+      "decisionIndex": 1,
+      "type": "ACTION_STEP",
+      "street": "PREFLOP",
+      "expectedAction": "RAISE",
+      "proActionSeat": 2,
+      "proActionAmountCents": 250,
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro raised.",
+        "responseIncorrect": "Pro raised here.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "Button open puts you in the driver's seat. You'll see a flop in position or win the blinds."
+      }
+    },
+    {
+      "id": "L45_step_02",
+      "sequence": 2,
+      "decisionIndex": 2,
+      "type": "ACTION_STEP",
+      "street": "FLOP",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 300,
+      "board": [
+        "Ah",
+        "8d",
+        "3s"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "A flop bet gets value from worse and makes draws pay. You had the lead pre—continuing tells a coherent story."
+      }
+    },
+    {
+      "id": "L45_step_03",
+      "sequence": 3,
+      "decisionIndex": 3,
+      "type": "ACTION_STEP",
+      "street": "TURN",
+      "expectedAction": "CHECK",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Ah",
+        "8d",
+        "3s",
+        "2c"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_03.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 3. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CHECK",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro checked.",
+        "responseIncorrect": "Pro checked here.",
+        "acceptedCorrectActions": [
+          "check"
+        ],
+        "followUpContent": "Checking the turn keeps the pot in check and sets up a river value bet. You don't have to bet every street to win."
+      }
+    },
+    {
+      "id": "L45_step_04",
+      "sequence": 4,
+      "decisionIndex": 4,
+      "type": "ACTION_STEP",
+      "street": "RIVER",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 600,
+      "board": [
+        "Ah",
+        "8d",
+        "3s",
+        "2c",
+        "Kh"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_04.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 4. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "Thin value means betting when you're ahead often enough to make the bet profitable. The river is where many players underbet or check too much."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

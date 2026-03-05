@@ -78,23 +78,45 @@ export function CalculationsStrip({
             : "--",
         variant: "neutral" as PillVariant,
       },
+      {
+        label: "PFR",
+        value:
+          typeof pfrPct === "number"
+            ? typeof statsHands === "number"
+              ? `${pfrPct}% (${statsHands})`
+              : `${pfrPct}%`
+            : "--",
+        variant: "neutral" as PillVariant,
+      },
     ];
-  }, [visible, equity, vpipPct, statsHands]);
+  }, [visible, equity, vpipPct, pfrPct, statsHands]);
 
   const isColumn = direction === "column";
   const containerHeight = isColumn ? undefined : CALC_STRIP_HEIGHT_ROW;
 
   return (
-    <View collapsable={false} style={{ minHeight: isColumn ? undefined : CALC_STRIP_HEIGHT_ROW }}>
+    <View
+      collapsable={false}
+      style={
+        isColumn
+          ? { flex: 1, justifyContent: "space-between" }
+          : { minHeight: CALC_STRIP_HEIGHT_ROW }
+      }
+    >
       <Animated.View
         style={{
           height: containerHeight,
           opacity: visible ? opacity : 1,
+          ...(isColumn ? { flex: 1, justifyContent: "space-between" } : {}),
         }}
       >
         <View
-          className={isColumn ? "ui-col ui-inline-2 ui-p-stack-2" : "ui-row ui-inline-2 ui-p-stack-2 mx-2"}
-          style={{ flexDirection: isColumn ? "column" : "row", flexWrap: "nowrap" }}
+          className={isColumn ? "ui-col ui-inline-2" : "ui-row ui-inline-2 ui-p-stack-2 mx-2"}
+          style={{
+            flexDirection: isColumn ? "column" : "row",
+            flexWrap: "nowrap",
+            ...(isColumn ? { flex: 1, justifyContent: "space-between" } : {}),
+          }}
         >
           {pills.map((p) => (
             <Pill

@@ -1,0 +1,224 @@
+{
+  "lessonId": "L46",
+  "title": "Facing triple barrel",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 2,
+  "heroPosition": "BTN",
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L46_step_01",
+      "sequence": 1,
+      "decisionIndex": 1,
+      "type": "ACTION_STEP",
+      "street": "PREFLOP",
+      "expectedAction": "RAISE",
+      "proActionSeat": 2,
+      "proActionAmountCents": 250,
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "You're on the button. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro raised.",
+        "responseIncorrect": "Pro raised here.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "Open from the button—you have position and a hand worth playing. Folding is too tight; limping gives the blind a free look."
+      }
+    },
+    {
+      "id": "L46_step_02",
+      "sequence": 2,
+      "decisionIndex": 2,
+      "type": "ACTION_STEP",
+      "street": "FLOP",
+      "expectedAction": "CALL",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Jc",
+        "Ts",
+        "2h"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Villain bets the flop. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Call the first barrel. You've got a price and a hand that can improve or already be best. No need to raise or fold yet."
+      }
+    },
+    {
+      "id": "L46_step_03",
+      "sequence": 3,
+      "decisionIndex": 3,
+      "type": "ACTION_STEP",
+      "street": "TURN",
+      "expectedAction": "CALL",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Jc",
+        "Ts",
+        "2h",
+        "7c"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_03.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Villain fires again on the turn. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Call again. You're still in your calling range; the turn didn't kill your equity. Folding here after calling flop is often a leak."
+      }
+    },
+    {
+      "id": "L46_step_04",
+      "sequence": 4,
+      "decisionIndex": 4,
+      "type": "ACTION_STEP",
+      "street": "RIVER",
+      "expectedAction": "CALL",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Jc",
+        "Ts",
+        "2h",
+        "7c",
+        "4d"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_04.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Third barrel on the river. You've called twice—do you call again?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Call the river. You've gotten this far with a hand that beats many bluffs—the pot odds and your range say call. Folding now would overfold."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

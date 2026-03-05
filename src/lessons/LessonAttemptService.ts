@@ -9,6 +9,7 @@ import { updateMasteryForStep } from "./MasteryService.js";
 import { computeCurrentStepIndex, scorePctFromCounts } from "./attemptHelpers.js";
 import { asObject } from "./utils/objectHelpers.js";
 import type {
+  GhostAttemptSummary,
   SubmitResponseDto,
   SubmitFeedbackDto,
   StartAttemptResponseDto,
@@ -23,6 +24,7 @@ type AttemptWithMeta = {
   startedAt: Date;
   completedAt: Date | null;
   scorePct: number | null;
+  summaryJson?: unknown;
   currentStepIndex?: number;
   submittedStepCount?: number;
   steps?: Array<{ stepId: string; feedbackJson: unknown; submittedAt: Date | null }>;
@@ -104,6 +106,7 @@ function toAttemptResponseDto(
   resumed: boolean,
 ): StartAttemptResponseDto {
   const steps = attempt.steps ?? [];
+  const summary = asObject(attempt.summaryJson) as GhostAttemptSummary | null;
   return {
     attempt: {
       id: attempt.id,
@@ -112,6 +115,13 @@ function toAttemptResponseDto(
       startedAt: attempt.startedAt.toISOString(),
       completedAt: attempt.completedAt?.toISOString() ?? null,
       scorePct: attempt.scorePct,
+      summaryJson:
+        summary &&
+        typeof summary.matchedProCount === "number" &&
+        typeof summary.totalDecisions === "number" &&
+        typeof summary.accuracyPercent === "number"
+          ? summary
+          : null,
       currentStepIndex: attempt.currentStepIndex ?? 0,
       submittedStepCount: attempt.submittedStepCount ?? 0,
       submittedSteps: steps.map((s) => ({
@@ -124,7 +134,23 @@ function toAttemptResponseDto(
   };
 }
 
-function feedbackFromGrade(grade: ReturnType<typeof gradeStep>): SubmitFeedbackDto {
+function actionKeyFromAnswer(stepType: string, answer: unknown): string | null {
+  if (stepType !== "ACTION_STEP") return null;
+  const obj = asObject(answer);
+  if (!obj) return null;
+  const t = typeof obj.type === "string" ? obj.type.toUpperCase() : "";
+  if (t === "FOLD") return "fold";
+  if (t === "CHECK") return "check";
+  if (t === "CALL") return "call";
+  if (t === "BET" || t === "RAISE") return "raise";
+  if (t === "ALL_IN") return "all_in";
+  return null;
+}
+
+function feedbackFromGrade(
+  grade: ReturnType<typeof gradeStep>,
+  submittedActionKey?: string | null,
+): SubmitFeedbackDto {
   const feedback: SubmitFeedbackDto = {
     response: grade.response,
     followUpInstructorMessage: grade.followUp,
@@ -135,6 +161,7 @@ function feedbackFromGrade(grade: ReturnType<typeof gradeStep>): SubmitFeedbackD
   if (grade.takeaway != null) feedback.takeaway = grade.takeaway;
   if (grade.frequencyPerMonth != null) feedback.frequencyPerMonth = grade.frequencyPerMonth;
   if (grade.gradeBand != null) feedback.gradeBand = grade.gradeBand;
+  if (submittedActionKey != null) feedback.submittedActionKey = submittedActionKey;
   return feedback;
 }
 
@@ -144,9 +171,13 @@ export async function submitStep(
 ): Promise<SubmitResult> {
   const { lessonId, attemptId, stepId, userId, answer } = params;
 
-  const [attempt, step] = await Promise.all([
+  const [attempt, lesson, step] = await Promise.all([
     prisma.lessonAttempt.findFirst({
       where: { id: attemptId, lessonId, userId },
+    }),
+    prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { moduleCode: true },
     }),
     prisma.lessonStep.findFirst({
       where: { id: stepId, lessonId },
@@ -181,7 +212,8 @@ export async function submitStep(
 
   const spec = normalizeGradingSpec(step.gradingSpecJson, step.followUpMessage);
   const grade = gradeStep(spec, step.type, answer);
-  const feedback = feedbackFromGrade(grade);
+  const submittedActionKey = actionKeyFromAnswer(step.type, answer);
+  const feedback = feedbackFromGrade(grade, submittedActionKey);
   const conceptLinks = step.concepts.map((c) => ({
     conceptId: c.conceptId,
     weight: c.concept ? 1 : 1,
@@ -239,12 +271,23 @@ export async function submitStep(
     const scorePct = scorePctFromCounts(gradedCorrect, gradedTotal);
     const isComplete = requiredTotal === 0 || gradedTotal >= requiredTotal;
 
+    const isGhostLesson = lesson?.moduleCode === "MODULE_GHOST";
+    const ghostSummary: GhostAttemptSummary | null =
+      isComplete && isGhostLesson && requiredTotal > 0
+        ? {
+            matchedProCount: gradedCorrect,
+            totalDecisions: requiredTotal,
+            accuracyPercent: Math.round((gradedCorrect / requiredTotal) * 100),
+          }
+        : null;
+
     const updated = await tx.lessonAttempt.update({
       where: { id: attemptId },
       data: {
         scorePct,
         status: isComplete ? "COMPLETED" : attempt.status,
         completedAt: isComplete ? attempt.completedAt ?? new Date() : null,
+        ...(ghostSummary && { summaryJson: ghostSummary as object }),
         masteryDeltaJson: { lastStepId: step.id, updatedAt: new Date().toISOString() },
       },
     });
@@ -281,9 +324,20 @@ export async function submitStep(
       }
     }
 
+    const summary = ghostSummary;
+    const attemptPayload = {
+      id: updated.id,
+      lessonId: updated.lessonId,
+      status: updated.status,
+      scorePct: updated.scorePct,
+      ...(summary &&
+        typeof summary.accuracyPercent === "number" && {
+          summaryJson: summary,
+        }),
+    };
     return {
       feedback,
-      attempt: { id: updated.id, lessonId: updated.lessonId, status: updated.status, scorePct: updated.scorePct },
+      attempt: attemptPayload,
       awardsGranted,
       gradingDebug: { stepType: step.type, gradingSpec: JSON.stringify(step.gradingSpecJson) },
     };

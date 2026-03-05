@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "snapshotId": "step_03",
+  "snapshotSeq": 3,
+  "emittedAtTs": 1772743946966,
+  "serverTimeTs": 1772743946966,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Asymmetric stacks: short BB",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743946965",
+    "handNumber": 1,
+    "street": "TURN",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 6,
+    "roundCurrentBetCents": 0,
+    "minRaiseCents": 100,
+    "potCents": 1200,
+    "board": [
+      "Ah",
+      "8c",
+      "3s",
+      "2d"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Short",
+      "status": "ACTIVE",
+      "stackCents": 2000,
+      "roundBetCents": 0,
+      "committedCents": 600,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9450,
+      "roundBetCents": 0,
+      "committedCents": 600,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ac",
+      "Kd"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": true,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "BET",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "9d5febbe5f01e2508b8e32c97a27a7e85a823d7f"
+}

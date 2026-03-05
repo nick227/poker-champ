@@ -133,7 +133,7 @@ export function OpponentStripItem({
           />
         </View>
         <View style={s.metaCol}>
-          <View style={s.nameRow}>
+          <View className="ui-row justify-between" style={s.nameRow}>
             <Text
               variant="label"
               className="font-semibold"

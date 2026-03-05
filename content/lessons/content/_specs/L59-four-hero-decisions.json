@@ -1,0 +1,29 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Four hero decisions: preflop to river",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Full-run" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Kh", "Qs"],
+  "board": ["Kd", "Qc", "2h", "9s", "3d"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 2, "action": "BET", "sizePot": 0.6 },
+    { "street": "TURN", "actorSeat": 1, "action": "CALL" },
+    { "street": "RIVER", "actorSeat": 1, "action": "CHECK" },
+    { "street": "RIVER", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "RIVER", "actorSeat": 1, "action": "CALL" }
+  ],
+  "tags": ["full-hand", "four-decisions", "value"],
+  "constraints": { "minStreetReached": "RIVER", "minHeroDecisions": 4 }
+}

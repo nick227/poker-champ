@@ -1,0 +1,170 @@
+{
+  "lessonId": "L60",
+  "title": "Asymmetric stacks: short BB",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 2,
+  "heroPosition": "BTN",
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 6,
+  "steps": [
+    {
+      "id": "L60_step_01",
+      "sequence": 1,
+      "decisionIndex": 1,
+      "type": "ACTION_STEP",
+      "street": "PREFLOP",
+      "expectedAction": "RAISE",
+      "proActionSeat": 2,
+      "proActionAmountCents": 250,
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro raised.",
+        "responseIncorrect": "Pro raised here.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "Open. Even with a short stack in the BB, you've got a hand and position—raise and play."
+      }
+    },
+    {
+      "id": "L60_step_02",
+      "sequence": 2,
+      "decisionIndex": 2,
+      "type": "ACTION_STEP",
+      "street": "FLOP",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 300,
+      "board": [
+        "Ah",
+        "8c",
+        "3s"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "Bet. Stack sizes are uneven—your bet still builds a meaningful pot and defines the hand."
+      }
+    },
+    {
+      "id": "L60_step_03",
+      "sequence": 3,
+      "decisionIndex": 3,
+      "type": "ACTION_STEP",
+      "street": "TURN",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 900,
+      "board": [
+        "Ah",
+        "8c",
+        "3s",
+        "2d"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_03.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 3. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "Bet the turn. With different stack depths you're still building the pot when you're ahead—keep the line going."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

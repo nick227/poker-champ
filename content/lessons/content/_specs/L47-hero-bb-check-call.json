@@ -1,0 +1,27 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "BB check-call flop",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BTN", "name": "Stealer" },
+    { "seat": 2, "position": "BB", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["9h", "9d"],
+  "board": ["8c", "4s", "2d", "As", "Kc"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 1, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 2, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.66 },
+    { "street": "FLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 2, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "RIVER", "actorSeat": 2, "action": "CHECK" },
+    { "street": "RIVER", "actorSeat": 1, "action": "CHECK" }
+  ],
+  "tags": ["bb", "check-call", "multi-street"],
+  "constraints": { "minStreetReached": "RIVER", "minHeroDecisions": 1 }
+}

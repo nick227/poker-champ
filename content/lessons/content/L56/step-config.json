@@ -1,0 +1,170 @@
+{
+  "lessonId": "L56",
+  "title": "Double barrel: call flop, fold turn",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 2,
+  "heroPosition": "BTN",
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 6,
+  "steps": [
+    {
+      "id": "L56_step_01",
+      "sequence": 1,
+      "decisionIndex": 1,
+      "type": "ACTION_STEP",
+      "street": "PREFLOP",
+      "expectedAction": "RAISE",
+      "proActionSeat": 2,
+      "proActionAmountCents": 250,
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro raised.",
+        "responseIncorrect": "Pro raised here.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "Button open. You've got a hand and position—raise."
+      }
+    },
+    {
+      "id": "L56_step_02",
+      "sequence": 2,
+      "decisionIndex": 2,
+      "type": "ACTION_STEP",
+      "street": "FLOP",
+      "expectedAction": "CALL",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Ah",
+        "Kd",
+        "3s"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "They c-bet the flop. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Call. You've got a price and a hand that might improve or already be best—see the turn."
+      }
+    },
+    {
+      "id": "L56_step_03",
+      "sequence": 3,
+      "decisionIndex": 3,
+      "type": "ACTION_STEP",
+      "street": "TURN",
+      "expectedAction": "FOLD",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Ah",
+        "Kd",
+        "3s",
+        "7c"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_03.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Second barrel on the turn. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "FOLD",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro folded.",
+        "responseIncorrect": "Pro folded here.",
+        "acceptedCorrectActions": [
+          "fold"
+        ],
+        "followUpContent": "Fold. You called one street but the turn didn't help. Calling again without a real hand or draw is burning money."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

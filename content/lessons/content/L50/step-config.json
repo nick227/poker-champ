@@ -1,0 +1,224 @@
+{
+  "lessonId": "L50",
+  "title": "River call for value",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 2,
+  "heroPosition": "BTN",
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 8,
+  "steps": [
+    {
+      "id": "L50_step_01",
+      "sequence": 1,
+      "decisionIndex": 1,
+      "type": "ACTION_STEP",
+      "street": "PREFLOP",
+      "expectedAction": "RAISE",
+      "proActionSeat": 2,
+      "proActionAmountCents": 250,
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Your turn to act on the button. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "RAISE",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro raised.",
+        "responseIncorrect": "Pro raised here.",
+        "acceptedCorrectActions": [
+          "raise"
+        ],
+        "followUpContent": "Open raise. You want to play this hand and position gives you the edge postflop."
+      }
+    },
+    {
+      "id": "L50_step_02",
+      "sequence": 2,
+      "decisionIndex": 2,
+      "type": "ACTION_STEP",
+      "street": "FLOP",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 300,
+      "board": [
+        "Jh",
+        "8s",
+        "3c"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Flop; villain checks to you. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "Bet. You had the lead pre and you've got a hand—keep the pressure on and get value from worse."
+      }
+    },
+    {
+      "id": "L50_step_03",
+      "sequence": 3,
+      "decisionIndex": 3,
+      "type": "ACTION_STEP",
+      "street": "TURN",
+      "expectedAction": "BET",
+      "proActionSeat": 2,
+      "proActionAmountCents": 900,
+      "board": [
+        "Jh",
+        "8s",
+        "3c",
+        "Ah"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_03.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Turn; you're still ahead of much of their range. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "BET",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro bet.",
+        "responseIncorrect": "Pro bet here.",
+        "acceptedCorrectActions": [
+          "bet"
+        ],
+        "followUpContent": "Bet again. You're ahead of most of what called the flop; a turn bet charges draws and builds a pot you can value-bet on the river."
+      }
+    },
+    {
+      "id": "L50_step_04",
+      "sequence": 4,
+      "decisionIndex": 4,
+      "type": "ACTION_STEP",
+      "street": "RIVER",
+      "expectedAction": "CALL",
+      "proActionSeat": 2,
+      "proActionAmountCents": null,
+      "board": [
+        "Jh",
+        "8s",
+        "3c",
+        "Ah",
+        "2d"
+      ],
+      "evPro": null,
+      "evHero": null,
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_04.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Villain leads the river. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": [
+            "ev_impact",
+            "community_comparison"
+          ],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": {
+          "type": "action_bucket",
+          "buckets": [
+            "fold",
+            "check",
+            "call",
+            "raise",
+            "all_in"
+          ]
+        },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": [
+          "call"
+        ],
+        "followUpContent": "Call. Your hand is strong enough that you're ahead of many value bets and most bluffs. Folding here is a mistake."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

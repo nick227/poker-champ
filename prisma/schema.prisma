@@ -459,6 +459,7 @@ model LessonAttempt {
   completedAt     DateTime?
   scorePct        Float?
   masteryDeltaJson Json?
+  summaryJson     Json?              // ghost lessons: { matchedProCount, totalDecisions, accuracyPercent }
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 

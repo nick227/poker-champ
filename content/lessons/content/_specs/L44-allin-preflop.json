@@ -1,0 +1,19 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Short stack all-in preflop",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Villain" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 20,
+  "heroHoleCards": ["As", "Kd"],
+  "board": ["Th", "5c", "2d", "9s", "3h"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "ALL_IN", "sizeBB": 20 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" }
+  ],
+  "tags": ["all-in", "preflop", "short-stack"]
+}

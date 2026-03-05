@@ -1,0 +1,24 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Double barrel: call flop, fold turn",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Barrel" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Qc", "Jc"],
+  "board": ["Ah", "Kd", "3s", "7c"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.66 },
+    { "street": "FLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "BET", "sizePot": 0.75 },
+    { "street": "TURN", "actorSeat": 2, "action": "FOLD" }
+  ],
+  "tags": ["double-barrel", "turn", "fold"],
+  "constraints": { "villainBarrels": 2, "minHeroDecisions": 2 }
+}

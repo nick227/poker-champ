@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://poker-champ.local/schemas/minimal-hand-spec.schema.json",
+  "title": "Minimal Hand Spec (AI → Lesson Pipeline)",
+  "description": "Small semantic hand description for lesson-builder. Pipeline produces snapshots and step-config. Blinds and full seating (playersInfo + heroSeat) required for legal preflop; actorSeat for stable action order.",
+  "type": "object",
+  "required": ["specVersion", "lessonTitle", "players", "playersInfo", "heroSeat", "blinds", "startingStacksBB", "heroHoleCards", "board", "actions"],
+  "properties": {
+    "specVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Spec format version; builder rejects incompatible versions."
+    },
+    "lessonTitle": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "description": "Optional narrative or intro text for the lesson." },
+    "players": { "type": "integer", "minimum": 2, "maximum": 9 },
+    "playersInfo": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["seat", "position"],
+        "properties": {
+          "seat": { "type": "integer", "minimum": 1, "maximum": 9 },
+          "position": {
+            "type": "string",
+            "enum": ["BTN", "SB", "BB", "CO", "HJ", "UTG", "UTG+1", "MP", "MP+1"]
+          },
+          "name": { "type": "string", "maxLength": 32 }
+        }
+      }
+    },
+    "heroSeat": { "type": "integer", "minimum": 1, "maximum": 9 },
+    "blinds": {
+      "type": "object",
+      "required": ["sb", "bb"],
+      "description": "Builder must enforce bb > 0, sb > 0, sb < bb.",
+      "properties": {
+        "sb": { "type": "number", "exclusiveMinimum": 0 },
+        "bb": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "startingStacksBB": { "type": "number", "minimum": 1 },
+    "stacksBB": {
+      "type": "object",
+      "description": "Optional per-position or per-seat stack overrides in BB. Fallback: startingStacksBB for all.",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "heroHoleCards": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "description": "Exactly two unique hole cards.",
+      "items": { "type": "string", "pattern": "^(A|K|Q|J|T|[2-9])(s|h|d|c)$" }
+    },
+    "board": {
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "description": "Full runout (max 5 unique cards); pipeline reveals cards when street occurs.",
+      "items": { "type": "string", "pattern": "^(A|K|Q|J|T|[2-9])(s|h|d|c)$" }
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "description": "At least one action; max 40 to prevent runaway generation.",
+      "items": {
+        "type": "object",
+        "required": ["street", "actorSeat", "action"],
+        "description": "Only one of sizeBB or sizePot may be set per action. Builder enforces ordering by street and legal seat order within street; at least one action must have actorSeat === heroSeat.",
+        "properties": {
+          "street": { "type": "string", "enum": ["PREFLOP", "FLOP", "TURN", "RIVER"], "description": "Only these four streets; no POSTFLOP or TURN_RIVER." },
+          "actorSeat": { "type": "integer", "minimum": 1, "maximum": 9 },
+          "action": {
+            "type": "string",
+            "enum": ["FOLD", "CHECK", "CALL", "BET", "RAISE", "ALL_IN"]
+          },
+          "sizeBB": { "type": "number", "minimum": 0, "description": "Bet size in big blinds (e.g. 2.5). Mutually exclusive with sizePot." },
+          "sizePot": { "type": "number", "minimum": 0, "description": "Fraction of current pot (e.g. 0.75 = 75% pot; 1.5 = 150% overbet). Builder converts to BB. Mutually exclusive with sizeBB." },
+          "isHeroDecision": { "type": "boolean", "description": "Optional explicit marker; if absent, infer from actorSeat === heroSeat." },
+          "beforeInstructorMessage": { "type": "string", "description": "Optional prompt shown before this hero decision (e.g. 'Decision 2. Facing a turn bet…')." },
+          "followUpContent": { "type": "string", "description": "Optional teaching note shown after the decision; replaces '(Add teaching note.)' placeholder." }
+        }
+      }
+    },
+    "seed": { "type": "integer", "description": "Optional RNG seed for repeatability." },
+    "constraints": {
+      "type": "object",
+      "description": "Optional validation hints for teaching intent. Builder runs these after building snapshots; if any fail, reject spec. Not required to reconstruct the hand.",
+      "properties": {
+        "minStreetReached": { "type": "string", "enum": ["FLOP", "TURN", "RIVER"], "description": "Hand must reach at least this street." },
+        "minHeroDecisions": { "type": "integer", "minimum": 1, "description": "At least this many hero decision points." },
+        "villainBarrels": { "type": "integer", "minimum": 1, "description": "Villain (non-hero) must bet on at least this many streets." }
+      },
+      "additionalProperties": true
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 10,
+      "items": { "type": "string", "maxLength": 32 },
+      "description": "Optional tags for lesson organization (e.g. float, turn-barrel). Not used by pipeline logic."
+    }
+  }
+}

@@ -9,6 +9,7 @@ import { MODAL } from "@/constants/copy";
 import { getRandomTableName } from "@/services/tableNames";
 import {
   BLINDS_OPTIONS,
+  DEFAULT_SHOW_STATS,
   getBuyInOptions,
   getDefaultMinBuyInCents,
   getMaxBuyInCents,
@@ -40,7 +41,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
   const [seats, setSeats] = useState<3 | 6 | 9 | 18>(6);
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [password, setPassword] = useState("");
-  const [showStats, setShowStats] = useState(true);
+  const [showStats, setShowStats] = useState(DEFAULT_SHOW_STATS);
 
   const blinds = BLINDS_OPTIONS[blindsIndex] ?? BLINDS_OPTIONS[DEFAULT_BLINDS_INDEX];
   const { bigBlindCents, smallBlindCents } = blinds;
@@ -59,7 +60,7 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
     setSeats(6);
     setVisibility("PUBLIC");
     setPassword("");
-    setShowStats(true);
+    setShowStats(DEFAULT_SHOW_STATS);
     setMinBuyInCents(getDefaultMinBuyInCents(bb));
   }, [visible]);
 

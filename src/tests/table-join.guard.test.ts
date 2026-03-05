@@ -527,6 +527,148 @@ describe("table join guardrails", () => {
     expect(touchSpy).toHaveBeenCalled();
   });
 
+  it("applies join buy-in override for in-room zero-stack player instead of restoring with zero", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "false";
+    const buyInSpy = vi.spyOn(CashierService, "processCashGameBuyIn");
+    buyInSpy.mockResolvedValue({ success: true, newTableBalance: 5000 });
+
+    const room = buildRoomWithRealDealer("table_join_buyin_override", "room_join_buyin_override");
+    const client1 = makeClient("session_join_override_1");
+    const userId = "user_join_override";
+
+    await room.onJoin(client1 as any, { buyInCents: 5000 }, { userId, username: "alice" });
+    const p1 = room.state.playersById.get(userId);
+    expect(p1).toBeTruthy();
+    p1.stackCents = 0;
+    p1.status = "OUT";
+    p1.sittingOutUntilNextHand = true;
+
+    const client2 = makeClient("session_join_override_2");
+    await room.onJoin(client2 as any, { buyInCents: 7000 }, { userId, username: "alice" });
+
+    const after = room.state.playersById.get(userId);
+    expect(after).toBeTruthy();
+    expect(after.stackCents).toBe(7000);
+    expect(after.status).toBe("ACTIVE");
+    expect(client2.send).toHaveBeenCalledWith(
+      "SESSION_RESTORED",
+      expect.objectContaining({ userId, joinMode: "RESTORE" }),
+    );
+
+    expect(buyInSpy).toHaveBeenCalledWith(expect.objectContaining({ userId, tableId: "table_join_buyin_override", amountCents: 5000 }));
+    expect(buyInSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId,
+        tableId: "table_join_buyin_override",
+        amountCents: 7000,
+        externalRef: expect.stringMatching(/^join_buyin_table_join_buyin_override_user_join_override_/),
+      }),
+    );
+  });
+
+  it("does not apply join buy-in override when player is zero-stack but not OUT", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "false";
+    const buyInSpy = vi.spyOn(CashierService, "processCashGameBuyIn");
+    buyInSpy.mockResolvedValue({ success: true, newTableBalance: 5000 });
+
+    const room = buildRoomWithRealDealer("table_join_override_guard", "room_join_override_guard");
+    const userId = "user_join_override_guard";
+    const c1 = makeClient("session_join_override_guard_1");
+    const c2 = makeClient("session_join_override_guard_2");
+
+    await room.onJoin(c1 as any, { buyInCents: 5000 }, { userId, username: "alice" });
+
+    const player = room.state.playersById.get(userId);
+    expect(player).toBeTruthy();
+    player.stackCents = 0;
+    player.status = "ALL_IN";
+    room.state.street = "PREFLOP";
+
+    await room.onJoin(c2 as any, { buyInCents: 7000 }, { userId, username: "alice" });
+
+    expect(buyInSpy).toHaveBeenCalledTimes(1);
+    expect(player.stackCents).toBe(0);
+  });
+
+  it("treats persisted zero-stack session as NEW join when buyInCents is provided", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue({
+      tableId: "table_join_guard",
+      userId: "user_rejoin_zero",
+      seat: 2,
+      stackCentsSnapshot: 0,
+      buyInCents: 5000,
+      state: "SEATED_SITTING_OUT",
+    });
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+
+    const client = makeClient("join_rejoin_zero");
+    const { room, dealer } = buildRoomWithDealerStub();
+
+    await room.onJoin(client as any, { buyInCents: 7000 }, { userId: "user_rejoin_zero", username: "charlie" });
+
+    expect(markLeftSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ tableId: "table_join_guard", userId: "user_rejoin_zero", reason: "JOIN_WITH_BUYIN_OVERRIDE" }),
+    );
+    expect(dealer.restorePlayerFromSession).not.toHaveBeenCalled();
+    expect(dealer.addPlayer).toHaveBeenCalledWith("user_rejoin_zero", "charlie", 7000);
+    expect(client.send).toHaveBeenCalledWith(
+      "WELCOME",
+      expect.objectContaining({
+        version: 1,
+        playerId: "user_rejoin_zero",
+        joinMode: "NEW",
+      }),
+    );
+  });
+
+  it("does not convert persisted zero-stack restore to NEW join outside waiting state", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "true";
+    vi.spyOn(TableSeatSessionService, "listRestorableSessionsForTable").mockResolvedValue([]);
+    vi.spyOn(TableSeatSessionService, "reapExpiredSessionsForTable").mockResolvedValue({
+      softExpired: [],
+      hardDeletedCount: 0,
+    });
+    vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue({
+      tableId: "table_join_guard",
+      userId: "user_rejoin_zero_restore",
+      seat: 2,
+      stackCentsSnapshot: 0,
+      buyInCents: 5000,
+      state: "SEATED_SITTING_OUT",
+    });
+    vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
+
+    const client = makeClient("join_rejoin_zero_restore");
+    const { room, dealer } = buildRoomWithDealerStub();
+    room.state.street = "PREFLOP";
+
+    await room.onJoin(client as any, { buyInCents: 7000 }, { userId: "user_rejoin_zero_restore", username: "charlie" });
+
+    expect(markLeftSpy).not.toHaveBeenCalled();
+    expect(dealer.restorePlayerFromSession).toHaveBeenCalledWith("user_rejoin_zero_restore", "charlie", 2, 0);
+    expect(dealer.addPlayer).not.toHaveBeenCalled();
+    expect(client.send).toHaveBeenCalledWith(
+      "SESSION_RESTORED",
+      expect.objectContaining({
+        version: 1,
+        userId: "user_rejoin_zero_restore",
+        joinMode: "RESTORE",
+      }),
+    );
+  });
+
   it("handles repeated joins idempotently for same table/user", async () => {
     const clientA = makeClient("join_repeat_a");
     const clientB = makeClient("join_repeat_b");

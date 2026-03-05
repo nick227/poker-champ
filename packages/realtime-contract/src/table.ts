@@ -190,7 +190,7 @@ export const TableSnapshotPayloadSchema = z.object({
     bigBlindCents: z.number().int().positive(),
     minBuyInCents: z.number().int().positive(),
     maxBuyInCents: z.number().int().positive(),
-    showStats: z.boolean().default(true),
+    showStats: z.boolean().default(false),
   }),
 
   hand: z.object({

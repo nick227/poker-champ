@@ -55,6 +55,6 @@ export function buildInstantCreateTableConfig(presetId: InstantGamePresetId) {
     minBuyInCents: INSTANT_MIN_BUY_IN_CENTS,
     maxBuyInCents: INSTANT_MAX_BUY_IN_CENTS,
     visibility: "PUBLIC" as const,
-    showStats: true,
+    showStats: false,
   };
 }

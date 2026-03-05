@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "snapshotId": "step_02",
+  "snapshotSeq": 2,
+  "emittedAtTs": 1772743941170,
+  "serverTimeTs": 1772743941170,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Preflop fold to 3-bet",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743941170",
+    "handNumber": 1,
+    "street": "PREFLOP",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 2,
+    "roundCurrentBetCents": 1000,
+    "minRaiseCents": 900,
+    "potCents": 1300,
+    "board": []
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "3-bettor",
+      "status": "ACTIVE",
+      "stackCents": 9100,
+      "roundBetCents": 1000,
+      "committedCents": 1000,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9750,
+      "roundBetCents": 300,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "8s",
+      "7h"
+    ],
+    "actionOptions": {
+      "canFold": true,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "ecb6127cb9135979e631707d74e0917bbe9f5ac2"
+}

@@ -1,6 +1,24 @@
 import type { PrismaClient } from "@prisma/client";
 import { getRuntimeConfigFromGradingSpec } from "./utils/runtimeConfig.js";
+import { asObject } from "./utils/objectHelpers.js";
 import type { LessonDetailResponseDto } from "./types.js";
+
+function getGradingDisplay(gradingSpecJson: unknown): {
+  expectedAction: string | null;
+  acceptedCorrectActions: string[] | null;
+} {
+  const spec = asObject(gradingSpecJson);
+  if (!spec) return { expectedAction: null, acceptedCorrectActions: null };
+  const expectedAction =
+    typeof spec.expectedAction === "string" && spec.expectedAction.trim()
+      ? spec.expectedAction.trim()
+      : null;
+  const raw = spec.acceptedCorrectActions;
+  const acceptedCorrectActions = Array.isArray(raw)
+    ? raw.filter((v): v is string => typeof v === "string").map((s) => s.trim().toLowerCase())
+    : null;
+  return { expectedAction, acceptedCorrectActions };
+}
 
 export type GetLessonResult =
   | { ok: true; body: LessonDetailResponseDto }
@@ -26,6 +44,7 @@ export async function getLesson(
 
   const steps = lesson.steps.map((step) => {
     const runtime = getRuntimeConfigFromGradingSpec(step.gradingSpecJson);
+    const gradingDisplay = getGradingDisplay(step.gradingSpecJson);
     return {
       ...runtime,
       id: step.id,
@@ -35,6 +54,8 @@ export async function getLesson(
       beforeInstructorMessage: step.beforeMessage,
       question: step.questionText,
       followUpInstructorMessage: step.followUpMessage,
+      expectedAction: gradingDisplay.expectedAction ?? null,
+      acceptedCorrectActions: gradingDisplay.acceptedCorrectActions ?? null,
       options: step.options.map((opt) => ({
         optionKey: opt.optionKey,
         label: opt.label,

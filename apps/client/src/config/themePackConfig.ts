@@ -1,4 +1,6 @@
-export type ThemePackId = "default" | "monokai" | "zen" | "mono" | "back-alley" | "cyber";
+import type { FeltImageId } from "@/components/domain/table/feltImages";
+
+export type ThemePackId = "default" | "monokai" | "zen" | "dark" | "back-alley" | "cyber";
 
 export type FeltMode = "solid" | "gradient";
 
@@ -8,19 +10,12 @@ export type ThemePackConfig = {
   colors: readonly [string, string];
   feltMode?: FeltMode;
   radialPreview?: readonly [string, string, string];
-  /** When set, theme uses this felt image id for the table background. */
-  feltImageId?: string;
+  /** When set, theme uses this felt image id for the table background. Must be a valid FeltImageId. */
+  feltImageId?: FeltImageId;
 };
 
 export const THEME_PACK_CONFIG: ReadonlyArray<ThemePackConfig> = [
-  {
-    id: "default",
-    name: "Royal Casino",
-    colors: ["158 30% 14%", "42 82% 50%"],
-    feltMode: "gradient",
-    radialPreview: ["158 28% 16%", "158 30% 14%", "158 32% 12%"],
-  },
-  { id: "monokai", name: "Monokai", colors: ["70 8% 15%", "340 70% 56%"] },
+  { id: "monokai", name: "Monokai", colors: ["70 8% 15%", "340 92% 56%"] },
   {
     id: "zen",
     name: "Zen Mode",
@@ -28,9 +23,16 @@ export const THEME_PACK_CONFIG: ReadonlyArray<ThemePackConfig> = [
     feltMode: "gradient",
     radialPreview: ["0 0% 14%", "0 0% 12%", "0 0% 10%"],
   },
-  { id: "mono", name: "Mono Mode", colors: ["0 0% 100%", "0 0% 0%"] },
+  { id: "dark", name: "Dark", colors: ["0 0% 0%", "0 0% 15%"] },
+  {
+    id: "default",
+    name: "Royal Casino",
+    colors: ["158 30% 14%", "42 82% 50%"],
+    feltMode: "gradient",
+    feltImageId: "green",
+  },
   { id: "back-alley", name: "Back Alley", colors: ["0 0% 5%", "0 80% 50%"], feltImageId: "texture" },
-  { id: "cyber", name: "Cyberpunk", colors: ["280 40% 10%", "300 100% 50%"] },
+  { id: "cyber", name: "Cyberpunk", colors: ["280 40% 10%", "300 100% 50%"], feltImageId: "cyber" },
 ];
 
 export function getThemePackFeltImageId(packId: ThemePackId): string | null {

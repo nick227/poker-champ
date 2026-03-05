@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "snapshotId": "step_03",
+  "snapshotSeq": 3,
+  "emittedAtTs": 1772743937531,
+  "serverTimeTs": 1772743937531,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "BB check-call flop",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743937531",
+    "handNumber": 1,
+    "street": "FLOP",
+    "dealerSeat": 1,
+    "sbSeat": 1,
+    "bbSeat": 2,
+    "toActSeat": 2,
+    "actionCount": 4,
+    "roundCurrentBetCents": 396,
+    "minRaiseCents": 396,
+    "potCents": 996,
+    "board": [
+      "8c",
+      "4s",
+      "2d"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Stealer",
+      "status": "ACTIVE",
+      "stackCents": 9354,
+      "roundBetCents": 396,
+      "committedCents": 696,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9800,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "9h",
+      "9d"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "39d9a250748c02f5ef561cb42c7439abcb0882df"
+}

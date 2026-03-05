@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "snapshotId": "L21_step_02",
+  "snapshotSeq": 2,
+  "emittedAtTs": 1772440280000,
+  "serverTimeTs": 1772440280000,
+  "stateHash": "L21s2",
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-ghost",
+    "tableName": "Ghost lesson",
+    "creatorId": "system",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 100,
+    "bigBlindCents": 200,
+    "minBuyInCents": 20000,
+    "maxBuyInCents": 200000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "L21_hand_1",
+    "handNumber": 1,
+    "street": "TURN",
+    "dealerSeat": 1,
+    "sbSeat": 2,
+    "bbSeat": 3,
+    "toActSeat": 1,
+    "actionCount": 5,
+    "roundCurrentBetCents": 0,
+    "minRaiseCents": 400,
+    "potCents": 5000,
+    "board": ["Tc", "9d", "2s", "3h"]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 18750,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": true,
+      "isToAct": true
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_2",
+      "isBot": false,
+      "name": "Villain",
+      "status": "ACTIVE",
+      "stackCents": 38750,
+      "roundBetCents": 0,
+      "committedCents": 0,
+      "connected": true,
+      "disconnectDeadlineTs": 1772440309689,
+      "isDealer": false,
+      "isToAct": false
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 1,
+    "holeCards": ["Qs", "Js"],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": true,
+      "canCall": false,
+      "canBet": true,
+      "canRaise": true,
+      "canAllIn": true,
+      "primaryWagerAction": "BET",
+      "callAmount": 0,
+      "minRaiseTo": 400,
+      "maxRaiseTo": 18750
+    },
+    "calculations": { "mode": "LIVE_ADVISORY", "stale": false },
+    "playerStats": { "hands": 120, "vpipPct": 24, "pfrPct": 18 }
+  }
+}

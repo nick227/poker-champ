@@ -48,16 +48,16 @@ describe("createGame.constants", () => {
   });
 
   describe("getDefaultMinBuyInCents", () => {
-    it("returns 100 BB (max buy-in)", () => {
-      expect(getDefaultMinBuyInCents(20)).toBe(2000);
-      expect(getDefaultMinBuyInCents(200)).toBe(20000);
+    it("returns 20 BB (default min buy-in)", () => {
+      expect(getDefaultMinBuyInCents(20)).toBe(400);
+      expect(getDefaultMinBuyInCents(200)).toBe(4000);
     });
 
-    it("returned default equals max buy-in", () => {
+    it("returned default equals 20 BB floor", () => {
       for (const blind of BLINDS_OPTIONS) {
         const defaultMin = getDefaultMinBuyInCents(blind.bigBlindCents);
-        const maxCents = getMaxBuyInCents(blind.bigBlindCents);
-        expect(defaultMin).toBe(maxCents);
+        const minCents = blind.bigBlindCents * MIN_BB;
+        expect(defaultMin).toBe(minCents);
       }
     });
   });

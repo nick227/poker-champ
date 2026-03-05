@@ -231,7 +231,7 @@ export default function LobbyScreen() {
           onPokerSchool={() => router.push("/lessons")}
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
-        <View className="ui-row gap-3 mt-2">
+        <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
           <GameListHeader
             onSort={cycleSort}
             onCreateGame={() => {

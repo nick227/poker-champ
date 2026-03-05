@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "snapshotId": "step_01",
+  "snapshotSeq": 1,
+  "emittedAtTs": 1772743938250,
+  "serverTimeTs": 1772743938250,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Flop check-raise bluff",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743938250",
+    "handNumber": 1,
+    "street": "PREFLOP",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 0,
+    "roundCurrentBetCents": 100,
+    "minRaiseCents": 100,
+    "potCents": 150,
+    "board": []
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "C-bettor",
+      "status": "ACTIVE",
+      "stackCents": 10000,
+      "roundBetCents": 100,
+      "committedCents": 100,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 10000,
+      "roundBetCents": 50,
+      "committedCents": 50,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ah",
+      "5h"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": false,
+      "canRaise": true,
+      "canAllIn": false,
+      "primaryWagerAction": "RAISE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "1d5b8ba5328d3894b9822e8eb54094fe50292d01"
+}

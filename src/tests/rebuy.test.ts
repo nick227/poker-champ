@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
 import { CashierService } from "../engine/economy/CashierService.js";
+import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
 describe("rebuy", () => {
   beforeEach(() => {
@@ -163,5 +164,41 @@ describe("rebuy", () => {
     await dealer.applyRebuy("u1", 3000, "rebuy_ref_2");
 
     expect(p1.stackCents).toBe(6000);
+  });
+
+  it("emits a table snapshot after rebuy state mutation", async () => {
+    const state = new PokerState();
+    state.tableId = "table_rebuy_snapshot";
+    state.maxSeats = 6;
+    state.minBuyInCents = 2000;
+    state.maxBuyInCents = 20000;
+
+    const dealer = new Dealer(state);
+    const emitSpy = vi.spyOn(dealer as any, "sendTableSnapshotToAll");
+    const client = {
+      send: vi.fn(),
+      leave: vi.fn(),
+    };
+    dealer.bindClient("u1", client as any);
+
+    await dealer.addPlayer("u1", "Alice", 5000);
+    const p1 = state.playersById.get("u1")!;
+    p1.stackCents = 0;
+    p1.status = "OUT";
+
+    await dealer.applyRebuy("u1", 2000, "rebuy_snapshot_ref");
+
+    expect(p1.stackCents).toBe(2000);
+    expect(emitSpy).toHaveBeenCalledWith("SEAT_CHANGE", undefined);
+
+    const snapshots = client.send.mock.calls
+      .filter(([type]) => type === "TABLE_SNAPSHOT")
+      .map(([, payload]) => payload as TableSnapshotPayload);
+    expect(snapshots.length).toBeGreaterThan(0);
+
+    const latestSnapshot = snapshots[snapshots.length - 1];
+    const heroSeat = latestSnapshot.seats.find((seat) => seat.userId === "u1");
+    expect(heroSeat).toBeDefined();
+    expect(heroSeat?.stackCents).toBe(p1.stackCents);
   });
 });

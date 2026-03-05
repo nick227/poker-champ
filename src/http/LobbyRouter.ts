@@ -56,7 +56,7 @@ router.get("/tables", async (_req, res) => {
       creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
       creatorName: typeof metadata.creatorName === "string" && metadata.creatorName.length > 0 ? metadata.creatorName : "Player",
       creatorAvatarUrl: typeof metadata.creatorAvatarUrl === "string" ? metadata.creatorAvatarUrl : null,
-      showStats: metadata.showStats ?? true,
+      showStats: metadata.showStats ?? false,
       humanCount,
       connectedHumanCount,
       avgPotCents: typeof metadata.avgPotCents === "number" ? metadata.avgPotCents : undefined,

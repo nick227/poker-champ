@@ -1,0 +1,14 @@
+{
+  "source": "ai-spec",
+  "generatedAt": "2026-03-05",
+  "specVersion": 1,
+  "engineVersion": "projection-mvp",
+  "pipelineVersion": "1",
+  "specHash": "e9592820113682a5",
+  "decisionCount": 2,
+  "heroDecisionCount": 2,
+  "actionCount": 3,
+  "streets": [
+    "PREFLOP"
+  ]
+}

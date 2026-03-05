@@ -10,7 +10,11 @@ import type { HeroStatus, UiCard } from "./table.adapter";
 import { assertNever } from "./table.adapter";
 import { PotWinRing } from "./PotWinEffect";
 import { hasHeroCalculations } from "./table.utils";
-import { HERO_ZONE_HEIGHT } from "./constants/tableLayout.constants";
+import {
+  HERO_ZONE_HEIGHT,
+  CARD_ROW_HEIGHT,
+  HOLE_CARDS_COL_PADDING_VERTICAL,
+} from "./constants/tableLayout.constants";
 import { useTableLayoutHeight } from "./shell/TableLayoutHeightContext";
 import { heroZoneStyles as s } from "./heroZone.styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -89,7 +93,7 @@ export function HeroZone({
   avatarUrl,
   onAvatarPress,
   potCents = 0,
-  showStats = true,
+  showStats = false,
   onToggleSittingOut,
   height: heightProp,
 }: HeroZoneProps) {
@@ -97,6 +101,9 @@ export function HeroZone({
   const layoutHeight = useTableLayoutHeight();
   const zoneHeight =
     heightProp ?? layoutHeight?.heroZoneHeight ?? HERO_ZONE_HEIGHT;
+  const layoutScale = layoutHeight?.layoutScale ?? 1;
+  const scaledCardRowHeight = Math.round(CARD_ROW_HEIGHT * layoutScale);
+  const scaledHoleCardsPadding = Math.round(HOLE_CARDS_COL_PADDING_VERTICAL * layoutScale);
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
@@ -106,74 +113,95 @@ export function HeroZone({
     !onToggleSittingOut ||
     (isSittingOut && stackCents <= 0);
   const hasCalculations = hasHeroCalculations({ equity, potOdds, outs });
-  const calculationsVisible = showStats;
   const calcMuted = !canAct || !hasCalculations;
+  const hasExtraBelowRow =
+    isSittingOut ||
+    (typeof turnCountdownSeconds === "number" && turnCountdownSeconds > 0 && isActiveTurn);
 
-  // Core hero panel content. This is optionally wrapped with a win-ring below.
+  // Core hero panel content. Root uses minHeight so it can grow when sitting out/countdown; fixed height when only row.
   const content = (
     <View
       collapsable={false}
-      className="hero-container flex-shrink-0"
-      style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, gap: 16 }]}
+      className="hero-container flex-shrink-0 py-2"
+      style={[
+        isActiveTurn && s.activeTurn,
+        { minHeight: zoneHeight },
+      ]}
     >
       {isWinner ? <PotWinRing radius={0} /> : null}
-      {/* Main row: hero cards + stack + third column (dealer + stacked calculation pills). */}
-      <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={s.mainRow}>
-        {/* Left: hole cards. */}
-        <View className="ui-col ui-center rounded-sm border border-border-subtle bg-panel/80 px-3 py-4" style={s.holeCardsCol}>
-          <View className="ui-row ui-center" style={s.cardRow}>
+      {/* Main row: single height container (scales with orientation); three columns fill it. */}
+      <View
+        className={`ui-row ${inactive ? "opacity-55" : ""}`}
+        style={[s.mainRow, { height: zoneHeight }]}
+      >
+        {/* Left: hole cards (padding and row height scale with community card scale). */}
+        <View
+          className="ui-col ui-center rounded-sm border border-border-subtle bg-panel/80 px-4 flex-1"
+          style={[s.holeCardsCol, { paddingVertical: scaledHoleCardsPadding }]}
+        >
+          <View
+            className="ui-row ui-center"
+            style={[s.cardRow, { height: scaledCardRowHeight }]}
+          >
             {cards.map((c, i) => {
               const key = HERO_CARD_KEYS[i] ?? `card-${i}`;
-              return c ? (
-                <PlayingCard key={key} rank={c.rank} suit={c.suit} packId={cardFacePackId} />
-              ) : (
-                <PlayingCard key={key} faceDown />
+              return (
+                <View key={key} style={{ transform: [{ scale: layoutScale }] }}>
+                  {c ? (
+                    <PlayingCard rank={c.rank} suit={c.suit} packId={cardFacePackId} />
+                  ) : (
+                    <PlayingCard faceDown />
+                  )}
+                </View>
               );
             })}
           </View>
         </View>
 
-        {/* Center: player identity and stack. */}
+        {/* Center: player identity and stack; dealer button in upper right when hero is dealer. */}
         <View
-          className="ui-col ui-center justify-center rounded-sm border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]"
+          className="ui-row rounded-sm border border-border-subtle bg-panel/80 p-4"
           style={s.stackCol}
           data-testid="hero-stack"
           data-stack-cents={String(stackCents)}
           data-hero-name={userName ?? ""}
         >
-          <View style={s.heroIdentityRow}>
-            <AvatarImage
-              avatarUrl={avatarUrl}
-              initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
-              onPress={onAvatarPress}
-              style={s.heroAvatar}
-              imageStyle={s.heroAvatarImage}
-              className="bg-panel-elevated border border-border"
-            />
-            {userName ? (
-              <Text variant="label" numberOfLines={1} className="text-center flex-1" allowFontScaling={false}>{userName}</Text>
-            ) : null}
-          </View>
-          <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
-        </View>
-
-        {/* Third column: dealer button (when hero is dealer) + stacked calculation pills. */}
-        <View style={s.calcCol}>
           {isDealer ? (
-            <View style={s.dealerSlot}>
+            <View style={s.dealerSlotStack} pointerEvents="none">
               <DealerButton size="small" />
             </View>
           ) : null}
-          <CalculationsStrip
-            equity={equity}
-            vpipPct={playerStats?.vpipPct}
-            pfrPct={playerStats?.pfrPct}
-            statsHands={playerStats?.hands}
-            visible={calculationsVisible}
-            muted={calcMuted}
-            direction="column"
-          />
+            <View style={s.heroIdentityRow}>
+              <AvatarImage
+                avatarUrl={avatarUrl}
+                initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
+                onPress={onAvatarPress}
+                style={s.heroAvatar}
+                imageStyle={s.heroAvatarImage}
+                className="bg-panel-elevated border border-border"
+              />
+              <View className="flex-col">
+              {userName ? (
+                <Text variant="label" numberOfLines={1} className="text-center flex-1" allowFontScaling={false}>{userName}</Text>
+              ) : null}
+            <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
+            </View>
+              </View>
         </View>
+
+        {showStats ? (
+          <View style={s.calcCol}>
+            <CalculationsStrip
+              equity={equity}
+              vpipPct={playerStats?.vpipPct}
+              pfrPct={playerStats?.pfrPct}
+              statsHands={playerStats?.hands}
+              visible={true}
+              muted={calcMuted}
+              direction="column"
+            />
+          </View>
+        ) : null}
       </View>
       
       {isActiveTurn && typeof turnCountdownSeconds === "number" && turnCountdownSeconds > 0 ? (

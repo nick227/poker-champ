@@ -1,0 +1,27 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Asymmetric stacks: short BB",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Short" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "stacksBB": { "BB": 25, "BTN": 100 },
+  "heroHoleCards": ["Ac", "Kd"],
+  "board": ["Ah", "8c", "3s", "2d", "Jc"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 2, "action": "BET", "sizePot": 0.75 },
+    { "street": "TURN", "actorSeat": 1, "action": "FOLD" }
+  ],
+  "tags": ["stacks", "short-stack", "turn"],
+  "constraints": { "minStreetReached": "TURN", "minHeroDecisions": 2 }
+}

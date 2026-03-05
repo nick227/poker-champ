@@ -87,16 +87,38 @@ export function LessonInstructorPanel({
 
   return (
     <View className="p-4">
-      {step.beforeInstructorMessage ? (
+      {step.beforeInstructorMessage && !feedback ? (
         <Text variant="body">
           {step.beforeInstructorMessage}
         </Text>
       ) : null}
       {feedback && !evaluating ? (
-        <View className="mt-3 bg-background p-2">
+        <View className="mt-3 bg-background">
+          {step.type === "ACTION_STEP" && step.expectedAction ? (
+            <View className="mb-2 gap-1">
+              <Text variant="label" className="text-xl py-2 bg-blue-500/20">
+                Pro played: {ACTION_LABELS[step.expectedAction.toLowerCase()] ?? step.expectedAction}
+              </Text>
+              {feedback.submittedActionKey ? (
+                feedback.isCorrect ? (
+                  <Text variant="label" className="text-xl py-2 text-success bg-green-500/20">
+                    You chose: {ACTION_LABELS[feedback.submittedActionKey] ?? feedback.submittedActionKey} ✓
+                  </Text>
+                ) : (
+                  <Text variant="label" className="text-xl py-2 text-failure bg-red-500/20">
+                    You chose: {ACTION_LABELS[feedback.submittedActionKey] ?? feedback.submittedActionKey}
+                  </Text>
+                )
+              ) : feedback.isCorrect ? (
+                <Text variant="label" className="text-xl py-2 text-success bg-green-500/20">
+                  You matched the pro ✓
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <Text
             variant="body"
-            className={feedback.gradeBand ? "text-foreground" : feedback.isCorrect ? "text-success" : "text-danger"}
+            className={`text-xl py-2 ${feedback.gradeBand ? "text-foreground" : feedback.isCorrect ? "text-success bg-green-500/20" : "text-danger bg-red-500/20"}`}
           >
             {feedback.response}
           </Text>

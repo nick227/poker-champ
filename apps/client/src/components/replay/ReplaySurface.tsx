@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
 import { ReplayControls } from "@/components/replay/ReplayControls";
 import { Text } from "@/components/base/Text";
@@ -9,6 +9,17 @@ import { getReplayActionMessage, getReplayHandResultMessage } from "./replayMess
  * Single shared renderer for replay: same ActiveTableView as in-game + ReplayControls.
  * Container controls height; do not use flex:1 on root.
  */
+
+export function goBack() {
+  if (typeof window === "undefined") return;
+
+  if (window.history.length > 1) {
+    window.history.back();
+  } else {
+    window.location.href = "/";
+  }
+}
+
 export function ReplaySurface({
   snapshot,
   sceneModel,
@@ -25,9 +36,13 @@ export function ReplaySurface({
   return (
     <View>
       <View className="mx-4 mt-4 mb-2 self-start rounded-full border border-border bg-panel px-3 py-1">
-        <Text variant="label" className="text-xs">
-          Replay Mode
-        </Text>
+        <Pressable
+        onPress={goBack}
+        >
+          <Text variant="label" className="text-xs">
+            Back ↩ 
+          </Text>
+        </Pressable>
       </View>
       <ActiveTableView
         snapshot={snapshot}

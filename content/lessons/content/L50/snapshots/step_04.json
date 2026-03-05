@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "snapshotId": "step_04",
+  "snapshotSeq": 4,
+  "emittedAtTs": 1772743939689,
+  "serverTimeTs": 1772743939689,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "River call for value",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743939688",
+    "handNumber": 1,
+    "street": "RIVER",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 9,
+    "roundCurrentBetCents": 1500,
+    "minRaiseCents": 1500,
+    "potCents": 4500,
+    "board": [
+      "Jh",
+      "8s",
+      "3c",
+      "Ah",
+      "2d"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Value-better",
+      "status": "ACTIVE",
+      "stackCents": 7100,
+      "roundBetCents": 1500,
+      "committedCents": 3000,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 8550,
+      "roundBetCents": 0,
+      "committedCents": 1500,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Jc",
+      "Jd"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "34672173ef347441de5063cafabd73b771c32976"
+}

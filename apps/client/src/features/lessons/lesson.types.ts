@@ -26,6 +26,9 @@ export type LessonStep = {
   runtimeConfigJson?: Record<string, unknown> | null;
   // Editorial-only grouping; never used as a runtime branch key.
   displayCategory?: string | null;
+  /** ACTION_STEP: pro's action for "Pro played" / ghost comparison */
+  expectedAction?: string | null;
+  acceptedCorrectActions?: string[] | null;
 };
 
 export type LessonDefinition = {
@@ -43,6 +46,12 @@ export type LessonDefinition = {
   steps: LessonStep[];
 };
 
+export type GhostAttemptSummary = {
+  matchedProCount: number;
+  totalDecisions: number;
+  accuracyPercent: number;
+};
+
 export type LessonAttempt = {
   id: string;
   lessonId: string;
@@ -50,6 +59,7 @@ export type LessonAttempt = {
   startedAt: string;
   completedAt?: string | null;
   scorePct?: number | null;
+  summaryJson?: GhostAttemptSummary | null;
   currentStepIndex?: number;
   submittedStepCount?: number;
   submittedSteps?: Array<{
@@ -71,6 +81,8 @@ export type LessonFeedback = {
   takeaway?: string | null;
   /** Optional: "You'll see this node ~N times per month" when credible. */
   frequencyPerMonth?: number | null;
+  /** ACTION_STEP: normalized key for "You chose: X" */
+  submittedActionKey?: string | null;
 };
 
 export type LessonActionPayload = {

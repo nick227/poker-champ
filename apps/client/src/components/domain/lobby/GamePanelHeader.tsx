@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { AvatarImage } from "@/components/base/AvatarImage";
+import { ConfirmButton } from "@/components/base/ConfirmButton";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
 
 const AVATAR_SIZE = 40;
@@ -26,10 +27,16 @@ export function GamePanelHeader({
   creatorName,
   creatorAvatarUrl,
   updatedAt,
+  canJoin,
+  onJoin,
+  isJoining,
 }: {
   creatorName: string;
   creatorAvatarUrl: string | null;
   updatedAt: string;
+  canJoin?: boolean;
+  onJoin?: () => void;
+  isJoining?: boolean;
 }) {
   return (
     <View className="ui-row items-center justify-between" style={{ minHeight: GAME_PANEL_LAYOUT.headerMinHeight }}>
@@ -46,9 +53,11 @@ export function GamePanelHeader({
           <Text variant="muted" className="text-[11px]" numberOfLines={1}>{formatUpdatedAt(updatedAt)}</Text>
         </View>
       </View>
-      <View className="px-2 py-1 rounded-full border border-border/80 bg-panel">
-        <Text variant="label" className="text-[10px]">CASH</Text>
-      </View>
+      {canJoin !== undefined && onJoin && (
+        <View className="ui-row justify-end items-end w-full flex-1">
+          <ConfirmButton title={isJoining ? "Joining..." : "Join Table"} onPress={onJoin} disabled={isJoining} />
+        </View>
+      )}
     </View>
   );
 }

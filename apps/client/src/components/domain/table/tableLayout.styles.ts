@@ -59,6 +59,7 @@ export const layoutStyles = StyleSheet.create({
     minHeight: BOARD_AREA_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
+    paddingHorizontal: TABLE_SPACING.edge,
   },
   heroSection: {
     width: "100%",

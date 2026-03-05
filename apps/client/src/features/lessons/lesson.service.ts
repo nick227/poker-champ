@@ -1,6 +1,7 @@
 import { request } from "@poker-champ/sdk";
 import type { AwardGrant } from "@/types/awards";
 import type {
+  GhostAttemptSummary,
   LessonAttempt,
   LessonUtilitiesOverview,
   LessonDefinition,
@@ -61,7 +62,8 @@ type SubmitStepResponse = {
     id: string;
     lessonId: string;
     status: string;
-    scorePct: number;
+    scorePct: number | null;
+    summaryJson?: GhostAttemptSummary | null;
   };
   awardsGranted?: AwardGrant[];
 };

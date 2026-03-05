@@ -93,7 +93,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       applyThemePack: (pack) => {
         const feltImageId = getThemePackFeltImageId(pack);
         switch (pack) {
-          case "mono":
+          case "dark":
             set({
               feltColor: "0 0% 0%",
               feltGradient: null,
@@ -102,8 +102,8 @@ export const usePreferencesStore = create<PreferencesState>()(
               cardBackPackId: null,
               cardBackPattern: "minimal",
               cardBackColor: getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "100 33% 50%",
-              backgroundColor: "0 0% 100%",
+              accentColor: "0 0% 50%",
+              backgroundColor: "0 0% 0%",
               tableRadius: "0px",
             });
             break;
@@ -112,12 +112,12 @@ export const usePreferencesStore = create<PreferencesState>()(
               feltColor: "70 8% 15%",
               feltGradient: null,
               feltImageId,
-              cardFaceColor: "60 30% 96%",
+              cardFaceColor: "60 2% 96%",
               cardBackPackId: null,
               cardBackPattern: "geometric",
               cardBackColor: getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "340 72% 40%",
-              backgroundColor: "70 8% 10%",
+              accentColor: "340 92% 56%",
+              backgroundColor: "70 8% 15%",
               tableRadius: "8px",
             });
             break;

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "snapshotId": "step_03",
+  "snapshotSeq": 3,
+  "emittedAtTs": 1772743453569,
+  "serverTimeTs": 1772743453569,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "BTN Float vs Turn Barrel",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743453569",
+    "handNumber": 1,
+    "street": "TURN",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 5,
+    "roundCurrentBetCents": 747,
+    "minRaiseCents": 747,
+    "potCents": 1743,
+    "board": [
+      "Ts",
+      "7d",
+      "2c",
+      "9h"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Villain",
+      "status": "ACTIVE",
+      "stackCents": 8855,
+      "roundBetCents": 747,
+      "committedCents": 1245,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9552,
+      "roundBetCents": 0,
+      "committedCents": 498,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ah",
+      "Jh"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "d638e8b9171c7447d4a95dc177cff76898e5e84a"
+}

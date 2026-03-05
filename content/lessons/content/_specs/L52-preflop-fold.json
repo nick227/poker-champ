@@ -1,0 +1,21 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Preflop fold to 3-bet",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "3-bettor" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["8s", "7h"],
+  "board": [],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "RAISE", "sizeBB": 9 },
+    { "street": "PREFLOP", "actorSeat": 2, "action": "FOLD" }
+  ],
+  "tags": ["preflop", "fold", "3-bet"],
+  "constraints": { "minHeroDecisions": 2 }
+}

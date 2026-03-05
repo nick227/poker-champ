@@ -30,7 +30,12 @@ type StepConfigStep = {
 type LessonStepConfig = {
   lessonId: string;
   title: string;
-  moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C" | "MODULE_D";
+  lessonType?: "STANDALONE" | "FULL_HAND_GHOST";
+  /** Ghost lessons: hero must be in this seat in every snapshot. If omitted, inferred from first snapshot and consistency enforced. */
+  heroSeat?: number;
+  /** Optional hand ID for "Watch the full hand" replay link (ghost lessons). */
+  replayHandId?: string;
+  moduleCode: "MODULE_A" | "MODULE_B" | "MODULE_C" | "MODULE_D" | "MODULE_GHOST";
   recommendedOrder: number;
   role: "teaches" | "drills" | "tests";
   repeatable: boolean;
@@ -81,6 +86,103 @@ async function readLessonDescription(lessonDir: string): Promise<string | null> 
   }
 }
 
+function isGhostLesson(config: LessonStepConfig): boolean {
+  return (
+    config.moduleCode === "MODULE_GHOST" ||
+    (config as { lessonType?: string }).lessonType === "FULL_HAND_GHOST"
+  );
+}
+
+const EXPECTED_ACTION_TO_OPTION: Record<string, string[]> = {
+  fold: ["canFold"],
+  check: ["canCheck"],
+  call: ["canCall"],
+  raise: ["canBet", "canRaise", "canAllIn"],
+  bet: ["canBet"],
+  all_in: ["canAllIn"],
+};
+
+function snapshotFingerprint(snap: TableSnapshotPayload): string {
+  return JSON.stringify({
+    street: snap.hand?.street,
+    potCents: snap.hand?.potCents,
+    board: snap.hand?.board,
+    actionCount: snap.hand?.actionCount,
+    stateHash: snap.stateHash,
+  });
+}
+
+async function validateGhostLesson(
+  config: LessonStepConfig,
+  lessonDir: string,
+  readSnapshot: (step: StepConfigStep) => Promise<TableSnapshotPayload | null>,
+): Promise<void> {
+  if (!isGhostLesson(config)) return;
+  const actionSteps = config.steps.filter((s) => s.type === "ACTION_STEP");
+  const snapshots: TableSnapshotPayload[] = [];
+  for (const step of actionSteps) {
+    const snap = await readSnapshot(step);
+    if (!snap) throw new Error(`Ghost lesson ${config.lessonId}: step ${step.id} has no snapshot`);
+    snapshots.push(snap);
+  }
+
+  const lessonHeroSeat = config.heroSeat ?? (snapshots[0] ? snapshots[0].hero?.seat ?? null : null);
+
+  for (let i = 0; i < actionSteps.length; i++) {
+    const step = actionSteps[i];
+    const snapshot = snapshots[i];
+    const expectedAction =
+      typeof (step.gradingSpecJson?.expectedAction as string) === "string"
+        ? (step.gradingSpecJson.expectedAction as string).trim().toLowerCase()
+        : null;
+    if (!expectedAction) {
+      throw new Error(
+        `Ghost lesson ${config.lessonId}: step ${step.id} missing gradingSpecJson.expectedAction`,
+      );
+    }
+    const heroSeat = snapshot.hero?.seat;
+    if (typeof heroSeat !== "number") {
+      throw new Error(`Ghost lesson ${config.lessonId}: step ${step.id} snapshot missing hero.seat`);
+    }
+    if (lessonHeroSeat !== null && heroSeat !== lessonHeroSeat) {
+      throw new Error(
+        `Ghost lesson ${config.lessonId}: step ${step.id} snapshot.hero.seat (${heroSeat}) must match lesson heroSeat (${lessonHeroSeat})`,
+      );
+    }
+    if (config.heroSeat != null && heroSeat !== config.heroSeat) {
+      throw new Error(
+        `Ghost lesson ${config.lessonId}: step ${step.id} snapshot.hero.seat (${heroSeat}) must equal lesson.heroSeat (${config.heroSeat})`,
+      );
+    }
+    const toActSeat = snapshot.hand?.toActSeat;
+    if (typeof toActSeat !== "number" || heroSeat !== toActSeat) {
+      throw new Error(
+        `Ghost lesson ${config.lessonId}: step ${step.id} snapshot hero.seat (${heroSeat}) must match hand.toActSeat (${toActSeat})`,
+      );
+    }
+    const opts = snapshot.hero?.actionOptions as Record<string, boolean> | undefined;
+    const requiredOpts = EXPECTED_ACTION_TO_OPTION[expectedAction];
+    if (requiredOpts?.length) {
+      const hasOption = requiredOpts.some((key) => opts?.[key] === true);
+      if (!hasOption) {
+        throw new Error(
+          `Ghost lesson ${config.lessonId}: step ${step.id} expectedAction ${expectedAction} not available in hero.actionOptions`,
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < snapshots.length - 1; i++) {
+    const a = snapshotFingerprint(snapshots[i]);
+    const b = snapshotFingerprint(snapshots[i + 1]);
+    if (a === b) {
+      throw new Error(
+        `Ghost lesson ${config.lessonId}: step ${actionSteps[i + 1].id} snapshot must differ from previous (duplicate snapshot)`,
+      );
+    }
+  }
+}
+
 async function loadCanonicalLessons(contentRoot: string): Promise<
   Array<{
     config: LessonStepConfig;
@@ -128,6 +230,13 @@ async function seedLessons() {
     const difficulty = toDifficulty(config.difficulty);
     const version = typeof config.version === "number" && Number.isFinite(config.version) ? config.version : 1;
 
+    await validateGhostLesson(config, lessonDir, async (step) => {
+      if (!step.snapshotPath) return null;
+      const snapshotPath = path.resolve(lessonDir, step.snapshotPath);
+      const raw = await readJson<unknown>(snapshotPath);
+      return TableSnapshotPayloadSchema.parse(raw) as TableSnapshotPayload;
+    });
+
     await prisma.lesson.upsert({
       where: { id: lessonId },
       create: {
@@ -146,6 +255,7 @@ async function seedLessons() {
         version,
         tier: "free",
         applyCtaText: "Start Lesson",
+        replayHandId: config.replayHandId ?? null,
       },
       update: {
         slug: `${lessonId.toLowerCase()}-${slugify(config.title)}`,
@@ -162,6 +272,7 @@ async function seedLessons() {
         version,
         tier: "free",
         applyCtaText: "Start Lesson",
+        replayHandId: config.replayHandId ?? null,
       },
     });
 

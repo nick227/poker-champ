@@ -292,7 +292,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.state.bigBlindCents = cfg?.bigBlindCents ?? this.state.bigBlindCents;
     this.state.minBuyInCents = cfg?.minBuyInCents ?? this.state.minBuyInCents;
     this.state.maxBuyInCents = cfg?.maxBuyInCents ?? this.state.maxBuyInCents;
-    this.state.showStats = cfg?.showStats ?? true;
+    this.state.showStats = cfg?.showStats ?? false;
 
     // Limit maximum clients to the table's seat capacity
     this.maxClients = this.state.maxSeats;
@@ -827,6 +827,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   async onJoin(client: Client, options: JoinOptions, auth?: AuthContext) {
     const userId = auth?.userId;
+    const requestedBuyInCents =
+      Number.isInteger(options?.buyInCents) && (options?.buyInCents as number) > 0
+        ? (options!.buyInCents as number)
+        : null;
     // Use per-user join lock to prevent race conditions
     const lockKey = `${this.state.tableId}:${userId ?? client.sessionId}`;
     await this.withJoinLock(lockKey, async () => {
@@ -881,6 +885,34 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
       // RESTORE mode: User already has a seat at this table, just reconnect
       if (this.dealer.hasPlayer(userId)) {
+        const currentPlayer = this.state.playersById.get(userId);
+        const shouldApplyJoinBuyInOverride =
+          requestedBuyInCents != null &&
+          this.state.street === "WAITING" &&
+          currentPlayer?.stackCents === 0 &&
+          currentPlayer?.status === "OUT";
+        if (shouldApplyJoinBuyInOverride) {
+          try {
+            await this.processJoinBuyInForZeroStackSeat(userId, requestedBuyInCents);
+          } catch (err: any) {
+            logger.warn(
+              {
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                userId,
+                buyInCents: requestedBuyInCents,
+                code: err instanceof PokerError ? err.code : "JOIN_BUYIN_FAILED",
+                message: err?.message ?? String(err),
+              },
+              "POKER_JOIN_BUYIN_OVERRIDE_FAILED",
+            );
+            if (err instanceof PokerError) this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
+            else this.sendTableMessage(client, "ERROR", { code: "JOIN_BUYIN_FAILED", message: err?.message ?? String(err) });
+            client.leave();
+            return;
+          }
+        }
+
         this.rebindClientExclusive(userId, client);
         this.logRestoreBindOk(userId, client.sessionId);
         await this.markReconnectedSafe(userId);
@@ -896,7 +928,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           });
         }
         this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-        this.dealer.emitSnapshotToUser(userId, "RECONNECT");
+        await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
         this.handleEmptyStateChange();
         return;
       }
@@ -908,6 +940,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           userId,
         });
         if (persisted) {
+          const shouldTreatPersistedAsNewJoin =
+            requestedBuyInCents != null &&
+            this.state.street === "WAITING" &&
+            persisted.stackCentsSnapshot === 0 &&
+            persisted.state === "SEATED_SITTING_OUT";
+          if (shouldTreatPersistedAsNewJoin) {
+            await TableSeatSessionService.markLeft({
+              tableId: this.state.tableId,
+              userId,
+              reason: "JOIN_WITH_BUYIN_OVERRIDE",
+              stackCentsSnapshot: persisted.stackCentsSnapshot,
+              handIdSnapshot: this.state.handId || undefined,
+            });
+          } else {
           try {
             // Restore the player from their persistent session
             await this.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
@@ -924,7 +970,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
               handIdSnapshot: this.state.handId || undefined,
             });
             this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-            this.dealer.emitSnapshotToUser(userId, "RECONNECT");
+            await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
             logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_REBOUND_PERSISTED");
             this.handleEmptyStateChange();
             return;
@@ -946,6 +992,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             });
             client.leave();
             return;
+          }
           }
         }
       }
@@ -1011,7 +1058,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           joinMode: "NEW",
         });
         this.addTablePresence(client, userId, auth.username);
-        this.dealer.emitSnapshotToUser(userId, "JOIN");
+        await this.dealer.emitSnapshotToUser(userId, "JOIN");
         logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_SUCCESS");
         this.handleEmptyStateChange();
       } catch (err: any) {
@@ -1206,7 +1253,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         });
       }
       this.sendTableMessage(reconnected, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-      this.dealer.emitSnapshotToUser(userId, "RECONNECT");
+      await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
       this.updateMetadataCounts();
     } catch {
       // Reconnection window expired - handle abandonment
@@ -1287,6 +1334,22 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         });
       }
     }
+  }
+
+  private async processJoinBuyInForZeroStackSeat(userId: string, buyInCents: number): Promise<void> {
+    const externalRef = `join_buyin_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
+    await CashierService.processCashGameBuyIn({
+      userId,
+      tableId: this.state.tableId,
+      amountCents: buyInCents,
+      externalRef,
+      tableMeta: {
+        name: this.state.tableName,
+        creatorId: this.state.creatorId || undefined,
+      },
+    });
+    await this.applyRebuy(userId, buyInCents, externalRef);
+    logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId, buyInCents }, "POKER_JOIN_BUYIN_OVERRIDE_APPLIED");
   }
 
   /**

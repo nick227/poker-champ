@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "snapshotId": "step_03",
+  "snapshotSeq": 3,
+  "emittedAtTs": 1772743941886,
+  "serverTimeTs": 1772743941886,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Flop check back",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743941885",
+    "handNumber": 1,
+    "street": "TURN",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 5,
+    "roundCurrentBetCents": 300,
+    "minRaiseCents": 300,
+    "potCents": 900,
+    "board": [
+      "2c",
+      "7s",
+      "9d",
+      "Th"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Opponent",
+      "status": "ACTIVE",
+      "stackCents": 9500,
+      "roundBetCents": 300,
+      "committedCents": 600,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9750,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ah",
+      "Kd"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "18f8d511c17bd9d64e0a18612a8903e7071bab1d"
+}

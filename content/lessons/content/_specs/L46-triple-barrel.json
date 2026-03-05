@@ -1,0 +1,26 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Facing triple barrel",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Bluffer" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Kd", "Qd"],
+  "board": ["Jc", "Ts", "2h", "7c", "4d"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "BET", "sizePot": 0.75 },
+    { "street": "TURN", "actorSeat": 2, "action": "CALL" },
+    { "street": "RIVER", "actorSeat": 1, "action": "BET", "sizePot": 1 },
+    { "street": "RIVER", "actorSeat": 2, "action": "CALL" }
+  ],
+  "tags": ["triple-barrel", "river", "call-down"],
+  "constraints": { "minStreetReached": "RIVER", "villainBarrels": 3, "minHeroDecisions": 3 }
+}

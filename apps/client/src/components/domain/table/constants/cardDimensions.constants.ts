@@ -1,8 +1,8 @@
 /** Single source of truth for card dimensions and aspect ratio */
 
 /** Base card dimensions (1.0 scale) */
-export const BASE_CARD_WIDTH = 60;
-export const BASE_CARD_HEIGHT = 80;
+export const BASE_CARD_WIDTH = 70;
+export const BASE_CARD_HEIGHT = 90;
 
 /** Standard card scales used throughout the app */
 export const CARD_SCALES = {

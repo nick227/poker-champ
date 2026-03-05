@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "snapshotId": "step_02",
+  "snapshotSeq": 2,
+  "emittedAtTs": 1772743938968,
+  "serverTimeTs": 1772743938968,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "3-way flop c-bet (Marco, Lena, Hero)",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743938968",
+    "handNumber": 1,
+    "street": "FLOP",
+    "dealerSeat": 3,
+    "sbSeat": 1,
+    "bbSeat": 2,
+    "toActSeat": 3,
+    "actionCount": 4,
+    "roundCurrentBetCents": 325,
+    "minRaiseCents": 325,
+    "potCents": 975,
+    "board": [
+      "Th",
+      "9c",
+      "2s"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Marco",
+      "status": "FOLDED",
+      "stackCents": 10000,
+      "roundBetCents": 0,
+      "committedCents": 50,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_2",
+      "isBot": true,
+      "name": "Lena",
+      "status": "ACTIVE",
+      "stackCents": 9475,
+      "roundBetCents": 325,
+      "committedCents": 625,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 3,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9700,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 3,
+    "holeCards": [
+      "Qh",
+      "Jh"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": false,
+      "canRaise": true,
+      "canAllIn": false,
+      "primaryWagerAction": "RAISE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "bda68eb4fa485cfba9547f440db5a54a17757edc"
+}

@@ -67,19 +67,19 @@ export function GameTablePanel({
           }).start();
         }}
       >
-        <View className="ui-stack-3" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
+        <View className="ui-stack-3 border-b border-border" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
           <GamePanelPrimaryLine
             gameName={table.name}
             smallBlindCents={table.smallBlindCents}
             bigBlindCents={table.bigBlindCents}
-            canJoin={canJoin}
-            onJoin={onJoin}
-            isJoining={isJoining}
           />
           <GamePanelHeader
             creatorName={table.creatorName}
             creatorAvatarUrl={table.creatorAvatarUrl}
             updatedAt={table.updatedAt}
+            canJoin={canJoin}
+            onJoin={onJoin}
+            isJoining={isJoining}
           />
           <GamePanelStats
             players={table.players}
@@ -89,17 +89,17 @@ export function GameTablePanel({
             avgPotCents={table.avgPotCents}
             waitlistCount={table.waitlistCount}
           />
+          <View>
+            <GamePanelFooter
+              canJoin={canJoin}
+              onJoin={onJoin}
+              isJoining={isJoining}
+              canDelete={Boolean(canDelete)}
+              onDelete={() => onDelete?.(table.id)}
+            />
+          </View>
         </View>
       </Pressable>
-      <View className="mt-3 pt-3 border-t border-border/60" style={{ minHeight: GAME_PANEL_LAYOUT.footerMinHeight }}>
-        <GamePanelFooter
-          canJoin={canJoin}
-          onJoin={onJoin}
-          isJoining={isJoining}
-          canDelete={Boolean(canDelete)}
-          onDelete={() => onDelete?.(table.id)}
-        />
-      </View>
     </Surface>
   );
 }

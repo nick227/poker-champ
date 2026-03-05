@@ -3,7 +3,9 @@ import {
   HERO_CARD_GAP,
   DEALER_BUTTON_SLOT_SIZE,
   CARD_ROW_HEIGHT,
-} from "./constants/components/heroZone.layout";
+  HERO_ZONE_HEIGHT,
+  HOLE_CARDS_COL_PADDING_VERTICAL,
+} from "./constants/tableLayout.constants";
 import { TABLE_TILE_RADIUS } from "./constants/style/tableRadii";
 import { ACTIVE_TILE_BORDER } from "./constants/style/tableColors";
 
@@ -29,12 +31,16 @@ export const heroZoneStyles = StyleSheet.create({
     ] as const,
     elevation: 6,
   },
+  /** Single container setting row height (hole-cards container height). All three columns fill this. */
   mainRow: {
+    height: HERO_ZONE_HEIGHT,
     gap: 8,
     alignItems: "stretch",
   },
   holeCardsCol: {
+    paddingVertical: HOLE_CARDS_COL_PADDING_VERTICAL,
     gap: 8,
+    alignSelf: "stretch",
   },
   holeCardsHeader: {
     gap: 6,
@@ -50,6 +56,22 @@ export const heroZoneStyles = StyleSheet.create({
   },
   stackCol: {
     gap: 4,
+    position: "relative",
+    paddingRight: DEALER_BUTTON_SLOT_SIZE + 8,
+    alignSelf: "stretch",
+  },
+  stackColContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dealerSlotStack: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: DEALER_BUTTON_SLOT_SIZE,
+    height: DEALER_BUTTON_SLOT_SIZE,
+    justifyContent: "center",
+    alignItems: "center",
   },
   heroIdentityRow: {
     flexDirection: "row",
@@ -58,24 +80,24 @@ export const heroZoneStyles = StyleSheet.create({
     minWidth: 0,
   },
   heroAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 70,
+    height: 70,
+    borderRadius: 999,
     overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
   },
   heroAvatarImage: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 70,
+    height: 70,
+    borderRadius: 999,
   },
   calcCol: {
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
+    justifyContent: "space-between",
     minWidth: DEALER_BUTTON_SLOT_SIZE,
+    alignSelf: "stretch",
   },
   dealerSlot: {
     width: DEALER_BUTTON_SLOT_SIZE,
@@ -86,6 +108,7 @@ export const heroZoneStyles = StyleSheet.create({
   sittingOutBadge: {
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 8,
   },
   sittingOutBadgeInner: {
     backgroundColor: "hsla(0, 0%, 0%, 0.75)",

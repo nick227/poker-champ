@@ -23,7 +23,7 @@ export async function postCreateTable(input: CreateTableInput) {
     maxBuyInCents: input.maxBuyInCents,
     visibility: input.visibility ?? "PUBLIC",
     password: input.visibility === "PRIVATE" ? input.password : undefined,
-    showStats: input.showStats ?? true,
+    showStats: input.showStats ?? false,
     speed: "normal" as const,
   };
 
@@ -44,7 +44,7 @@ export async function postCreateInstantGame(input: { presetId: InstantGamePreset
       maxBuyInCents: input.config.maxBuyInCents,
       visibility: input.config.visibility ?? "PUBLIC" as const,
       password: input.config.visibility === "PRIVATE" ? input.config.password : undefined,
-      showStats: input.config.showStats ?? true,
+      showStats: input.config.showStats ?? false,
     },
   };
 

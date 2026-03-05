@@ -162,6 +162,7 @@ export function EmptyTableView({
           stackCents={heroStackCents}
           canAct={false}
           heroStatus={heroStatus}
+          showStats={snapshot.table?.showStats ?? false}
           userName={snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)?.name}
         />
       }

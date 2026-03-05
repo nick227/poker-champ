@@ -1,0 +1,26 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Turn all-in for value",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Caller" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 50,
+  "heroHoleCards": ["As", "Ad"],
+  "board": ["Ac", "Kh", "2d", "9s"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 2, "action": "ALL_IN", "sizeBB": 45 },
+    { "street": "TURN", "actorSeat": 1, "action": "FOLD" }
+  ],
+  "tags": ["all-in", "turn", "value"],
+  "constraints": { "minStreetReached": "TURN", "minHeroDecisions": 2 }
+}

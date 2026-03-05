@@ -33,7 +33,7 @@ export type TableSceneShellProps = {
   activeTurnProgress?: number | null;
   dealerBar: ReactNode;
   board: ReactNode;
-  hero: ReactNode;
+  hero: ReactNode | null;
   bottom: ReactNode;
   rootClassName?: string;
   immersiveBoard?: boolean;
@@ -67,13 +67,19 @@ export function TableSceneShell({
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
-  const { insets, heroZoneHeight } = useTableLayoutHeights();
+  const { insets, boardAreaHeight, heroZoneHeight, layoutScale } =
+    useTableLayoutHeights();
   const router = useRouter();
 
   const heroSectionStyle: ViewStyle =
     Platform.OS === "web"
-      ? ({ height: "var(--table-hero-zone-height)" } as unknown as ViewStyle)
-      : { height: heroZoneHeight, minHeight: heroZoneHeight };
+      ? ({ minHeight: "var(--table-hero-zone-height)" } as unknown as ViewStyle)
+      : { minHeight: heroZoneHeight };
+
+  const feltAreaStyle: ViewStyle = {
+    height: boardAreaHeight,
+    minHeight: boardAreaHeight,
+  };
 
   const actionBarHeight = ACTION_BAR_HEIGHT + insets.bottom;
 
@@ -96,7 +102,11 @@ export function TableSceneShell({
       ]}
       className={cx("table-wrapper", rootClassName)}
     >
-      <TableLayoutHeightProvider heroZoneHeight={heroZoneHeight}>
+      <TableLayoutHeightProvider
+        heroZoneHeight={heroZoneHeight}
+        boardAreaHeight={boardAreaHeight}
+        layoutScale={layoutScale}
+      >
         <View collapsable={false} style={layoutStyles.titleSection}>
           <TableGameTopBar
             tableName={tableName}
@@ -118,7 +128,7 @@ export function TableSceneShell({
               <View
                 collapsable={false}
                 style={layoutStyles.opponentStripSection}
-                className="table-opponent-strip"
+                className="table-opponent-strip mt-4"
               >
                 {opponents.length === 0 && opponentStripEmptyState ? (
                   <View className="opponent-strip-empty-state">
@@ -134,22 +144,25 @@ export function TableSceneShell({
                 )}
               </View>
 
-              <View collapsable={false}>
-                <View collapsable={false} style={layoutStyles.gameArea}>
+              <View className="game-area-container" collapsable={false}>
                   <View collapsable={false} style={layoutStyles.dealerBar}>
                     {dealerBar}
                   </View>
-                  <View collapsable={false} style={layoutStyles.feltArea}>
+                  <View
+                    collapsable={false}
+                    style={[layoutStyles.feltArea, feltAreaStyle]}
+                  >
                     {board}
                   </View>
-                </View>
-                <View
-                  collapsable={false}
-                  style={[layoutStyles.heroSection, heroSectionStyle]}
-                  className="table-hero-section mt-2"
-                >
-                  {hero}
-                </View>
+                {hero != null ? (
+                  <View
+                    collapsable={false}
+                    style={[layoutStyles.heroSection, heroSectionStyle]}
+                    className="py-4 table-hero-section mt-2"
+                  >
+                    {hero}
+                  </View>
+                ) : null}
               </View>
 
               {!hideBottomSection ? (

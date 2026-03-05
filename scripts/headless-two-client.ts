@@ -63,6 +63,10 @@ async function main() {
   const roomId = typeof created === "string" ? created : (created as any).roomId;
   const room = (matchMaker as any).getLocalRoomById(roomId) as PokerRoom & any;
   if (!room) throw new Error("Failed to resolve local room");
+  // Harness drives onJoin/onLeave manually with fake clients; keep room alive even when clientCount remains 0.
+  room.autoDispose = false;
+
+  const roomDisposed = () => Boolean((room as any).disposed || (room as any)._disposed);
 
   const snapshots: Record<UserId, TableSnapshotPayload | null> = {
     user_a: null,
@@ -301,11 +305,15 @@ async function main() {
 
     await waitFor(
       () =>
+        !roomDisposed() &&
         (roomStreet() !== "WAITING" && Boolean(roomHandId()) && hasVisibleCurrentHand()) ||
         roomStreet() === "WAITING",
       20_000,
       "reconnect scenario hand or waiting table",
     );
+    if (roomDisposed()) {
+      throw new Error("Room disposed before reconnect scenario could begin");
+    }
 
     let reconnectUserId = resolveSnapshotActorUserId();
     if (!reconnectUserId) {

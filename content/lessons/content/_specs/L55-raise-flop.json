@@ -1,0 +1,23 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Flop raise for value",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "C-bet" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Th", "Ts"],
+  "board": ["Tc", "5d", "2s", "9h", "4c"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 2, "action": "RAISE", "sizePot": 2.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "FOLD" }
+  ],
+  "tags": ["raise", "flop", "value"],
+  "constraints": { "minHeroDecisions": 2 }
+}

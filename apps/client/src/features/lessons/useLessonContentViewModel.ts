@@ -15,13 +15,24 @@ export type NavigationButtonDescriptor = {
   variant?: "ghost";
 };
 
-function buildHeaderBadges(tierLabel: string | null): HeaderBadge[] {
+const STREET_LABELS: Record<string, string> = {
+  PREFLOP: "Preflop",
+  FLOP: "Flop",
+  TURN: "Turn",
+  RIVER: "River",
+  SHOWDOWN: "Showdown",
+};
+
+function buildHeaderBadges(tierLabel: string | null, streetLabel: string | null): HeaderBadge[] {
   return [
     {
       id: "poker-school",
       type: "chip",
       content: LESSON_CONTENT_COPY.panel.productBadge,
     },
+    ...(streetLabel
+      ? [{ id: "street", type: "chip" as const, content: streetLabel }]
+      : []),
     ...(tierLabel
       ? [
           {
@@ -73,6 +84,7 @@ function buildNavigationButtons(context: {
 
 export function useLessonContentViewModel(params: {
   tierLabel: string | null;
+  streetLabel?: string | null;
   showStepNavigation: boolean;
   answeredQuestionStep: boolean;
   showInfoNavigation: boolean;
@@ -86,7 +98,7 @@ export function useLessonContentViewModel(params: {
 }) {
   return useMemo(
     () => ({
-      headerBadges: buildHeaderBadges(params.tierLabel),
+      headerBadges: buildHeaderBadges(params.tierLabel, params.streetLabel ?? null),
       navigationButtons: buildNavigationButtons({
         showStepNavigation: params.showStepNavigation,
         answeredQuestionStep: params.answeredQuestionStep,
@@ -102,6 +114,7 @@ export function useLessonContentViewModel(params: {
     }),
     [
       params.tierLabel,
+      params.streetLabel,
       params.showStepNavigation,
       params.answeredQuestionStep,
       params.showInfoNavigation,

@@ -342,8 +342,10 @@ export class Dealer {
   resetSessionStats(): void {
     this.sessionStatsTracker.resetAll();
   }
-  emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string): Promise<void> {
-    return this.snapshotService.emitToUser(userId, reason, actionId);
+  async emitSnapshotToUser(userId: string, reason: SnapshotReason, actionId?: string): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      await this.snapshotService.emitToUser(userId, reason, actionId);
+    });
   }
   emitSnapshotsToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
     return this.snapshotService.emitToAll(reason, actionId);
@@ -506,7 +508,7 @@ export class Dealer {
     const currentHandIdAtEnqueue = this.state.handId ?? null;
     const queued = this.actionQueue
       .catch((err) => {
-        if (!this.isSkippableQueuedActionError(err)) {
+        if (this.shouldEmitQueueRecoveryDiagnostic(err)) {
           logger.warn({ err }, "Recovering dealer queue after prior failure before player action");
           this.emitDiagnostic({
             level: "warn",
@@ -846,32 +848,38 @@ export class Dealer {
     this.nextHandScheduled = true;
     const countdownMs = NEXT_HAND_DELAY_MS;
 
-    setTimeout(async () => {
-      this.state.nextHandAtTs = Date.now() + countdownMs;
-      // Emit snapshot so clients see the countdown after result-hold window.
-      await this.sendTableSnapshotToAll("AUTO_TRANSITION");
-
-      setTimeout(async () => {
+    setTimeout(() => {
+      void this.enqueueSerializedStateMutation(async () => {
         if (this.disposed) return;
+        this.state.nextHandAtTs = Date.now() + countdownMs;
+        // Emit snapshot so clients see the countdown after result-hold window.
+        await this.sendTableSnapshotToAll("AUTO_TRANSITION");
+      }).catch((err) => {
+        logger.error({ err, reason }, "Failed to announce next-hand countdown");
+      });
 
-        this.state.nextHandAtTs = 0;
+      setTimeout(() => {
+        void this.enqueueSerializedStateMutation(async () => {
+          if (this.disposed) return;
 
-        const seated = [...this.state.playersById.values()]
-          .filter(p => p.seat >= 0 && p.status !== "OUT");
+          this.state.nextHandAtTs = 0;
 
-        if (this.state.street === "WAITING" && seated.length >= 2) {
-          this.enqueueSerializedStateMutation(() => {
+          const seated = [...this.state.playersById.values()]
+            .filter(p => p.seat >= 0 && p.status !== "OUT");
+
+          if (this.state.street === "WAITING" && seated.length >= 2) {
             this.nextHandScheduled = false;
-            return this.startHand();
-          }).catch((err) => {
-            this.nextHandScheduled = false;
-            logger.error({ err, reason }, "Failed to auto-start next hand");
-          });
-        } else {
-          // If we still cannot start (e.g. players left), ensure clients know we are WAITING
+            await this.startHand();
+            return;
+          }
+
+          // If we still cannot start (e.g. players left), ensure clients know we are WAITING.
           this.nextHandScheduled = false;
           await this.sendTableSnapshotToAll("AUTO_TRANSITION");
-        }
+        }).catch((err) => {
+          this.nextHandScheduled = false;
+          logger.error({ err, reason }, "Failed to auto-start next hand");
+        });
       }, countdownMs);
     }, delayMs);
   }
@@ -937,9 +945,10 @@ export class Dealer {
         player.status = "ABANDONED";
       }
 
-      await this.sendTableSnapshotToAll("SEAT_CHANGE");
-
-      if (this.state.street === "WAITING") return;
+      if (this.state.street === "WAITING") {
+        await this.sendTableSnapshotToAll("SEAT_CHANGE");
+        return;
+      }
 
       if (countNotFoldedPlayers(this.state) <= 1) {
         await this.finishHandByLastStanding();
@@ -959,6 +968,7 @@ export class Dealer {
         this.state.toActSeat = nextSeat;
       }
 
+      await this.sendTableSnapshotToAll("SEAT_CHANGE");
       this.maybeActForBot();
       return;
     }
@@ -1199,6 +1209,15 @@ export class Dealer {
     );
   }
 
+  /**
+   * Recovery diagnostics should represent unexpected queue corruption.
+   * PokerError rejections (INVALID_ACTION, NOT_YOUR_TURN, etc.) are expected.
+   */
+  private shouldEmitQueueRecoveryDiagnostic(err: unknown): boolean {
+    if (this.isSkippableQueuedActionError(err)) return false;
+    return !(err instanceof PokerError);
+  }
+
   private async applyDisconnectedAutoActionCapForHand() {
     await this.turnAutomationService.applyDisconnectedAutoActionCapForHand();
     if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") {
@@ -1301,7 +1320,7 @@ export class Dealer {
   private enqueueSerializedStateMutation(work: () => Promise<void>): Promise<void> {
     const queued = this.actionQueue
       .catch((err) => {
-        if (!this.isSkippableQueuedActionError(err)) {
+        if (this.shouldEmitQueueRecoveryDiagnostic(err)) {
           logger.warn({ err }, "Recovering dealer queue after prior failure");
           this.emitDiagnostic({
             level: "warn",

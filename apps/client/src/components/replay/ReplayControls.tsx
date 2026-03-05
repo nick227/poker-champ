@@ -76,22 +76,18 @@ export function ReplayControls({
           title="◀"
           onPress={onPrev}
           disabled={!canGoPrev}
-          variant={canGoPrev ? "primary" : "ghost"}
+          intent={canGoPrev ? "primary" : "ghost"}
         />
-        <View className="flex-1 mx-4" />
+        <Button
+          title={isPlaying ? "⏸" : "▶"}
+          onPress={onPlay}
+          intent="primary"
+        />
         <Button
           title="▶"
           onPress={onNext}
           disabled={!canGoNext}
-          variant={canGoNext ? "primary" : "ghost"}
-        />
-      </View>
-
-      <View className="flex-row justify-center">
-        <Button
-          title={isPlaying ? "⏸" : "▶"}
-          onPress={onPlay}
-          variant="primary"
+          intent={canGoNext ? "primary" : "ghost"}
         />
       </View>
     </View>

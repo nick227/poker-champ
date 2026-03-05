@@ -1,0 +1,69 @@
+{
+  "lessonId": "L21",
+  "title": "Ghost a pro: sample full hand",
+  "version": 1,
+  "lessonType": "FULL_HAND_GHOST",
+  "heroSeat": 1,
+  "moduleCode": "MODULE_GHOST",
+  "recommendedOrder": 1,
+  "targetAudience": "all",
+  "difficulty": "BEGINNER",
+  "estimatedMinutes": 10,
+  "steps": [
+    {
+      "id": "L21_step_01",
+      "sequence": 1,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_01.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Flop: villain bets half-pot. You have an open-ended straight draw (Qs Js on Tc 9d 2s). What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": ["ev_impact", "community_comparison"],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CALL",
+        "distributionKey": { "type": "action_bucket", "buckets": ["fold", "call", "raise", "all_in"] },
+        "responseCorrect": "Pro called.",
+        "responseIncorrect": "Pro called here.",
+        "acceptedCorrectActions": ["call"],
+        "followUpContent": "Half-pot is about 2:1. With eight outs and implied odds when you hit, the pro calls. Folding would be too tight; raising can work but calling is the standard, low-variance line."
+      }
+    },
+    {
+      "id": "L21_step_02",
+      "sequence": 2,
+      "type": "ACTION_STEP",
+      "snapshotVersion": 1,
+      "snapshotPath": "./snapshots/step_02.json",
+      "gradingVersion": 1,
+      "beforeInstructorMessage": "Turn: villain checks. You still have the draw and the pot is 5,000. What would the pro do?",
+      "question": "What would the pro do?",
+      "gradingSpecJson": {
+        "type": "ACTION_STEP",
+        "runtime": {
+          "evaluatorKey": "action_rubric_eval",
+          "scenarioProviderKey": "static_snapshot",
+          "revealLayerKeys": ["ev_impact", "community_comparison"],
+          "displayCategory": "WWYD_COMPARE"
+        },
+        "gradingMode": "OBJECTIVE_SINGLE",
+        "expectedAction": "CHECK",
+        "distributionKey": { "type": "action_bucket", "buckets": ["fold", "check", "call", "raise", "all_in"] },
+        "responseCorrect": "Pro checked.",
+        "responseIncorrect": "Pro checked here.",
+        "acceptedCorrectActions": ["check"],
+        "followUpContent": "Taking a free card is standard. You realize your equity without putting more in, and you keep the pot small so the river is easier to play. Betting is fine sometimes, but checking back is the default pro line."
+      }
+    }
+  ],
+  "curriculumVersion": "poker_lessons_ghost_v1",
+  "role": "teaches",
+  "repeatable": true
+}

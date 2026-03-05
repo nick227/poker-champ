@@ -6,6 +6,7 @@
         "src/index.ts",
         "scripts/*.ts",
         "src/engine/seats/TableSeatSessionService.ts",
+        "src/lessons/exportLessonFromReplay.ts",
         "src/**/*.test.ts"
       ],
       "project": ["src/**/*.ts", "scripts/**/*.ts"]
@@ -20,18 +21,15 @@
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "e2e/**/*.ts"]
     },
     "packages/sdk": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/realtime-contract": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]
     }
   },
-  "ignoreUnresolved": ["babel-preset-expo", "expo-router/entry"],
+  "ignoreUnresolved": ["babel-preset-expo"],
   "ignoreBinaries": ["eas", "playwright"],
   "ignoreDependencies": [
-    "@vitest/coverage-v8",
     "expo-updates",
     "expo-system-ui",
     "@babel/runtime",
@@ -61,4 +59,3 @@
     "apps/client/src/assets/cards/generated/cardPackRegistry.ts": ["exports"]
   }
 }
-

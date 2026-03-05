@@ -1,0 +1,22 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Flop fold: dump weak hand",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Alex" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["7c", "6s"],
+  "board": ["Kh", "Qd", "Jc"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.75 },
+    { "street": "FLOP", "actorSeat": 2, "action": "FOLD" }
+  ],
+  "tags": ["fold", "flop", "bluff-catcher"],
+  "constraints": { "minHeroDecisions": 1 }
+}

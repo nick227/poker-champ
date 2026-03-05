@@ -1,3 +1,6 @@
+/** Default for "Show Stats" when creating a game. Toggle here to default On (true) or Off (false). */
+export const DEFAULT_SHOW_STATS = false;
+
 /** Blinds options: [smallBlindCents, bigBlindCents] */
 export const BLINDS_OPTIONS: ReadonlyArray<{ label: string; smallBlindCents: number; bigBlindCents: number }> = [
   { label: "$1 / $2", smallBlindCents: 100, bigBlindCents: 200 },
@@ -36,7 +39,7 @@ export function getBuyInOptions(bigBlindCents: number): ReadonlyArray<BuyInOptio
   });
 }
 
-/** Default min buy-in: 100 BB (standard poker-site default). */
+/** Default min buy-in: 20 BB so min and max differ (max is 100 BB). */
 export function getDefaultMinBuyInCents(bigBlindCents: number): number {
-  return bigBlindCents * MAX_BB;
+  return bigBlindCents * MIN_BB;
 }

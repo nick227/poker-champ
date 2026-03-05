@@ -1,0 +1,27 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "River thin value bet",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Mia" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Ac", "Tc"],
+  "board": ["Ah", "8d", "3s", "2c", "Kh"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 2, "action": "CHECK" },
+    { "street": "RIVER", "actorSeat": 1, "action": "CHECK" },
+    { "street": "RIVER", "actorSeat": 2, "action": "BET", "sizePot": 0.5 }
+  ],
+  "tags": ["river", "value-bet", "thin-value"],
+  "constraints": { "minStreetReached": "RIVER", "minHeroDecisions": 2 }
+}

@@ -1,0 +1,28 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "BTN Float vs Turn Barrel",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Villain" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Ah", "Jh"],
+  "board": ["Ts", "7d", "2c", "9h", "3s"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.33 },
+    { "street": "FLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "BET", "sizePot": 0.75 },
+    { "street": "TURN", "actorSeat": 2, "action": "CALL" }
+  ],
+  "tags": ["float", "turn-barrel", "btn-vs-bb"],
+  "constraints": {
+    "minStreetReached": "TURN",
+    "minHeroDecisions": 2,
+    "villainBarrels": 2
+  }
+}

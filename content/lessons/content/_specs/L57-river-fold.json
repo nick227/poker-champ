@@ -1,0 +1,28 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "River fold to value bet",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Value" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["8h", "8d"],
+  "board": ["Kh", "Qc", "Js", "Tc", "9d"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "CHECK" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "TURN", "actorSeat": 1, "action": "CHECK" },
+    { "street": "TURN", "actorSeat": 2, "action": "BET", "sizePot": 0.6 },
+    { "street": "TURN", "actorSeat": 1, "action": "CALL" },
+    { "street": "RIVER", "actorSeat": 1, "action": "BET", "sizePot": 0.8 },
+    { "street": "RIVER", "actorSeat": 2, "action": "FOLD" }
+  ],
+  "tags": ["river", "fold", "board-pair"],
+  "constraints": { "minStreetReached": "RIVER", "minHeroDecisions": 3 }
+}

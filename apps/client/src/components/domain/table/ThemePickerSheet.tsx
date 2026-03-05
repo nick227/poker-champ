@@ -13,21 +13,21 @@ import { THEME_PACK_CONFIG } from "@/config/themePackConfig";
 import { BuiltinCardFace } from "./BuiltinCardFace";
 import { CardBackPattern } from "./CardBackPatterns";
 import { getCardBackSource, keyToRankSuit } from "./cardFaceAssets";
-import { getFeltImageSource } from "./feltImages";
+import { getFeltImageSource, FELT_IMAGE_PRESETS } from "./feltImages";
 import type { FeltImageId } from "./feltImages";
 
 type FeltPresetColor = { name: string; value: string };
 type FeltPresetImage = { name: string; imageId: FeltImageId };
 type FeltPreset = FeltPresetColor | FeltPresetImage;
 
-const FELT_PRESETS: ReadonlyArray<FeltPreset> = [
+const FELT_COLOR_PRESETS: ReadonlyArray<FeltPresetColor> = [
   { name: "Forest", value: "158 30% 14%" },
   { name: "Ocean", value: "217 30% 14%" },
   { name: "Blood", value: "0 30% 14%" },
   { name: "Void", value: "0 0% 5%" },
-  { name: "Texture", imageId: "texture" },
-  { name: "Purple", imageId: "purple-bubbles" },
 ];
+
+const FELT_PRESETS: ReadonlyArray<FeltPreset> = [...FELT_COLOR_PRESETS, ...FELT_IMAGE_PRESETS];
 
 export type ThemePickerSheetProps = {
   visible: boolean;

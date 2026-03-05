@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "snapshotId": "step_02",
+  "snapshotSeq": 2,
+  "emittedAtTs": 1772743936100,
+  "serverTimeTs": 1772743936100,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "River thin value bet",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743936099",
+    "handNumber": 1,
+    "street": "FLOP",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 3,
+    "roundCurrentBetCents": 0,
+    "minRaiseCents": 100,
+    "potCents": 600,
+    "board": [
+      "Ah",
+      "8d",
+      "3s"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Mia",
+      "status": "ACTIVE",
+      "stackCents": 9800,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9750,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ac",
+      "Tc"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": true,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "BET",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "f410706ebfb24ff46a571b93737d2740c7fa4ce5"
+}

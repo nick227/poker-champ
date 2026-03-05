@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "snapshotId": "step_03",
+  "snapshotSeq": 3,
+  "emittedAtTs": 1772743944049,
+  "serverTimeTs": 1772743944049,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Double barrel: call flop, fold turn",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743944048",
+    "handNumber": 1,
+    "street": "TURN",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 5,
+    "roundCurrentBetCents": 1044,
+    "minRaiseCents": 1044,
+    "potCents": 2436,
+    "board": [
+      "Ah",
+      "Kd",
+      "3s",
+      "7c"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Barrel",
+      "status": "ACTIVE",
+      "stackCents": 8360,
+      "roundBetCents": 1044,
+      "committedCents": 1740,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9354,
+      "roundBetCents": 0,
+      "committedCents": 696,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Qc",
+      "Jc"
+    ],
+    "actionOptions": {
+      "canFold": true,
+      "canCheck": false,
+      "canCall": false,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "8bcc372b675e50068a7481f8897ff187fdd129f2"
+}

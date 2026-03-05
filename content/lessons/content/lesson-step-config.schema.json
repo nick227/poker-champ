@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://poker-champ.local/schemas/lesson-step-config.schema.json",
   "title": "Lesson Step Config",
@@ -8,6 +8,8 @@
     "lessonId": { "type": "string", "minLength": 1 },
     "title": { "type": "string", "minLength": 1 },
     "version": { "type": "integer", "minimum": 1 },
+    "lessonType": { "type": "string", "enum": ["STANDALONE", "FULL_HAND_GHOST"] },
+    "heroSeat": { "type": "integer", "minimum": 0 },
     "moduleCode": { "type": "string" },
     "recommendedOrder": { "type": "integer", "minimum": 1 },
     "targetAudience": { "type": "string" },

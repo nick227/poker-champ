@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "snapshotId": "step_04",
+  "snapshotSeq": 4,
+  "emittedAtTs": 1772743936823,
+  "serverTimeTs": 1772743936823,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Facing triple barrel",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772743936822",
+    "handNumber": 1,
+    "street": "RIVER",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 7,
+    "roundCurrentBetCents": 3000,
+    "minRaiseCents": 3000,
+    "potCents": 6000,
+    "board": [
+      "Jc",
+      "Ts",
+      "2h",
+      "7c",
+      "4d"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Bluffer",
+      "status": "ACTIVE",
+      "stackCents": 5600,
+      "roundBetCents": 3000,
+      "committedCents": 4500,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 8550,
+      "roundBetCents": 0,
+      "committedCents": 1500,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Kd",
+      "Qd"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "ee7764dddd313d0a22f02d848fe2a69686d21375"
+}

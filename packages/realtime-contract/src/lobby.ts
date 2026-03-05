@@ -13,7 +13,7 @@ export const CreateTableSchema = z
     visibility: VisibilityEnum.default("PUBLIC"),
     password: z.string().min(1).max(64).optional(),
     speed: z.enum(["normal", "fast"]).default("normal"),
-    showStats: z.boolean().default(true),
+    showStats: z.boolean().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.bigBlindCents < v.smallBlindCents) {

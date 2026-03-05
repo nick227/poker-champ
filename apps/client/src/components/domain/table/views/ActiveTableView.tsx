@@ -278,6 +278,9 @@ export function ActiveTableView({
       }
       board={board}
       hero={
+        isReplayMode
+          ? null
+          : (
         <HeroZone
           cards={heroCards}
           stackCents={heroStackCents}
@@ -287,7 +290,7 @@ export function ActiveTableView({
           potOdds={heroCalculations?.potOddsPct}
           outs={heroCalculations?.outs}
           playerStats={heroPlayerStats}
-          showStats={snapshot.table?.showStats ?? true}
+          showStats={snapshot.table?.showStats ?? false}
           isWinner={isHeroWinner}
           isDealer={isHeroDealer}
           isActiveTurn={isHeroToAct}
@@ -298,6 +301,7 @@ export function ActiveTableView({
           onAvatarPress={onHeroAvatarPress}
           onToggleSittingOut={onToggleSittingOut}
         />
+          )
       }
       bottom={bottom}
       hideBottomSection={isReplayMode}

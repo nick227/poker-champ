@@ -189,11 +189,11 @@ export default function LeaderboardScreen() {
               {authError ? (
                 <Button
                   title="Login / Register"
-                  variant="ghost"
+                  intent="ghost"
                   onPress={() => router.push(loginPathWithNext("/leaderboard"))}
                 />
               ) : null}
-              <Button title="Retry" variant="ghost" onPress={() => setRefreshNonce((v) => v + 1)} />
+              <Button title="Retry" intent="ghost" onPress={() => setRefreshNonce((v) => v + 1)} />
             </Surface>
           ) : entries.length === 0 ? (
             <Surface styleId="surface.list.panel" className="p-4">

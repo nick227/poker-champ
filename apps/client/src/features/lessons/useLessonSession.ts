@@ -221,6 +221,7 @@ export function useLessonSession(lessonId: string | null, enabled: boolean) {
                 ...prev,
                 status: result.attempt.status,
                 scorePct: result.attempt.scorePct,
+                ...(result.attempt.summaryJson != null && { summaryJson: result.attempt.summaryJson }),
               }
             : prev,
         );

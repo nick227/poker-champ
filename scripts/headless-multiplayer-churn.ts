@@ -363,6 +363,8 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
     sessionId,
     leave: () => {},
     send: (type: string, payload: unknown) => {
+      const activeClient = clients[userId];
+      if (!activeClient || activeClient.sessionId !== sessionId) return;
       if (type === "SESSION_RESTORED") sessionRestored[userId] = true;
       if (type !== "TABLE_SNAPSHOT") return;
 

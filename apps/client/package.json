@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "postinstall": "pnpm --filter @poker-champ/realtime-contract build",
     "dev": "expo start",
@@ -15,6 +15,7 @@
     "test:voice": "vitest run src/tests/voice.webrtc-stun.test.ts",
     "e2e": "node node_modules/@playwright/test/cli.js test",
     "e2e:stack": "node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
+    "e2e:rejoin-buyin-override": "node node_modules/@playwright/test/cli.js test e2e/rejoin-buyin-override.spec.ts",
     "e2e:lessons": "node node_modules/@playwright/test/cli.js test e2e/lessons-instructor-loop.spec.ts",
     "e2e:lessons:canonical": "node node_modules/@playwright/test/cli.js test e2e/lessons-canonical-runtime.spec.ts",
     "e2e:stack:ci": "set CI=1&& node node_modules/@playwright/test/cli.js test e2e/two-player-stack-consistency.spec.ts",
@@ -35,6 +36,7 @@
   "dependencies": {
     "@babel/runtime": "^7.28.6",
     "@colyseus/sdk": "^0.17.26",
+    "@expo/metro-runtime": "~4.0.1",
     "@expo/vector-icons": "^15.1.1",
     "@poker-champ/realtime-contract": "workspace:*",
     "@poker-champ/sdk": "workspace:*",

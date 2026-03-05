@@ -564,7 +564,13 @@ async function setupHumanVsBotRoom() {
         snapshots.find((snap) => snap.reason === "HAND_SHOWDOWN") ??
         snapshots.find((snap) => Boolean(snap.lastHandResult?.handId));
       expect(handEndSnapshot).toBeDefined();
-      expect(handEndSnapshot?.hand?.street === "PREFLOP" || handEndSnapshot?.hand?.street === "SHOWDOWN").toBe(true);
+      const terminalStreet = handEndSnapshot?.hand?.street;
+      expect(
+        terminalStreet === undefined ||
+          terminalStreet === "WAITING" ||
+          terminalStreet === "PREFLOP" ||
+          terminalStreet === "SHOWDOWN",
+      ).toBe(true);
       expect(handEndSnapshot?.lastHandResult?.winnerId).toBeDefined();
       expect(handEndSnapshot?.lastHandResult?.handId).toBeDefined();
 

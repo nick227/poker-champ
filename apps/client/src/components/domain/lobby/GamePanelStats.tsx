@@ -37,7 +37,7 @@ export function GamePanelStats({
   const waitlistValue = waitlistCount && waitlistCount > 0 ? String(waitlistCount) : "";
 
   return (
-    <View className="ui-row flex-wrap" style={{ minHeight: GAME_PANEL_LAYOUT.statsMinHeight }}>
+    <View className="ui-row flex-wrap bg-panel rounded-md p-2" style={{ minHeight: GAME_PANEL_LAYOUT.statsMinHeight }}>
       <Stat label="Seats" value={`${players} / ${seats}`} />
       <Stat label="Buy-in" value={`${formatCents(minBuyInCents)} - ${formatCents(maxBuyInCents)}`} />
       <Stat label="Avg Pot" value={avgPotValue} />

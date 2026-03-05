@@ -6,7 +6,8 @@ export type ModuleCode =
   | "MODULE_A"
   | "MODULE_B"
   | "MODULE_C"
-  | "MODULE_D";
+  | "MODULE_D"
+  | "MODULE_GHOST";
 
 export interface LessonListLessonDto {
   id: string;
@@ -75,6 +76,9 @@ export interface LessonDetailStepDto {
   continuationKey: string | null;
   runtimeConfigJson: Record<string, unknown> | null;
   displayCategory: string | null;
+  /** ACTION_STEP: pro's action for "Pro played" / ghost comparison */
+  expectedAction?: string | null;
+  acceptedCorrectActions?: string[] | null;
 }
 
 export interface LessonDetailResponseDto {
@@ -94,6 +98,12 @@ export interface LessonDetailResponseDto {
   };
 }
 
+export interface GhostAttemptSummary {
+  matchedProCount: number;
+  totalDecisions: number;
+  accuracyPercent: number;
+}
+
 export interface StartAttemptResponseDto {
   attempt: {
     id: string;
@@ -102,6 +112,7 @@ export interface StartAttemptResponseDto {
     startedAt: string;
     completedAt: string | null;
     scorePct: number | null;
+    summaryJson?: GhostAttemptSummary | null;
     currentStepIndex: number;
     submittedStepCount: number;
     submittedSteps: Array<{
@@ -122,11 +133,19 @@ export interface SubmitFeedbackDto {
   takeaway?: string;
   frequencyPerMonth?: number;
   gradeBand?: "STRONG" | "REASONABLE" | "WEAK";
+  /** ACTION_STEP: normalized key for "You chose: X" (fold, check, call, raise, all_in) */
+  submittedActionKey?: string | null;
 }
 
 export interface SubmitResponseDto {
   feedback: SubmitFeedbackDto;
-  attempt: { id: string; lessonId: string; status: string; scorePct: number | null };
+  attempt: {
+    id: string;
+    lessonId: string;
+    status: string;
+    scorePct: number | null;
+    summaryJson?: GhostAttemptSummary | null;
+  };
   awardsGranted?: Array<{ awardId: string; reason: string }>;
   gradingDebug?: { stepType: string; gradingSpec: string };
   idempotentReplay?: boolean;

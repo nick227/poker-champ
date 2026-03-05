@@ -1,0 +1,25 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "3-way flop c-bet (Marco, Lena, Hero)",
+  "players": 3,
+  "playersInfo": [
+    { "seat": 1, "position": "SB", "name": "Marco" },
+    { "seat": 2, "position": "BB", "name": "Lena" },
+    { "seat": 3, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 3,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Qh", "Jh"],
+  "board": ["Th", "9c", "2s", "5d", "Kc"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 3, "action": "RAISE", "sizeBB": 3 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "FOLD" },
+    { "street": "PREFLOP", "actorSeat": 2, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 2, "action": "BET", "sizePot": 0.5 },
+    { "street": "FLOP", "actorSeat": 3, "action": "RAISE", "sizePot": 2.5 },
+    { "street": "FLOP", "actorSeat": 2, "action": "FOLD" }
+  ],
+  "tags": ["3-way", "flop", "semi-bluff"],
+  "constraints": { "minHeroDecisions": 2 }
+}

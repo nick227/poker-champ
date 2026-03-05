@@ -7,6 +7,7 @@ export const LESSON_CONTENT_BUTTON_KEYS = {
   PREV: "PREV",
   READ_BLOG_POST: "READ_BLOG_POST",
   REPLAY_HAND: "REPLAY_HAND",
+  WATCH_FULL_HAND: "WATCH_FULL_HAND",
   RETRY: "RETRY",
   SHOW_LESSON: "SHOW_LESSON",
 } as const;
@@ -57,6 +58,7 @@ const BUTTON_LABEL_RESOLVERS: Record<
   PREV: () => "Prev",
   READ_BLOG_POST: () => "Read blog post",
   REPLAY_HAND: () => "Replay hand",
+  WATCH_FULL_HAND: () => "Watch the full hand",
   RETRY: () => "Retry",
   SHOW_LESSON: () => LESSON_CONTENT_COPY.panel.showLesson,
 };

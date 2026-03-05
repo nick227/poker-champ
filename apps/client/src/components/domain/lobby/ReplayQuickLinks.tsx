@@ -1,6 +1,8 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { useRouter } from "expo-router";
+import { loginPathWithNext } from "@/lib/nav";
 
 type ReplayQuickLinksProps = {
   latestHandId: string | null;
@@ -23,32 +25,25 @@ export function ReplayQuickLinks({
 }: ReplayQuickLinksProps) {
   const canPressReplayButton = !latestHandLoading && Boolean(latestHandId);
   const replayButtonTitle = latestHandLoading ? "Loading..." : "Replay hand";
+  const router = useRouter();
 
   return (
     <View className="px-4 pb-2 mt-4">
       <View className="ui-row gap-3">
         <View className="flex-1 rounded-xl border border-border bg-panel p-3">
           <Text variant="label" className="text-[10px]">
-            Replay
+            Champ
           </Text>
           <Text variant="h2" className="mt-1 text-base">
-            Replay last hand
+            Site leaderboard
           </Text>
           <Text variant="muted" className="mt-1 text-xs">
-            Jump back into your latest replayable hand.
+            Is your name among the best?
           </Text>
-          {latestHandError ? (
-            <Text variant="muted" className="mt-2 text-xs text-danger">
-              Unable to fetch replay hand.
-            </Text>
-          ) : null}
           <View className="mt-3">
             <Button
-              title={replayButtonTitle}
-              onPress={() => {
-                if (!latestHandId) return;
-                onReplayLastHand(latestHandId);
-              }}
+              title="Leaderboard"
+              onPress={() => router.push("/leaderboard")}
               disabled={!canPressReplayButton}
               minWidth={0}
               className="w-full"

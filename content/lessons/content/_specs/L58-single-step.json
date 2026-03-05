@@ -1,0 +1,28 @@
+{
+  "specVersion": 1,
+  "lessonTitle": "Single decision: call or fold flop",
+  "players": 2,
+  "playersInfo": [
+    { "seat": 1, "position": "BB", "name": "Betty" },
+    { "seat": 2, "position": "BTN", "name": "Hero" }
+  ],
+  "heroSeat": 2,
+  "blinds": { "sb": 0.5, "bb": 1 },
+  "startingStacksBB": 100,
+  "heroHoleCards": ["Ah", "3d"],
+  "board": ["As", "7c", "2h"],
+  "actions": [
+    { "street": "PREFLOP", "actorSeat": 2, "action": "RAISE", "sizeBB": 2.5 },
+    { "street": "PREFLOP", "actorSeat": 1, "action": "CALL" },
+    { "street": "FLOP", "actorSeat": 1, "action": "BET", "sizePot": 0.5 },
+    {
+      "street": "FLOP",
+      "actorSeat": 2,
+      "action": "CALL",
+      "beforeInstructorMessage": "Villain bets half-pot on the flop. Do you call with top pair?",
+      "followUpContent": "Calling is correct: you have top pair and are getting a good price. Folding would be too tight here."
+    }
+  ],
+  "tags": ["single-step", "flop", "call"],
+  "constraints": { "minHeroDecisions": 1 }
+}

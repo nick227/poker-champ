@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "snapshotId": "step_02",
+  "snapshotSeq": 2,
+  "emittedAtTs": 1772745129104,
+  "serverTimeTs": 1772745129104,
+  "reason": "ACTION_ACCEPTED",
+  "table": {
+    "tableId": "lesson-spec",
+    "tableName": "Single decision: call or fold flop",
+    "visibility": "PUBLIC",
+    "maxSeats": 9,
+    "smallBlindCents": 50,
+    "bigBlindCents": 100,
+    "minBuyInCents": 2000,
+    "maxBuyInCents": 20000,
+    "showStats": true
+  },
+  "hand": {
+    "handId": "spec_1772745129103",
+    "handNumber": 1,
+    "street": "FLOP",
+    "dealerSeat": 2,
+    "sbSeat": 2,
+    "bbSeat": 1,
+    "toActSeat": 2,
+    "actionCount": 3,
+    "roundCurrentBetCents": 300,
+    "minRaiseCents": 300,
+    "potCents": 900,
+    "board": [
+      "As",
+      "7c",
+      "2h"
+    ]
+  },
+  "seats": [
+    {
+      "seat": 1,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": true,
+      "name": "Betty",
+      "status": "ACTIVE",
+      "stackCents": 9500,
+      "roundBetCents": 300,
+      "committedCents": 600,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": false,
+      "isToAct": false
+    },
+    {
+      "seat": 2,
+      "occupied": true,
+      "userId": "user_1",
+      "isBot": false,
+      "name": "Hero",
+      "status": "ACTIVE",
+      "stackCents": 9750,
+      "roundBetCents": 0,
+      "committedCents": 300,
+      "connected": true,
+      "disconnectDeadlineTs": 0,
+      "isDealer": true,
+      "isToAct": true
+    }
+  ],
+  "hero": {
+    "userId": "user_1",
+    "youAreSeated": true,
+    "seat": 2,
+    "holeCards": [
+      "Ah",
+      "3d"
+    ],
+    "actionOptions": {
+      "canFold": false,
+      "canCheck": false,
+      "canCall": true,
+      "canBet": false,
+      "canRaise": false,
+      "canAllIn": false,
+      "primaryWagerAction": "NONE",
+      "callAmount": 0
+    }
+  },
+  "stateHash": "94ce5ff59bb41586def1cf45dcbac61c535ff1f4"
+}
