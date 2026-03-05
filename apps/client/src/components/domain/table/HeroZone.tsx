@@ -117,21 +117,9 @@ export function HeroZone({
       style={[s.root, isActiveTurn && s.activeTurn, { height: zoneHeight, gap: 16 }]}
     >
       {isWinner ? <PotWinRing radius={0} /> : null}
-      {/* Top rail: calculation stats (always rendered to preserve layout height) and optional turn countdown. */}
-      <View style={s.calcStrip}>
-        <CalculationsStrip
-          equity={equity}
-          vpipPct={playerStats?.vpipPct}
-          pfrPct={playerStats?.pfrPct}
-          statsHands={playerStats?.hands}
-          visible={calculationsVisible}
-          muted={calcMuted}
-        />
-      </View>
-
-      {/* Main row: hero cards + stack summary (+ optional dealer button). */}
+      {/* Main row: hero cards + stack + third column (dealer + stacked calculation pills). */}
       <View className={`ui-row ${inactive ? "opacity-55" : ""}`} style={s.mainRow}>
-        {/* Left card: status label + two hero hole cards. */}
+        {/* Left: hole cards. */}
         <View className="ui-col ui-center rounded-sm border border-border-subtle bg-panel/80 px-3 py-4" style={s.holeCardsCol}>
           <View className="ui-row ui-center" style={s.cardRow}>
             {cards.map((c, i) => {
@@ -145,7 +133,7 @@ export function HeroZone({
           </View>
         </View>
 
-        {/* Center card: player identity and stack amount. */}
+        {/* Center: player identity and stack. */}
         <View
           className="ui-col ui-center justify-center rounded-sm border border-border-subtle bg-panel/80 px-4 py-2 min-w-[88px]"
           style={s.stackCol}
@@ -169,13 +157,23 @@ export function HeroZone({
           <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
         </View>
 
-        {/* Right slot: dealer indicator when hero has the button. */}
-        {isDealer ? (
-          <View className="mr-4" style={s.dealerSlot}>
-            <DealerButton size="small" />
-          </View>
-        ) : null}
-
+        {/* Third column: dealer button (when hero is dealer) + stacked calculation pills. */}
+        <View style={s.calcCol}>
+          {isDealer ? (
+            <View style={s.dealerSlot}>
+              <DealerButton size="small" />
+            </View>
+          ) : null}
+          <CalculationsStrip
+            equity={equity}
+            vpipPct={playerStats?.vpipPct}
+            pfrPct={playerStats?.pfrPct}
+            statsHands={playerStats?.hands}
+            visible={calculationsVisible}
+            muted={calcMuted}
+            direction="column"
+          />
+        </View>
       </View>
       
       {isActiveTurn && typeof turnCountdownSeconds === "number" && turnCountdownSeconds > 0 ? (

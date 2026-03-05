@@ -15,7 +15,7 @@ import { normalizeTable } from "@/lib/lobbyTables";
 import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceStorage";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
-import { MODAL, TABLE } from "@/constants/copy";
+import { MODAL } from "@/constants/copy";
 import { useResolvedBuyIn } from "@/components/domain/table/hooks/useResolvedBuyIn";
 import { useTableScene } from "@/components/domain/table/hooks/useTableScene";
 import { useActionMessages } from "@/components/domain/table/hooks/useActionMessages";
@@ -31,6 +31,8 @@ import { usePlayerJoinedSound } from "@/components/domain/table/hooks/usePlayerJ
 import { useTablePageStores } from "@/hooks/useTablePageStores";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
+import type { RejoinUiState } from "@/components/domain/table/RejoinCTA";
+import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -74,6 +76,7 @@ export function useTablePageController({
     dispatchTableAction,
     dispatchSendChat,
     dispatchListBots,
+    dispatchRejoin,
     dispatchAddBot,
     dispatchRemoveBot,
     dispatchSetSittingOut,
@@ -120,6 +123,8 @@ export function useTablePageController({
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voicePrefReady, setVoicePrefReady] = useState(false);
+  const [rejoinUiState, setRejoinUiState] = useState<RejoinUiState>("idle");
+  const [rejoinErrorMessage, setRejoinErrorMessage] = useState<string | null>(null);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
 
@@ -299,11 +304,17 @@ export function useTablePageController({
   }, []);
 
   const handleTableGone = useCallback(() => {
-    useToastStore.getState().show(TABLE.tableGone, "danger");
+    const resolution = resolveTableGoneForRejoin(rejoinUiState);
+    if (!resolution.shouldCloseTable) {
+      if (resolution.nextRejoinUiState) setRejoinUiState(resolution.nextRejoinUiState);
+      if (resolution.rejoinErrorMessage) setRejoinErrorMessage(mapRejoinErrorMessage(resolution.rejoinErrorMessage));
+      return;
+    }
+    useToastStore.getState().show("Table no longer exists", "danger");
     closeTable(tableId);
     storeRegistry.table().clearTable(tableId);
     router.replace(lobbyPath());
-  }, [tableId, closeTable, router]);
+  }, [rejoinUiState, closeTable, tableId, router]);
 
   const handleReadyRoom = useCallback((room: TableRealtimeRoom | null) => {
     setVoiceRoom((prev) => (prev === room ? prev : room));
@@ -382,6 +393,17 @@ export function useTablePageController({
     }
   }, [dispatchSetSittingOut, heroIsSittingOut, tableId]);
 
+  const rejoinHero = useCallback(() => {
+    if (rejoinUiState === "sending") return;
+    setRejoinUiState("sending");
+    setRejoinErrorMessage(null);
+    const ok = dispatchRejoin({ tableId });
+    if (!ok) {
+      setRejoinUiState("error");
+      setRejoinErrorMessage("Connection unavailable");
+    }
+  }, [dispatchRejoin, rejoinUiState, tableId]);
+
   const onPlayerPress = useCallback(
     (o: Opponent) => {
       if (o.isBot) {
@@ -437,7 +459,32 @@ export function useTablePageController({
   }, [outOfChipsHandId]);
 
   useEffect(() => {
+    if (rejoinUiState !== "sending") return;
+    if (heroIsSittingOut) return;
+    setRejoinUiState("idle");
+    setRejoinErrorMessage(null);
+  }, [heroIsSittingOut, rejoinUiState]);
+
+  useEffect(() => {
+    if (rejoinUiState !== "sending") return;
     if (!tableError) return;
+    if (!isRejoinErrorMessage(tableError)) return;
+    setRejoinUiState("error");
+    setRejoinErrorMessage(mapRejoinErrorMessage(tableError));
+  }, [rejoinUiState, tableError]);
+
+  useEffect(() => {
+    if (rejoinUiState !== "sending") return;
+    if (connectionStatus === "CONNECTED") return;
+    setRejoinUiState("error");
+    setRejoinErrorMessage(connectionStatus === "RECONNECTING" ? "Connection interrupted" : "Connection lost");
+  }, [connectionStatus, rejoinUiState]);
+
+  useEffect(() => {
+    if (!tableError) return;
+    if (isRejoinErrorMessage(tableError)) {
+      return;
+    }
     if (/INSUFFICIENT_BANKROLL|Insufficient bankroll/i.test(tableError)) {
       useToastStore.getState().show("Insufficient bankroll for this table. Deposit or choose a lower buy-in.", "danger");
       return;
@@ -474,6 +521,8 @@ export function useTablePageController({
       chatMessages: chatOverlay.messages,
       chatVisible: chatOverlay.visible,
       botSummaries: botSummariesForTable,
+      rejoinUiState,
+      rejoinErrorMessage,
     },
     uiState: {
       activeTablesDropdownVisible,
@@ -506,6 +555,7 @@ export function useTablePageController({
       pickBot: handleBotPick,
       sendAction,
       toggleHeroSittingOut,
+      rejoinHero,
       closeChat: chatOverlay.onClose,
       sendChat: chatOverlay.onSend,
     },

@@ -146,7 +146,7 @@ export function TableSceneShell({
                 <View
                   collapsable={false}
                   style={[layoutStyles.heroSection, heroSectionStyle]}
-                  className="table-hero-section"
+                  className="table-hero-section mt-2"
                 >
                   {hero}
                 </View>

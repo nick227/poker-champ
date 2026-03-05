@@ -58,7 +58,7 @@ export function BoardArea({ cards, potCents }: BoardAreaProps) {
         className="my-4 w-full flex justify-center items-center"
         pointerEvents="none"
       >
-        <View className="rounded-full border-2 border-border bg-emerald-900 px-4 py-1 w-28">
+        <View className="rounded-full border-2 border-border bg-emerald-900 px-4 py-1">
           <Text
             variant="body"
             className="text-white"

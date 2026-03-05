@@ -1,6 +1,5 @@
 import { StyleSheet } from "react-native";
 import {
-  CALC_STRIP_HEIGHT,
   HERO_CARD_GAP,
   DEALER_BUTTON_SLOT_SIZE,
   CARD_ROW_HEIGHT,
@@ -30,11 +29,8 @@ export const heroZoneStyles = StyleSheet.create({
     ] as const,
     elevation: 6,
   },
-  calcStrip: {
-    height: CALC_STRIP_HEIGHT,
-  },
   mainRow: {
-    gap: 20,
+    gap: 8,
     alignItems: "stretch",
   },
   holeCardsCol: {
@@ -73,6 +69,13 @@ export const heroZoneStyles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+  },
+  calcCol: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: DEALER_BUTTON_SLOT_SIZE,
   },
   dealerSlot: {
     width: DEALER_BUTTON_SLOT_SIZE,

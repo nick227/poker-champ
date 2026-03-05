@@ -1,10 +1,9 @@
 import { useEffect, useRef, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { Pill, type PillVariant } from "@/components/base/Pill";
-import { Text } from "@/components/base/Text";
 import { DURATION } from "@/theme/animation";
 
-const CALC_STRIP_HEIGHT = 40;
+const CALC_STRIP_HEIGHT_ROW = 40;
 
 export function CalculationsStrip({
   equity,
@@ -15,6 +14,7 @@ export function CalculationsStrip({
   statsHands,
   visible = true,
   muted = false,
+  direction = "row",
 }: {
   equity?: number;
   potOdds?: number;
@@ -24,6 +24,8 @@ export function CalculationsStrip({
   statsHands?: number;
   visible?: boolean;
   muted?: boolean;
+  /** "row" = horizontal bar (default), "column" = stacked pills in third column */
+  direction?: "row" | "column";
 }) {
   const opacity = useRef(new Animated.Value(1)).current;
   const prev = useRef({ equity, potOdds, outs, vpipPct, pfrPct });
@@ -79,18 +81,21 @@ export function CalculationsStrip({
     ];
   }, [visible, equity, vpipPct, statsHands]);
 
+  const isColumn = direction === "column";
+  const containerHeight = isColumn ? undefined : CALC_STRIP_HEIGHT_ROW;
+
   return (
-    <View
-      collapsable={false}
-      style={{ height: CALC_STRIP_HEIGHT }}
-    >
+    <View collapsable={false} style={{ minHeight: isColumn ? undefined : CALC_STRIP_HEIGHT_ROW }}>
       <Animated.View
         style={{
-          height: CALC_STRIP_HEIGHT,
+          height: containerHeight,
           opacity: visible ? opacity : 1,
         }}
       >
-        <View className="ui-row ui-inline-2 ui-p-stack-2 mx-2" style={{ flexWrap: "nowrap" }}>
+        <View
+          className={isColumn ? "ui-col ui-inline-2 ui-p-stack-2" : "ui-row ui-inline-2 ui-p-stack-2 mx-2"}
+          style={{ flexDirection: isColumn ? "column" : "row", flexWrap: "nowrap" }}
+        >
           {pills.map((p) => (
             <Pill
               key={p.label}

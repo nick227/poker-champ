@@ -6,6 +6,7 @@ import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
 import type { TableAction } from "@/components/domain/table/ActionBar";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
+import type { RejoinUiState } from "@/components/domain/table/RejoinCTA";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
@@ -47,6 +48,8 @@ export type TablePageController = {
     chatMessages: ChatMessageForOverlay[];
     chatVisible: boolean;
     botSummaries: BotSummary[];
+    rejoinUiState: RejoinUiState;
+    rejoinErrorMessage?: string | null;
   };
   uiState: {
     activeTablesDropdownVisible: boolean;
@@ -76,9 +79,9 @@ export type TablePageController = {
     pickBot: (botId: string) => void;
     sendAction: (payload: { type: TableAction; amount?: number }) => void;
     toggleHeroSittingOut: () => void;
+    rejoinHero: () => void;
     closeChat: () => void;
     sendChat: (text: string) => void;
   };
 };
-
 

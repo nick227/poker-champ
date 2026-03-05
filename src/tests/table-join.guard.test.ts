@@ -72,6 +72,26 @@ describe("table join guardrails", () => {
     return { room, dealer };
   }
 
+  function buildRoomWithRealDealer(tableId: string, roomId: string) {
+    const room = new PokerRoom() as any;
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    room.roomId = roomId;
+    room.onCreate({
+      tableConfig: {
+        tableId,
+        name: "Rejoin Guard Table",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+    return room;
+  }
+
   it("sets blinds on room from tableConfig when creating table", () => {
     const room = new PokerRoom() as any;
     room.setMetadata = vi.fn().mockResolvedValue(undefined);
@@ -763,5 +783,95 @@ describe("table join guardrails", () => {
     expect(lock.ok).toBe(false);
     expect(lock.reason).toBe("CONNECTED_HUMANS_PRESENT");
     expect(lock.connectedHumanCount).toBe(1);
+  });
+
+  it("REJOIN returns REJOIN_FAILED_NOT_SEATED when session is not bound", async () => {
+    const room = buildRoomWithRealDealer("table_rejoin_not_seated", "room_rejoin_not_seated");
+    const client = makeClient("sess_rejoin_not_seated");
+
+    room.onMessageEvents.emit("REJOIN", client as any, {});
+    await delay(0);
+
+    expect(client.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({
+        version: 1,
+        code: "REJOIN_FAILED_NOT_SEATED",
+      }),
+    );
+  });
+
+  it("REJOIN returns REJOIN_FAILED_OUT_OF_CHIPS for seated user with zero stack", async () => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    const room = buildRoomWithRealDealer("table_rejoin_ooc", "room_rejoin_ooc");
+    const client = makeClient("sess_rejoin_ooc");
+    await room.onJoin(client as any, { buyInCents: 5000 }, { userId: "user_rejoin_ooc", username: "alice" });
+
+    const player = room.state.playersById.get("user_rejoin_ooc");
+    expect(player).toBeTruthy();
+    player.stackCents = 0;
+    player.status = "OUT";
+    player.sittingOutUntilNextHand = true;
+
+    room.onMessageEvents.emit("REJOIN", client as any, {});
+    await delay(0);
+
+    expect(client.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({
+        version: 1,
+        code: "REJOIN_FAILED_OUT_OF_CHIPS",
+      }),
+    );
+  });
+
+  it("REJOIN returns REJOIN_FAILED_TABLE_GONE when room is deleting", async () => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    const room = buildRoomWithRealDealer("table_rejoin_gone", "room_rejoin_gone");
+    const client = makeClient("sess_rejoin_gone");
+    await room.onJoin(client as any, { buyInCents: 5000 }, { userId: "user_rejoin_gone", username: "alice" });
+
+    (room as any).isDeleting = true;
+    room.onMessageEvents.emit("REJOIN", client as any, {});
+    await delay(0);
+
+    expect(client.send).toHaveBeenCalledWith(
+      "ERROR",
+      expect.objectContaining({
+        version: 1,
+        code: "REJOIN_FAILED_TABLE_GONE",
+      }),
+    );
+  });
+
+  it("REJOIN clears sitting out for seated user with chips", async () => {
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+    const room = buildRoomWithRealDealer("table_rejoin_ok", "room_rejoin_ok");
+    const client = makeClient("sess_rejoin_ok");
+    const userId = "user_rejoin_ok";
+    await room.onJoin(client as any, { buyInCents: 5000 }, { userId, username: "alice" });
+
+    await room.dealer.setPlayerSittingOut(userId, true);
+    const before = room.state.playersById.get(userId);
+    expect(before?.status === "ABANDONED" || before?.sittingOutUntilNextHand).toBe(true);
+
+    const setSpy = vi.spyOn(room.dealer, "setPlayerSittingOut");
+    room.onMessageEvents.emit("REJOIN", client as any, {});
+    await delay(0);
+
+    expect(setSpy).toHaveBeenCalledWith(userId, false);
+    const after = room.state.playersById.get(userId);
+    expect(after).toBeTruthy();
+    expect(after.stackCents).toBeGreaterThan(0);
+    expect(after.sittingOutUntilNextHand).toBe(false);
   });
 });

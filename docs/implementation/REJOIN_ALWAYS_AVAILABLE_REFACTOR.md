@@ -143,3 +143,25 @@ When `hero.youAreSeated && heroDisplayStatus === "SITTING_OUT"`:
 3. `SITTING_OUT` + send failure/disconnect -> error shown -> retry enabled.
 4. `SITTING_OUT` + `TABLE_GONE` on click -> table error visible + back-to-lobby action.
 5. Rejoin spam click -> single in-flight request, deterministic UI state.
+
+## Final Implementation Notes
+
+- `REJOIN` is now an explicit inbound command in realtime contract and server room handling.
+- Rejoin CTA is rendered in both active-hand and no-hand views when hero is seated and sitting out.
+- Rejoin UI transitions are event-driven (`idle | sending | error`) with no timers.
+- `TABLE_GONE` behavior is split:
+  - during rejoin send: remain in table scene and show rejoin error state
+  - otherwise: normal close/return flow
+- Rejoin errors are normalized through a stable copy mapper to avoid backend-message drift.
+
+## Validation Executed
+
+- Client typecheck and server typecheck pass.
+- Contract/store client tests pass:
+  - `contract.guards.test.ts`
+  - `multitable.store.actions.test.ts`
+  - `rejoin.helpers.test.ts`
+- Realtime inbound behavior test includes `TABLE_GONE` callback path:
+  - `useTableRealtime.test.ts`
+- Server join/rejoin guard suite passes:
+  - `table-join.guard.test.ts`

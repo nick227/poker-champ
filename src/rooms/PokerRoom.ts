@@ -684,6 +684,68 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     });
 
+    // Explicit rejoin command: deterministic "sit back in" intent for retry-safe UI.
+    this.onMessage("REJOIN", async (client, message) => {
+      const parsed = TableInboundMessageSchema.safeParse({ type: "REJOIN", payload: message });
+      if (!parsed.success) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      if (parsed.data.type !== "REJOIN") {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid rejoin payload." });
+        return;
+      }
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "REJOIN_FAILED_NOT_SEATED",
+          message: "Could not rejoin table. You are not seated.",
+        });
+        return;
+      }
+      if (!this.isActiveBoundClient(userId, client)) return;
+      if (this.isDeleting) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "REJOIN_FAILED_TABLE_GONE",
+          message: "Table no longer exists",
+        });
+        return;
+      }
+      if (!this.dealer.hasPlayer(userId)) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "REJOIN_FAILED_NOT_SEATED",
+          message: "Could not rejoin table. You are not seated.",
+        });
+        return;
+      }
+      if (this.getPlayerStackCents(userId) <= 0) {
+        this.sendTableMessage(client, "ERROR", {
+          code: "REJOIN_FAILED_OUT_OF_CHIPS",
+          message: "Could not rejoin table. You are out of chips.",
+        });
+        return;
+      }
+      try {
+        await this.dealer.setPlayerSittingOut(userId, false);
+        this.updateMetadataCounts();
+      } catch (err: any) {
+        logger.warn(
+          {
+            roomId: this.roomId,
+            tableId: this.state.tableId,
+            userId,
+            code: err instanceof PokerError ? err.code : "REJOIN_FAILED_TEMPORARY",
+            message: err?.message ?? String(err),
+          },
+          "POKER_REJOIN_FAILED",
+        );
+        this.sendTableMessage(client, "ERROR", {
+          code: "REJOIN_FAILED_TEMPORARY",
+          message: "Could not rejoin table. Please retry.",
+        });
+      }
+    });
+
     // Set up event listener for user bans to kick banned players from tables
     const onBan = async (payload: { userId: string }) => {
       await this.kickUserByAdmin(payload.userId, "BANNED");

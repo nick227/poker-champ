@@ -55,4 +55,14 @@ describe("multi-table action idempotency payloads", () => {
     expect(ok).toBe(true);
     expect(sender).toHaveBeenCalledWith("SET_SITTING_OUT", { sittingOut: true });
   });
+
+  it("dispatches REJOIN with validated payload", () => {
+    const sender = vi.fn(() => true);
+    useMultiTableStore.getState().registerTableSender("t1", sender);
+
+    const ok = useMultiTableStore.getState().dispatchRejoin({ tableId: "t1" });
+
+    expect(ok).toBe(true);
+    expect(sender).toHaveBeenCalledWith("REJOIN", {});
+  });
 });

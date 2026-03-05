@@ -19,7 +19,7 @@ import { TableSceneShell } from "../shell/TableSceneShell";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
-import { TABLE } from "@/constants/copy";
+import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -37,6 +37,10 @@ export type ActiveTableViewProps = {
   topBarRight?: ReactNode;
   onAction: ActionBarOnAction;
   onToggleSittingOut?: () => void;
+  onRejoin?: () => void;
+  rejoinState?: RejoinUiState;
+  rejoinErrorMessage?: string | null;
+  onBackToLobby?: () => void;
   onPlayerPress?: (opponent: Opponent) => void;
   opponentStripEmptyState?: ReactNode;
   canRebuy?: boolean;
@@ -60,6 +64,10 @@ export function ActiveTableView({
   topBarRight,
   onAction,
   onToggleSittingOut,
+  onRejoin,
+  rejoinState = "idle",
+  rejoinErrorMessage = null,
+  onBackToLobby,
   onPlayerPress,
   opponentStripEmptyState,
   canRebuy = false,
@@ -72,7 +80,6 @@ export function ActiveTableView({
 }: ActiveTableViewProps) {
   const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
-  const [rejoinPending, setRejoinPending] = useState(false);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
@@ -173,22 +180,14 @@ export function ActiveTableView({
     }
   }, [actionContext.showActions, hasActionOptions, waitingBetweenHands]);
 
-  useEffect(() => {
-    if (heroStatus !== "SITTING_OUT") {
-      setRejoinPending(false);
-    }
-  }, [heroStatus]);
-
   const handleRejoin = useCallback(() => {
-    if (rejoinPending) return;
-    setRejoinPending(true);
-    onToggleSittingOut?.();
-  }, [rejoinPending, onToggleSittingOut]);
+    onRejoin?.();
+  }, [onRejoin]);
 
   const heroIsSittingOut =
     heroIsSeated &&
     heroStatus === "SITTING_OUT" &&
-    !!onToggleSittingOut;
+    !!onRejoin;
 
   let bottom: ReactNode = null;
   if (!isReplayMode) {
@@ -200,16 +199,13 @@ export function ActiveTableView({
       );
     } else if (heroIsSittingOut) {
       bottom = (
-        <View className="ui-p-inline-4 gap-y-2 items-center">
-          <Text className="text-center text-muted" numberOfLines={1}>
-            You're sitting out.
-          </Text>
-          <Button
-            title={TABLE.rejoin}
-            onPress={handleRejoin}
-            disabled={rejoinPending}
-          />
-        </View>
+        <RejoinCTA
+          state={rejoinState}
+          errorMessage={rejoinErrorMessage}
+          onPressRejoin={handleRejoin}
+          onBackToLobby={onBackToLobby}
+          isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
+        />
       );
     } else if (canRebuy && onPressRebuy) {
       bottom = <Button title="Rebuy" onPress={onPressRebuy} />;

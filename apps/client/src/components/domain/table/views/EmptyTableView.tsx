@@ -11,6 +11,7 @@ import { TableSceneShell } from "../shell/TableSceneShell";
 import type { HandResultMessage } from "../table.types";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useEmptyTableNotification } from "../hooks/useEmptyTableNotification";
+import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
 
 export type EmptyTableViewProps = {
   snapshot: TableSnapshotPayload;
@@ -25,6 +26,9 @@ export type EmptyTableViewProps = {
   canRebuy?: boolean;
   onPressRebuy?: () => void;
   onBackToLobby: () => void;
+  onRejoin?: () => void;
+  rejoinState?: RejoinUiState;
+  rejoinErrorMessage?: string | null;
   onJoinTable?: () => void;
   onAddBot?: () => void;
   onInvitePlayer?: () => void;
@@ -45,6 +49,9 @@ export function EmptyTableView({
   canRebuy = false,
   onPressRebuy,
   onBackToLobby,
+  onRejoin,
+  rejoinState = "idle",
+  rejoinErrorMessage = null,
   onJoinTable,
   onAddBot,
   onInvitePlayer,
@@ -71,6 +78,7 @@ export function EmptyTableView({
   const heroIsSeated = snapshot.hero.youAreSeated;
   const hasActiveHand = Boolean(snapshot.hand);
   const isSpectator = !heroIsSeated && !hasActiveHand;
+  const heroIsSittingOut = heroIsSeated && heroStatus === "SITTING_OUT" && !!onRejoin;
 
   const notification = useEmptyTableNotification(
     snapshot,
@@ -82,7 +90,17 @@ export function EmptyTableView({
   );
 
   let bottom: ReactNode;
-  if (canRebuy && onPressRebuy) {
+  if (heroIsSittingOut) {
+    bottom = (
+      <RejoinCTA
+        state={rejoinState}
+        errorMessage={rejoinErrorMessage}
+        onPressRejoin={onRejoin}
+        onBackToLobby={onBackToLobby}
+        isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
+      />
+    );
+  } else if (canRebuy && onPressRebuy) {
     bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
   } else if (isSpectator) {
     bottom = (

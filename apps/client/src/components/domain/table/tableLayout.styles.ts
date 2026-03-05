@@ -11,6 +11,7 @@ import {
   HERO_ZONE_HEIGHT,
   DEALER_BAR_HEIGHT,
   BOARD_AREA_HEIGHT,
+  TABLE_SPACING,
 } from "./constants/tableLayout.constants";
 
 export const layoutStyles = StyleSheet.create({
@@ -63,6 +64,7 @@ export const layoutStyles = StyleSheet.create({
     width: "100%",
     flexGrow: 0,
     flexShrink: 0,
+    paddingHorizontal: TABLE_SPACING.edge,
   },
   actionBarSection: {
     width: "100%",

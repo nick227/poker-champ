@@ -78,7 +78,15 @@ function makeSnapshot(seq: number, tableId = "t1"): TableSnapshotPayload {
   };
 }
 
-function dispatchTableMessage(tableId: string, type: string, payload: unknown) {
+function dispatchTableMessage(
+  tableId: string,
+  type: string,
+  payload: unknown,
+  overrides?: {
+    onTableGone?: (tableId: string) => void;
+    onError?: (message: string) => void;
+  },
+) {
   handleTableRealtimeInboundMessage({
     tableId,
     type,
@@ -95,7 +103,8 @@ function dispatchTableMessage(tableId: string, type: string, payload: unknown) {
       getActiveSessionId: (t) => useTableStore.getState().getActiveSessionId(t),
       clearActiveSessionId: (t) => useTableStore.getState().clearActiveSessionId(t),
       setError: (t, message) => useTableStore.getState().setError(t, message),
-      onError: undefined,
+      onError: overrides?.onError,
+      onTableGone: overrides?.onTableGone,
       debugLog: vi.fn(),
     },
   });
@@ -178,6 +187,13 @@ describe("useTableRealtime behavior", () => {
 
     dispatchTableMessage("t1", "DISCONNECTED", undefined);
     expect(useTableStore.getState().connectionStatusByTableId["t1"]).toBeUndefined();
+  });
+
+  it("routes TABLE_GONE to onTableGone callback without setting table error", () => {
+    const onTableGone = vi.fn();
+    dispatchTableMessage("t1", "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" }, { onTableGone });
+    expect(onTableGone).toHaveBeenCalledWith("t1");
+    expect(useTableStore.getState().errorByTableId["t1"]).toBeUndefined();
   });
 
   it("keeps CONNECTED when DISCONNECTED is from a stale session (session scoping)", () => {

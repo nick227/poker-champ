@@ -14,8 +14,8 @@ export const BOARD_AREA_HEIGHT_LANDSCAPE = 200;
 /** Total game area: dealer bar spacer + felt band. */
 export const GAME_AREA_HEIGHT = BOARD_AREA_HEIGHT + DEALER_BAR_HEIGHT;
 
-export const HERO_ZONE_HEIGHT = 166;
-export const ACTION_BAR_HEIGHT = 224;
+export const HERO_ZONE_HEIGHT = 130;
+export const ACTION_BAR_HEIGHT = 150;
 
 /** Opponent strip layout tuning. */
 /** Max height of the strip: web uses vh, native uses ratio of window height. */

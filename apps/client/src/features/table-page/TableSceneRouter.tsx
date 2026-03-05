@@ -170,6 +170,9 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           canRebuy={renderModel.canRebuy}
           onPressRebuy={actions.openRebuySheet}
           onBackToLobby={actions.closeTableAndReturn}
+          onRejoin={actions.rejoinHero}
+          rejoinState={renderModel.rejoinUiState}
+          rejoinErrorMessage={renderModel.rejoinErrorMessage}
         />
       );
 
@@ -189,6 +192,10 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           topBarRight={renderModel.tableTopBarRight}
           onAction={actions.sendAction}
           onToggleSittingOut={actions.toggleHeroSittingOut}
+          onRejoin={actions.rejoinHero}
+          rejoinState={renderModel.rejoinUiState}
+          rejoinErrorMessage={renderModel.rejoinErrorMessage}
+          onBackToLobby={actions.closeTableAndReturn}
           onPlayerPress={actions.onPlayerPress}
           opponentStripEmptyState={emptyOpponentsState}
           canRebuy={renderModel.canRebuy}
