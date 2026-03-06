@@ -80,10 +80,17 @@ async function readLessonDescription(lessonDir: string): Promise<string | null> 
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#") && !line.startsWith("- "));
     if (!lines.length) return null;
-    return lines[0].slice(0, 280);
+    return lines[0];
   } catch {
     return null;
   }
+}
+
+function toPersistedLessonDescription(description: string | null): string | null {
+  if (!description) return null;
+  const normalized = description.trim();
+  if (!normalized) return null;
+  return normalized;
 }
 
 function isGhostLesson(config: LessonStepConfig): boolean {
@@ -229,6 +236,7 @@ async function seedLessons() {
     const stepIds = config.steps.map((step) => step.id);
     const difficulty = toDifficulty(config.difficulty);
     const version = typeof config.version === "number" && Number.isFinite(config.version) ? config.version : 1;
+    const persistedDescription = toPersistedLessonDescription(description);
 
     await validateGhostLesson(config, lessonDir, async (step) => {
       if (!step.snapshotPath) return null;
@@ -243,7 +251,7 @@ async function seedLessons() {
         id: lessonId,
         slug: `${lessonId.toLowerCase()}-${slugify(config.title)}`,
         title: config.title,
-        description,
+        description: persistedDescription,
         moduleCode: config.moduleCode,
         recommendedOrder: config.recommendedOrder,
         role: config.role,
@@ -260,7 +268,7 @@ async function seedLessons() {
       update: {
         slug: `${lessonId.toLowerCase()}-${slugify(config.title)}`,
         title: config.title,
-        description,
+        description: persistedDescription,
         moduleCode: config.moduleCode,
         recommendedOrder: config.recommendedOrder,
         role: config.role,
@@ -393,4 +401,3 @@ seedLessons()
     await disconnectPrisma();
     process.exit(1);
   });
-

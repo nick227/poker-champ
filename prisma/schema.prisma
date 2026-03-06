@@ -12,34 +12,34 @@ model PokerTable {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  name      String   @default("POC Table")
+  name      String  @default("POC Table")
   creatorId String?
-  creator   User?    @relation("TableCreator", fields: [creatorId], references: [id], onDelete: SetNull)
-  maxSeats  Int      @default(9)
-  showStats Boolean  @default(true)
+  creator   User?   @relation("TableCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  maxSeats  Int     @default(9)
+  showStats Boolean @default(true)
 
-  players   PokerPlayer[]
-  hands     Hand[]
+  players      PokerPlayer[]
+  hands        Hand[]
   snapshotLogs TableSnapshotLog[]
-  balances  PlayerBalance[]
+  balances     PlayerBalance[]
   transactions BalanceTransaction[]
 
   @@index([creatorId])
 }
 
 model PokerPlayer {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  externalId  String   // userId or bot_*
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  externalId String // userId or bot_*
+  userId     String?
+  user       User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  tableId     String
-  table       PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  tableId String
+  table   PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
-  displayName String   @default("Player")
+  displayName String @default("Player")
   seat        Int
 
   actions     HandAction[]
@@ -56,14 +56,14 @@ model PlayerBalance {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tableId   String
-  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  tableId String
+  table   PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
   // Link to User primarily now
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  status    String   @default("ACTIVE") // ACTIVE | CASHED_OUT | ABANDONED
+  status String @default("ACTIVE") // ACTIVE | CASHED_OUT | ABANDONED
 
   balanceCents Int @default(0)
 
@@ -74,12 +74,12 @@ model BalanceTransaction {
   id        String   @id
   createdAt DateTime @default(now())
 
-  tableId   String?
-  table     PokerTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableId String?
+  table   PokerTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   // Optional link to session if relevant
   // playerId  String?
   // player    PokerPlayer? @relation(fields: [playerId], references: [id], onDelete: SetNull)
@@ -87,52 +87,52 @@ model BalanceTransaction {
   tournamentId String?
   tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
 
-  handId    String?
-  hand      Hand? @relation(fields: [handId], references: [id], onDelete: SetNull)
+  handId String?
+  hand   Hand?   @relation(fields: [handId], references: [id], onDelete: SetNull)
 
   amountCents Int
-  
+
   // BUYIN, CASHOUT, BET, PAYOUT, REFUND, TOURNAMENT_ENTRY, TOURNAMENT_PAYOUT
-  type      String
+  type String
 
   externalRef String? @unique
 
-  metaJson  Json?
+  metaJson Json?
 
   @@index([userId, createdAt])
   @@index([tableId, userId])
 }
 
 model Hand {
-  id        String   @id
-  createdAt DateTime @default(now())
+  id        String       @id
+  createdAt DateTime     @default(now())
   endedAt   DateTime?
   players   HandPlayer[]
   tableId   String
-  table     PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  table     PokerTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
-  dealerSeat Int
+  dealerSeat      Int
   smallBlindCents Int
-  bigBlindCents Int
+  bigBlindCents   Int
 
-  reason    String?   // LAST_PLAYER | SHOWDOWN
-  boardJson Json?     // ["Ah","Kd","2c",...]
+  reason    String? // LAST_PLAYER | SHOWDOWN
+  boardJson Json? // ["Ah","Kd","2c",...]
 
-  actions   HandAction[]
-  payouts   HandPayout[]
+  actions      HandAction[]
+  payouts      HandPayout[]
   snapshotLogs TableSnapshotLog[]
-  txs       BalanceTransaction[]
+  txs          BalanceTransaction[]
 }
 
 model HandPlayer {
-  id        String   @id
-  handId    String
-  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+  id     String @id
+  handId String
+  hand   Hand   @relation(fields: [handId], references: [id], onDelete: Cascade)
 
-  playerId  String
-  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  player   PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  seat      Int
+  seat               Int
   startingStackCents Int
   endingStackCents   Int?
 
@@ -146,42 +146,44 @@ model HandAction {
   id        String   @id
   createdAt DateTime @default(now())
 
-  handId    String
-  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+  handId String
+  hand   Hand   @relation(fields: [handId], references: [id], onDelete: Cascade)
 
-  playerId  String
-  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  player   PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  seat      Int
+  seat        Int
   actionIndex Int
-  street    String // PREFLOP/FLOP/TURN/RIVER
-  action    String // FOLD/CHECK/CALL/BET/RAISE/ALL_IN/AUTO_FOLD/AUTO_CHECK
-  amountCents Int @default(0)
+  street      String // PREFLOP/FLOP/TURN/RIVER
+  action      String // FOLD/CHECK/CALL/BET/RAISE/ALL_IN/AUTO_FOLD/AUTO_CHECK
+  amountCents Int    @default(0)
 
   potBeforeCents Int @default(0)
   potAfterCents  Int @default(0)
 
   metaJson Json?
+
+  @@unique([handId, actionIndex])
   @@index([handId, createdAt])
   @@index([handId, actionIndex])
-  @@unique([handId, actionIndex])
 }
 
 model HandPayout {
   id        String   @id
   createdAt DateTime @default(now())
 
-  handId    String
-  hand      Hand @relation(fields: [handId], references: [id], onDelete: Cascade)
+  handId String
+  hand   Hand   @relation(fields: [handId], references: [id], onDelete: Cascade)
 
-  playerId  String
-  player    PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  player   PokerPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   payoutIndex Int
   amountCents Int
+
+  @@unique([handId, payoutIndex])
   @@index([handId])
   @@index([handId, payoutIndex])
-  @@unique([handId, payoutIndex])
 }
 
 enum SnapshotLogReason {
@@ -196,14 +198,14 @@ enum SnapshotLogReason {
 }
 
 model TableSnapshotLog {
-  id            String            @id @default(cuid())
-  createdAt     DateTime          @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
-  tableId       String
-  table         PokerTable        @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  tableId String
+  table   PokerTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
-  handId        String?
-  hand          Hand?             @relation(fields: [handId], references: [id], onDelete: SetNull)
+  handId String?
+  hand   Hand?   @relation(fields: [handId], references: [id], onDelete: SetNull)
 
   snapshotId    String            @unique
   reason        SnapshotLogReason
@@ -237,118 +239,118 @@ enum UserRole {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  username      String?   @unique
-  usernameNormalized String? @unique
-  passwordHash  String
-  displayName   String
-  role          UserRole  @default(USER)
-  avatarUrl     String?
-  avatarVersion Int?
-  avatarUpdatedAt DateTime?
-  
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  username           String?   @unique
+  usernameNormalized String?   @unique
+  passwordHash       String
+  displayName        String
+  role               UserRole  @default(USER)
+  avatarUrl          String?
+  avatarVersion      Int?
+  avatarUpdatedAt    DateTime?
+
   // Trust & Safety
-  isBanned      Boolean   @default(false)
-  deletedAt     DateTime?
-  trustLevel    Int       @default(1) // 1=New, 2=Verified, 3=Trusted
-  
+  isBanned   Boolean   @default(false)
+  deletedAt  DateTime?
+  trustLevel Int       @default(1) // 1=New, 2=Verified, 3=Trusted
+
   // Economy
-  bankrollCents Int       @default(1000000) // Central wallet
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  bankrollCents Int @default(1000000) // Central wallet
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
   sessions      UserSession[]
   playerHistory PokerPlayer[]
-  
+
   // Economy
-  balances      PlayerBalance[]
-  transactions  BalanceTransaction[]
-  registrations TournamentRegistration[]
-  createdTables PokerTable[] @relation("TableCreator")
+  balances             PlayerBalance[]
+  transactions         BalanceTransaction[]
+  registrations        TournamentRegistration[]
+  createdTables        PokerTable[]             @relation("TableCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
-  lessonAttempts LessonAttempt[]
-  conceptMastery UserConceptMastery[]
-  userAwards    UserAward[]
-  curriculumProgress UserCurriculumProgress?
-  handCount     UserHandCount?
+  lessonAttempts       LessonAttempt[]
+  conceptMastery       UserConceptMastery[]
+  userAwards           UserAward[]
+  curriculumProgress   UserCurriculumProgress?
+  handCount            UserHandCount?
 
   // Monetization
-  membership     Membership?
+  membership Membership?
 
   @@index([usernameNormalized])
 }
 
 model LeaderboardSnapshot {
-  id              String   @id @default(cuid())
-  createdAt       DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
   period          String
   category        String
-  actorId         String   // stable identity (user id or bot externalId / "bot:..."); not a FK
-  actorType       String   // "USER" | "BOT" — filter human-only or bot-only leaderboards
-  userId          String?  // FK to User when real user; null for bots
-  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorId         String // stable identity (user id or bot externalId / "bot:..."); not a FK
+  actorType       String // "USER" | "BOT" — filter human-only or bot-only leaderboards
+  userId          String? // FK to User when real user; null for bots
+  user            User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   userDisplayName String
 
-  value           String
-  valueNumerator  Int
+  value            String
+  valueNumerator   Int
   valueDenominator Int?
-  handCount       Int      @default(0)
-  rank            Int
-  computedAt      DateTime
-  isEmpty         Boolean  @default(false)
+  handCount        Int      @default(0)
+  rank             Int
+  computedAt       DateTime
+  isEmpty          Boolean  @default(false)
 
+  @@unique([period, category, computedAt, rank])
+  @@unique([period, category, computedAt, actorId])
   @@index([period, category, computedAt, rank])
   @@index([period, category, computedAt])
   @@index([userId, computedAt])
   @@index([actorId, computedAt])
   @@index([actorType])
-  @@unique([period, category, computedAt, rank])
-  @@unique([period, category, computedAt, actorId])
 }
 
 model Tournament {
-  id              String   @id @default(uuid())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  name            String
-  status          String   @default("REGISTERING") // REGISTERING | RUNNING | FINISHED | CANCELLED
-  
-  entryFeeCents   Int
-  prizePoolCents  Int      @default(0)
-  
-  startTime       DateTime
-  
-  registrations   TournamentRegistration[]
-  transactions    BalanceTransaction[]
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  name   String
+  status String @default("REGISTERING") // REGISTERING | RUNNING | FINISHED | CANCELLED
+
+  entryFeeCents  Int
+  prizePoolCents Int @default(0)
+
+  startTime DateTime
+
+  registrations TournamentRegistration[]
+  transactions  BalanceTransaction[]
 }
 
 model TournamentRegistration {
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  
-  userId       String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt    DateTime   @default(now())
-  
-  entryTxId    String?    // idempotent ref
-  
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  entryTxId String? // idempotent ref
+
   @@unique([tournamentId, userId])
 }
 
 model UserSession {
-  id        String   @id // Token
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id         String    @id // Token
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
-  expiresAt DateTime
-  
+  expiresAt  DateTime
+
   @@index([userId])
 }
 
@@ -359,50 +361,50 @@ enum TableSeatSessionState {
 }
 
 model Lesson {
-  id               String          @id
-  slug             String          @unique
-  title            String
-  description      String?
-  moduleCode       String          @default("MODULE_A")
-  recommendedOrder Int             @default(999)
-  role             String          @default("teaches")
-  repeatable       Boolean         @default(false)
+  id                String   @id
+  slug              String   @unique
+  title             String
+  description       String?  @db.Text
+  moduleCode        String   @default("MODULE_A")
+  recommendedOrder  Int      @default(999)
+  role              String   @default("teaches")
+  repeatable        Boolean  @default(false)
   curriculumVersion String?
-  difficulty       String
-  status           String          @default("DRAFT")
-  estimatedMinutes Int?
-  version          Int             @default(1)
-  tier             String?         @default("pro") // free | pro | elite
-  applyCtaText     String?         // lesson-specific apply-at-table CTA
-  blogPostSlug     String?         // optional related blog post (slug)
-  replayHandId     String?         // optional related replay hand id
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  difficulty        String
+  status            String   @default("DRAFT")
+  estimatedMinutes  Int?
+  version           Int      @default(1)
+  tier              String?  @default("pro") // free | pro | elite
+  applyCtaText      String? // lesson-specific apply-at-table CTA
+  blogPostSlug      String? // optional related blog post (slug)
+  replayHandId      String? // optional related replay hand id
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  steps            LessonStep[]
-  attempts         LessonAttempt[]
+  steps    LessonStep[]
+  attempts LessonAttempt[]
 }
 
 model LessonStep {
-  id              String              @id
+  id              String   @id
   lessonId        String
-  lesson          Lesson              @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   sequence        Int
   type            String
   snapshotVersion Int?
   snapshotJson    Json?
-  gradingVersion  Int                 @default(1)
-  beforeMessage   String?             @db.Text
-  questionText    String?             @db.Text
-  followUpMessage String?             @db.Text
+  gradingVersion  Int      @default(1)
+  beforeMessage   String?  @db.Text
+  questionText    String?  @db.Text
+  followUpMessage String?  @db.Text
   gradingSpecJson Json?
   explanationJson Json?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  options         LessonStepOption[]
-  concepts        LessonStepConcept[]
-  attemptSteps    LessonAttemptStep[]
+  options      LessonStepOption[]
+  concepts     LessonStepConcept[]
+  attemptSteps LessonAttemptStep[]
 
   @@unique([lessonId, sequence])
   @@index([lessonId, sequence])
@@ -410,77 +412,77 @@ model LessonStep {
 
 model LessonStepOption {
   id           String     @id
-  stepId        String
-  step          LessonStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  optionKey     String
-  label         String
-  valueJson     Json?
-  displayOrder  Int
-  isCorrect     Boolean    @default(false)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  stepId       String
+  step         LessonStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  optionKey    String
+  label        String
+  valueJson    Json?
+  displayOrder Int
+  isCorrect    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@unique([stepId, optionKey])
   @@index([stepId, displayOrder])
 }
 
 model LessonConcept {
-  id          String              @id
-  code        String              @unique
+  id          String   @id
+  code        String   @unique
   name        String
   description String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  stepLinks   LessonStepConcept[]
-  mastery     UserConceptMastery[]
+  stepLinks LessonStepConcept[]
+  mastery   UserConceptMastery[]
 }
 
 model LessonStepConcept {
-  stepId      String
-  step        LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  conceptId   String
-  concept     LessonConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
-  weight      Float         @default(1)
-  createdAt   DateTime      @default(now())
+  stepId    String
+  step      LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  conceptId String
+  concept   LessonConcept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  weight    Float         @default(1)
+  createdAt DateTime      @default(now())
 
   @@id([stepId, conceptId])
   @@index([conceptId])
 }
 
 model LessonAttempt {
-  id              String             @id
-  lessonId        String
-  lesson          Lesson             @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status          String             @default("IN_PROGRESS")
-  startedAt       DateTime           @default(now())
-  completedAt     DateTime?
-  scorePct        Float?
+  id               String    @id
+  lessonId         String
+  lesson           Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           String    @default("IN_PROGRESS")
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  scorePct         Float?
   masteryDeltaJson Json?
-  summaryJson     Json?              // ghost lessons: { matchedProCount, totalDecisions, accuracyPercent }
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  summaryJson      Json? // ghost lessons: { matchedProCount, totalDecisions, accuracyPercent }
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  steps           LessonAttemptStep[]
+  steps LessonAttemptStep[]
 
   @@index([lessonId, userId, status])
   @@index([userId, completedAt])
 }
 
 model LessonAttemptStep {
-  id                String        @id
-  attemptId         String
-  attempt           LessonAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  stepId            String
-  step              LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  id                  String        @id
+  attemptId           String
+  attempt             LessonAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  stepId              String
+  step                LessonStep    @relation(fields: [stepId], references: [id], onDelete: Cascade)
   submittedAnswerJson Json
-  isCorrect         Boolean
-  feedbackJson      Json?
-  submittedAt       DateTime      @default(now())
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  isCorrect           Boolean
+  feedbackJson        Json?
+  submittedAt         DateTime      @default(now())
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@unique([attemptId, stepId])
   @@index([attemptId, submittedAt])
@@ -503,75 +505,75 @@ model UserConceptMastery {
 }
 
 model UserAward {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   awardId        String
-  catalogVersion Int        @default(1)
-  earnedAt       DateTime  @default(now())
-  lastEarnedAt   DateTime  @default(now())
-  count          Int       @default(1)
-  reason         String    @db.Text
+  catalogVersion Int      @default(1)
+  earnedAt       DateTime @default(now())
+  lastEarnedAt   DateTime @default(now())
+  count          Int      @default(1)
+  reason         String   @db.Text
   contextType    String?
   contextId      String?
   contextJson    Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([userId, awardId])
   @@index([userId, lastEarnedAt])
 }
 
 model AwardGrantEvent {
-  id        String   @id @default(cuid())
-  userId    String
-  awardId   String
+  id         String   @id @default(cuid())
+  userId     String
+  awardId    String
   triggerKey String
-  earnedAt  DateTime @default(now())
+  earnedAt   DateTime @default(now())
 
   @@unique([userId, awardId, triggerKey])
   @@index([userId, awardId, triggerKey])
 }
 
 model UserCurriculumProgress {
-  id                   String   @id @default(cuid())
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  completedLessonsCount Int     @default(0)
-  updatedAt            DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completedLessonsCount Int      @default(0)
+  updatedAt             DateTime @updatedAt
 }
 
 model UserHandCount {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  handsDealt   Int      @default(0)
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  handsDealt Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }
 
 model TableSeatSession {
-  id                String                 @id @default(cuid())
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tableId           String
-  userId            String
-  seat              Int
-  state             TableSeatSessionState  @default(SEATED_ACTIVE)
+  tableId String
+  userId  String
+  seat    Int
+  state   TableSeatSessionState @default(SEATED_ACTIVE)
 
-  stackCentsSnapshot Int                   @default(0)
-  buyInCents         Int                   @default(0)
+  stackCentsSnapshot Int     @default(0)
+  buyInCents         Int     @default(0)
   handIdSnapshot     String?
 
-  disconnectAt      DateTime?
-  lastSeenAt        DateTime               @default(now())
-  reservedUntil     DateTime?
+  disconnectAt  DateTime?
+  lastSeenAt    DateTime  @default(now())
+  reservedUntil DateTime?
 
-  schemaVersion     Int                    @default(1)
+  schemaVersion Int @default(1)
 
+  @@unique([tableId, userId])
   @@index([tableId])
   @@index([tableId, state])
-  @@unique([tableId, userId])
 }
 
 model BotStats {
@@ -584,23 +586,23 @@ model BotStats {
 }
 
 model Membership {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  stripeId    String?  // Stripe Customer ID
-  type        String   // "lifetime", "monthly", etc.
-  status      String   // "active", "cancelled", "expired"
-  purchasedAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  stripeId    String? // Stripe Customer ID
+  type        String // "lifetime", "monthly", etc.
+  status      String // "active", "cancelled", "expired"
+  purchasedAt DateTime  @default(now())
   expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
 
 model ContentAccess {
   id           String  @id @default(cuid())
-  contentId    String  // lesson, section, feature ID
-  type         String  // "lesson", "section", "feature"
+  contentId    String // lesson, section, feature ID
+  type         String // "lesson", "section", "feature"
   isPremium    Boolean @default(false)
   requiredTier String? // "lifetime", "premium", etc.
 
