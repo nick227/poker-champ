@@ -447,11 +447,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         return;
       }
       if (!this.isActiveBoundClient(userId, client)) return;
-      // Only allow bot removal between hands or when table is stopped
-      if (this.state.street !== "WAITING") {
+      const bot = this.state.playersById.get(parsed.data.botId);
+      const canRemoveBetweenHands = this.state.street === "WAITING";
+      const canRemoveDuringHand =
+        bot?.kind === "BOT" &&
+        (bot.status === "ABANDONED" || bot.status === "OUT" || bot.sittingOutUntilNextHand || bot.stackCents === 0);
+      if (!canRemoveBetweenHands && !canRemoveDuringHand) {
         this.sendTableMessage(client, "ERROR", {
           code: "REMOVE_BOT_NOT_ALLOWED",
-          message: "Can only remove bots between hands or when table is stopped.",
+          message: "Can only remove bots between hands, or during a hand if the bot is sitting out or has zero stack.",
         });
         return;
       }

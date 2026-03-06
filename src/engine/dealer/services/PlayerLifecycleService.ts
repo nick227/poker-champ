@@ -384,7 +384,12 @@ export class PlayerLifecycleService {
     let player = this.deps.state.playersById.get(botId);
     if (!player) return plans;
 
-    if (this.deps.state.street !== "WAITING") {
+    const canRemoveDuringHand =
+      player.status === "ABANDONED" ||
+      player.status === "OUT" ||
+      player.sittingOutUntilNextHand ||
+      player.stackCents === 0;
+    if (this.deps.state.street !== "WAITING" && !canRemoveDuringHand) {
       this.deferRemovalDuringActiveHand(player, "BOT_AUTO_REMOVE", plans);
       return plans;
     }
