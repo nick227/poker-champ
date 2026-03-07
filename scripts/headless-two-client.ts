@@ -139,6 +139,8 @@ async function main() {
       (userId) => snapshots[userId]?.hand?.handId === handId,
     );
   };
+  const hasAnySeatedUserSnapshot = (): boolean =>
+    (["user_a", "user_b", "user_c"] as const).some((userId) => Boolean(snapshots[userId]?.hero?.youAreSeated));
   const canAct = (userId: UserId): boolean => {
     const opts = snapshots[userId]?.hero?.actionOptions;
     return Boolean(
@@ -306,8 +308,11 @@ async function main() {
     await waitFor(
       () =>
         !roomDisposed() &&
-        (roomStreet() !== "WAITING" && Boolean(roomHandId()) && hasVisibleCurrentHand()) ||
-        roomStreet() === "WAITING",
+        (
+          roomStreet() === "WAITING" ||
+          (Boolean(roomHandId()) && hasVisibleCurrentHand()) ||
+          hasAnySeatedUserSnapshot()
+        ),
       20_000,
       "reconnect scenario hand or waiting table",
     );

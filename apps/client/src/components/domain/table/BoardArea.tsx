@@ -33,13 +33,7 @@ export function BoardArea({ cards, potCents }: BoardAreaProps) {
       >
         <CommunityBoard cards={cards} />
 
-      <View
-        collapsable={false}
-        className="my-4 w-full flex justify-center items-center"
-        style={{ paddingHorizontal: TABLE_SPACING.edge }}
-        pointerEvents="none"
-      >
-        <View className="rounded-full border-2 border-border bg-emerald-900 px-4 py-1">
+        <View className="pot-container w-full flex justify-center items-center pt-2">
           <Text
             variant="body"
             className="text-white"
@@ -49,7 +43,7 @@ export function BoardArea({ cards, potCents }: BoardAreaProps) {
             Pot: {potValue}
           </Text>
         </View>
-      </View>
+
       </View>
     </FeltBackground>
   );
