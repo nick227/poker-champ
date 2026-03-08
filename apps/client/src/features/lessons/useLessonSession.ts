@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
+import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
 import { resolveStepRuntimeConfig } from "@/features/lessons-v2/runtime";
 import { lessonService } from "./lesson.service";
 import type { AwardGrant } from "@/types/awards";

@@ -29,6 +29,7 @@ export type TableSceneRouterProps = {
 };
 
 const BOT_AVATAR_SOURCE = require("../../assets/images/cherry_002.jpg");
+const DEFAULT_LOADING_SPIN_HOLD_MS = 1500;
 
 function resolveShareTableUrl(tableId: string): string {
   const path = tablePath(tableId);
@@ -70,6 +71,8 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
   const { snapshot, currentUserAvatarUrl } = renderModel;
   const { mode } = scene;
   const showToast = useToastStore((s) => s.show);
+  const [loadingSpinHoldUntilTs, setLoadingSpinHoldUntilTs] = useState(0);
+  const [holdDelayActive, setHoldDelayActive] = useState(false);
 
   const { refetch: refreshProfile, avatarUrl: profileAvatarUrl } = useProfile();
 
@@ -147,15 +150,60 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
     </View>
   ) : null;
 
-  switch (mode) {
-    case "auth_loading":
-    case "auth_required":
-    case "connecting":
-      return <StatusTableView mode={mode} scene={scene} renderModel={renderModel} actions={actions} />;
+  const isBaseLoadingMode = mode === "auth_loading" || mode === "auth_required" || mode === "connecting";
+  const noSnapshotReadyFallback = (mode === "idle" || mode === "active") && !snapshot;
+  const shouldShowStatusWithoutHold = isBaseLoadingMode || noSnapshotReadyFallback;
 
+  useEffect(() => {
+    const remainingMs = loadingSpinHoldUntilTs - Date.now();
+    if (remainingMs <= 0) {
+      setHoldDelayActive(false);
+      return;
+    }
+    setHoldDelayActive(true);
+    const timeoutId = setTimeout(() => setHoldDelayActive(false), remainingMs);
+    return () => clearTimeout(timeoutId);
+  }, [loadingSpinHoldUntilTs]);
+
+  useEffect(() => {
+    setLoadingSpinHoldUntilTs(0);
+    setHoldDelayActive(false);
+  }, [renderModel.tableId]);
+
+  const shouldHoldRevealForSlotSpin = !shouldShowStatusWithoutHold && holdDelayActive;
+  const showStatusView = shouldShowStatusWithoutHold || shouldHoldRevealForSlotSpin;
+  const statusViewMode = shouldShowStatusWithoutHold ? mode : "connecting";
+
+  const handleLoadingSlotSpinStart = (spinDurationMs: number) => {
+    const safeDurationMs = Number.isFinite(spinDurationMs) && spinDurationMs > 0 ? spinDurationMs : DEFAULT_LOADING_SPIN_HOLD_MS;
+    const nextUntilTs = Date.now() + safeDurationMs;
+    setLoadingSpinHoldUntilTs((currentUntilTs) => Math.max(currentUntilTs, nextUntilTs));
+  };
+
+  if (showStatusView) {
+    return (
+      <StatusTableView
+        mode={statusViewMode}
+        scene={scene}
+        renderModel={renderModel}
+        actions={actions}
+        onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
+      />
+    );
+  }
+
+  switch (mode) {
     case "idle":
       if (!snapshot) {
-        return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
+        return (
+          <StatusTableView
+            mode="connecting"
+            scene={scene}
+            renderModel={renderModel}
+            actions={actions}
+            onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
+          />
+        );
       }
       return (
         <EmptyTableView
@@ -171,6 +219,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           onPressRebuy={actions.openRebuySheet}
           onBackToLobby={actions.closeTableAndReturn}
           onRejoin={actions.rejoinHero}
+          onJoinTable={actions.joinTableFromFallback}
           rejoinState={renderModel.rejoinUiState}
           rejoinErrorMessage={renderModel.rejoinErrorMessage}
         />
@@ -178,7 +227,15 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
 
     case "active":
       if (!snapshot) {
-        return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
+        return (
+          <StatusTableView
+            mode="connecting"
+            scene={scene}
+            renderModel={renderModel}
+            actions={actions}
+            onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
+          />
+        );
       }
       return (
         <ActiveTableView
@@ -193,6 +250,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           onAction={actions.sendAction}
           onToggleSittingOut={actions.toggleHeroSittingOut}
           onRejoin={actions.rejoinHero}
+          onJoinTable={actions.joinTableFromFallback}
           rejoinState={renderModel.rejoinUiState}
           rejoinErrorMessage={renderModel.rejoinErrorMessage}
           onBackToLobby={actions.closeTableAndReturn}
@@ -206,6 +264,14 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       );
 
     default:
-      return <StatusTableView mode="connecting" scene={scene} renderModel={renderModel} actions={actions} />;
+      return (
+        <StatusTableView
+          mode="connecting"
+          scene={scene}
+          renderModel={renderModel}
+          actions={actions}
+          onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
+        />
+      );
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
-import type { ActionBarConnectionStatus } from "@/components/domain/table/actionBar.logic";
-import { getActionContext } from "@/components/domain/table/actionBar.logic";
+import type { ActionBarConnectionStatus } from "@/components/domain/table/action-bar";
+import { getActionContext } from "@/components/domain/table/action-bar";
 
 function actionsEnabled(allowed: {
   FOLD: boolean;

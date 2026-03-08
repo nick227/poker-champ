@@ -28,4 +28,22 @@ describe("Dealer v2 smoke", () => {
     expect(state.handId).toMatch(/^hand_/);
     expect(state.potCents).toBeGreaterThan(0); // blinds posted
   });
+
+  it("dispose stops timers/sweeps and prevents further queued work", async () => {
+    const state = new PokerState();
+    const dealer = new Dealer(state);
+    const internal = dealer as any;
+    const handOrchestratorDisposeSpy = vi.spyOn(internal.handOrchestrator, "dispose");
+    const turnTimeoutClearSpy = vi.spyOn(internal.turnManager, "clearPendingHumanTurnTimeout");
+    const disconnectDisposeSpy = vi.spyOn(internal.disconnectManager, "dispose");
+    const queuedWork = vi.fn(async () => {});
+
+    dealer.dispose();
+    await internal.turnManager.enqueuePlayerAction(queuedWork);
+
+    expect(handOrchestratorDisposeSpy).toHaveBeenCalledTimes(1);
+    expect(turnTimeoutClearSpy).toHaveBeenCalledTimes(1);
+    expect(disconnectDisposeSpy).toHaveBeenCalledTimes(1);
+    expect(queuedWork).not.toHaveBeenCalled();
+  });
 });

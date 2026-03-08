@@ -267,7 +267,7 @@ async function setupHumanVsBotRoom() {
       const toActUserId = before.seats.find((s) => s.seat === toActSeat)?.userId;
       expect(toActUserId).toBeTruthy();
 
-      room.dealer.markDisconnected(String(toActUserId), Date.now() + 60_000);
+      room.dealer.markDisconnected(String(toActUserId), Date.now() - 1);
 
       await waitFor(
         () =>

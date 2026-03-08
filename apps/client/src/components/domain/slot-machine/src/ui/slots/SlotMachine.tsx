@@ -64,6 +64,7 @@ const ASSETS = {
 
 export function SlotMachine({
   onSpinComplete,
+  onSpinStart,
   game = Classic3,
   symbolMap,
   bankrollCents,
@@ -73,6 +74,7 @@ export function SlotMachine({
   jackpotBannerCents,
 }: {
   onSpinComplete?: (winCents: number) => void;
+  onSpinStart?: () => void;
   game?: SlotGame;
   symbolMap?: Partial<Record<SymbolKey, ImageSourcePropType>>;
   bankrollCents?: number;
@@ -351,6 +353,7 @@ export function SlotMachine({
     engine,
     lock,
     onSpinComplete,
+    onSpinStart,
     payoutTiers,
     setBank,
     spinTo,

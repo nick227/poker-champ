@@ -4,7 +4,7 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TableTopNavMenu } from "@/components/domain/table/TableTopNavMenu";
 import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
 import type { Opponent, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
-import type { TableAction } from "@/components/domain/table/ActionBar";
+import type { TableAction } from "@/components/domain/table/action-bar";
 import { storeRegistry } from "@/registry/store.registry";
 import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
@@ -77,6 +77,7 @@ export function useTablePageController({
     dispatchSendChat,
     dispatchListBots,
     dispatchRejoin,
+    dispatchJoinTable,
     dispatchAddBot,
     dispatchRemoveBot,
     dispatchSetSittingOut,
@@ -404,6 +405,21 @@ export function useTablePageController({
     }
   }, [dispatchRejoin, rejoinUiState, tableId]);
 
+  const joinTableFromFallback = useCallback(() => {
+    if (!Number.isInteger(buyInCents) || Number(buyInCents) <= 0) {
+      setRejoinUiState("error");
+      setRejoinErrorMessage("Could not rejoin table. Please retry.");
+      return;
+    }
+    setRejoinUiState("sending");
+    setRejoinErrorMessage(null);
+    const ok = dispatchJoinTable({ tableId, buyInCents: Number(buyInCents) });
+    if (!ok) {
+      setRejoinUiState("error");
+      setRejoinErrorMessage("Connection unavailable");
+    }
+  }, [buyInCents, dispatchJoinTable, tableId]);
+
   const onPlayerPress = useCallback(
     (o: Opponent) => {
       if (o.isBot) {
@@ -556,6 +572,7 @@ export function useTablePageController({
       sendAction,
       toggleHeroSittingOut,
       rejoinHero,
+      joinTableFromFallback,
       closeChat: chatOverlay.onClose,
       sendChat: chatOverlay.onSend,
     },

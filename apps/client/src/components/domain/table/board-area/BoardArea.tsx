@@ -1,0 +1,45 @@
+import { View } from "react-native";
+import type { UiCard } from "../table.adapter";
+import { FeltBackground } from "./FeltBackground";
+import { CommunityBoard } from "./CommunityBoard";
+import { Text } from "@/components/base/Text";
+import { formatCents } from "@/lib/format";
+import { BOARD_AREA_HEIGHT } from "../constants/table-layout.constants";
+import { useTableLayoutHeight } from "../table-layout";
+import { boardAreaStyles } from "./styles";
+
+export type BoardAreaProps = {
+  cards: UiCard[];
+  potCents: number;
+};
+
+export function BoardArea({ cards, potCents }: BoardAreaProps) {
+  const potValue = typeof potCents === "number" ? formatCents(potCents) : "--";
+  const layoutHeights = useTableLayoutHeight();
+
+  const feltHeight = layoutHeights?.boardAreaHeight ?? BOARD_AREA_HEIGHT;
+
+  return (
+    <FeltBackground
+      className="rounded-xl overflow-hidden"
+      style={[boardAreaStyles.root, { height: feltHeight }]}
+    >
+      <View collapsable={false} style={boardAreaStyles.inner}>
+        <CommunityBoard cards={cards} />
+
+        <View className="pot-container w-full flex justify-center items-center" style={boardAreaStyles.potContainer}>
+          <View className="bg-green-500 rounded-md py-1 px-4">
+            <Text
+              variant="body"
+              className="text-white"
+              allowFontScaling={false}
+              style={{ fontVariant: ["tabular-nums"], minWidth: 0 }}
+            >
+              Pot: {potValue}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </FeltBackground>
+  );
+}

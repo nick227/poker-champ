@@ -58,6 +58,9 @@ export const AddBotPayloadSchema = z.object({
 });
 export const ListBotsPayloadSchema = z.object({});
 export const RejoinPayloadSchema = z.object({});
+export const JoinTablePayloadSchema = z.object({
+  buyInCents: z.number().int().positive(),
+});
 export const RemoveBotPayloadSchema = z.object({
   botId: z.string().min(1),
 });
@@ -94,6 +97,7 @@ export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ADD_BOT"), payload: AddBotPayloadSchema }),
   z.object({ type: z.literal("LIST_BOTS"), payload: ListBotsPayloadSchema }),
   z.object({ type: z.literal("REJOIN"), payload: RejoinPayloadSchema }),
+  z.object({ type: z.literal("JOIN_TABLE"), payload: JoinTablePayloadSchema }),
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
   z.object({ type: z.literal("SET_SITTING_OUT"), payload: SetSittingOutPayloadSchema }),

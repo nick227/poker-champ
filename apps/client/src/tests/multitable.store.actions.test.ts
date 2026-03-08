@@ -65,4 +65,14 @@ describe("multi-table action idempotency payloads", () => {
     expect(ok).toBe(true);
     expect(sender).toHaveBeenCalledWith("REJOIN", {});
   });
+
+  it("dispatches JOIN_TABLE with validated payload", () => {
+    const sender = vi.fn(() => true);
+    useMultiTableStore.getState().registerTableSender("t1", sender);
+
+    const ok = useMultiTableStore.getState().dispatchJoinTable({ tableId: "t1", buyInCents: 5000 });
+
+    expect(ok).toBe(true);
+    expect(sender).toHaveBeenCalledWith("JOIN_TABLE", { buyInCents: 5000 });
+  });
 });

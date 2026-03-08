@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWagerActionPayload, resolvePrimaryWagerAction } from "@/components/domain/table/actionBar.logic";
+import { buildWagerActionPayload, resolvePrimaryWagerAction } from "@/components/domain/table/action-bar";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 
 function makeOptions(input: Partial<HeroActionOptions>): HeroActionOptions {

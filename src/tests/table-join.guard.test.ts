@@ -943,6 +943,35 @@ describe("table join guardrails", () => {
     );
   });
 
+  it("JOIN_TABLE seats a bound, non-seated user without lobby round-trip", async () => {
+    process.env.FEATURE_PERSISTENT_SEATS = "false";
+    vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
+      success: true,
+      newTableBalance: 5000,
+    });
+
+    const room = buildRoomWithRealDealer("table_join_table_recovery", "room_join_table_recovery");
+    const client = makeClient("sess_join_table_recovery");
+    const userId = "user_join_table_recovery";
+
+    room.userIdBySessionId.set(client.sessionId, userId);
+    room.dealer.bindClient(userId, client as any);
+
+    room.onMessageEvents.emit("JOIN_TABLE", client as any, { buyInCents: 5000 });
+    await delay(0);
+
+    expect(room.state.playersById.has(userId)).toBe(true);
+    expect(client.send).toHaveBeenCalledWith(
+      "WELCOME",
+      expect.objectContaining({
+        version: 1,
+        playerId: userId,
+        tableId: "table_join_table_recovery",
+        joinMode: "NEW",
+      }),
+    );
+  });
+
   it("REJOIN returns REJOIN_FAILED_OUT_OF_CHIPS for seated user with zero stack", async () => {
     vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
       success: true,

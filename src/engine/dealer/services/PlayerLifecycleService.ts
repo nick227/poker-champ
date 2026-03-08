@@ -547,6 +547,7 @@ export class PlayerLifecycleService {
     const plans: PlayerLifecyclePlan[] = [];
     let player = this.deps.state.playersById.get(userId);
     if (!player) return plans;
+    const nowTs = Date.now();
 
     if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
       await this.deps.forceFoldIfInHand(userId);
@@ -555,7 +556,11 @@ export class PlayerLifecycleService {
     }
 
     player.connected = false;
-    player.disconnectDeadlineTs = 0;
+    // Preserve a still-active disconnect deadline so seat release can be guarded
+    // until reconnect grace expires.
+    if (!(player.disconnectDeadlineTs > 0 && nowTs <= player.disconnectDeadlineTs)) {
+      player.disconnectDeadlineTs = 0;
+    }
     player.status = "ABANDONED";
     player.needsAction = false;
     player.pendingLeave = true;
@@ -618,8 +623,14 @@ export class PlayerLifecycleService {
     reason: "LEAVE" | "DISCONNECT_TIMEOUT" | "BOT_AUTO_REMOVE",
     plans: PlayerLifecyclePlan[],
   ): void {
+    const nowTs = Date.now();
+    const hasActiveDisconnectProtection =
+      player.disconnectDeadlineTs > 0 && nowTs <= player.disconnectDeadlineTs;
+
     player.connected = false;
-    player.disconnectDeadlineTs = 0;
+    if (reason !== "DISCONNECT_TIMEOUT" && !hasActiveDisconnectProtection) {
+      player.disconnectDeadlineTs = 0;
+    }
     player.status = "ABANDONED";
     player.needsAction = false;
     player.pendingLeave = true;

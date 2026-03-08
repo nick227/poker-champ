@@ -2,7 +2,7 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import type { ReplayController } from "@/types/replayController";
 import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
-import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
+import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
 
 export type ReplayMessage = {
   id: string;

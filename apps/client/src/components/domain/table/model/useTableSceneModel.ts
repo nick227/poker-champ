@@ -12,7 +12,7 @@ import {
   getPotCents,
   getIsDealer,
 } from "../table.adapter";
-import { getActionContext } from "../actionBar.logic";
+import { getActionContext } from "../action-bar";
 
 function mergeCallWithStack(
   actionOptions: HeroActionOptions | undefined,

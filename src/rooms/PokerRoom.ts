@@ -53,6 +53,13 @@ type JoinOptions = { name?: string; buyInCents?: number; password?: string; tabl
 /** Close code when leaving due to joining another table; client treats as non-error and does not reconnect. */
 /** Must differ from CloseCode.CONSENTED (4000) so onLeave can tell user leave from session-replaced. */
 const LEAVE_CODE_SESSION_REPLACED = 4001;
+const MIN_RECONNECT_TIMEOUT_MS = 20 * 60_000;
+
+export function resolveReconnectTimeoutMs(rawValue: unknown): number {
+  const raw = Number(rawValue);
+  if (!Number.isFinite(raw) || raw <= 0) return MIN_RECONNECT_TIMEOUT_MS;
+  return Math.max(MIN_RECONNECT_TIMEOUT_MS, Math.floor(raw));
+}
 
 /**
  * Authentication context returned after successful token validation
@@ -256,6 +263,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   private readonly IDLE_DISPOSE_MS = Number(process.env.POKER_ROOM_IDLE_DISPOSE_MS ?? 30 * 60_000);
   /**
+   * Reconnection grace timeout for unintentional disconnects.
+   * Default: 20 minutes (configurable via POKER_RECONNECT_TIMEOUT_MS).
+   */
+  private readonly RECONNECT_TIMEOUT_MS = (() => {
+    return resolveReconnectTimeoutMs(process.env.POKER_RECONNECT_TIMEOUT_MS);
+  })();
+  /**
    * Flag indicating whether this room is being deleted. Prevents
    * new joins and handles cleanup during disposal.
    */
@@ -271,6 +285,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   onCreate(options: any) {
     // Keep explicit in onCreate as well for defensive clarity in runtime logs.
     this.autoDispose = false;
+    logger.info(
+      {
+        roomId: this.roomId,
+        reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS,
+        persistentSeatsEnabled: this.persistentSeatsEnabled,
+      },
+      "POKER_ROOM_TIMEOUT_CONFIG",
+    );
 
     // Initialize the game state with a fresh PokerState instance
     this.setState(new PokerState());
@@ -750,6 +772,85 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     });
 
+    // Join table from an already-connected session when no seat is currently owned.
+    // This is used as a fallback recovery path for REJOIN_FAILED_NOT_SEATED UX.
+    this.onMessage("JOIN_TABLE", async (client, message) => {
+      const parsed = TableInboundMessageSchema.safeParse({ type: "JOIN_TABLE", payload: message });
+      if (!parsed.success) {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      if (parsed.data.type !== "JOIN_TABLE") {
+        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid join payload." });
+        return;
+      }
+      const userId = this.userIdBySessionId.get(client.sessionId);
+      if (!userId) {
+        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Session is not bound to a user." });
+        return;
+      }
+      if (!this.isActiveBoundClient(userId, client)) return;
+      if (this.isDeleting) {
+        this.sendTableMessage(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
+        return;
+      }
+      if (this.dealer.hasPlayer(userId)) {
+        this.sendTableMessage(client, "ERROR", { code: "ALREADY_SEATED", message: "You are already seated." });
+        return;
+      }
+
+      const buyInCents = parsed.data.payload.buyInCents;
+      const username =
+        typeof client.auth?.username === "string" && client.auth.username.trim().length > 0
+          ? client.auth.username
+          : `player_${userId.slice(0, 6)}`;
+
+      try {
+        await this.dealer.addPlayer(userId, username, buyInCents);
+        this.updateMetadataCounts();
+
+        if (this.persistentSeatsEnabled) {
+          const seat = this.findPlayerSeat(userId);
+          const stackCents = this.getPlayerStackCents(userId);
+          if (seat !== null) {
+            await TableSeatSessionService.upsertActiveSeat({
+              tableId: this.state.tableId,
+              userId,
+              seat,
+              stackCentsSnapshot: stackCents,
+              buyInCents,
+              handIdSnapshot: this.state.handId || undefined,
+            });
+          }
+        }
+
+        this.sendTableMessage(client, "WELCOME", {
+          roomId: this.roomId,
+          playerId: userId,
+          tableId: this.state.tableId,
+          joinMode: "NEW",
+        });
+        this.addTablePresence(client, userId, username);
+        await this.dealer.emitSnapshotToUser(userId, "JOIN");
+      } catch (err: any) {
+        logger.warn(
+          {
+            roomId: this.roomId,
+            tableId: this.state.tableId,
+            userId,
+            code: err instanceof PokerError ? err.code : "JOIN_FAILED",
+            message: err?.message ?? String(err),
+          },
+          "POKER_JOIN_TABLE_FAILED",
+        );
+        if (err instanceof PokerError) {
+          this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
+        } else {
+          this.sendTableMessage(client, "ERROR", { code: "JOIN_FAILED", message: err?.message ?? String(err) });
+        }
+      }
+    });
+
     // Set up event listener for user bans to kick banned players from tables
     const onBan = async (payload: { userId: string }) => {
       await this.kickUserByAdmin(payload.userId, "BANNED");
@@ -1142,8 +1243,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.updateMetadataCounts();
 
     // Handle intentional leaves (user clicked leave button). Check before SESSION_REPLACED
-    // because Colyseus uses CloseCode.CONSENTED === 4000, same as our LEAVE_CODE_SESSION_REPLACED.
+    // because Colyseus uses CloseCode.CONSENTED === 4000, while session-replaced uses 4001.
     const consented = code === CloseCode.CONSENTED;
+    logger.info(
+      {
+        roomId: this.roomId,
+        tableId: this.state.tableId,
+        userId,
+        sessionId: client.sessionId,
+        closeCode: code,
+        consented,
+        reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS,
+      },
+      "POKER_ON_LEAVE_PATH",
+    );
     if (consented) {
       await this.dealer.handleConsentedLeave(userId);
       await this.maybeRemoveBotsIfNoHumans();
@@ -1167,7 +1280,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
 
     // Handle unintentional disconnects - set up reconnection window
-    const deadlineTs = Date.now() + 60_000;
+    const deadlineTs = Date.now() + this.RECONNECT_TIMEOUT_MS;
+    logger.info(
+      {
+        roomId: this.roomId,
+        tableId: this.state.tableId,
+        userId,
+        sessionId: client.sessionId,
+        closeCode: code,
+        deadlineTs,
+      },
+      "POKER_ON_LEAVE_DISCONNECT_WINDOW_STARTED",
+    );
     await this.markDisconnectedSafe(userId, deadlineTs);
     if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
       logger.info(
@@ -1214,7 +1338,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
     // Attempt to allow reconnection within the window
     try {
-      const reconnected = await this.allowReconnection(client, 60);
+      const reconnected = await this.allowReconnection(client, Math.ceil(this.RECONNECT_TIMEOUT_MS / 1000));
       if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
         logger.info(
           {
@@ -1995,6 +2119,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * This prevents bots from playing at empty tables and saves resources.
    */
   private async maybeRemoveBotsIfNoHumans(): Promise<void> {
+    // Important: computeHumanCount includes disconnected/sitting-out seated humans.
+    // As long as any human still has a seat, do not auto-remove bots.
     if (this.computeHumanCount() !== 0) return;
     // Avoid lifecycle/remove races while a hand is still active.
     if (this.state.street !== "WAITING") return;

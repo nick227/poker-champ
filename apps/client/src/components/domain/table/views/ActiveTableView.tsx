@@ -6,16 +6,16 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { type Opponent } from "../OpponentStrip";
-import { HeroZone } from "../HeroZone";
+import { type Opponent } from "../opponent-strip";
+import { HeroZone } from "../hero-zone";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
-import { ActionBar, type ActionBarOnAction } from "../ActionBar";
+import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
-import { TableSceneShell } from "../shell/TableSceneShell";
+import { TableSceneShell } from "../table-layout";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
@@ -38,6 +38,7 @@ export type ActiveTableViewProps = {
   onAction: ActionBarOnAction;
   onToggleSittingOut?: () => void;
   onRejoin?: () => void;
+  onJoinTable?: () => void;
   rejoinState?: RejoinUiState;
   rejoinErrorMessage?: string | null;
   onBackToLobby?: () => void;
@@ -65,6 +66,7 @@ export function ActiveTableView({
   onAction,
   onToggleSittingOut,
   onRejoin,
+  onJoinTable,
   rejoinState = "idle",
   rejoinErrorMessage = null,
   onBackToLobby,
@@ -193,8 +195,12 @@ export function ActiveTableView({
   if (!isReplayMode) {
     if (!heroIsSeated) {
       bottom = (
-        <View className="ui-p-inline-4">
+        <View className="ui-p-inline-4 gap-y-2">
           <Text className="text-center">You are not seated at this table.</Text>
+          <View className="ui-row gap-x-2 justify-center">
+            {onJoinTable ? <Button title="Join table" onPress={onJoinTable} /> : null}
+            {onBackToLobby ? <Button title="Back to lobby" onPress={onBackToLobby} variant="ghost" /> : null}
+          </View>
         </View>
       );
     } else if (heroIsSittingOut) {

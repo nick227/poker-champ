@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getActionContext } from "@/components/domain/table/actionBar.logic";
+import { getActionContext } from "@/components/domain/table/action-bar";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
 import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 

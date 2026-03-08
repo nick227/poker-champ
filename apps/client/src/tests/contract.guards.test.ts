@@ -11,6 +11,7 @@ describe("realtime contract guards", () => {
     expect(isValidTableInbound("ACTION", { action: "RAISE", amountCents: 100, actionId: "a1" })).toBe(true);
     expect(isValidTableInbound("LIST_BOTS", {})).toBe(true);
     expect(isValidTableInbound("REJOIN", {})).toBe(true);
+    expect(isValidTableInbound("JOIN_TABLE", { buyInCents: 5000 })).toBe(true);
     expect(isValidTableOutbound("WELCOME", { roomId: "r1", playerId: "u1", tableId: "t1", joinMode: "NEW" })).toBe(true);
     expect(isValidTableOutbound("BOTS_LIST", { bots: [{ id: "nash_nate", name: "Nash Nate" }] })).toBe(true);
   });

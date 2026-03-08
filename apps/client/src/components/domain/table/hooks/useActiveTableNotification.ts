@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { Opponent } from "../OpponentStrip";
+import type { Opponent } from "../opponent-strip";
 
 export type ActiveTableNotificationVariant = "default" | "processing" | "waiting";
 

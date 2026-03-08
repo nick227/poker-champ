@@ -1,4 +1,4 @@
-import type { ActionBarOnAction } from "@/components/domain/table/ActionBar";
+import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
 import type { TableSceneContract } from "@/types/tableSceneContract";
 
 /**

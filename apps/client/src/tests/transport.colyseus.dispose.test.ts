@@ -44,7 +44,7 @@ describe("Colyseus transport double-mount prevention", () => {
     vi.restoreAllMocks();
   });
 
-  it("late join resolve after dispose: no CONNECTED dispatched, room.leave(4000) called", async () => {
+  it("late join resolve after dispose: no CONNECTED dispatched, room.leave(4001) called", async () => {
     const onMessage = vi.fn();
     const session = createRealtimeSession({
       transport: "colyseus",
@@ -62,7 +62,7 @@ describe("Colyseus transport double-mount prevention", () => {
     await Promise.resolve();
 
     expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "CONNECTED" }));
-    expect(mockLeave).toHaveBeenCalledWith(4000);
+    expect(mockLeave).toHaveBeenCalledWith(4001);
   });
 
   it("dispose during preflight resolveRoomIdByTableId await: no join afterward", async () => {

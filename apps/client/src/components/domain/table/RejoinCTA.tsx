@@ -21,7 +21,7 @@ export function RejoinCTA({
   isFatalTableGone = false,
 }: RejoinCTAProps) {
   return (
-    <View className="ui-p-inline-4 gap-y-2 items-center">
+    <View className="ui-p-inline-4 gap-y-2 items-center bg-bg">
       <Text className="text-center text-muted" numberOfLines={2}>
         You're sitting out.
       </Text>

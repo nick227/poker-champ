@@ -1,5 +1,6 @@
 /**
  * Central map of sound effects. Use static require(...) so Expo bundles assets.
+ * In Vitest, @/registry/sound.registry is mocked in src/test/setup.ts so assets are not loaded.
  */
 
 export type SoundCategory = "ui" | "table" | "action" | "outcome" | "notification";

@@ -221,9 +221,9 @@ describe("table multiplayer churn integration", () => {
       expect(toActUserId === "user_a" || toActUserId === "user_b").toBe(true);
 
       if (typeof room.dealer.markDisconnectedSerialized === "function") {
-        await room.dealer.markDisconnectedSerialized(String(toActUserId), Date.now() + 60_000);
+        await room.dealer.markDisconnectedSerialized(String(toActUserId), Date.now() - 1);
       } else {
-        room.dealer.markDisconnected(String(toActUserId), Date.now() + 60_000);
+        room.dealer.markDisconnected(String(toActUserId), Date.now() - 1);
       }
       const connectedUserId = toActUserId === "user_a" ? "user_b" : "user_a";
       await waitFor(

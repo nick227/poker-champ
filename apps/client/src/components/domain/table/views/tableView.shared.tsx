@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { BoardArea } from "../BoardArea";
-import type { Opponent } from "../OpponentStrip";
+import { BoardArea } from "../board-area";
+import type { Opponent } from "../opponent-strip";
 import { useTableSceneModel, type TableSceneModel } from "../model/useTableSceneModel";
-import type { TableSceneShellProps } from "../shell/TableSceneShell";
+import type { TableSceneShellProps } from "../table-layout";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
 
 type TableShellBaseProps = Pick<

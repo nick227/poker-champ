@@ -27,6 +27,7 @@ export function useTablePageStores(tableId: string | undefined) {
       dispatchSendChat: s.dispatchSendChat,
       dispatchListBots: s.dispatchListBots,
       dispatchRejoin: s.dispatchRejoin,
+      dispatchJoinTable: s.dispatchJoinTable,
       dispatchAddBot: s.dispatchAddBot,
       dispatchRemoveBot: s.dispatchRemoveBot,
       dispatchSetSittingOut: s.dispatchSetSittingOut,

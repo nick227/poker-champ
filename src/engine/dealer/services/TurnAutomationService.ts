@@ -223,12 +223,19 @@ export class TurnAutomationService {
   async applyDisconnectedAutoActionCapForHand(): Promise<void> {
     const cap = getAutoActionHandCap();
     if (cap <= 0) return;
+    const nowTs = Date.now();
 
     for (const player of this.deps.state.playersById.values()) {
       if (player.kind !== "HUMAN") continue;
 
       const autoActed = this.deps.currentHandAutoActedUserIds.has(player.id);
       if (autoActed && !player.connected) {
+        // Do not force-abandon disconnected users while they are still within
+        // the reconnect grace window.
+        if (player.connected === false && player.disconnectDeadlineTs > 0 && nowTs <= player.disconnectDeadlineTs) {
+          continue;
+        }
+
         const nextCount = (this.deps.autoActionsByUserId.get(player.id) ?? 0) + 1;
         this.deps.autoActionsByUserId.set(player.id, nextCount);
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, View } from "react-native";
 import { TableLoadingLanding, type TableLoadingMode } from "../loading/TableLoadingLanding";
-import { TableSceneShell } from "../shell/TableSceneShell";
+import { TableSceneShell } from "../table-layout";
 import type { TablePageController } from "@/types/tableSceneContract";
 
 type StatusTableViewProps = {
@@ -9,6 +9,7 @@ type StatusTableViewProps = {
   scene: TablePageController["scene"];
   renderModel: TablePageController["renderModel"];
   actions: TablePageController["actions"];
+  onLoadingSlotSpinStart?: (spinDurationMs: number) => void;
 };
 
 function statusMessageFor(
@@ -27,6 +28,7 @@ export function StatusTableView({
   scene,
   renderModel,
   actions,
+  onLoadingSlotSpinStart,
 }: StatusTableViewProps) {
   const loadingMode: TableLoadingMode = mode === "auth_required" ? "auth_required" : mode === "auth_loading" ? "auth_loading" : "connecting";
   const message = statusMessageFor(mode, scene);
@@ -64,6 +66,7 @@ export function StatusTableView({
           onReturnToLobby={actions.goToLobby}
           onGoToLogin={actions.goToLogin}
           reducedMotion={reducedMotion}
+          onSlotSpinStart={onLoadingSlotSpinStart}
         />
       }
       hero={<View collapsable={false} />}

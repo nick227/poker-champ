@@ -3,7 +3,7 @@ import type { TableSnapshotPayload, BotSummary } from "@poker-champ/realtime-con
 import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
 import type { TableSceneMode } from "@/components/domain/table/tableScene.orchestration";
 import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
-import type { TableAction } from "@/components/domain/table/ActionBar";
+import type { TableAction } from "@/components/domain/table/action-bar";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
 import type { RejoinUiState } from "@/components/domain/table/RejoinCTA";
@@ -80,8 +80,8 @@ export type TablePageController = {
     sendAction: (payload: { type: TableAction; amount?: number }) => void;
     toggleHeroSittingOut: () => void;
     rejoinHero: () => void;
+    joinTableFromFallback: () => void;
     closeChat: () => void;
     sendChat: (text: string) => void;
   };
 };
-

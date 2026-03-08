@@ -1,13 +1,13 @@
 import { type ReactNode } from "react";
 import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { type Opponent } from "../OpponentStrip";
+import { type Opponent } from "../opponent-strip";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
-import { HeroZone } from "../HeroZone";
+import { HeroZone } from "../hero-zone";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import type { TableSceneModel } from "../model/useTableSceneModel";
-import { TableSceneShell } from "../shell/TableSceneShell";
+import { TableSceneShell } from "../table-layout";
 import type { HandResultMessage } from "../table.types";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useEmptyTableNotification } from "../hooks/useEmptyTableNotification";

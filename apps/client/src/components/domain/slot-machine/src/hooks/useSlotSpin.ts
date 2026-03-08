@@ -32,6 +32,7 @@ interface UseSlotSpinProps {
     unlock: () => void;
   };
   onSpinComplete?: (winCents: number) => void;
+  onSpinStart?: () => void;
   payoutTiers: any;
   setBank: (updater: (current: number) => number) => void;
   spinTo: (stops: readonly [number, number, number]) => Promise<void>;
@@ -80,6 +81,7 @@ export function useSlotSpin({
   engine,
   lock,
   onSpinComplete,
+  onSpinStart,
   payoutTiers,
   setBank,
   spinTo,
@@ -231,6 +233,7 @@ export function useSlotSpin({
 
     // Lock immediately to prevent double-spin race
     lock.lock();
+    onSpinStart?.();
 
     // MVP Rule: Deduct bet first, credit win later
     setBank((b: number) => Math.max(0, b - betCents));
@@ -288,7 +291,7 @@ export function useSlotSpin({
         lock.unlock();
       }
     }
-  }, [lock, bank, betCents, normalizeReelPositions, pressScale, engine, spinTo, setBank, payoutTiers, cueJackpot, cueSmallWin, onSpinComplete]);
+  }, [lock, bank, betCents, normalizeReelPositions, pressScale, engine, spinTo, setBank, payoutTiers, cueJackpot, cueSmallWin, onSpinComplete, onSpinStart]);
 
   return {
     machineOutput,

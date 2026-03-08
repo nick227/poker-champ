@@ -57,6 +57,7 @@ type MultiTableState = {
   dispatchSendChat: (input: { tableId: string; text: string }) => boolean;
   dispatchListBots: (input: { tableId: string }) => boolean;
   dispatchRejoin: (input: { tableId: string }) => boolean;
+  dispatchJoinTable: (input: { tableId: string; buyInCents: number }) => boolean;
   dispatchAddBot: (input: { tableId: string; botId?: string; name?: string; buyInCents: number }) => boolean;
   dispatchRemoveBot: (input: { tableId: string; botId: string }) => boolean;
   dispatchSetSittingOut: (input: { tableId: string; sittingOut: boolean }) => boolean;
@@ -240,6 +241,13 @@ export const useMultiTableStore = create<MultiTableState>()(
         const payload = {};
         if (!isValidTableInbound("REJOIN", payload)) return false;
         return sender("REJOIN", payload);
+      },
+      dispatchJoinTable: ({ tableId, buyInCents }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = { buyInCents };
+        if (!isValidTableInbound("JOIN_TABLE", payload)) return false;
+        return sender("JOIN_TABLE", payload);
       },
       dispatchAddBot: ({ tableId, botId, name = "Bot", buyInCents }): boolean => {
         const sender = get().tableSenders[tableId];

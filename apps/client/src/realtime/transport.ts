@@ -2,8 +2,8 @@ import { Client } from "@colyseus/sdk";
 import { lobby } from "@poker-champ/sdk";
 import { RECONNECT_DELAY_MS, MAX_RECONNECT_ATTEMPTS } from "@/constants";
 
-/** Close code when leaving a stale/superseded connection. Matches server use (PokerRoom) for SESSION_REPLACED and rebind; treated as non-error. */
-const LEAVE_CODE_STALE_OR_REPLACED = 4000;
+/** Close code when leaving a stale/superseded connection. Must match PokerRoom session-replaced code. */
+const LEAVE_CODE_STALE_OR_REPLACED = 4001;
 
 export type RealtimeOutboundMessage = {
   type: string;

@@ -17,6 +17,7 @@ export type TableLoadingLandingProps = {
   onReturnToLobby: () => void;
   onGoToLogin?: () => void;
   reducedMotion?: boolean;
+  onSlotSpinStart?: (spinDurationMs: number) => void;
 };
 
 const BRAND_MARK = require("../../../../../assets/images/spades.png");
@@ -49,6 +50,7 @@ export function TableLoadingLanding({
   onReturnToLobby,
   onGoToLogin,
   reducedMotion,
+  onSlotSpinStart,
 }: TableLoadingLandingProps) {
   const { width } = useWindowDimensions();
   const compact = width < 430;
@@ -175,6 +177,7 @@ export function TableLoadingLanding({
   const minBetCents = 100;
   const effectiveBankroll =
     currentBankroll != null && currentBankroll >= minBetCents ? currentBankroll : undefined;
+  const handleSlotSpinStart = () => onSlotSpinStart?.(ONE_SPIN_MS);
 
   return (
     <View
@@ -205,7 +208,7 @@ export function TableLoadingLanding({
           style={[revealStyle(slotReveal), { minHeight: SLOT_LANDING_MIN_HEIGHT }]}
         >
           <ThemeProvider initialThemeId="poker-champ-dark">
-            <SlotMachine bankrollCents={effectiveBankroll} onBankrollChange={setSlotBankroll} />
+            <SlotMachine bankrollCents={effectiveBankroll} onBankrollChange={setSlotBankroll} onSpinStart={handleSlotSpinStart} />
           </ThemeProvider>
         </Animated.View>
 

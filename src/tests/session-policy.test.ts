@@ -101,6 +101,41 @@ describe("disconnect policy", () => {
     expect(!player || player.status === "ABANDONED").toBe(true);
   });
 
+  it("does not release a pending disconnect-timeout seat before reconnect deadline expires", async () => {
+    const state = new PokerState();
+    const dealer = new Dealer(state);
+
+    await dealer.addPlayer("u1", "A", 5000);
+    await dealer.addPlayer("u2", "B", 5000);
+
+    const futureDeadline = Date.now() + 10 * 60_000;
+    await dealer.markDisconnectedSerialized("u1", futureDeadline);
+    await dealer.markAbandoned("u1");
+
+    const player = state.playersById.get("u1");
+    expect(player).toBeTruthy();
+    expect(player?.status).toBe("ABANDONED");
+    expect(player?.disconnectDeadlineTs).toBe(futureDeadline);
+  });
+
+  it("preserves reconnect deadline when disconnected user is set sitting out", async () => {
+    const state = new PokerState();
+    const dealer = new Dealer(state);
+
+    await dealer.addPlayer("u1", "A", 5000);
+    await dealer.addPlayer("u2", "B", 5000);
+
+    const futureDeadline = Date.now() + 10 * 60_000;
+    await dealer.markDisconnectedSerialized("u1", futureDeadline);
+    await dealer.setPlayerSittingOut("u1", true);
+
+    const player = state.playersById.get("u1");
+    expect(player).toBeTruthy();
+    expect(player?.connected).toBe(false);
+    expect(player?.status).toBe("ABANDONED");
+    expect(player?.disconnectDeadlineTs).toBe(futureDeadline);
+  });
+
   it("reconnect during active hand keeps abandoned player out of current hand", async () => {
     const state = new PokerState();
     const dealer = new Dealer(state);
