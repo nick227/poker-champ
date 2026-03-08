@@ -144,7 +144,7 @@ type SittingOutSweepOptions = {
   abandonedPurgeMs?: number;
 };
 
-type InstantGamePresetId = "SIX_BOT_RING" | "HEADS_UP_BOT";
+type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
 
 /**
  * Main poker room class that manages a single poker table
@@ -1489,7 +1489,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     presetId: InstantGamePresetId,
   ): Promise<{ ok: boolean; added: number; target: number; reason?: string }> {
     const target =
-      presetId === "SIX_BOT_RING"
+      presetId === "MULTIPLAYER_RING"
         ? 5
         : presetId === "HEADS_UP_BOT"
           ? 1

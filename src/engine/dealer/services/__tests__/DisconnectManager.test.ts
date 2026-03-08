@@ -73,9 +73,9 @@ describe("DisconnectManager", () => {
   it("prevents overlapping sweeps while a sweep is running", async () => {
     vi.useFakeTimers();
     const state = createStateWithPlayer("u1");
-    let release: (() => void) | null = null;
+    const releaseRef: { call: (() => void) | null } = { call: null };
     const gate = new Promise<void>((resolve) => {
-      release = resolve;
+      releaseRef.call = () => resolve();
     });
     const enqueueSerializedStateMutation = vi.fn(async (work: () => Promise<void>) => {
       await gate;
@@ -95,7 +95,7 @@ describe("DisconnectManager", () => {
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(1);
-    release?.();
+    releaseRef.call?.();
     await Promise.resolve();
     manager.dispose();
   });

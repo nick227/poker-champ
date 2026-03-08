@@ -119,7 +119,7 @@ Use existing APIs and realtime messages; avoid backend contract changes.
 - Never seed when preset is missing or marker already complete.
 
 ## Proposed Presets
-- `SIX_BOT_RING`
+- `MULTIPLAYER_RING`
   - `maxSeats: 6`
   - target bot count: `5`
 - `HEADS_UP_BOT`
@@ -210,7 +210,7 @@ Shared values for MVP:
 - Panel renders at top and remains visible during lobby refresh.
 - One tap creates and navigates correctly.
 - User joins with valid buy-in (no join schema errors).
-- `SIX_BOT_RING` reaches player+5 bots; `HEADS_UP_BOT` reaches player+1 bot.
+- `MULTIPLAYER_RING` reaches player+5 bots; `HEADS_UP_BOT` reaches player+1 bot.
 - Created table appears in active-game feed.
 - Retry path works on network/create failures.
 - Reload/reconnect does not re-seed completed preset for same `tableId + seedNonce`.
@@ -220,7 +220,7 @@ After MVP proves demand, move to a server-orchestrated instant flow for stronger
 
 ### Phase 2 architecture
 - Add `POST /api/lobby/instant-games` endpoint that:
-  - Validates preset (`SIX_BOT_RING`, `HEADS_UP_BOT`)
+  - Validates preset (`MULTIPLAYER_RING`, `HEADS_UP_BOT`)
   - Creates table with random name server-side
   - Seeds bots server-side
   - Stores preset metadata

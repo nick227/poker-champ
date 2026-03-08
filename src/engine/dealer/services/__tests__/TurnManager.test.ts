@@ -48,9 +48,9 @@ describe("TurnManager", () => {
       setPlayerSittingOutInternal: async () => {},
     });
     const order: string[] = [];
-    let releaseFirst: (() => void) | null = null;
+    const releaseRef: { call: (() => void) | null } = { call: null };
     const firstGate = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
+      releaseRef.call = () => resolve();
     });
 
     const first = turnManager.enqueuePlayerAction(async () => {
@@ -65,7 +65,7 @@ describe("TurnManager", () => {
     await vi.waitFor(() => {
       expect(order).toEqual(["first-start"]);
     });
-    releaseFirst?.();
+    releaseRef.call?.();
     await Promise.all([first, second]);
 
     expect(order).toEqual(["first-start", "first-end", "second"]);
@@ -177,9 +177,9 @@ describe("TurnManager", () => {
       setPlayerSittingOutInternal: async () => {},
     });
     const order: string[] = [];
-    let releaseFirst: (() => void) | null = null;
+    const releaseRef: { call: (() => void) | null } = { call: null };
     const firstGate = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
+      releaseRef.call = () => resolve();
     });
 
     const first = turnManager.enqueuePlayerAction(async () => {
@@ -202,7 +202,7 @@ describe("TurnManager", () => {
       expect((err as PokerError).code).toBe("QUEUE_FULL");
     }
 
-    releaseFirst?.();
+    releaseRef.call?.();
     await first;
     await turnManager.enqueuePlayerAction(async () => {
       order.push("third");

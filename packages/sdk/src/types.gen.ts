@@ -1881,7 +1881,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    presetId: "SIX_BOT_RING" | "HEADS_UP_BOT";
+                    presetId: "MULTIPLAYER_RING" | "HEADS_UP_BOT";
                     config: {
                         name: string;
                         maxSeats: number;

@@ -2509,7 +2509,7 @@
                   "presetId": {
                     "type": "string",
                     "enum": [
-                      "SIX_BOT_RING",
+                      "MULTIPLAYER_RING",
                       "HEADS_UP_BOT"
                     ]
                   },

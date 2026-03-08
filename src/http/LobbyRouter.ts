@@ -8,7 +8,7 @@ import { logger } from "../lib/logger.js";
 import { getPrisma } from "../db/prisma.js";
 
 const router = express.Router();
-const InstantPresetIdSchema = z.enum(["SIX_BOT_RING", "HEADS_UP_BOT"]);
+const InstantPresetIdSchema = z.enum(["MULTIPLAYER_RING", "HEADS_UP_BOT"]);
 const LobbyChatQuerySchema = z.object({
   scope: z.string().min(1).default("lobby"),
   cursor: z.string().optional(),

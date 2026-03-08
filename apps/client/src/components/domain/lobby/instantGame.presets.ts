@@ -1,7 +1,7 @@
 import { getRandomTableName } from "@/services/tableNames";
 import { BLINDS_OPTIONS, getMaxBuyInCents } from "./createGame.constants";
 
-export type InstantGamePresetId = "SIX_BOT_RING" | "HEADS_UP_BOT";
+export type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
 
 type InstantGamePreset = {
   id: InstantGamePresetId;
@@ -19,18 +19,18 @@ const INSTANT_MIN_BUY_IN_CENTS = 2000; // $20 = 10 BB at 1/2
 const INSTANT_MAX_BUY_IN_CENTS = getMaxBuyInCents(INSTANT_BLINDS.bigBlindCents); // $200 = 100 BB
 
 const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
-  SIX_BOT_RING: {
-    id: "SIX_BOT_RING",
-    title: "6-Bot Ring",
-    body: "Battle with five bots.",
-    cta: "Start 6-Bot Game",
+  MULTIPLAYER_RING: {
+    id: "MULTIPLAYER_RING",
+    title: "Ring Game",
+    body: "Battle with the bots.",
+    cta: "Start Multiplayer Game",
     helper: "",
-    maxSeats: 6,
-    targetBotCount: 5,
+    maxSeats: 9,
+    targetBotCount: 4,
   },
   HEADS_UP_BOT: {
     id: "HEADS_UP_BOT",
-    title: "Heads-Up Duel",
+    title: "Heads-Up",
     body: "One-on-one bot battle.",
     cta: "Start Heads-Up",
     helper: "",
@@ -39,7 +39,7 @@ const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
   },
 };
 
-export const INSTANT_GAME_PRESET_IDS: InstantGamePresetId[] = ["SIX_BOT_RING", "HEADS_UP_BOT"];
+export const INSTANT_GAME_PRESET_IDS: InstantGamePresetId[] = ["MULTIPLAYER_RING", "HEADS_UP_BOT"];
 
 export function getInstantGamePreset(presetId: InstantGamePresetId): InstantGamePreset {
   return PRESETS[presetId];

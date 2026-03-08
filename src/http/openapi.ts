@@ -1332,7 +1332,7 @@ export const openApiSpec = {
                 properties: {
                   presetId: {
                     type: "string",
-                    enum: ["SIX_BOT_RING", "HEADS_UP_BOT"],
+                    enum: ["MULTIPLAYER_RING", "HEADS_UP_BOT"],
                   },
                   config: {
                     type: "object",

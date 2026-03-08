@@ -205,7 +205,7 @@ export default function LobbyScreen() {
       {showFromLessonNudge ? (
         <View className="mx-4 mt-2 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
           <Text variant="body" className="text-foreground flex-1 text-sm">
-            You just completed a lesson. Apply it at a table below.
+            Very nice!
           </Text>
           <Button
             title="Dismiss"
