@@ -1,8 +1,8 @@
 import "dotenv/config";
 import express from "express";
-import { authRouter } from "../src/engine/auth/AuthRouter.js";
-import { lessonsRouter } from "../src/http/LessonsRouter.js";
-import { disconnectPrisma } from "../src/db/prisma.js";
+import { authRouter } from "../apps/server/src/engine/auth/AuthRouter.js";
+import { lessonsRouter } from "../apps/server/src/http/LessonsRouter.js";
+import { disconnectPrisma } from "../apps/server/src/db/prisma.js";
 
 type LessonListItem = {
   id: string;

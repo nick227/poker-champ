@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "pnpm --dir ../.. exec tsx src/index.ts",
+      command: "pnpm --dir ../.. exec tsx apps/server/src/index.ts",
       url: `${apiBaseURL}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

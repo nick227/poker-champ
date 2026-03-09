@@ -2,9 +2,9 @@ import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { LobbyRoom } from "../src/lobby/LobbyRoom.js";
-import { PokerRoom } from "../src/rooms/PokerRoom.js";
-import { CashierService } from "../src/engine/economy/CashierService.js";
+import { LobbyRoom } from "../apps/server/src/lobby/LobbyRoom.js";
+import { PokerRoom } from "../apps/server/src/rooms/PokerRoom.js";
+import { CashierService } from "../apps/server/src/engine/economy/CashierService.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
 function delay(ms: number) {

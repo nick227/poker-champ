@@ -27,7 +27,7 @@
 // ============================================================================
 // IMPORTS - Type Definitions
 // ============================================================================
-import type { ActionPayload } from "../../../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 
 // ============================================================================

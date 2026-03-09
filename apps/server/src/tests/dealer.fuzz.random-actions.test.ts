@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Dealer } from "../engine/Dealer.js";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
-import type { ActionPayload } from "../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import { vi } from "vitest";
 
 vi.setConfig({ testTimeout: 60000 });

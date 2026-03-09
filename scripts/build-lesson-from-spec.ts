@@ -8,8 +8,8 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildLessonFromSpec } from "../src/lessons/buildLessonFromSpec.js";
-import type { MinimalHandSpec } from "../src/lessons/minimalHandSpec.types.js";
+import { buildLessonFromSpec } from "../apps/server/src/lessons/buildLessonFromSpec.js";
+import type { MinimalHandSpec } from "../apps/server/src/lessons/minimalHandSpec.types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");

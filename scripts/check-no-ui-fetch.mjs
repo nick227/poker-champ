@@ -1,7 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const UI_DIR_CANDIDATES = ["apps", "app", "ui", "frontend", "client", "web"];
+const UI_DIR_CANDIDATES = [
+  "apps/client/src",
+  "apps/client/app",
+  "ui",
+  "frontend",
+  "client",
+  "web"
+];
 const FILE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next", ".vite", ".turbo", ".git", "packages/sdk"]);
 
@@ -64,4 +71,3 @@ main().catch((err) => {
   process.stderr.write(`${String(err)}\n`);
   process.exit(1);
 });
-

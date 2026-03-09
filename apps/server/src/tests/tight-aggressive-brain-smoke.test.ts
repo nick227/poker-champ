@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BotActionContext } from "../engine/bots/BotBrain.js";
-import type { ActionPayload } from "../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import { TightAggressiveBrain } from "../engine/bots/brains/tight_aggressive/TightAggressiveBrain.js";
 import tightAggressiveConfig from "../engine/bots/brains/tight_aggressive/config/tightAggressive.config.js";
 import { loadTightAggressiveConfig } from "../engine/bots/brains/tight_aggressive/runtime/loadTightAggressiveConfig.js";

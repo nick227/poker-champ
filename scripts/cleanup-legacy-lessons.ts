@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getPrisma, disconnectPrisma } from "../src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
 
 async function main() {
   const apply = process.argv.includes("--apply");

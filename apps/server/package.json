@@ -3,6 +3,12 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p ../../tsconfig.json --noEmit --incremental false",
+    "test": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
+    "test:run": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
+    "lint": "eslint src --config ../../eslint.config.mjs"
+  },
   "dependencies": {
     "@colyseus/core": "^0.17.36",
     "@colyseus/schema": "^4.0.12",

@@ -1,5 +1,5 @@
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
-import type { ActionPayload } from "../../../../../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import { getLegalActions } from "../../../utils/decision.js";
 import type { ActionWeights, DerivedFeatures, PostflopNodeCompiled, PreflopNodeCompiled } from "../types.js";
 

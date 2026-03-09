@@ -6,8 +6,8 @@
  */
 
 import "dotenv/config";
-import { getPrisma, disconnectPrisma } from "../src/db/prisma.js";
-import { ReplayFrameService } from "../src/engine/persistence/ReplayFrameService.js";
+import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { ReplayFrameService } from "../apps/server/src/engine/persistence/ReplayFrameService.js";
 
 const STREET_ORDER: Record<string, number> = {
   PREFLOP: 0,

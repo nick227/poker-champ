@@ -1,4 +1,4 @@
-import type { ActionPayload } from "../../../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import type { HeroActionOptions, TableLastAction } from "@poker-champ/realtime-contract";

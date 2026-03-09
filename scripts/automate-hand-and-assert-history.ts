@@ -9,9 +9,9 @@ import "dotenv/config";
 import http from "node:http";
 import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { LobbyRoom } from "../src/lobby/LobbyRoom.js";
-import { PokerRoom } from "../src/rooms/PokerRoom.js";
-import { getPrisma } from "../src/db/prisma.js";
+import { LobbyRoom } from "../apps/server/src/lobby/LobbyRoom.js";
+import { PokerRoom } from "../apps/server/src/rooms/PokerRoom.js";
+import { getPrisma } from "../apps/server/src/db/prisma.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
 const email = process.argv[2] ?? "test@example.com";

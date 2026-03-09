@@ -2,7 +2,7 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPrisma, disconnectPrisma } from "../src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
 
 type LockFile = {
   curriculumTag: string;

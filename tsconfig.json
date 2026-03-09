@@ -3,6 +3,11 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@poker-champ/api-types": ["packages/api-types/src/index.ts"],
+      "@poker-champ/api-types/*": ["packages/api-types/src/*"]
+    },
     "outDir": "dist",
     "rootDir": "./",
     "strict": true,

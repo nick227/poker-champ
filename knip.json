@@ -2,14 +2,17 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
     ".": {
+      "entry": ["scripts/*.ts"],
+      "project": ["scripts/**/*.ts"]
+    },
+    "apps/server": {
       "entry": [
         "src/index.ts",
-        "scripts/*.ts",
         "src/engine/seats/TableSeatSessionService.ts",
         "src/lessons/exportLessonFromReplay.ts",
         "src/**/*.test.ts"
       ],
-      "project": ["src/**/*.ts", "scripts/**/*.ts"]
+      "project": ["src/**/*.ts"]
     },
     "apps/client": {
       "entry": [
@@ -26,19 +29,38 @@
     },
     "packages/realtime-contract": {
       "project": ["src/**/*.ts"]
+    },
+    "packages/api-types": {
+      "project": ["src/**/*.ts"]
     }
   },
+  "ignore": [
+    "apps/client/src/components/domain/table/loading/loadingTips.ts",
+    "apps/client/src/components/domain/table/loading/PokerTipCard.tsx"
+  ],
   "ignoreUnresolved": ["babel-preset-expo"],
   "ignoreBinaries": ["eas", "playwright"],
   "ignoreDependencies": [
     "expo-updates",
     "expo-system-ui",
     "@babel/runtime",
-    "react-native-css-interop"
+    "react-native-css-interop",
+    "@types/multer",
+    "bcryptjs",
+    "cors",
+    "express-openapi-validator",
+    "multer",
+    "p-limit",
+    "pino",
+    "poker-odds-calculator",
+    "pokersolver",
+    "stripe",
+    "zod",
+    "@colyseus/schema"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
-    "src/engine/dealer/utils/TableNavigator.ts": ["exports"],
+    "apps/server/src/engine/dealer/utils/TableNavigator.ts": ["exports"],
     "apps/client/src/components/base/Icons.tsx": ["exports"],
     "apps/client/src/components/domain/table/PlayingCard.tsx": ["exports"],
     "apps/client/src/lib/sound.ts": ["exports"],

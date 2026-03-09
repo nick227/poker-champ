@@ -10,7 +10,7 @@
 import { Room, Client, CloseCode } from "@colyseus/core";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
-import { ActionPayloadSchema } from "../messages/schemas.js";
+import { ActionPayloadSchema } from "@poker-champ/api-types";
 import { logger } from "../lib/logger.js";
 import { PokerError } from "../engine/errors.js";
 import { PersistenceFacade } from "../engine/persistence/PersistenceFacade.js";

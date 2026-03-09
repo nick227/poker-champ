@@ -130,5 +130,5 @@ jobs:
           version: 9
       - run: pnpm install --frozen-lockfile
       - run: pnpm sdk:gen
-      - run: git diff --exit-code -- openapi.json packages/sdk/apps/server/src/types.gen.ts packages/sdk/apps/server/src/version.ts
+      - run: git diff --exit-code -- openapi.json packages/sdk/src/types.gen.ts packages/sdk/src/version.ts
       - run: pnpm verify

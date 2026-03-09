@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { openApiSpec } from "../src/http/openapi.js";
+import { openApiSpec } from "../apps/server/src/http/openapi.js";
 
 async function main() {
   const dirname = path.dirname(fileURLToPath(import.meta.url));

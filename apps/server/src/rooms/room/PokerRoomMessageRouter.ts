@@ -5,7 +5,7 @@ import {
   RemoveBotPayloadSchema,
   TableInboundMessageSchema,
 } from "@poker-champ/realtime-contract";
-import { ActionPayloadSchema } from "../../messages/schemas.js";
+import { ActionPayloadSchema } from "@poker-champ/api-types";
 import { PokerError } from "../../engine/errors.js";
 import { newBotId } from "../../engine/bots/botIds.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../../engine/bots/BotCatalog.js";

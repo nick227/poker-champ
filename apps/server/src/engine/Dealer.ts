@@ -43,7 +43,7 @@
 
 import { Client } from "@colyseus/core";
 import { logger } from "../lib/logger.js";
-import type { ActionPayload } from "../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import {

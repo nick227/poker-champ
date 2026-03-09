@@ -1,7 +1,7 @@
 import assert from "node:assert";
 
 import { logger } from "../../../lib/logger.js";
-import type { ActionPayload } from "../../../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import type { PokerState } from "../../../state/PokerState.js";
 import { PokerError } from "../../errors.js";
 import {

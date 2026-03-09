@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import pokersolver from "pokersolver";
-import type { ActionPayload } from "../messages/schemas.js";
+import type { ActionPayload } from "@poker-champ/api-types";
 import { Dealer } from "../engine/Dealer.js";
 import { ActionOptionsService } from "../engine/dealer/services/ActionOptionsService.js";
 import { buildSidePots, splitPotCents } from "../engine/rules/SidePotManager.js";

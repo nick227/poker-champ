@@ -71,7 +71,7 @@ function killProcessTree(pid: number | undefined) {
 
 async function checkBackendHealth(): Promise<CheckResult> {
   const started = nowMs();
-  const child = spawn("pnpm", ["tsx", "src/index.ts"], {
+  const child = spawn("pnpm", ["tsx", "apps/server/src/index.ts"], {
     cwd: process.cwd(),
     shell: true,
     stdio: "pipe",

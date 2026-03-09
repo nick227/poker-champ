@@ -2,8 +2,8 @@ import http from "node:http";
 import { Server } from "@colyseus/core";
 import { matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
-import { LobbyRoom } from "../src/lobby/LobbyRoom.js";
-import { PokerRoom } from "../src/rooms/PokerRoom.js";
+import { LobbyRoom } from "../apps/server/src/lobby/LobbyRoom.js";
+import { PokerRoom } from "../apps/server/src/rooms/PokerRoom.js";
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));

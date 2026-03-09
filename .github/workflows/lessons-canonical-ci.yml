@@ -9,7 +9,7 @@ on:
       - "scripts/check-lessons-content.ts"
       - "apps/server/src/http/LessonsRouter.ts"
       - "apps/client/e2e/lessons-canonical-runtime.spec.ts"
-      - "apps/client/apps/server/src/features/lessons/**"
+      - "apps/client/src/features/lessons/**"
       - "apps/client/playwright.config.ts"
       - "package.json"
       - "pnpm-lock.yaml"

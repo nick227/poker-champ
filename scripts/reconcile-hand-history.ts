@@ -1,4 +1,4 @@
-import { getPrisma, disconnectPrisma } from "../src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
 
 type CliArgs = {
   tableId?: string;

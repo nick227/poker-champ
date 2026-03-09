@@ -5,15 +5,15 @@ import path from "node:path";
 import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { LobbyRoom } from "../src/lobby/LobbyRoom.js";
-import { PokerRoom } from "../src/rooms/PokerRoom.js";
-import { CashierService } from "../src/engine/economy/CashierService.js";
-import type { DealerDiagnosticEvent, DealerDiagnosticType } from "../src/engine/Dealer.js";
+import { LobbyRoom } from "../apps/server/src/lobby/LobbyRoom.js";
+import { PokerRoom } from "../apps/server/src/rooms/PokerRoom.js";
+import { CashierService } from "../apps/server/src/engine/economy/CashierService.js";
+import type { DealerDiagnosticEvent, DealerDiagnosticType } from "../apps/server/src/engine/Dealer.js";
 import {
   getActionableToActSeatFindingFromSnapshot,
   getSnapshotMoneyFindings,
   isActionableStatePhase,
-} from "../src/engine/invariants/churnInvariantContract.js";
+} from "../apps/server/src/engine/invariants/churnInvariantContract.js";
 
 // Headless churn should run with deterministic immediate bot turns.
 process.env.POKER_BOT_DELAY_MS = "0";

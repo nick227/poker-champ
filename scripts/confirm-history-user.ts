@@ -3,7 +3,7 @@
  * Usage: npx tsx scripts/confirm-history-user.ts [email]
  */
 import "dotenv/config";
-import { getPrisma } from "../src/db/prisma.js";
+import { getPrisma } from "../apps/server/src/db/prisma.js";
 
 const email = process.argv[2] ?? "test@example.com";
 
