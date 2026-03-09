@@ -18,7 +18,8 @@
         "src/**/*.test.ts",
         "e2e/**/*.spec.ts"
       ],
-      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "e2e/**/*.ts"]
+      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+      "ignore": ["src/test/mocks/assetStub.ts"]
     },
     "packages/sdk": {
       "project": ["src/**/*.ts"]

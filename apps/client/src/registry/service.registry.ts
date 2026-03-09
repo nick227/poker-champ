@@ -78,6 +78,7 @@ const serviceByKey = {
     }) => withApiError(() => lobby.createTable(input)),
     instantGame: (input: {
       presetId: string;
+      targetBotCount?: number;
       config: {
         name: string;
         maxSeats: number;

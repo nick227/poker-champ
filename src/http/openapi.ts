@@ -1334,6 +1334,7 @@ export const openApiSpec = {
                     type: "string",
                     enum: ["MULTIPLAYER_RING", "HEADS_UP_BOT"],
                   },
+                  targetBotCount: { type: "integer", minimum: 0, maximum: 9 },
                   config: {
                     type: "object",
                     properties: {

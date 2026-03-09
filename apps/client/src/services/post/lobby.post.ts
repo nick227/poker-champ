@@ -32,9 +32,14 @@ export async function postCreateTable(input: CreateTableInput) {
   return res.data;
 }
 
-export async function postCreateInstantGame(input: { presetId: InstantGamePresetId; config: CreateTableInput }) {
+export async function postCreateInstantGame(input: {
+  presetId: InstantGamePresetId;
+  config: CreateTableInput;
+  targetBotCount?: number;
+}) {
   const payload = {
     presetId: input.presetId,
+    targetBotCount: typeof input.targetBotCount === "number" ? input.targetBotCount : undefined,
     config: {
       name: input.config.name?.trim() || "Hold'em",
       maxSeats: input.config.maxSeats,

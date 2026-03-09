@@ -12,25 +12,65 @@ import {
   type CardBackPackId,
   type CardFacePackId,
 } from "@/assets/cards/packs";
-import { getThemePackFeltImageId, type ThemePackId } from "@/config/themePackConfig";
+import { getThemePackSurfaces, type ThemePackId } from "@/config/themePackConfig";
+import {
+  type BackgroundImageId,
+  type FeltGradient,
+  type SurfaceBackground,
+  deriveLegacyFromSurface,
+  nextAppBackgroundCleared,
+  nextAppBackgroundColor,
+  nextAppBackgroundGradient,
+  nextAppBackgroundImageId,
+  nextFeltBackgroundCleared,
+  nextFeltBackgroundColor,
+  nextFeltBackgroundGradient,
+  nextFeltBackgroundImageId,
+} from "@/theme/backgrounds";
+
+export type { FeltGradient } from "@/theme/backgrounds";
 
 const DEFAULT_CARD_BACK_HSL = "217 50% 22%";
 
-/** When set, felt is rendered as a gradient; otherwise solid feltColor. */
-export type FeltGradient = {
-  kind?: "linear" | "radial";
-  colors: string[];
-  angleDeg?: number;
+const DEFAULT_APP_BACKGROUND: SurfaceBackground = {
+  color: "0 0% 5%",
+  imageId: null,
+  gradient: null,
 };
+
+const DEFAULT_FELT_BACKGROUND: SurfaceBackground = {
+  color: "158 30% 14%",
+  imageId: null,
+  gradient: null,
+};
+
+const DEFAULT_APP_COLOR = "0 0% 5%";
+const DEFAULT_FELT_COLOR = "158 30% 14%";
+
+function legacyFromApp(bg: SurfaceBackground) {
+  const d = deriveLegacyFromSurface(bg);
+  return { backgroundColor: d.color ?? DEFAULT_APP_COLOR };
+}
+
+function legacyFromFelt(bg: SurfaceBackground) {
+  const d = deriveLegacyFromSurface(bg);
+  return {
+    feltColor: d.color ?? DEFAULT_FELT_COLOR,
+    feltImageId: d.imageId,
+    feltGradient: d.gradient,
+  };
+}
 
 type PreferencesState = {
   soundEnabled: boolean;
   masterVolume: number;
   notificationsEnabled: boolean;
-  feltColor: string; // HSL components (solid, or first stop for gradient)
-  feltGradient: FeltGradient | null; // when set, felt uses gradient
-  feltImageId: string | null; // when set, felt uses image background
-  cardFaceColor: string; // HSL components
+  feltColor: string; // legacy; kept in sync with feltBackground
+  feltGradient: FeltGradient | null;
+  feltImageId: string | null;
+  appBackground: SurfaceBackground;
+  feltBackground: SurfaceBackground;
+  cardFaceColor: string;
   cardFacePackId: CardFacePackId;
   cardBackPackId: CardBackPackId | null; // null = use procedural (cardBackPattern; colors from manifest)
   cardBackColor: string; // HSL "H S% L%" — used for --c-card-back (TableSceneShell); kept in sync with procedural pattern when applying theme
@@ -44,6 +84,14 @@ type PreferencesState = {
   setFeltColor: (v: string) => void;
   setFeltGradient: (v: FeltGradient | null) => void;
   setFeltImageId: (v: string | null) => void;
+  setAppBackgroundColor: (v: string) => void;
+  setAppBackgroundImageId: (v: string | null) => void;
+  setAppBackgroundGradient: (v: FeltGradient | null) => void;
+  clearAppBackground: () => void;
+  setFeltBackgroundColor: (v: string) => void;
+  setFeltBackgroundImageId: (v: string | null) => void;
+  setFeltBackgroundGradient: (v: FeltGradient | null) => void;
+  clearFeltBackground: () => void;
   setCardFaceColor: (v: string) => void;
   setCardFacePackId: (id: CardFacePackId) => void;
   setCardBackPackId: (id: CardBackPackId | null) => void;
@@ -57,13 +105,15 @@ type PreferencesState = {
 
 export const usePreferencesStore = create<PreferencesState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       soundEnabled: true,
       masterVolume: 1,
       notificationsEnabled: true,
       feltColor: "158 30% 14%",
       feltGradient: null,
       feltImageId: null,
+      appBackground: DEFAULT_APP_BACKGROUND,
+      feltBackground: DEFAULT_FELT_BACKGROUND,
       cardFaceColor: "0 0% 98%",
       cardFacePackId: DEFAULT_CARD_FACE_PACK_ID,
       cardBackPackId: null,
@@ -78,6 +128,58 @@ export const usePreferencesStore = create<PreferencesState>()(
       setFeltColor: (v) => set({ feltColor: v }),
       setFeltGradient: (v) => set({ feltGradient: v }),
       setFeltImageId: (v) => set({ feltImageId: v }),
+      setAppBackgroundColor: (color) => {
+        const next = nextAppBackgroundColor(get().appBackground, color);
+        set({ appBackground: next, ...legacyFromApp(next) });
+      },
+      setAppBackgroundImageId: (id) => {
+        if (id == null) {
+          const next = nextAppBackgroundCleared();
+          set({ appBackground: next, ...legacyFromApp(next) });
+          return;
+        }
+        const next = nextAppBackgroundImageId(get().appBackground, id as BackgroundImageId);
+        set({ appBackground: next, ...legacyFromApp(next) });
+      },
+      setAppBackgroundGradient: (g) => {
+        if (g == null) {
+          const next = nextAppBackgroundCleared();
+          set({ appBackground: next, ...legacyFromApp(next) });
+          return;
+        }
+        const next = nextAppBackgroundGradient(get().appBackground, g);
+        set({ appBackground: next, ...legacyFromApp(next) });
+      },
+      clearAppBackground: () => {
+        const next = nextAppBackgroundCleared();
+        set({ appBackground: next, ...legacyFromApp(next) });
+      },
+      setFeltBackgroundColor: (color) => {
+        const next = nextFeltBackgroundColor(get().feltBackground, color);
+        set({ feltBackground: next, ...legacyFromFelt(next) });
+      },
+      setFeltBackgroundImageId: (id) => {
+        if (id == null) {
+          const next = nextFeltBackgroundCleared();
+          set({ feltBackground: next, ...legacyFromFelt(next) });
+          return;
+        }
+        const next = nextFeltBackgroundImageId(get().feltBackground, id as BackgroundImageId);
+        set({ feltBackground: next, ...legacyFromFelt(next) });
+      },
+      setFeltBackgroundGradient: (g) => {
+        if (g == null) {
+          const next = nextFeltBackgroundCleared();
+          set({ feltBackground: next, ...legacyFromFelt(next) });
+          return;
+        }
+        const next = nextFeltBackgroundGradient(get().feltBackground, g);
+        set({ feltBackground: next, ...legacyFromFelt(next) });
+      },
+      clearFeltBackground: () => {
+        const next = nextFeltBackgroundCleared();
+        set({ feltBackground: next, ...legacyFromFelt(next) });
+      },
       setCardFaceColor: (v) => set({ cardFaceColor: v }),
       setCardFacePackId: (id) => set({ cardFacePackId: getValidCardFacePackId(id) }),
       setCardBackPackId: (id) => set({ cardBackPackId: id }),
@@ -91,89 +193,91 @@ export const usePreferencesStore = create<PreferencesState>()(
       setBackgroundColor: (v) => set({ backgroundColor: v }),
       setTableRadius: (v) => set({ tableRadius: v }),
       applyThemePack: (pack) => {
-        const feltImageId = getThemePackFeltImageId(pack);
+        const { background, felt } = getThemePackSurfaces(pack);
+        const legacyFelt = legacyFromFelt(felt);
+        const legacyApp = legacyFromApp(background);
         switch (pack) {
           case "dark":
             set({
-              feltColor: "0 0% 0%",
-              feltGradient: null,
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "0 50% 100%",
               cardBackPackId: null,
               cardBackPattern: "minimal",
               cardBackColor: getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "0 0% 50%",
-              backgroundColor: "0 0% 0%",
               tableRadius: "0px",
             });
             break;
           case "monokai":
             set({
-              feltColor: "70 8% 15%",
-              feltGradient: null,
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "60 2% 96%",
               cardBackPackId: null,
               cardBackPattern: "geometric",
               cardBackColor: getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "340 92% 56%",
-              backgroundColor: "70 8% 15%",
               tableRadius: "8px",
             });
             break;
           case "zen":
             set({
-              feltColor: "0 0% 12%",
-              feltGradient: { kind: "radial", colors: ["0 0% 14%", "0 0% 12%", "0 0% 10%"] },
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "0 0% 97%",
               cardBackPackId: null,
               cardBackPattern: "minimal",
               cardBackColor: getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "0 0% 40%",
-              backgroundColor: "0 0% 8%",
               tableRadius: "40px",
             });
             break;
           case "back-alley":
             set({
-              feltColor: "0 0% 5%",
-              feltGradient: null,
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "0 0% 96%",
               cardBackPackId: null,
               cardBackPattern: "classic",
               cardBackColor: getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "0 78% 42%",
-              backgroundColor: "0 0% 2%",
               tableRadius: "0px",
             });
             break;
           case "cyber":
             set({
-              feltColor: "249 100% 58%",
-              feltGradient: null,
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "180 85% 96%",
               cardBackPackId: null,
               cardBackPattern: "geometric",
               cardBackColor: getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "300 100% 42%",
-              backgroundColor: "249 50% 5%",
               tableRadius: "4px",
             });
             break;
           default:
             set({
-              feltColor: "158 30% 14%",
-              feltGradient: { kind: "radial", colors: ["158 28% 16%", "158 30% 14%", "158 32% 12%"] },
-              feltImageId,
+              appBackground: background,
+              feltBackground: felt,
+              ...legacyFelt,
+              backgroundColor: legacyApp.backgroundColor,
               cardFaceColor: "0 0% 98%",
               cardBackPackId: null,
               cardBackPattern: "classic",
               cardBackColor: getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
               accentColor: "42 82% 50%",
-              backgroundColor: "0 0% 5%",
               tableRadius: "28px",
             });
         }
@@ -182,7 +286,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     {
       name: "preferences-storage",
       storage: createJSONStorage(() => zustandStorage),
-      version: 5,
+      version: 6,
       migrate: (persistedState) => {
         if (!persistedState || typeof persistedState !== "object") return persistedState;
         const state = persistedState as Record<string, unknown>;
@@ -199,6 +303,22 @@ export const usePreferencesStore = create<PreferencesState>()(
         const cardBackColor =
           (proceduralColor ?? (state.cardBackColor as string)) ?? DEFAULT_CARD_BACK_HSL;
         const { cardBackHue, cardBackSaturation, cardBackLightness, ...rest } = state;
+        const oldBg = (state.backgroundColor as string) ?? "0 0% 5%";
+        const oldFeltColor = (state.feltColor as string) ?? "158 30% 14%";
+        const oldFeltImageId = state.feltImageId as string | null;
+        const oldFeltGradient = state.feltGradient as FeltGradient | null;
+        const appBackground: SurfaceBackground =
+          state.appBackground != null && typeof state.appBackground === "object"
+            ? (state.appBackground as SurfaceBackground)
+            : { color: oldBg, imageId: null, gradient: null };
+        const feltBackground: SurfaceBackground =
+          state.feltBackground != null && typeof state.feltBackground === "object"
+            ? (state.feltBackground as SurfaceBackground)
+            : ({
+                color: oldFeltColor,
+                imageId: oldFeltImageId ?? null,
+                gradient: oldFeltGradient ?? null,
+              } as SurfaceBackground);
         return {
           ...rest,
           cardFacePackId: nextPackId,
@@ -206,6 +326,8 @@ export const usePreferencesStore = create<PreferencesState>()(
           cardBackColor,
           feltGradient: state.feltGradient ?? null,
           feltImageId: state.feltImageId ?? null,
+          appBackground,
+          feltBackground,
         };
       },
     }

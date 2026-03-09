@@ -7,7 +7,7 @@
  * - Services: Authentication, persistence, economy, and other business logic
  * - Utilities: Logging, rate limiting, bot management, etc.
  */
-import { Room, Client, CloseCode, matchMaker } from "@colyseus/core";
+import { Room, Client, CloseCode } from "@colyseus/core";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
 import { ActionPayloadSchema } from "../messages/schemas.js";
@@ -15,17 +15,14 @@ import { logger } from "../lib/logger.js";
 import { PokerError } from "../engine/errors.js";
 import { PersistenceFacade } from "../engine/persistence/PersistenceFacade.js";
 import { AuthService } from "../engine/auth/AuthService.js";
-import { sessionEvents } from "../engine/auth/SessionEvents.js";
 import {
   TableInboundMessageSchema,
-  TableJoinOptionsSchema,
   type TableOutboundMessage,
   TableOutboundMessageSchema,
   AddBotPayloadSchema,
   RemoveBotPayloadSchema,
   ChatPayloadSchema,
 } from "@poker-champ/realtime-contract";
-import type { ZodIssue } from "zod";
 import { nanoid } from "nanoid";
 import { newBotId } from "../engine/bots/botIds.js";
 import { isPersistentSeatsEnabled, isTableSnapshotLogPersistenceEnabled } from "../config/features.js";
@@ -34,12 +31,12 @@ import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService
 import { CashierService } from "../engine/economy/CashierService.js";
 import { TableSnapshotLogService, type SnapshotLogReason } from "../engine/persistence/TableSnapshotLogService.js";
 import type { FrameReason } from "../engine/replay/FrameReason.js";
-import { registerVoiceRelay } from "./voice/register-voice-relay.js";
 import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../engine/bots/BotCatalog.js";
 import { getPrisma } from "../db/prisma.js";
 import { awardService } from "../awards/index.js";
+import { PokerRoomController } from "./room/PokerRoomController.js";
 
 /**
  * Type definition for join options when a client connects to the table
@@ -175,24 +172,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * betting rounds, pot management, and player state transitions.
    */
   private dealer!: Dealer;
-  /**
-   * Maps client session IDs to user IDs for authentication and routing.
-   * This is the source of truth for which user is behind which connection.
-   */
-  private readonly userIdBySessionId: Map<string, string> = new Map();
-  /**
-   * Tracks binding epochs per user to prevent race conditions during
-   * reconnection scenarios. Each time a user rebinds to a new client,
-   * the epoch increments. This allows us to detect and ignore stale
-   * operations from old connections.
-   */
-  private readonly bindingEpochByUserId: Map<string, number> = new Map();
-  /**
-   * Tracks binding epochs per client session. Used in conjunction with
-   * bindingEpochByUserId to validate that operations are coming from
-   * the currently active client for a given user.
-   */
-  private readonly bindingEpochBySessionId: Map<string, number> = new Map();
+  private controller!: PokerRoomController;
+  // Back-compat bridge for tests and legacy paths; SessionManager is the owner of mutations.
+  readonly userIdBySessionId: Map<string, string> = new Map();
+  readonly bindingEpochByUserId: Map<string, number> = new Map();
+  readonly bindingEpochBySessionId: Map<string, number> = new Map();
   /**
    * Cleanup function for session event listeners. Called when the room
    * is disposed to prevent memory leaks.
@@ -210,6 +194,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * state changes are logged for auditing, replay, and analysis.
    */
   private readonly snapshotLogEnabled = isTableSnapshotLogPersistenceEnabled();
+  /**
+   * Timestamp of last snapshot emission (ms). Used by stall detection to log TABLE_STALLED.
+   */
+  private lastSnapshotAt = 0;
+  /**
+   * Last snapshot sequence number from emit hook. Included in TABLE_STALLED for context.
+   */
+  private lastSnapshotSeq: number | undefined = undefined;
+  /**
+   * Interval for table stall detection. Cleared in onDispose.
+   */
+  private stallCheckInterval: ReturnType<typeof setInterval> | null = null;
   /**
    * Per-key join locks to prevent race conditions when multiple clients
    * try to join simultaneously for the same user. Key format: "tableId:userId"
@@ -347,21 +343,39 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           handIdSnapshot: this.state.handId || undefined,
         });
       },
-      // Callback when table state snapshot is emitted for logging
+      // Callback when table state snapshot is emitted for logging and stall detection.
+      // Invoked by SnapshotService.emitToAll and emitToUser only, so lastSnapshotAt stays accurate for TABLE_STALLED.
       onTableSnapshotEmitted: async (snapshot) => {
+        this.lastSnapshotAt = Date.now();
+        const payload = snapshot.payloadJson as { snapshotSeq?: number } | undefined;
+        if (typeof payload?.snapshotSeq === "number") this.lastSnapshotSeq = payload.snapshotSeq;
         if (!this.snapshotLogEnabled) return;
         const mappedReason = this.mapSnapshotReason(snapshot.reason, snapshot.frameReason);
         if (!mappedReason) return;
-        await TableSnapshotLogService.writeSnapshot({
-          tableId: snapshot.tableId,
-          handId: snapshot.handId,
-          snapshotId: snapshot.snapshotId,
-          reason: mappedReason,
-          street: snapshot.street,
-          payloadJson: snapshot.payloadJson,
-          stateHash: snapshot.stateHash,
-          schemaVersion: snapshot.schemaVersion,
-        });
+        try {
+          await TableSnapshotLogService.writeSnapshot({
+            tableId: snapshot.tableId,
+            handId: snapshot.handId,
+            snapshotId: snapshot.snapshotId,
+            reason: mappedReason,
+            street: snapshot.street,
+            payloadJson: snapshot.payloadJson,
+            stateHash: snapshot.stateHash,
+            schemaVersion: snapshot.schemaVersion,
+          });
+        } catch (err) {
+          logger.warn(
+            {
+              roomId: this.roomId,
+              tableId: snapshot.tableId,
+              handId: snapshot.handId,
+              snapshotId: snapshot.snapshotId,
+              reason: mappedReason,
+              message: (err as Error | undefined)?.message ?? String(err),
+            },
+            "SNAPSHOT_LOG_WRITE_FAILED",
+          );
+        }
       },
       getAvatarByUserId: async (userId: string) => {
         const user = await getPrisma().user.findUnique({
@@ -377,7 +391,48 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       },
     });
 
-    // Update lobby metadata with current player counts and table info
+    this.controller = new PokerRoomController(this);
+    this.controller.setupLifecycle({ cfg });
+    this.controller.setupMessageHandlers();
+  }
+
+  get leaveCodeSessionReplaced(): number {
+    return LEAVE_CODE_SESSION_REPLACED;
+  }
+
+  get dealerRef(): Dealer {
+    return this.dealer;
+  }
+
+  get reconnectTimeoutMs(): number {
+    return this.RECONNECT_TIMEOUT_MS;
+  }
+
+  get isDeletingInternal(): boolean {
+    return this.isDeleting;
+  }
+
+  get persistentSeatsEnabledInternal(): boolean {
+    return this.persistentSeatsEnabled;
+  }
+
+  private get controllerRequired(): PokerRoomController {
+    if (!this.controller) {
+      throw new Error("POKER_ROOM_CONTROLLER_MISSING: onCreate must initialize controller before room hooks.");
+    }
+    return this.controller;
+  }
+
+  /**
+   * Room facade surface for orchestration services.
+   * These `*Internal` methods are intentional boundary adapters so services
+   * can coordinate behavior without touching room internals directly.
+   */
+  setSessionEventUnbindInternal(unbind: () => void): void {
+    this.unbindSessionEvent = unbind;
+  }
+
+  updateCreateMetadataInternal(cfg?: TableConfig): void {
     const humanCount = this.computeHumanCount();
     const connectedHumanCount = this.computeConnectedHumanCount();
     void this.setMetadata({
@@ -401,469 +456,171 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       humanCount,
       connectedHumanCount,
     });
+  }
 
-    // Register voice chat relay for real-time communication
-    registerVoiceRelay(this);
-
-    // Set up message handler for adding bots to the table
-    this.onMessage("ADD_BOT", async (client, message) => {
-      const envelope = { type: "ADD_BOT" as const, payload: message };
-      const parsed = AddBotPayloadSchema.safeParse(message);
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      // Verify user is seated and authorized to add bots
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to add a bot." });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      try {
-        // Resolve the bot selection from the catalog
-        const resolved = resolveBotSelectionForAdd(parsed.data.botId);
-        if (!resolved.ok) {
-          const message =
-            resolved.reason === "NO_ENABLED_BOTS"
-              ? "No enabled bots are available."
-              : "Unknown or disabled botId.";
-          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message });
-          return;
-        }
-        // Create a unique runtime bot ID and add the bot to the table
-        const runtimeBotId = newBotId();
-        const botName = resolved.bot.name ?? parsed.data.name ?? "Bot";
-        const catalogBotId = resolved.bot.id;
-        await this.dealer.addBot(runtimeBotId, botName, parsed.data.buyInCents, catalogBotId);
-        this.updateMetadataCounts();
-      } catch (err: unknown) {
-        const e = err as { code?: string; message?: string };
-        this.sendTableMessage(client, "ERROR", { code: e?.code ?? "ADD_BOT_FAILED", message: e?.message ?? String(err) });
-      }
-    });
-
-    // Set up message handler for listing available bots
-    this.onMessage("LIST_BOTS", (client, message) => {
-      const envelope = { type: "LIST_BOTS" as const, payload: message ?? {} };
-      const parsed = TableInboundMessageSchema.safeParse(envelope);
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      // Send the list of enabled bot summaries to the client
-      this.sendTableMessage(client, "BOTS_LIST", { bots: listEnabledBotSummaries() });
-    });
-
-    // Set up message handler for removing bots from the table
-    this.onMessage("REMOVE_BOT", async (client, message) => {
-      const parsed = RemoveBotPayloadSchema.safeParse(message);
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      // Verify user is seated and authorized to remove bots
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to remove a bot." });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      const bot = this.state.playersById.get(parsed.data.botId);
-      const canRemoveBetweenHands = this.state.street === "WAITING";
-      const canRemoveDuringHand =
-        bot?.kind === "BOT" &&
-        (bot.status === "ABANDONED" || bot.status === "OUT" || bot.sittingOutUntilNextHand || bot.stackCents === 0);
-      if (!canRemoveBetweenHands && !canRemoveDuringHand) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "REMOVE_BOT_NOT_ALLOWED",
-          message: "Can only remove bots between hands, or during a hand if the bot is sitting out or has zero stack.",
-        });
-        return;
-      }
-      try {
-        await this.dealer.removeBot(parsed.data.botId);
-        this.updateMetadataCounts();
-      } catch (err: unknown) {
-        const e = err as { code?: string; message?: string };
-        this.sendTableMessage(client, "ERROR", { code: e?.code ?? "REMOVE_BOT_FAILED", message: e?.message ?? String(err) });
-      }
-    });
-
-    // Set up message handler for chat messages
-    this.onMessage("CHAT", (client, message) => {
-      // Apply rate limiting to prevent spam
-      if (!this.chatRateLimit.check(client.sessionId)) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "RATE_LIMITED",
-          message: "Too many messages. Slow down.",
-          retryAfterSeconds: 2,
-        });
-        return;
-      }
-      this.touchActivity();
-      const parsed = ChatPayloadSchema.safeParse(message);
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid chat message." });
-        return;
-      }
-      // Verify user is authorized to chat
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be in the room to chat." });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      // Only seated human players can chat
-      const player = this.getPlayerByUserId(userId);
-      if (!player || player.kind === "BOT") {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to chat." });
-        return;
-      }
-      // Create and broadcast the chat message to all clients
-      const payload = {
-        id: nanoid(),
-        tableId: this.state.tableId,
-        senderUserId: userId,
-        senderName: player.name || `player_${userId.slice(0, 6)}`,
-        text: parsed.data.text,
-        createdAtTs: Date.now(),
-      };
-      this.clients.forEach((c) => this.sendTableMessage(c, "CHAT_MESSAGE", payload));
-    });
-
-    // Set up message handler for player actions (bet, fold, check, etc.)
-    this.onMessage("ACTION", async (client, message) => {
-      // Apply rate limiting to prevent action spam
-      if (!this.actionRateLimit.check(client.sessionId)) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "RATE_LIMITED",
-          message: "Too many actions. Slow down.",
-          retryAfterSeconds: 2,
-        });
-        return;
-      }
-      // Validate the message structure
-      const envelope = TableInboundMessageSchema.safeParse({ type: "ACTION", payload: message });
-      if (!envelope.success) {
-        // Check for missing actionId specifically for better error messaging
-        const missingActionId = envelope.error.issues.some((issue) => issue.path.join(".") === "payload.actionId");
-        if (missingActionId) {
-          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "actionId is required for idempotency." });
-          return;
-        }
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: envelope.error.flatten() });
-        return;
-      }
-
-      // Normalize the action payload to handle different message formats
-      // and extract the actionId for idempotency
-      const rawMessage = (message && typeof message === "object" ? message : {}) as Record<string, unknown>;
-      const normalized = this.normalizeActionPayload(rawMessage);
-      if (!normalized) {
-        // Check for missing actionId in various possible locations
-        const topLevelActionId = rawMessage.actionId;
-        const nestedActionId =
-          rawMessage.payload &&
-          typeof rawMessage.payload === "object" &&
-          typeof (rawMessage.payload as Record<string, unknown>).actionId === "string"
-            ? (rawMessage.payload as Record<string, unknown>).actionId
-            : undefined;
-        const hasActionId =
-          (typeof topLevelActionId === "string" && topLevelActionId.length > 0) ||
-          (typeof nestedActionId === "string" && nestedActionId.length > 0);
-        if (!hasActionId) {
-          this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "actionId is required for idempotency." });
-          return;
-        }
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid ACTION message format." });
-        return;
-      }
-
-      // Validate the action payload against the schema
-      const parsed = ActionPayloadSchema.safeParse(normalized.payload);
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      try {
-        // Verify the user is authenticated and seated
-        if (!userId) throw new PokerError("BAD_STATE", "Session is not bound to a seated user.");
-        if (!this.isActiveBoundClient(userId, client)) return;
-        
-        // Update activity timestamp and log the action attempt
-        this.touchActivity();
-        logger.info(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            action: parsed.data.action,
-            amountCents: parsed.data.amountCents,
-          },
-          "POKER_ACTION_ATTEMPT",
-        );
-        
-        // Execute the action through the dealer; pass client so actor receives post-action snapshot even if unbound during async emit
-        await this.dealer.handleAction(userId, parsed.data, normalized.actionId, client);
-        this.lastAcceptedActionByUserId.set(userId, {
-          action: parsed.data.action,
-          amountCents: parsed.data.amountCents,
-          actionId: normalized.actionId,
-          atTs: Date.now(),
-        });
-        
-        // Log successful action execution
-        logger.info(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            action: parsed.data.action,
-            amountCents: parsed.data.amountCents,
-          },
-          "POKER_ACTION_ACCEPTED",
-        );
-      } catch (err: any) {
-        const isBenignDuplicateRetry = (() => {
-          if (!(err instanceof PokerError)) return false;
-          if (err.code !== "NOT_YOUR_TURN" && err.code !== "HAND_NOT_STARTED") return false;
-          const last = this.lastAcceptedActionByUserId.get(userId ?? "");
-          if (!last) return false;
-          if (last.actionId !== normalized.actionId) return false;
-          if (last.action !== parsed.data.action) return false;
-          if ((last.amountCents ?? undefined) !== (parsed.data.amountCents ?? undefined)) return false;
-          return Date.now() - last.atTs <= 1200;
-        })();
-        if (isBenignDuplicateRetry) {
-          logger.info(
-            {
-              roomId: this.roomId,
-              tableId: this.state.tableId,
-              sessionId: client.sessionId,
-              userId,
-              action: parsed.data.action,
-              amountCents: parsed.data.amountCents,
-            },
-            "POKER_ACTION_DUPLICATE_RETRY_IGNORED",
-          );
-          return;
-        }
-        // Log and handle action rejection with appropriate error messaging
+  startStallMonitorInternal(): void {
+    const STALL_CHECK_MS = 10_000;
+    const STALL_THRESHOLD_MS = 15_000;
+    this.stallCheckInterval = setInterval(() => {
+      if (this.lastSnapshotAt > 0 && Date.now() - this.lastSnapshotAt > STALL_THRESHOLD_MS) {
         logger.warn(
           {
             roomId: this.roomId,
             tableId: this.state.tableId,
-            sessionId: client.sessionId,
-            code: err instanceof PokerError ? err.code : "ACTION_REJECTED",
-            message: err?.message ?? String(err),
+            handId: this.state.handId,
+            street: this.state.street,
+            snapshotSeq: this.lastSnapshotSeq,
+            lastSnapshotAt: this.lastSnapshotAt,
           },
-          "POKER_ACTION_REJECTED",
+          "TABLE_STALLED",
         );
-        if (err instanceof PokerError) {
-          this.sendTableMessage(client, "ERROR", {
-            code: err.code,
-            message: err.message,
-            ...(err.meta ?? {}),
-          });
-        } else {
-          this.sendTableMessage(client, "ERROR", { code: "ACTION_REJECTED", message: err?.message ?? String(err) });
-        }
       }
-    });
-
-    // Set up message handler for toggling sit-out status
-    this.onMessage("SET_SITTING_OUT", async (client, message) => {
-      const parsed = TableInboundMessageSchema.safeParse({ type: "SET_SITTING_OUT", payload: message });
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      if (parsed.data.type !== "SET_SITTING_OUT") {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid sit-out payload." });
-        return;
-      }
-      // Verify user is authenticated and seated
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Session is not bound to a seated user." });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      try {
-        // Update the player's sit-out status through the dealer
-        await this.dealer.setPlayerSittingOut(userId, parsed.data.payload.sittingOut);
-        this.updateMetadataCounts();
-      } catch (err: any) {
-        // Handle errors with appropriate messaging
-        if (err instanceof PokerError) {
-          this.sendTableMessage(client, "ERROR", {
-            code: err.code,
-            message: err.message,
-            ...(err.meta ?? {}),
-          });
-          return;
-        }
-        this.sendTableMessage(client, "ERROR", { code: "SIT_OUT_TOGGLE_FAILED", message: err?.message ?? String(err) });
-      }
-    });
-
-    // Explicit rejoin command: deterministic "sit back in" intent for retry-safe UI.
-    this.onMessage("REJOIN", async (client, message) => {
-      const parsed = TableInboundMessageSchema.safeParse({ type: "REJOIN", payload: message });
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      if (parsed.data.type !== "REJOIN") {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid rejoin payload." });
-        return;
-      }
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "REJOIN_FAILED_NOT_SEATED",
-          message: "Could not rejoin table. You are not seated.",
-        });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      if (this.isDeleting) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "REJOIN_FAILED_TABLE_GONE",
-          message: "Table no longer exists",
-        });
-        return;
-      }
-      if (!this.dealer.hasPlayer(userId)) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "REJOIN_FAILED_NOT_SEATED",
-          message: "Could not rejoin table. You are not seated.",
-        });
-        return;
-      }
-      if (this.getPlayerStackCents(userId) <= 0) {
-        this.sendTableMessage(client, "ERROR", {
-          code: "REJOIN_FAILED_OUT_OF_CHIPS",
-          message: "Could not rejoin table. You are out of chips.",
-        });
-        return;
-      }
-      try {
-        await this.dealer.setPlayerSittingOut(userId, false);
-        this.updateMetadataCounts();
-      } catch (err: any) {
+      this.dealer.logTurnStalledIfNeeded();
+      const queueDepth = this.dealer.getQueueDepth();
+      if (queueDepth >= 2) {
         logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            code: err instanceof PokerError ? err.code : "REJOIN_FAILED_TEMPORARY",
-            message: err?.message ?? String(err),
-          },
-          "POKER_REJOIN_FAILED",
+          { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, queueDepth },
+          "QUEUE_DEPTH_HIGH",
         );
-        this.sendTableMessage(client, "ERROR", {
-          code: "REJOIN_FAILED_TEMPORARY",
-          message: "Could not rejoin table. Please retry.",
-        });
       }
-    });
+    }, STALL_CHECK_MS);
+  }
 
-    // Join table from an already-connected session when no seat is currently owned.
-    // This is used as a fallback recovery path for REJOIN_FAILED_NOT_SEATED UX.
-    this.onMessage("JOIN_TABLE", async (client, message) => {
-      const parsed = TableInboundMessageSchema.safeParse({ type: "JOIN_TABLE", payload: message });
-      if (!parsed.success) {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
-        return;
-      }
-      if (parsed.data.type !== "JOIN_TABLE") {
-        this.sendTableMessage(client, "ERROR", { code: "BAD_MESSAGE", message: "Invalid join payload." });
-        return;
-      }
-      const userId = this.userIdBySessionId.get(client.sessionId);
-      if (!userId) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Session is not bound to a user." });
-        return;
-      }
-      if (!this.isActiveBoundClient(userId, client)) return;
-      if (this.isDeleting) {
-        this.sendTableMessage(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
-        return;
-      }
-      if (this.dealer.hasPlayer(userId)) {
-        this.sendTableMessage(client, "ERROR", { code: "ALREADY_SEATED", message: "You are already seated." });
-        return;
-      }
-
-      const buyInCents = parsed.data.payload.buyInCents;
-      const username =
-        typeof client.auth?.username === "string" && client.auth.username.trim().length > 0
-          ? client.auth.username
-          : `player_${userId.slice(0, 6)}`;
-
-      try {
-        await this.dealer.addPlayer(userId, username, buyInCents);
-        this.updateMetadataCounts();
-
-        if (this.persistentSeatsEnabled) {
-          const seat = this.findPlayerSeat(userId);
-          const stackCents = this.getPlayerStackCents(userId);
-          if (seat !== null) {
-            await TableSeatSessionService.upsertActiveSeat({
-              tableId: this.state.tableId,
-              userId,
-              seat,
-              stackCentsSnapshot: stackCents,
-              buyInCents,
-              handIdSnapshot: this.state.handId || undefined,
-            });
-          }
-        }
-
-        this.sendTableMessage(client, "WELCOME", {
-          roomId: this.roomId,
-          playerId: userId,
-          tableId: this.state.tableId,
-          joinMode: "NEW",
-        });
-        this.addTablePresence(client, userId, username);
-        await this.dealer.emitSnapshotToUser(userId, "JOIN");
-      } catch (err: any) {
-        logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            code: err instanceof PokerError ? err.code : "JOIN_FAILED",
-            message: err?.message ?? String(err),
-          },
-          "POKER_JOIN_TABLE_FAILED",
-        );
-        if (err instanceof PokerError) {
-          this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
-        } else {
-          this.sendTableMessage(client, "ERROR", { code: "JOIN_FAILED", message: err?.message ?? String(err) });
-        }
-      }
-    });
-
-    // Set up event listener for user bans to kick banned players from tables
-    const onBan = async (payload: { userId: string }) => {
-      await this.kickUserByAdmin(payload.userId, "BANNED");
-    };
-    sessionEvents.on("user.banned", onBan);
-    // Store cleanup function to remove listener when room is disposed
-    this.unbindSessionEvent = () => sessionEvents.off("user.banned", onBan);
-
-    // Log room creation and initialize activity tracking
-    logger.info({ roomId: this.roomId, tableId: this.state.tableId }, "PokerRoom created");
+  touchActivityInternal(): void {
     this.touchActivity();
-    // Bootstrap persistent seat recovery for server restarts
-    void this.bootstrapPersistentSeatRecovery();
+  }
+
+  handleEmptyStateChangeInternal(): void {
+    this.handleEmptyStateChange();
+  }
+
+  scheduleIdleDisposeInternal(): void {
+    this.scheduleIdleDispose();
+  }
+
+  addTablePresenceInternal(client: Client, userId: string, displayName?: string): void {
+    this.addTablePresence(client, userId, displayName);
+  }
+
+  removeTablePresenceInternal(userId: string): void {
+    this.removeTablePresence(userId);
+  }
+
+  async bootstrapPersistentSeatRecoveryInternal(): Promise<void> {
+    await this.bootstrapPersistentSeatRecovery();
+  }
+
+  async runPersistentSeatCleanupInternal(): Promise<void> {
+    await this.runPersistentSeatCleanup();
+  }
+
+  async maybeRemoveBotsIfNoHumansInternal(): Promise<void> {
+    await this.maybeRemoveBotsIfNoHumans();
+  }
+
+  purgeBotsForDeleteInternal(): void {
+    this.purgeBotsForDelete();
+  }
+
+  async runSittingOutSweepInternal(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }> {
+    return this.runSittingOutSweep(options);
+  }
+
+  async seedInstantBotsInternal(
+    presetId: InstantGamePresetId,
+    targetBotCountOverride?: number,
+  ): Promise<{ ok: boolean; added: number; target: number; reason?: string }> {
+    return this.seedInstantBots(presetId, targetBotCountOverride);
+  }
+
+  sendTableMessageInternal(client: { send: (type: string, payload: unknown) => void }, type: string, payload: unknown): void {
+    this.sendTableMessage(client, type, payload);
+  }
+
+  updateMetadataCountsInternal(): void {
+    this.updateMetadataCounts();
+  }
+
+  normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string } | null {
+    return this.normalizeActionPayload(payload);
+  }
+
+  getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string } | null {
+    return this.getPlayerByUserId(userId);
+  }
+
+  getPlayerStackCentsInternal(userId: string): number {
+    return this.getPlayerStackCents(userId);
+  }
+
+  findPlayerSeatInternal(userId: string): number | null {
+    return this.findPlayerSeat(userId);
+  }
+
+  withJoinLockInternal(key: string, fn: () => Promise<void>): Promise<void> {
+    return this.withJoinLock(key, fn);
+  }
+
+  processJoinBuyInForZeroStackSeatInternal(userId: string, buyInCents: number): Promise<void> {
+    return this.processJoinBuyInForZeroStackSeat(userId, buyInCents);
+  }
+
+  logRestoreBindOkInternal(userId: string, sessionId: string): void {
+    this.logRestoreBindOk(userId, sessionId);
+  }
+
+  markDisconnectedSafeInternal(userId: string, disconnectDeadlineTs: number): Promise<void> {
+    return this.markDisconnectedSafe(userId, disconnectDeadlineTs);
+  }
+
+  markReconnectedSafeInternal(userId: string): Promise<void> {
+    return this.markReconnectedSafe(userId);
+  }
+
+  clearSittingOutOnRestoreSafeInternal(userId: string): Promise<void> {
+    return this.clearSittingOutOnRestoreSafe(userId);
+  }
+
+  markAbandonedSafeInternal(userId: string): Promise<void> {
+    return this.markAbandonedSafe(userId);
+  }
+
+  emitSnapshotsToAllSafeInternal(reason: string): Promise<void> {
+    return this.emitSnapshotsToAllSafe(reason);
+  }
+
+  isChatRateLimitedInternal(sessionId: string): boolean {
+    return !this.chatRateLimit.check(sessionId);
+  }
+
+  isActionRateLimitedInternal(sessionId: string): boolean {
+    return !this.actionRateLimit.check(sessionId);
+  }
+
+  setLastAcceptedActionInternal(
+    userId: string,
+    action: { action: string; amountCents?: number; actionId: string; atTs: number },
+  ): void {
+    this.lastAcceptedActionByUserId.set(userId, action);
+  }
+
+  getLastAcceptedActionInternal(userId: string): { action: string; amountCents?: number; actionId: string; atTs: number } | undefined {
+    return this.lastAcceptedActionByUserId.get(userId);
+  }
+
+  async onAuth(client: Client, options: any, context: { token?: string; headers?: Headers }) {
+    if (!this.controller) {
+      return this.authenticateInternal(client, options, context);
+    }
+    return this.controller.auth.authenticate(client, options, context);
+  }
+
+  async onJoin(client: Client, options: JoinOptions, auth?: AuthContext) {
+    return this.controllerRequired.join.handleJoin(client, options, auth);
+  }
+
+  async onLeave(client: Client, code?: number) {
+    return this.controllerRequired.leave.handleLeave(client, code);
   }
 
   /**
@@ -876,7 +633,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @returns Authentication context with user details
    * @throws Error if authentication fails
    */
-  async onAuth(_client: Client, options: any, context: { token?: string; headers?: Headers }) {
+  async authenticateInternal(_client: Client, options: any, context: { token?: string; headers?: Headers }) {
     // Extract token from multiple possible sources in order of preference
     const tokenFromHeader = context?.headers?.get("authorization") ?? options?.authorization;
     const tokenFromContext = context?.token;
@@ -930,259 +687,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param options - Join options including buy-in amount
    * @param auth - Authentication context from onAuth
    */
-  async onJoin(client: Client, options: JoinOptions, auth?: AuthContext) {
-    const userId = auth?.userId;
-    const requestedBuyInCents =
-      Number.isInteger(options?.buyInCents) && (options?.buyInCents as number) > 0
-        ? (options!.buyInCents as number)
-        : null;
-    // Use per-user join lock to prevent race conditions
-    const lockKey = `${this.state.tableId}:${userId ?? client.sessionId}`;
-    await this.withJoinLock(lockKey, async () => {
-      // Prevent joins during room deletion
-      if (this.isDeleting) {
-        this.sendTableMessage(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
-        client.leave();
-        return;
-      }
-      this.touchActivity();
-      await this.runPersistentSeatCleanup();
-      
-      // Log the join attempt for debugging and monitoring
-      logger.info(
-        {
-          roomId: this.roomId,
-          tableId: this.state.tableId,
-          sessionId: client.sessionId,
-          userId,
-          hasBuyIn: Number.isInteger(options?.buyInCents),
-          buyInCents: options?.buyInCents,
-        },
-        "POKER_JOIN_ATTEMPT",
-      );
-      
-      // Require authentication for all joins
-      if (!userId || !auth) {
-        this.sendTableMessage(client, "ERROR", { code: "UNAUTHORIZED", message: "Authentication required." });
-        client.leave();
-        return;
-      }
-
-      // Remove user from any other table so only one table connection is valid (avoids double-join / black screen on quick switch).
-      const otherTableIds = presenceIndex.getTableIdsForUser(userId).filter((id) => id !== this.state.tableId);
-      if (otherTableIds.length > 0) {
-        type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string } };
-        const pokerRooms = (await matchMaker.query({ name: "poker" })) as PokerRoomRef[];
-        for (const otherTableId of otherTableIds) {
-          const otherRoom = pokerRooms.find((r) => r.metadata?.tableId === otherTableId);
-          if (otherRoom?.roomId) {
-            try {
-              await matchMaker.remoteRoomCall(otherRoom.roomId, "requestUserLeaveBecauseJoiningAnotherTable" as never, [userId], 5000);
-            } catch (err) {
-              logger.warn(
-                { err, roomId: this.roomId, tableId: this.state.tableId, otherTableId, userId },
-                "requestUserLeaveBecauseJoiningAnotherTable failed",
-              );
-            }
-          }
-        }
-      }
-
-      // RESTORE mode: User already has a seat at this table, just reconnect
-      if (this.dealer.hasPlayer(userId)) {
-        const currentPlayer = this.state.playersById.get(userId);
-        const shouldApplyJoinBuyInOverride =
-          requestedBuyInCents != null &&
-          this.state.street === "WAITING" &&
-          currentPlayer?.stackCents === 0 &&
-          currentPlayer?.status === "OUT";
-        if (shouldApplyJoinBuyInOverride) {
-          try {
-            await this.processJoinBuyInForZeroStackSeat(userId, requestedBuyInCents);
-          } catch (err: any) {
-            logger.warn(
-              {
-                roomId: this.roomId,
-                tableId: this.state.tableId,
-                userId,
-                buyInCents: requestedBuyInCents,
-                code: err instanceof PokerError ? err.code : "JOIN_BUYIN_FAILED",
-                message: err?.message ?? String(err),
-              },
-              "POKER_JOIN_BUYIN_OVERRIDE_FAILED",
-            );
-            if (err instanceof PokerError) this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
-            else this.sendTableMessage(client, "ERROR", { code: "JOIN_BUYIN_FAILED", message: err?.message ?? String(err) });
-            client.leave();
-            return;
-          }
-        }
-
-        this.rebindClientExclusive(userId, client);
-        this.logRestoreBindOk(userId, client.sessionId);
-        await this.markReconnectedSafe(userId);
-        await this.clearSittingOutOnRestoreSafe(userId);
-        this.addTablePresence(client, userId, auth.username);
-        if (this.persistentSeatsEnabled) {
-          const stackCents = this.getPlayerStackCents(userId);
-          await TableSeatSessionService.touchConnected({
-            tableId: this.state.tableId,
-            userId,
-            stackCentsSnapshot: stackCents,
-            handIdSnapshot: this.state.handId || undefined,
-          });
-        }
-        this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-        await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
-        this.handleEmptyStateChange();
-        return;
-      }
-
-      // REBOUND mode: Check for persistent session to restore after disconnect
-      if (this.persistentSeatsEnabled) {
-        const persisted = await TableSeatSessionService.findRejoinableSession({
-          tableId: this.state.tableId,
-          userId,
-        });
-        if (persisted) {
-          const shouldTreatPersistedAsNewJoin =
-            requestedBuyInCents != null &&
-            this.state.street === "WAITING" &&
-            persisted.stackCentsSnapshot === 0 &&
-            persisted.state === "SEATED_SITTING_OUT";
-          if (shouldTreatPersistedAsNewJoin) {
-            await TableSeatSessionService.markLeft({
-              tableId: this.state.tableId,
-              userId,
-              reason: "JOIN_WITH_BUYIN_OVERRIDE",
-              stackCentsSnapshot: persisted.stackCentsSnapshot,
-              handIdSnapshot: this.state.handId || undefined,
-            });
-          } else {
-          try {
-            // Restore the player from their persistent session
-            await this.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
-            this.updateMetadataCounts();
-            this.rebindClientExclusive(userId, client);
-            this.logRestoreBindOk(userId, client.sessionId);
-            await this.markReconnectedSafe(userId);
-            await this.clearSittingOutOnRestoreSafe(userId);
-            this.addTablePresence(client, userId, auth.username);
-            await TableSeatSessionService.touchConnected({
-              tableId: this.state.tableId,
-              userId,
-              stackCentsSnapshot: this.getPlayerStackCents(userId),
-              handIdSnapshot: this.state.handId || undefined,
-            });
-            this.sendTableMessage(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-            await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
-            logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_REBOUND_PERSISTED");
-            this.handleEmptyStateChange();
-            return;
-          } catch (err: any) {
-            // Handle restoration failure gracefully
-            logger.warn(
-              {
-                roomId: this.roomId,
-                tableId: this.state.tableId,
-                userId,
-                code: err instanceof PokerError ? err.code : "RESTORE_FAILED",
-                message: err?.message ?? String(err),
-              },
-              "POKER_JOIN_REBOUND_PERSISTED_FAILED",
-            );
-            this.sendTableMessage(client, "ERROR", {
-              code: err instanceof PokerError ? err.code : "RESTORE_FAILED",
-              message: err?.message ?? "Failed to restore persisted seat.",
-            });
-            client.leave();
-            return;
-          }
-          }
-        }
-      }
-
-      // NEW mode: Validate join options for new player seating
-      const parsedJoin = TableJoinOptionsSchema.safeParse(options ?? {});
-      if (!parsedJoin.success) {
-        const hasBuyInIssue = parsedJoin.error.issues.some((issue: ZodIssue) => issue.path[0] === "buyInCents");
-        logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            errors: parsedJoin.error.flatten(),
-          },
-          "POKER_JOIN_REJECTED_BAD_OPTIONS",
-        );
-        this.sendTableMessage(client, "ERROR", {
-          code: hasBuyInIssue ? "MISSING_BUY_IN_CENTS" : "BAD_JOIN_OPTIONS",
-          message: hasBuyInIssue ? "buyInCents is required and must be a positive integer." : "Invalid join options.",
-          details: parsedJoin.error.flatten(),
-        });
-        client.leave();
-        return;
-      }
-
-      // Extract player details from authenticated context
-      const name = auth.username;
-      const buyInCents = parsedJoin.data.buyInCents;
-
-      try {
-        // Double-check user isn't already seated (race condition protection)
-        if (this.dealer.hasPlayer(userId)) {
-          throw new PokerError("BAD_STATE", "User already seated at this table.");
-        }
-
-        // Bind the client to the user and add them to the table
-        this.rebindClientExclusive(userId, client);
-        await this.dealer.addPlayer(userId, name, buyInCents);
-        this.updateMetadataCounts();
-        
-        // Create persistent seat record if enabled
-        if (this.persistentSeatsEnabled) {
-          const seat = this.findPlayerSeat(userId);
-          const stackCents = this.getPlayerStackCents(userId);
-          if (seat !== null) {
-            await TableSeatSessionService.upsertActiveSeat({
-              tableId: this.state.tableId,
-              userId,
-              seat,
-              stackCentsSnapshot: stackCents,
-              buyInCents,
-              handIdSnapshot: this.state.handId || undefined,
-            });
-          }
-        }
-        
-        // Send welcome message and initial game state
-        this.sendTableMessage(client, "WELCOME", {
-          roomId: this.roomId,
-          playerId: userId,
-          tableId: this.state.tableId,
-          joinMode: "NEW",
-        });
-        this.addTablePresence(client, userId, auth.username);
-        await this.dealer.emitSnapshotToUser(userId, "JOIN");
-        logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_JOIN_SUCCESS");
-        this.handleEmptyStateChange();
-      } catch (err: any) {
-        // Handle join failures with appropriate error messaging
-        logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            code: err instanceof PokerError ? err.code : "JOIN_FAILED",
-            message: err?.message ?? String(err),
-          },
-          "POKER_JOIN_FAILED",
-        );
-        if (err instanceof PokerError) this.sendTableMessage(client, "ERROR", { code: err.code, message: err.message });
-        else this.sendTableMessage(client, "ERROR", { code: "JOIN_FAILED", message: err?.message ?? String(err) });
-        client.leave();
-      }
-    });
+  async handleJoinInternal(client: Client, options: JoinOptions, auth?: AuthContext) {
+    return this.controllerRequired.join.handleJoin(client, options, auth);
   }
 
   /**
@@ -1198,202 +704,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param client - The client leaving the room
    * @param code - Close code indicating reason for disconnect
    */
-  async onLeave(client: Client, code?: number) {
-    this.touchActivity();
-    this.handleEmptyStateChange();
-    
-    // Track binding epoch to detect stale session operations
-    const leaveBindingEpoch = this.bindingEpochBySessionId.get(client.sessionId);
-    this.bindingEpochBySessionId.delete(client.sessionId);
-    const userId = this.userIdBySessionId.get(client.sessionId) ?? client.auth?.userId;
-    this.userIdBySessionId.delete(client.sessionId);
-
-    if (!userId) return;
-
-    // Check if this is a stale session (user has reconnected with new client)
-    const boundClient = this.getBoundClient(userId);
-    if (boundClient && boundClient.sessionId !== client.sessionId) {
-      logger.info(
-        { roomId: this.roomId, tableId: this.state.tableId, userId, sessionId: client.sessionId, closeCode: code },
-        "POKER_LEAVE_STALE_SESSION_IGNORED",
-      );
-      return;
-    }
-
-    // Validate binding epoch to prevent race conditions
-    if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
-      logger.info(
-        {
-          roomId: this.roomId,
-          tableId: this.state.tableId,
-          userId,
-          sessionId: client.sessionId,
-          leaveBindingEpoch,
-          currentBindingEpoch: this.bindingEpochByUserId.get(userId),
-          closeCode: code,
-        },
-        "POKER_LEAVE_STALE_EPOCH_IGNORED",
-      );
-      return;
-    }
-
-    // Clean up the user's session and presence
-    this.dealer.unbindClient(userId);
-    this.removeTablePresence(userId);
-    this.updateMetadataCounts();
-
-    // Handle intentional leaves (user clicked leave button). Check before SESSION_REPLACED
-    // because Colyseus uses CloseCode.CONSENTED === 4000, while session-replaced uses 4001.
-    const consented = code === CloseCode.CONSENTED;
-    logger.info(
-      {
-        roomId: this.roomId,
-        tableId: this.state.tableId,
-        userId,
-        sessionId: client.sessionId,
-        closeCode: code,
-        consented,
-        reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS,
-      },
-      "POKER_ON_LEAVE_PATH",
-    );
-    if (consented) {
-      await this.dealer.handleConsentedLeave(userId);
-      await this.maybeRemoveBotsIfNoHumans();
-      this.updateMetadataCounts();
-      if (this.persistentSeatsEnabled) {
-        await TableSeatSessionService.markLeft({
-          tableId: this.state.tableId,
-          userId,
-          stackCentsSnapshot: 0,
-          handIdSnapshot: this.state.handId || undefined,
-        });
-      }
-      return;
-    }
-
-    // Session replaced (e.g. user joined another table). Already removed by requestUserLeaveBecauseJoiningAnotherTable; do not allow reconnection.
-    if (code === LEAVE_CODE_SESSION_REPLACED) {
-      this.bindingEpochBySessionId.delete(client.sessionId);
-      this.userIdBySessionId.delete(client.sessionId);
-      return;
-    }
-
-    // Handle unintentional disconnects - set up reconnection window
-    const deadlineTs = Date.now() + this.RECONNECT_TIMEOUT_MS;
-    logger.info(
-      {
-        roomId: this.roomId,
-        tableId: this.state.tableId,
-        userId,
-        sessionId: client.sessionId,
-        closeCode: code,
-        deadlineTs,
-      },
-      "POKER_ON_LEAVE_DISCONNECT_WINDOW_STARTED",
-    );
-    await this.markDisconnectedSafe(userId, deadlineTs);
-    if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
-      logger.info(
-        {
-          roomId: this.roomId,
-          tableId: this.state.tableId,
-          userId,
-          sessionId: client.sessionId,
-          leaveBindingEpoch,
-          currentBindingEpoch: this.bindingEpochByUserId.get(userId),
-          closeCode: code,
-        },
-        "POKER_LEAVE_STALE_EPOCH_AFTER_DISCONNECT_IGNORED",
-      );
-      return;
-    }
-    this.updateMetadataCounts();
-    
-    // Mark as sitting out in persistent storage if enabled
-    if (this.persistentSeatsEnabled) {
-      const stackCents = this.getPlayerStackCents(userId);
-      await TableSeatSessionService.markSittingOut({
-        tableId: this.state.tableId,
-        userId,
-        stackCentsSnapshot: stackCents,
-        handIdSnapshot: this.state.handId || undefined,
-      });
-      if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
-        logger.info(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            sessionId: client.sessionId,
-            leaveBindingEpoch,
-            currentBindingEpoch: this.bindingEpochByUserId.get(userId),
-            closeCode: code,
-          },
-          "POKER_LEAVE_STALE_EPOCH_AFTER_PERSIST_IGNORED",
-        );
-        return;
-      }
-    }
-
-    // Attempt to allow reconnection within the window
-    try {
-      const reconnected = await this.allowReconnection(client, Math.ceil(this.RECONNECT_TIMEOUT_MS / 1000));
-      if (!this.isBindingEpochCurrent(userId, leaveBindingEpoch)) {
-        logger.info(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            userId,
-            sessionId: client.sessionId,
-            leaveBindingEpoch,
-            currentBindingEpoch: this.bindingEpochByUserId.get(userId),
-            closeCode: code,
-          },
-          "POKER_LEAVE_STALE_EPOCH_AFTER_ALLOW_RECONNECT_IGNORED",
-        );
-        try {
-          reconnected.leave(LEAVE_CODE_SESSION_REPLACED);
-        } catch {}
-        return;
-      }
-      if (this.isDeleting) {
-        this.sendTableMessage(reconnected, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
-        try {
-          reconnected.leave();
-        } catch {}
-        return;
-      }
-      
-      // Successful reconnection - restore session
-      this.rebindClientExclusive(userId, reconnected);
-      this.logRestoreBindOk(userId, reconnected.sessionId);
-      await this.markReconnectedSafe(userId);
-      await this.clearSittingOutOnRestoreSafe(userId);
-      this.addTablePresence(reconnected, userId);
-      if (this.persistentSeatsEnabled) {
-        const stackCents = this.getPlayerStackCents(userId);
-        await TableSeatSessionService.touchConnected({
-          tableId: this.state.tableId,
-          userId,
-          stackCentsSnapshot: stackCents,
-          handIdSnapshot: this.state.handId || undefined,
-        });
-      }
-      this.sendTableMessage(reconnected, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-      await this.dealer.emitSnapshotToUser(userId, "RECONNECT");
-      this.updateMetadataCounts();
-    } catch {
-      // Reconnection window expired - handle abandonment
-      if (this.persistentSeatsEnabled) {
-        this.updateMetadataCounts();
-        logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId }, "POKER_RECONNECT_WINDOW_EXPIRED_SEAT_PRESERVED");
-        return;
-      }
-      await this.markAbandonedSafe(userId);
-      await this.maybeRemoveBotsIfNoHumans();
-      this.updateMetadataCounts();
-    }
+  async handleLeaveInternal(client: Client, code?: number) {
+    return this.controllerRequired.leave.handleLeave(client, code);
   }
 
   /**
@@ -1427,9 +739,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.dealer.unbindClient(userId);
     this.removeTablePresence(userId);
     if (client) {
-      this.userIdBySessionId.delete(client.sessionId);
-      this.bindingEpochBySessionId.delete(client.sessionId);
-      this.bindingEpochByUserId.delete(userId);
+      if (this.controller) {
+        this.controller.session.deleteSession(client.sessionId);
+        this.controller.session.deleteUserEpoch(userId);
+      } else {
+        this.userIdBySessionId.delete(client.sessionId);
+        this.bindingEpochBySessionId.delete(client.sessionId);
+        this.bindingEpochByUserId.delete(userId);
+      }
       this.updateMetadataCounts();
       try {
         this.sendTableMessage(client, "ERROR", { code: "SESSION_REPLACED", message: "You joined another table." });
@@ -1487,16 +804,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   async seedInstantBots(
     presetId: InstantGamePresetId,
+    targetBotCountOverride?: number,
   ): Promise<{ ok: boolean; added: number; target: number; reason?: string }> {
-    const target =
+    const presetTarget =
       presetId === "MULTIPLAYER_RING"
         ? 5
         : presetId === "HEADS_UP_BOT"
           ? 1
           : 0;
+    const requestedTarget = typeof targetBotCountOverride === "number" ? targetBotCountOverride : presetTarget;
+    const maxBotsForTable = Math.max(0, this.state.maxSeats - 1);
+    const target = Math.max(0, Math.min(requestedTarget, maxBotsForTable));
 
     if (target <= 0) {
-      return { ok: false, added: 0, target, reason: "UNSUPPORTED_PRESET" };
+      return { ok: false, added: 0, target, reason: "INVALID_TARGET" };
     }
 
     let existingBots = 0;
@@ -1561,6 +882,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * - Clears all tracking maps
    */
   onDispose() {
+    if (this.controller) {
+      this.controller.lifecycle.dispose();
+      return;
+    }
+    this.disposeInternal();
+  }
+
+  disposeInternal() {
     this.isDeleting = true;
     
     // Clean up idle disposal timer
@@ -1568,7 +897,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       clearTimeout(this.idleDisposeTimer);
       this.idleDisposeTimer = null;
     }
-    
+    if (this.stallCheckInterval) {
+      clearInterval(this.stallCheckInterval);
+      this.stallCheckInterval = null;
+    }
+
     // Log room disposal for debugging
     logger.warn(
       {
@@ -1586,14 +919,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.unbindSessionEvent?.();
     
     // Remove all player presence from lobby
-    for (const userId of this.userIdBySessionId.values()) {
+    const trackedUserIds = this.controller ? this.controller.session.valuesUserIds() : this.userIdBySessionId.values();
+    for (const userId of trackedUserIds) {
       this.removeTablePresence(userId);
     }
     
     // Clear all tracking maps to prevent memory leaks
-    this.userIdBySessionId.clear();
-    this.bindingEpochBySessionId.clear();
-    this.bindingEpochByUserId.clear();
+    if (this.controller) this.controller.session.clearAll();
+    else {
+      this.userIdBySessionId.clear();
+      this.bindingEpochBySessionId.clear();
+      this.bindingEpochByUserId.clear();
+    }
   }
 
   /**
@@ -1675,24 +1012,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param client - The client to bind
    */
   private rebindClientExclusive(userId: string, client: Client): void {
-    // Disconnect any existing client for this user
-    const oldClient = this.getBoundClient(userId);
-    if (oldClient && oldClient.sessionId !== client.sessionId) {
-      try {
-        this.sendTableMessage(oldClient, "ERROR", { code: "SESSION_REPLACED", message: "Session replaced by a newer connection." });
-      } catch {}
-      try {
-        oldClient.leave(LEAVE_CODE_SESSION_REPLACED);
-      } catch {}
+    if (!this.controller) {
+      this.dealer.bindClient(userId, client);
+      this.userIdBySessionId.set(client.sessionId, userId);
+      const nextEpoch = (this.bindingEpochByUserId.get(userId) ?? 0) + 1;
+      this.bindingEpochByUserId.set(userId, nextEpoch);
+      this.bindingEpochBySessionId.set(client.sessionId, nextEpoch);
+      return;
     }
-    
-    // Bind the new client and update tracking maps
-    this.dealer.bindClient(userId, client);
-    this.userIdBySessionId.set(client.sessionId, userId);
-    const nextEpoch = (this.bindingEpochByUserId.get(userId) ?? 0) + 1;
-    this.bindingEpochByUserId.set(userId, nextEpoch);
-    this.bindingEpochBySessionId.set(client.sessionId, nextEpoch);
-    this.updateMetadataCounts();
+    this.controller.session.rebindClientExclusive(userId, client);
   }
 
   private logRestoreBindOk(userId: string, sessionId: string): void {
@@ -1702,7 +1030,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         tableId: this.state.tableId,
         userId,
         sessionId,
-        epoch: this.bindingEpochByUserId.get(userId),
+        epoch: this.controller ? this.controller.session.getBindingEpochForUser(userId) : this.bindingEpochByUserId.get(userId),
       },
       "POKER_RESTORE_BIND_OK",
     );
@@ -1717,11 +1045,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @returns True if the epoch is current, false otherwise
    */
   private isBindingEpochCurrent(userId: string, leaveBindingEpoch?: number): boolean {
-    if (typeof leaveBindingEpoch !== "number") {
-      // Fail closed once a binding epoch exists for this user.
-      return !this.bindingEpochByUserId.has(userId);
+    if (!this.controller) {
+      if (typeof leaveBindingEpoch !== "number") return !this.bindingEpochByUserId.has(userId);
+      return this.bindingEpochByUserId.get(userId) === leaveBindingEpoch;
     }
-    return this.bindingEpochByUserId.get(userId) === leaveBindingEpoch;
+    return this.controller.session.isBindingEpochCurrent(userId, leaveBindingEpoch);
   }
 
   /**
@@ -1823,6 +1151,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     await dealer.markAbandoned(userId);
   }
 
+  private async emitSnapshotsToAllSafe(reason: string): Promise<void> {
+    const dealerAny = this.dealer as unknown as {
+      emitSnapshotsToAll?: (snapshotReason: string) => Promise<void>;
+    };
+    if (typeof dealerAny.emitSnapshotsToAll !== "function") return;
+    await dealerAny.emitSnapshotsToAll(reason);
+  }
+
   /**
    * Gets the currently bound client for a user ID.
    * Uses type checking to safely access the dealer's getClient method.
@@ -1831,9 +1167,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @returns The bound client or undefined if not found
    */
   private getBoundClient(userId: string): Client | undefined {
-    const dealerAny = this.dealer as unknown as { getClient?: (id: string) => Client | undefined };
-    if (typeof dealerAny.getClient !== "function") return undefined;
-    return dealerAny.getClient(userId);
+    if (!this.controller) {
+      const dealerAny = this.dealer as unknown as { getClient?: (id: string) => Client | undefined };
+      if (typeof dealerAny.getClient !== "function") return undefined;
+      return dealerAny.getClient(userId);
+    }
+    return this.controller.session.getBoundClient(userId);
   }
 
   /**
@@ -1845,8 +1184,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @returns True if the client is active and bound, false otherwise
    */
   private isActiveBoundClient(userId: string, client: Client): boolean {
-    const boundClient = this.getBoundClient(userId);
-    return !boundClient || boundClient.sessionId === client.sessionId;
+    if (!this.controller) {
+      const boundClient = this.getBoundClient(userId);
+      return !boundClient || boundClient.sessionId === client.sessionId;
+    }
+    return this.controller.session.isActiveBoundClient(userId, client);
   }
 
   /**
@@ -2393,3 +1735,4 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 }
+

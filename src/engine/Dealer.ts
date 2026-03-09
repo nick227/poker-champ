@@ -61,7 +61,7 @@ import { ActionService, type ActionResult, type ActionServiceLastAction, type Ac
 import { SettlementService } from "./dealer/services/SettlementService.js";
 import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
 import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
-import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS } from "./dealer/timing.js";
+import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS, TURN_TIMEOUT_TOTAL_MS } from "./dealer/timing.js";
 import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
 import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
 import { SessionPlayerStatsTracker } from "./dealer/services/SessionPlayerStatsTracker.js";
@@ -573,8 +573,39 @@ export class Dealer {
 
   async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
     const currentHandIdAtEnqueue = this.state.handId ?? null;
+    const queuedAt = Date.now();
     return this.turnManager.enqueuePlayerAction(async () => {
+      const queueDelayMs = Date.now() - queuedAt;
+      if (queueDelayMs > 100) {
+        logger.warn(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            userId,
+            action: msg.action,
+            actionId,
+            delay: queueDelayMs,
+            queueDepth: this.turnManager.getQueueDepth(),
+          },
+          "ACTION_QUEUE_DELAY",
+        );
+      }
       try {
+        if (currentHandIdAtEnqueue && this.state.handId !== currentHandIdAtEnqueue) {
+          logger.warn(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              userId,
+              actionId,
+              enqueuedHandId: currentHandIdAtEnqueue,
+              currentHandId: this.state.handId,
+              street: this.state.street,
+            },
+            "ACTION_DROPPED_HAND_CHANGED",
+          );
+          return;
+        }
         if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
           this.currentHand = new HandContext();
         }
@@ -595,7 +626,14 @@ export class Dealer {
             );
           }
         }
-        if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) return;
+        if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) {
+          logger.info(
+            { tableId: this.state.tableId, handId: this.state.handId, userId, actionId, action: msg.action },
+            "ACTION_DUPLICATE_IGNORED",
+          );
+          this.pendingActorRef = null;
+          return;
+        }
         const handIdBefore = this.state.handId;
         try {
           await this._handleAction(userId, msg, "PLAYER");
@@ -660,6 +698,15 @@ export class Dealer {
     if (this.state.street === "PREFLOP" && execution.lastAction) {
       this.updatePreflopFlagsAfterAction(userId, execution.lastAction, roundBetBefore);
     }
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        userId,
+        action: msg.action,
+      },
+      "ACTION_ACCEPTED",
+    );
     await this.applyActionResult(execution.result, {
       turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
         ? "BOT_ACTION"
@@ -1047,6 +1094,31 @@ export class Dealer {
 
   private clearPendingHumanTurnTimeout(): void {
     this.turnManager.clearPendingHumanTurnTimeout();
+  }
+
+  getQueueDepth(): number {
+    return this.turnManager.getQueueDepth();
+  }
+
+  /**
+   * Optional turn-level stall detection. Call from room stall check interval.
+   * Logs TURN_STALLED when waiting for a human and turn has exceeded timeout + 5s.
+   */
+  logTurnStalledIfNeeded(): void {
+    if (this.state.toActSeat < 0) return;
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    const turnStartTs = this.turnManager.getTurnStartTs();
+    if (turnStartTs <= 0) return;
+    if (Date.now() - turnStartTs <= TURN_TIMEOUT_TOTAL_MS + 5000) return;
+    logger.warn(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        seat: this.state.toActSeat,
+        street: this.state.street,
+      },
+      "TURN_STALLED",
+    );
   }
 
   // ---------------------------------------------------------------------------

@@ -1882,6 +1882,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     presetId: "MULTIPLAYER_RING" | "HEADS_UP_BOT";
+                    targetBotCount?: number;
                     config: {
                         name: string;
                         maxSeats: number;

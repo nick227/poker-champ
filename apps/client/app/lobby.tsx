@@ -32,6 +32,7 @@ import { getDefaultCommunityHand } from "@/features/replay/community/communityHa
 import { useAuthStore } from "@/stores/auth.store";
 import {
   buildInstantCreateTableConfig,
+  getInstantGamePreset,
   type InstantGamePresetId,
 } from "@/components/domain/lobby/instantGame.presets";
 
@@ -117,6 +118,7 @@ export default function LobbyScreen() {
     if (instantStartInFlightPreset) return;
 
     const createConfig = buildInstantCreateTableConfig(presetId);
+    const preset = getInstantGamePreset(presetId);
     if (bankroll < createConfig.minBuyInCents) {
       useToastStore
         .getState()
@@ -128,7 +130,11 @@ export default function LobbyScreen() {
     const unlockTimer = setTimeout(() => setInstantStartInFlightPreset(null), 15000);
 
     try {
-      const created = await postCreateInstantGame({ presetId, config: createConfig });
+      const created = await postCreateInstantGame({
+        presetId,
+        config: createConfig,
+        targetBotCount: preset.targetBotCount,
+      });
       const tableId = String((created as { tableId?: string })?.tableId ?? "");
       if (!tableId) throw new Error("Failed to create instant game");
       openTable(tableId, { buyInCents: createConfig.minBuyInCents });

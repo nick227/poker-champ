@@ -77,6 +77,10 @@ class ActionQueue {
   private queue: Promise<void> = Promise.resolve();
   private pendingActionCount = 0;
 
+  getPendingCount(): number {
+    return this.pendingActionCount;
+  }
+
   constructor(private readonly deps: {
     maxQueueDepth: number;
     isDisposed: () => boolean;
@@ -309,6 +313,7 @@ class AutoActionDispatcher {
 class TurnTimeoutScheduler {
   private pendingHumanTurnTimeoutKey: string | null = null;
   private pendingHumanTurnTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private turnStartedAt = 0;
 
   constructor(private readonly deps: {
     state: PokerState;
@@ -328,6 +333,7 @@ class TurnTimeoutScheduler {
       this.pendingHumanTurnTimeoutId = null;
     }
     this.pendingHumanTurnTimeoutKey = key;
+    this.turnStartedAt = Date.now();
 
     this.pendingHumanTurnTimeoutId = setTimeout(() => {
       void this.deps.actionQueue.enqueueSerializedStateMutation(async () => {
@@ -367,8 +373,13 @@ class TurnTimeoutScheduler {
     }, TURN_TIMEOUT_TOTAL_MS);
   }
 
+  getTurnStartedAt(): number {
+    return this.turnStartedAt;
+  }
+
   clearPendingHumanTurnTimeout(): void {
     this.pendingHumanTurnTimeoutKey = null;
+    this.turnStartedAt = 0;
     if (this.pendingHumanTurnTimeoutId != null) {
       clearTimeout(this.pendingHumanTurnTimeoutId);
       this.pendingHumanTurnTimeoutId = null;
@@ -445,6 +456,14 @@ export class TurnManager {
 
   clearPendingHumanTurnTimeout(): void {
     this.turnTimeoutScheduler.clearPendingHumanTurnTimeout();
+  }
+
+  getQueueDepth(): number {
+    return this.actionQueue.getPendingCount();
+  }
+
+  getTurnStartTs(): number {
+    return this.turnTimeoutScheduler.getTurnStartedAt();
   }
 
   getActionQueue(): Promise<void> {

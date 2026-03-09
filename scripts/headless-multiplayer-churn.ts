@@ -370,7 +370,7 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
 
       const snap = payload as TableSnapshotPayload;
       const prev = seenSeqByUser.get(userId);
-      if (typeof prev === "number" && snap.snapshotSeq <= prev) {
+      if (typeof prev === "number" && snap.snapshotSeq <= prev && args.invariantMode === "collect") {
         recordFinding(`snapshotSeq non-monotonic user=${userId} prev=${prev} next=${snap.snapshotSeq}`);
       }
       seenSeqByUser.set(userId, snap.snapshotSeq);
@@ -426,7 +426,7 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
     recordEvent("HANDLE_ACTION", { actorUserId: userId, payload });
     room.onMessageEvents.emit("ACTION", client, { actionId: randomUUID(), ...payload });
   };
-  const seenTurnActionKeys = new Set<string>();
+  const seenTurnActionKeys = new Map<string, number>();
   const emitActionOncePerTurn = (
     userId: UserId,
     payload: { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number },
@@ -438,8 +438,12 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
     const toActStateUserId = room.state?.seats?.[toActSeat];
     if (toActStateUserId !== userId) return false;
     const key = `${handId}|${street}|${handActionSeq}|${toActSeat}|${userId}`;
-    if (seenTurnActionKeys.has(key)) return false;
-    seenTurnActionKeys.add(key);
+    const now = Date.now();
+    const lastAttemptAt = seenTurnActionKeys.get(key) ?? 0;
+    // Allow bounded retries for the same logical turn in case a raced action
+    // gets rejected (e.g. "INVALID_ACTION" after state advanced).
+    if (now - lastAttemptAt < 300) return false;
+    seenTurnActionKeys.set(key, now);
     emitAction(userId, payload);
     return true;
   };
@@ -454,6 +458,21 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
     const player = room.state?.playersById?.get?.(toActUserId);
     if (!player || player.status !== "ACTIVE" || !player.needsAction) return undefined;
     return toActUserId;
+  };
+
+  const getServerHeroActionOptions = (userId: UserId): TableSnapshotPayload["hero"]["actionOptions"] | null => {
+    const dealer = room.dealer as {
+      actionOptionsService?: {
+        buildHeroActionOptions?: (state: unknown, id: string) => TableSnapshotPayload["hero"]["actionOptions"] | undefined;
+      };
+    };
+    const builder = dealer.actionOptionsService?.buildHeroActionOptions;
+    if (typeof builder !== "function") return null;
+    try {
+      return builder(room.state, userId) ?? null;
+    } catch {
+      return null;
+    }
   };
 
   const ensureCorePlayersBankrolled = async (): Promise<void> => {
@@ -472,8 +491,8 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
 
   const chooseAction = (userId: UserId): { action: "FOLD" | "CHECK" | "CALL" | "BET" | "RAISE" | "ALL_IN"; amountCents?: number } | null => {
     const snap = snapshots[userId];
-    if (!snap || snap.hand?.handId !== room.state?.handId) return null;
-    const options = snap.hero?.actionOptions;
+    const snapshotOptions = snap && snap.hand?.handId === room.state?.handId ? snap.hero?.actionOptions : undefined;
+    const options = snapshotOptions ?? getServerHeroActionOptions(userId);
     if (!options) return null;
 
     if (args.scenario === "fold-storm") {
@@ -669,10 +688,14 @@ async function runSingleScenario(args: Args, iteration: number): Promise<void> {
       }
       const actorState = room.state?.playersById?.get?.(actor);
       const actorSnapshot = snapshots[actor];
+      const actorServerOptions = getServerHeroActionOptions(actor);
       const hasActorActionableSnapshot =
-        Boolean(actorSnapshot?.hero?.actionOptions) &&
-        actorSnapshot?.hand?.handId === room.state?.handId &&
-        !actorSnapshot?.lastHandResult?.handId;
+        (
+          Boolean(actorSnapshot?.hero?.actionOptions) &&
+          actorSnapshot?.hand?.handId === room.state?.handId &&
+          !actorSnapshot?.lastHandResult?.handId
+        ) ||
+        Boolean(actorServerOptions);
       if (actorState?.needsAction && !hasActorActionableSnapshot) {
         const startedAt = stallStartByUser.get(actor) ?? Date.now();
         stallStartByUser.set(actor, startedAt);

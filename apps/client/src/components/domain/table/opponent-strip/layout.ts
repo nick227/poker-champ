@@ -23,7 +23,7 @@ export const CONTAINER = Object.freeze({
 } as const);
 
 export const ROW = Object.freeze({
-  GAP: 6,
+  GAP: 10,
   PADDING: 8,
   ITEM_MIN_HEIGHT: 120,
 } as const);

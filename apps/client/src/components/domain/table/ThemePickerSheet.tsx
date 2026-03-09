@@ -2,6 +2,8 @@ import { View, Pressable, ScrollView, Image, Platform } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { resolveBackground, resolvedToBodyStyle, type SurfaceBackground } from "@/theme/backgrounds";
+import { getBackgroundImageUrl } from "@/theme/backgrounds/getBackgroundImageUrl.web";
 import { PROCEDURAL_CARD_BACK_PATTERNS } from "@/assets/cards/cardBackProcedural";
 import {
   CARD_BACK_PACK_MANIFEST,
@@ -36,11 +38,16 @@ export type ThemePickerSheetProps = {
 
 export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
   const {
+    appBackground,
+    feltBackground,
     feltColor,
     feltImageId,
-    setFeltColor,
-    setFeltGradient,
-    setFeltImageId,
+    clearAppBackground,
+    setAppBackgroundColor,
+    setAppBackgroundImageId,
+    clearFeltBackground,
+    setFeltBackgroundColor,
+    setFeltBackgroundImageId,
     cardBackPackId,
     cardBackPattern,
     setCardBackPackId,
@@ -49,6 +56,56 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
     setCardFacePackId,
     applyThemePack,
   } = usePreferencesStore();
+
+  /** None is selected only when all three are null (never infer from a default color; gradient set => not None). */
+  const isAppBackgroundNone =
+    appBackground.color === null && appBackground.imageId === null && appBackground.gradient === null;
+  const isFeltBackgroundNone =
+    feltBackground.color === null && feltBackground.imageId === null && feltBackground.gradient === null;
+
+  const applyWebAppBackgroundNow = (next: SurfaceBackground) => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const resolved = resolveBackground(next, "app");
+    const style = resolvedToBodyStyle(resolved, getBackgroundImageUrl);
+    const root = document.getElementById("root");
+    const targets = [document.body, root].filter(Boolean) as HTMLElement[];
+    const keys = [
+      "background",
+      "background-color",
+      "background-image",
+      "background-size",
+      "background-repeat",
+      "background-position",
+    ];
+    for (const target of targets) {
+      for (const key of keys) target.style.removeProperty(key);
+      for (const [name, value] of Object.entries(style)) {
+        const cssName = name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+        target.style.setProperty(cssName, value);
+      }
+    }
+  };
+
+  const onAppBackgroundColorPress = (value: string) => {
+    applyWebAppBackgroundNow({ color: value, imageId: null, gradient: null });
+    setAppBackgroundColor(value);
+    if (Platform.OS === "web" && process.env.NODE_ENV !== "production") {
+      console.log("[ThemePickerSheet] setAppBackgroundColor", value);
+    }
+  };
+
+  const onAppBackgroundImagePress = (imageId: FeltImageId) => {
+    applyWebAppBackgroundNow({ color: appBackground.color, imageId, gradient: null });
+    setAppBackgroundImageId(imageId);
+    if (Platform.OS === "web" && process.env.NODE_ENV !== "production") {
+      console.log("[ThemePickerSheet] setAppBackgroundImageId", imageId);
+    }
+  };
+
+  const onAppBackgroundClearPress = () => {
+    applyWebAppBackgroundNow({ color: null, imageId: null, gradient: null });
+    clearAppBackground();
+  };
 
   const renderPackPreview = (packId: CardFacePackId, previewCardKeys: readonly string[]) => {
     const packMeta = getCardFacePackById(packId);
@@ -138,21 +195,78 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
 
         <View className="h-px bg-border-subtle mb-6" />
 
+        {/* BACKGROUND and FELT rows are separate so later felt-specific textures can be added without confusion. */}
+        <Text variant="label" className="mb-3">Background</Text>
+        <View className="ui-row gap-3 mb-6 flex-wrap">
+          <Pressable
+            key="none"
+            onPress={onAppBackgroundClearPress}
+            className="ui-col items-center"
+          >
+            <View
+              className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isAppBackgroundNone ? "border-gold" : "border-transparent"}`}
+              style={{ backgroundColor: "hsl(0 0% 12%)" }}
+            />
+            <Text variant="muted" className="mt-1 text-center text-[10px]">None</Text>
+          </Pressable>
+          {FELT_COLOR_PRESETS.map((p) => {
+            const isSelected = !isAppBackgroundNone && appBackground.imageId === null && appBackground.gradient === null && appBackground.color === p.value;
+            return (
+              <Pressable
+                key={p.value}
+                onPress={() => onAppBackgroundColorPress(p.value)}
+                className="ui-col items-center"
+              >
+                <View
+                  className={`w-12 h-12 rounded-full border-2 ${isSelected ? "border-gold" : "border-transparent"}`}
+                  style={{ backgroundColor: `hsl(${p.value})` }}
+                />
+                <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+              </Pressable>
+            );
+          })}
+          {FELT_IMAGE_PRESETS.map((p) => {
+            const isSelected = appBackground.imageId === p.imageId;
+            const imgSource = getFeltImageSource(p.imageId);
+            return (
+              <Pressable
+                key={p.imageId}
+                onPress={() => onAppBackgroundImagePress(p.imageId)}
+                className="ui-col items-center"
+              >
+                <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>
+                  {imgSource ? (
+                    <Image source={imgSource} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                  ) : (
+                    <View className="w-full h-full bg-panel" />
+                  )}
+                </View>
+                <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View className="h-px bg-border-subtle mb-6" />
+
         <Text variant="label" className="mb-3">Felt Color</Text>
         <View className="ui-row gap-3 mb-8 flex-wrap">
+          <Pressable key="felt-none" onPress={clearFeltBackground} className="ui-col items-center">
+            <View
+              className={`w-12 h-12 rounded-full border-2 ${isFeltBackgroundNone ? "border-gold" : "border-transparent"}`}
+              style={{ backgroundColor: "hsl(0 0% 12%)" }}
+            />
+            <Text variant="muted" className="mt-1 text-center text-[10px]">None</Text>
+          </Pressable>
           {FELT_PRESETS.map((p) => {
             const isColor = "value" in p;
             const key = isColor ? p.value : p.imageId;
-            const isSelected = isColor ? feltColor === p.value : feltImageId === p.imageId;
+            const isSelected = isColor ? feltBackground.color === p.value : feltBackground.imageId === p.imageId;
             if (isColor) {
               return (
                 <Pressable
                   key={key}
-                  onPress={() => {
-                    setFeltColor(p.value);
-                    setFeltGradient(null);
-                    setFeltImageId(null);
-                  }}
+                  onPress={() => setFeltBackgroundColor(p.value)}
                   className="ui-col items-center"
                 >
                   <View
@@ -167,10 +281,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={key}
-                onPress={() => {
-                  setFeltImageId(p.imageId);
-                  setFeltGradient(null);
-                }}
+                onPress={() => setFeltBackgroundImageId(p.imageId)}
                 className="ui-col items-center"
               >
                 <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>

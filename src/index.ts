@@ -1,6 +1,7 @@
 import "dotenv/config";
 import http from "node:http";
 import path from "node:path";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import express from "express";
 import cors from "cors";
 import { Server } from "@colyseus/core";
@@ -161,7 +162,11 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const server = http.createServer();
 
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server }),
+  transport: new WebSocketTransport({
+    server,
+    pingInterval: 15_000,
+    pingMaxRetries: 2,
+  }),
   express: (colyseusApp) => {
     // Colyseus default routes (e.g. /matchmake/*) are registered after this callback.
     // Only forward known API paths to Express so Colyseus can handle its own endpoints.
@@ -183,6 +188,7 @@ gameServer.define("poker", PokerRoom);
 
 let recoveryInterval: NodeJS.Timeout | null = null;
 let leaderboardInterval: NodeJS.Timeout | null = null;
+let eventLoopLagInterval: NodeJS.Timeout | null = null;
 let shuttingDown = false;
 
 async function shutdown(reason: string, exitCode: number = 0) {
@@ -197,6 +203,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (leaderboardInterval) {
     clearInterval(leaderboardInterval);
     leaderboardInterval = null;
+  }
+  if (eventLoopLagInterval) {
+    clearInterval(eventLoopLagInterval);
+    eventLoopLagInterval = null;
   }
 
   try {
@@ -235,6 +245,15 @@ async function start() {
       void recomputeLeaderboardSafely();
     }, 60 * 60 * 1000);
   }
+
+  const eventLoopHistogram = monitorEventLoopDelay({ resolution: 10 });
+  eventLoopHistogram.enable();
+  eventLoopLagInterval = setInterval(() => {
+    const meanMs = eventLoopHistogram.mean / 1e6;
+    if (meanMs > 50) {
+      logger.warn({ eventLoopLagMs: Math.round(meanMs * 100) / 100 }, "EVENT_LOOP_LAG");
+    }
+  }, 5000);
 }
 
 void start().catch((err) => {

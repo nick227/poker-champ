@@ -85,7 +85,7 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <View className="flex-1 justify-center items-center bg-bg px-4 py-6">
+      <View className="flex-1 justify-center items-center bg-transparent px-4 py-6">
         <View className="ui-col items-center w-full max-w-sm gap-8">
           <AuthHero />
 

@@ -958,7 +958,11 @@ describe("table join guardrails", () => {
     room.dealer.bindClient(userId, client as any);
 
     room.onMessageEvents.emit("JOIN_TABLE", client as any, { buyInCents: 5000 });
-    await delay(0);
+    await waitFor(
+      () => client.send.mock.calls.some((call: unknown[]) => call[0] === "WELCOME"),
+      1500,
+      "JOIN_TABLE welcome message",
+    );
 
     expect(room.state.playersById.has(userId)).toBe(true);
     expect(client.send).toHaveBeenCalledWith(

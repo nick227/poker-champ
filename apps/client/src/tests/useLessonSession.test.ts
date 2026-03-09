@@ -151,7 +151,9 @@ describe("useLessonSession", () => {
         answer: { optionKey: "b" },
       });
     });
-    expect(result.current.currentFeedback?.response).toBe("step_mcq_response");
+    await waitFor(() => {
+      expect(result.current.currentFeedback?.response).toBe("step_mcq_response");
+    });
     await waitFor(() => {
       expect(getUtilitiesOverviewMock).toHaveBeenCalledWith({
         lessonId: "lesson_1",

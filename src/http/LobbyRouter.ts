@@ -137,6 +137,7 @@ router.post("/tables", requireAuth, async (req, res) => {
 router.post("/instant-games", requireAuth, async (req, res) => {
   const bodySchema = z.object({
     presetId: InstantPresetIdSchema,
+    targetBotCount: z.number().int().min(0).max(9).optional(),
     config: z.unknown(),
   });
   const parsedBody = bodySchema.safeParse(req.body ?? {});
@@ -188,7 +189,7 @@ router.post("/instant-games", requireAuth, async (req, res) => {
     const seedResult = await matchMaker.remoteRoomCall(
       roomId,
       "seedInstantBots" as never,
-      [parsedBody.data.presetId] as never,
+      [parsedBody.data.presetId, parsedBody.data.targetBotCount] as never,
       5000,
     ) as { ok?: boolean; added?: number; target?: number; reason?: string } | undefined;
     if (seedResult) {

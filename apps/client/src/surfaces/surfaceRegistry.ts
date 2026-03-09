@@ -63,7 +63,7 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     { elevationPreset: 0 },
   ),
   "surface.screen.base": createDefinition(
-    `flex-1 ${SURFACE_COLOR.canvas} ${SURFACE_SPACING.screenX}`,
+    `flex-1 bg-bg/70 ${SURFACE_SPACING.screenX}`,
     { paddingPreset: "lg", elevationPreset: 0 },
   ),
   "surface.nav.top": createDefinition(

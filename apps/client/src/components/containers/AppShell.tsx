@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import { ApplyAppBackground } from "@/components/containers/ApplyAppBackground";
 import { Text } from "@/components/base/Text";
 import { Toast } from "@/components/base/Toast";
 import { getRealtimeTransportMode } from "@/registry/transport.registry";
@@ -30,8 +31,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [toastMessage, toastVariant]);
 
   return (
-    <View className="flex-1 bg-bg min-h-full" style={{ backgroundColor: "#0d0d0d" }}>
-      {children}
+    <ApplyAppBackground>
+      <View className="main-wrapper flex-1 min-h-full w-full" style={{ backgroundColor: "transparent" }}>
+        {children}
       {process.env.NODE_ENV !== "production" ? (
         <View
           aria-hidden
@@ -47,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Text variant="muted">DEV TRANSPORT: WS</Text>
         </View>
       ) : null}
-    </View>
+      </View>
+    </ApplyAppBackground>
   );
 }

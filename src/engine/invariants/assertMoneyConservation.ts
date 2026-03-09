@@ -1,5 +1,6 @@
 import { PokerError } from "../errors.js";
 import type { PokerState } from "../../state/PokerState.js";
+import { logger } from "../../lib/logger.js";
 
 export type MoneyInvariantActorSnapshot = {
   userId: string;
@@ -120,6 +121,22 @@ export function assertMoneyConservationTransition(input: MoneyInvariantTransitio
   const actualMassDelta = massAfter - massBefore;
   const expectedMassDelta = input.expectedMassDeltaCents ?? 0;
   if (actualMassDelta !== expectedMassDelta) {
+    logger.error(
+      {
+        event: input.event,
+        actionType: input.actionType,
+        actorUserId: input.actorUserId,
+        tableId: input.state.tableId,
+        handId: input.state.handId,
+        street: input.street,
+        beforeTotalCents: massBefore,
+        afterTotalCents: massAfter,
+        expectedMassDeltaCents: expectedMassDelta,
+        actualMassDeltaCents: actualMassDelta,
+        deltaCents: actualMassDelta - expectedMassDelta,
+      },
+      "CHIP_CONSERVATION_VIOLATION",
+    );
     failWithDump("table money mass delta mismatch", input, {
       expectedMassDeltaCents: expectedMassDelta,
       actualMassDeltaCents: actualMassDelta,

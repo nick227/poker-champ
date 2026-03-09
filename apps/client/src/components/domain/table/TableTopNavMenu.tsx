@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, Modal, Pressable, View } from "react-native";
+import { Dimensions, Modal, Pressable, View, Linking } from "react-native";
 import { usePathname } from "expo-router";
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
@@ -94,6 +94,19 @@ export function TableTopNavMenu({
                 <Button
                   title={`Text chat${chatBadge ? ` (${chatBadge})` : ""}`}
                   onPress={() => runAndClose(onOpenChat)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>       
+              <View className="mb-1">
+                <Button
+                  title="Discord chat"
+                  onPress={() =>
+                    runAndClose(() =>
+                      Linking.openURL("https://discord.gg/KZZexuqQxG")
+                    )
+                  }
                   intent="neutral"
                   shape="row"
                   size="md"

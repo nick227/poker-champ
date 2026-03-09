@@ -109,10 +109,15 @@ export const TOKENS_CSS = `/* Design tokens: single source of truth. 4px base sc
 }
 
 /* Document: dark theme (in tokens so web build includes it) */
-html, body, #root {
+html, body {
   height: 100%;
   margin: 0;
   background-color: hsl(var(--c-bg));
+  color: hsl(var(--c-text));
+}
+#root {
+  height: 100%;
+  margin: 0;
   color: hsl(var(--c-text));
 }
 body {

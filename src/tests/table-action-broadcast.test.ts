@@ -325,7 +325,11 @@ async function setupHumanVsBotRoom() {
       const toActUserId = before.seats.find((s) => s.seat === toActSeat)?.userId;
       expect(toActUserId).toBeTruthy();
 
-      room.dealer.markDisconnected(String(toActUserId), Date.now() + 60_000);
+      if (typeof room.dealer.markDisconnectedSerialized === "function") {
+        await room.dealer.markDisconnectedSerialized(String(toActUserId), Date.now() - 1);
+      } else {
+        room.dealer.markDisconnected(String(toActUserId), Date.now() - 1);
+      }
       const connectedUserId = String(toActUserId) === "user_a" ? "user_b" : "user_a";
       const connectedClient = connectedUserId === "user_a" ? clientA : clientB;
 
