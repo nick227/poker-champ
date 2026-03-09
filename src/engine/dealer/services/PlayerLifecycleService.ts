@@ -52,6 +52,7 @@ import {
 // IMPORTS - Utilities & Helpers
 // ============================================================================
 import { countNonOutPlayers, countNotFoldedPlayers, findNextToActSeat, findOpenSeat } from "../utils/TableNavigator.js";
+import { RECONNECT_GRACE_DEFAULT_MS } from "../timing.js";
 
 // ============================================================================
 // IMPORTS - Invariants & Validation
@@ -269,7 +270,7 @@ export class PlayerLifecycleService {
     name: string,
     seat: number,
     stackCents: number,
-    options?: { connected?: boolean; sittingOut?: boolean },
+    options?: { connected?: boolean; sittingOut?: boolean; reconnectTimeoutMs?: number },
   ): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     if (this.deps.state.playersById.has(userId)) return plans;
@@ -283,6 +284,10 @@ export class PlayerLifecycleService {
       throw new PokerError("BAD_STATE", "Persisted seat is currently occupied.");
     }
 
+    const connected = options?.connected ?? true;
+    const sittingOut = options?.sittingOut ?? false;
+    const reconnectTimeoutMs = options?.reconnectTimeoutMs ?? 0;
+
     const player = new PlayerState();
     player.id = userId;
     player.userId = userId;
@@ -290,11 +295,13 @@ export class PlayerLifecycleService {
     player.name = name;
     player.seat = seat;
 
-    const connected = options?.connected ?? true;
-    const sittingOut = options?.sittingOut ?? false;
     player.status = stackCents > 0 ? (sittingOut ? "ABANDONED" : "ACTIVE") : "OUT";
     player.connected = connected;
-    player.disconnectDeadlineTs = 0;
+    // Disconnected humans must have a future deadline so cap/sweep don't treat them as past grace.
+    player.disconnectDeadlineTs =
+      !connected
+        ? Date.now() + (reconnectTimeoutMs > 0 ? reconnectTimeoutMs : RECONNECT_GRACE_DEFAULT_MS)
+        : 0;
     player.stackCents = Math.max(0, stackCents);
     player.roundBetCents = 0;
     player.committedCents = 0;

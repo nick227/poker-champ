@@ -462,6 +462,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const STALL_CHECK_MS = 10_000;
     const STALL_THRESHOLD_MS = 15_000;
     this.stallCheckInterval = setInterval(() => {
+      const connectedHumanCount = this.computeConnectedHumanCount();
+      if (connectedHumanCount === 0) return;
+
+      const queueDepth = this.dealer.getQueueDepth();
+
       if (this.lastSnapshotAt > 0 && Date.now() - this.lastSnapshotAt > STALL_THRESHOLD_MS) {
         logger.warn(
           {
@@ -469,14 +474,25 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             tableId: this.state.tableId,
             handId: this.state.handId,
             street: this.state.street,
+            toActSeat: this.state.toActSeat,
             snapshotSeq: this.lastSnapshotSeq,
             lastSnapshotAt: this.lastSnapshotAt,
+            queueDepth,
           },
           "TABLE_STALLED",
         );
+        // Defensive stall recovery: if the hand is active and the queue is idle,
+        // re-drive automation. This should never normally be needed but prevents
+        // permanent freezes if a discard/failure slips through without re-scheduling.
+        if (this.state.street !== "WAITING" && queueDepth === 0) {
+          logger.warn(
+            { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId },
+            "TABLE_STALLED_RECOVERY_REDRIVE",
+          );
+          this.dealer.maybeActForBotPublic();
+        }
       }
       this.dealer.logTurnStalledIfNeeded();
-      const queueDepth = this.dealer.getQueueDepth();
       if (queueDepth >= 2) {
         logger.warn(
           { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, queueDepth },
@@ -1372,6 +1388,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     // Purge players who have been abandoned long enough
     const purgedUserIds: string[] = [];
     for (const userId of abandonedHumans) {
+      const player = this.state.playersById.get(userId);
+      // Do not purge while a reconnect grace window is still active in-memory.
+      // This protects restored disconnected seats whose persisted disconnectAt may be older.
+      if (player && player.disconnectDeadlineTs > 0 && nowTs <= player.disconnectDeadlineTs) continue;
+
       const disconnectedAtTs = disconnectAtByUserId.get(userId);
       if (disconnectedAtTs == null) continue;
       if (nowTs - disconnectedAtTs <= abandonedPurgeMs) continue;
@@ -1669,7 +1690,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           `player_${session.userId.slice(0, 6)}`,
           session.seat,
           session.stackCentsSnapshot,
-          { connected: false, sittingOut: true },
+          { connected: false, sittingOut: true, reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS },
         );
         this.updateMetadataCounts();
       } catch (err: any) {
@@ -1735,4 +1756,3 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 }
-

@@ -273,6 +273,7 @@ export class Dealer {
       buildDiagnosticContext: (context) => this.buildDiagnosticContext(context),
       handleInternalAction: (userId, payload) => this._handleAction(userId, payload, "AUTO"),
       setPlayerSittingOutInternal: (userId, sittingOut) => this.setPlayerSittingOutInternal(userId, sittingOut),
+      onAutoActionDiscarded: () => this.maybeActForBot(),
     });
     // Hand-scoped getters: return currentHand's maps when a hand is active, else empty. Write paths (e.g. deal
     // in HandLifecycleService) only run when currentHand was just set (startHand) or during an active hand.
@@ -430,7 +431,7 @@ export class Dealer {
     name: string,
     seat: number,
     stackCents: number,
-    options?: { connected?: boolean; sittingOut?: boolean },
+    options?: { connected?: boolean; sittingOut?: boolean; reconnectTimeoutMs?: number },
   ) {
     await this.enqueueSerializedStateMutation(async () => {
       await this.restorePlayerFromSessionInternal(userId, name, seat, stackCents, options);
@@ -871,7 +872,7 @@ export class Dealer {
     name: string,
     seat: number,
     stackCents: number,
-    options?: { connected?: boolean; sittingOut?: boolean },
+    options?: { connected?: boolean; sittingOut?: boolean; reconnectTimeoutMs?: number },
   ): Promise<void> {
     const plans = await this.playerLifecycleService.restorePlayerFromSession(userId, name, seat, stackCents, options);
     await this.executePlayerLifecyclePlans(plans);
@@ -987,24 +988,59 @@ export class Dealer {
   ): Promise<void> {
     switch (result.kind) {
       case "NO_OP":
+        this.logActionResolvedNextActor();
         return;
       case "WAITING_FOR_PLAYERS":
         await this.sendTableSnapshotToAll("AUTO_TRANSITION");
         maybeAssertBettingState(this.state);
+        this.logActionResolvedNextActor();
         return;
       case "HAND_FINISHED":
         await this.finishHandByLastStanding();
         maybeAssertBettingState(this.state);
+        this.logActionResolvedNextActor();
         return;
       case "STREET_COMPLETE":
         await this.advanceStreetOrShowdown();
         maybeAssertBettingState(this.state);
+        this.logActionResolvedNextActor();
         return;
       case "TURN_ADVANCED":
         await this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
         maybeAssertBettingState(this.state);
         this.maybeActForBot();
+        this.logActionResolvedNextActor();
         return;
+    }
+  }
+
+  private logActionResolvedNextActor(): void {
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        nextSeat: this.state.toActSeat,
+      },
+      "ACTION_RESOLVED_NEXT_ACTOR",
+    );
+
+    // Turn-Owner Invariant Guard:
+    // If the hand is active (not WAITING or SHOWDOWN), we must have a valid scheduled next action.
+    if (this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN" && this.state.toActSeat >= 0) {
+      const seatUser = this.state.seats[this.state.toActSeat];
+      if (!seatUser) {
+        logger.error(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street: this.state.street,
+            toActSeat: this.state.toActSeat,
+          },
+          "TURN_OWNER_INVARIANT_VIOLATION",
+        );
+        this.maybeActForBot();
+      }
     }
   }
 
@@ -1036,6 +1072,14 @@ export class Dealer {
    */
   private maybeActForBot(): void {
     this.turnAutomationService.maybeActForBot();
+  }
+
+  /**
+   * Public surface for stall-recovery callers (e.g. PokerRoom stall monitor).
+   * Delegates to the private maybeActForBot so the encapsulation boundary is clear.
+   */
+  maybeActForBotPublic(): void {
+    this.maybeActForBot();
   }
 
   private async applyDisconnectedAutoActionCapForHand() {

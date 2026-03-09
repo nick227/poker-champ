@@ -74,6 +74,16 @@ export function TableTopNavMenu({
             >
               <View className="mb-1">
                 <Button
+                  title="Add bot"
+                  onPress={() => runAndClose(onAddBot)}
+                  disabled={addBotDisabled}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
                   title="Theme"
                   onPress={() => runAndClose(onOpenTheme)}
                   intent="neutral"
@@ -83,16 +93,7 @@ export function TableTopNavMenu({
               </View>
               <View className="mb-1">
                 <Button
-                  title={`Voice chat: ${voiceEnabled ? "On" : "Off"}`}
-                  onPress={() => runAndClose(onToggleVoice)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title={`Text chat${chatBadge ? ` (${chatBadge})` : ""}`}
+                  title={`Table chat${chatBadge ? ` (${chatBadge})` : ""}`}
                   onPress={() => runAndClose(onOpenChat)}
                   intent="neutral"
                   shape="row"
@@ -107,16 +108,6 @@ export function TableTopNavMenu({
                       Linking.openURL("https://discord.gg/KZZexuqQxG")
                     )
                   }
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title="Add bot"
-                  onPress={() => runAndClose(onAddBot)}
-                  disabled={addBotDisabled}
                   intent="neutral"
                   shape="row"
                   size="md"

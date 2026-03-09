@@ -113,6 +113,17 @@ export class TurnAutomationService {
     const toActId = state.seats[state.toActSeat] ?? "";
     const player = state.playersById.get(toActId);
     if (!toActId || !player) {
+      // Transient ordering: street may have advanced but seat mapping not yet committed.
+      // Log and retry one tick later so the caller's state flush completes first.
+      logger.warn(
+        { street: state.street, toActSeat: state.toActSeat },
+        "AUTOMATION_NO_PLAYER_AT_SEAT",
+      );
+      logger.info(
+        { street: state.street, toActSeat: state.toActSeat, result: "retry_scheduled" },
+        "MAYBE_ACT_FOR_BOT_RESULT",
+      );
+      setTimeout(() => this.maybeActForBot(), 0);
       return;
     }
     if (!eligibleToAct(player) || !player.needsAction) {
@@ -129,6 +140,10 @@ export class TurnAutomationService {
             reason: "INELIGIBLE_OR_NO_NEEDS_ACTION",
           },
           "BOT_AUTOMATION_SKIPPED",
+        );
+        logger.info(
+          { userId: player.id, street: state.street, result: "skipped", reason: "INELIGIBLE_OR_NO_NEEDS_ACTION" },
+          "MAYBE_ACT_FOR_BOT_RESULT",
         );
       }
       return;
@@ -149,6 +164,10 @@ export class TurnAutomationService {
             reason: "NO_ACTION_OPTIONS",
           },
           "BOT_AUTOMATION_SKIPPED",
+        );
+        logger.info(
+          { userId: player.id, street: state.street, result: "skipped", reason: "NO_ACTION_OPTIONS" },
+          "MAYBE_ACT_FOR_BOT_RESULT",
         );
       }
       return;
@@ -197,6 +216,10 @@ export class TurnAutomationService {
         action: payload.action,
       },
       "BOT_ACTION_ENQUEUED",
+    );
+    logger.info(
+      { userId: toActId, street: state.street, action: payload.action, delayMs },
+      "BOT_ACTION_SCHEDULED",
     );
     this.deps.enqueueAction(toActId, payload, delayMs);
   }

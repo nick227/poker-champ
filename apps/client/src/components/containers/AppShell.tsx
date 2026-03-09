@@ -11,12 +11,9 @@ import { useToastStore } from "@/stores/toast.store";
 import { useE2EConnectionCountStore } from "@/stores/e2eConnectionCount.store";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const transport = getRealtimeTransportMode();
-  const showWsDevBadge = transport === "ws";
   const toastMessage = useToastStore((s) => s.message);
   const toastVariant = useToastStore((s) => s.variant);
   const toastDismiss = useToastStore((s) => s.dismiss);
-  const tableConnectionCount = useE2EConnectionCountStore((s) => s.tableConnectionCount);
   const lastToastSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -32,22 +29,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ApplyAppBackground>
-      <View className="main-wrapper flex-1 min-h-full w-full" style={{ backgroundColor: "transparent" }}>
+      <View className="main-wrapper flex-1 min-h-full w-full bg-red-500">
         {children}
-      {process.env.NODE_ENV !== "production" ? (
-        <View
-          aria-hidden
-          style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-          data-e2e-connection-count={String(tableConnectionCount)}
-        />
-      ) : null}
       {toastMessage ? (
         <Toast message={toastMessage} variant={toastVariant} onDismiss={toastDismiss} />
-      ) : null}
-      {showWsDevBadge ? (
-        <View className="absolute right-2 top-2 ui-surface px-2 py-1 opacity-80">
-          <Text variant="muted">DEV TRANSPORT: WS</Text>
-        </View>
       ) : null}
       </View>
     </ApplyAppBackground>

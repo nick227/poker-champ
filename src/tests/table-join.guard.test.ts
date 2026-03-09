@@ -820,7 +820,7 @@ describe("table join guardrails", () => {
       expect.any(String),
       0,
       4200,
-      { connected: false, sittingOut: true },
+      expect.objectContaining({ connected: false, sittingOut: true, reconnectTimeoutMs: expect.any(Number) }),
     );
 
     const client = makeClient("join_boot_restore");

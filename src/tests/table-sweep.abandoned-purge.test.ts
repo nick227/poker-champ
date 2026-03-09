@@ -215,4 +215,30 @@ describe("table sitting-out abandoned purge sweep", () => {
     expect(listSpy).not.toHaveBeenCalled();
     expect(room.state.playersById.has(human.id)).toBe(true);
   });
+
+  it("does not purge abandoned player while reconnect grace is still active in-memory", async () => {
+    const startTs = Date.parse("2026-02-26T10:00:00.000Z");
+    vi.setSystemTime(startTs);
+
+    const room = createRoom("table_sweep_inmemory_grace_guard");
+    const human = makeHuman({ id: "user_abandoned", seat: 0, status: "ABANDONED", stackCents: 5000, connected: false });
+    // Simulate restored disconnected seat with active in-memory grace deadline.
+    human.disconnectDeadlineTs = startTs + 10 * MINUTE_MS;
+    room.state.playersById.set(human.id, human);
+    room.state.seats[0] = human.id;
+
+    const removePlayerSpy = vi.spyOn(room.dealer, "removePlayer");
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    // Persisted disconnect time is old enough to purge, but in-memory grace should block it.
+    vi.spyOn(TableSeatSessionService, "listSittingOutDisconnectTimesForUsers").mockResolvedValue([
+      { userId: human.id, disconnectAt: new Date(startTs - 31 * MINUTE_MS) },
+    ]);
+
+    const result = await room.runSittingOutSweep({ nowTs: Date.now(), abandonedPurgeMs: 30 * MINUTE_MS });
+
+    expect(result.purgedUserIds).toEqual([]);
+    expect(removePlayerSpy).not.toHaveBeenCalled();
+    expect(markLeftSpy).not.toHaveBeenCalled();
+    expect(room.state.playersById.has(human.id)).toBe(true);
+  });
 });

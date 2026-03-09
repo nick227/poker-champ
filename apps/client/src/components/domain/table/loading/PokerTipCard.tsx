@@ -12,19 +12,7 @@ export function PokerTipCard({ tip, compact = false }: PokerTipCardProps) {
   const lineCount = compact ? 2 : 3;
 
   return (
-    <View className="rounded-2xl border border-border-subtle bg-panel px-4 py-3" style={{ minHeight }}>
-      <View className="mb-2 flex-row items-center justify-between">
-        <Text variant="label" className="normal-case tracking-normal text-text-subtle">
-          Pro Tip
-        </Text>
-        {tip.category ? (
-          <View className="rounded-full border border-border-subtle bg-panel-elevated px-2 py-1">
-            <Text variant="caption" className="text-text-subtle">
-              {tip.category}
-            </Text>
-          </View>
-        ) : null}
-      </View>
+    <View className="rounded-2xl border border-border-subtle bg-panel" style={{ minHeight }}>
       <Text variant="muted" className="leading-5 text-text" numberOfLines={lineCount}>
         {tip.text}
       </Text>

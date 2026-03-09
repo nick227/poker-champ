@@ -567,6 +567,16 @@ export class HandLifecycleService {
       return this.finishHandShowdownWithSidePots();
     }
 
+    const toActUserId = state.seats[state.toActSeat] ?? "";
+    logger.info(
+      { tableId: state.tableId, handId: state.handId, street: next, toActSeat: state.toActSeat, toActUserId },
+      "STREET_ADVANCE_COMPLETED",
+    );
+    logger.info(
+      { tableId: state.tableId, handId: state.handId, street: next, toActSeat: state.toActSeat, toActUserId },
+      "NEXT_ACTOR_SELECTED",
+    );
+
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });
     plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     assertMoneyConservationTransition({

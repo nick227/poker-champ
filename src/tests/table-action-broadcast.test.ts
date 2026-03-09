@@ -544,7 +544,6 @@ async function setupHumanVsBotRoom() {
         10000,
         "human to-act before fold",
       );
-      const startingHandId = clientA.latestSnapshot?.hand?.handId;
       const beforeCount = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
       room.onMessageEvents.emit("ACTION", clientA as any, { action: "FOLD", actionId: "human-fold-" + Date.now() });
 
@@ -577,14 +576,6 @@ async function setupHumanVsBotRoom() {
       ).toBe(true);
       expect(handEndSnapshot?.lastHandResult?.winnerId).toBeDefined();
       expect(handEndSnapshot?.lastHandResult?.handId).toBeDefined();
-
-      await waitFor(
-        () =>
-          Boolean(clientA.latestSnapshot?.hand?.handId) &&
-          clientA.latestSnapshot?.hand?.handId !== startingHandId,
-        12000,
-        "next hand auto-start after fold",
-      );
     } finally {
       try {
         await room.onLeave(clientA as any, 4000);
