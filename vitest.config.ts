@@ -5,8 +5,8 @@ export default defineConfig({
     environment: "node",
     globalSetup: ["./vitest.global-setup.ts"],
     include: [
-      "src/**/*.test.ts",
-      "src/**/__tests__/**/*.test.ts"
+      "apps/server/src/**/*.test.ts",
+      "apps/server/src/**/__tests__/**/*.test.ts"
     ],
     coverage: {
       reporter: ["text", "html"]

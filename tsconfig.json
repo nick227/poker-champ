@@ -4,7 +4,7 @@
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "./",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -16,6 +16,6 @@
     "emitDecoratorMetadata": false,
     "useDefineForClassFields": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/tests/**/*", "src/engine/__tests__/**/*"]
+  "include": ["apps/server/src/**/*", "packages/api-types/src/**/*"],
+  "exclude": ["apps/server/src/tests/**/*", "apps/server/src/engine/__tests__/**/*"]
 }

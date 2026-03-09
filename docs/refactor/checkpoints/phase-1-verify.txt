@@ -1,0 +1,92 @@
+Scope: 5 of 6 workspace projects
+packages/realtime-contract typecheck$ tsc -p tsconfig.json --noEmit
+packages/sdk typecheck$ tsc -p tsconfig.json --noEmit
+packages/sdk typecheck: Done
+packages/realtime-contract typecheck: Done
+apps/client typecheck$ tsc -p tsconfig.json --noEmit
+apps/client typecheck: Done
+Scope: 5 of 6 workspace projects
+apps/client test$ vitest
+apps/client test: [1m[7m[34m DEV [39m[27m[22m [34mv2.1.9 [39m[90mC:/wamp64/www/poker-champ/apps/client[39m
+apps/client test:  [32m✓[39m src/tests/LocalAudioTrack.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/table.adapter.money.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test: [90mstderr[2m | src/tests/table.store.test.ts[2m > [22m[2mTable Store - Snapshot Sequence Validation[2m > [22m[2mshould reject out-of-order snapshots
+apps/client test: [22m[39m[TableStore] Dropping outdated snapshot for table table1: seq 2 <= last 3
+apps/client test:  [32m✓[39m src/tests/table.store.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test: [90mstderr[2m | src/tests/table.store.test.ts[2m > [22m[2mTable Store - Snapshot Sequence Validation[2m > [22m[2mshould reject duplicate snapshots
+apps/client test: [22m[39m[TableStore] Dropping outdated snapshot for table table1: seq 1 <= last 1
+apps/client test: [90mstderr[2m | src/tests/table.store.test.ts[2m > [22m[2mTable Store - Snapshot Sequence Validation[2m > [22m[2mshould accept seq=1 when stream restarts after higher sequence
+apps/client test: [22m[39m[TableStore] Detected snapshot stream restart for table table1: incoming seq 1 after last 3. Resetting cursor.
+apps/client test:  [32m✓[39m src/tests/useVoiceJoinPolicy.behavior.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useOpenTableSync.behavior.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/communityHands.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/voice.webrtc-stun.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/cardFaceAssets.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/realtime-channel.registry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/table.store.connection.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/bootstrap.sdk.auth.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test: [90mstderr[2m | src/tests/ColyseusVoiceAdapter.test.ts[2m > [22m[2mColyseusVoiceAdapter[2m > [22m[2mdoes not throw when room is missing onMessage
+apps/client test: [22m[39m[VoiceAdapter] Invalid room passed to ColyseusVoiceAdapter { hasSend: [33mtrue[39m, hasOnMessage: [33mfalse[39m }
+apps/client test:  [32m✓[39m src/tests/ColyseusVoiceAdapter.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/actionbar.connection.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useTableRealtime.join-options.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/replaySceneModel.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/multitable.store.metadata.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+apps/client test: [90mstdout[2m | src/tests/transport.colyseus.dispose.test.ts[2m > [22m[2mColyseus transport double-mount prevention[2m > [22m[2mlate join resolve after dispose: no CONNECTED dispatched, room.leave(4001) called
+apps/client test: [22m[39m[COLYSEUS_RT] SOCKET_CONNECT_ATTEMPT {
+apps/client test:   url: [32m'wss://test'[39m,
+apps/client test:   roomId: [32m'room-1'[39m,
+apps/client test:   roomName: [90mundefined[39m,
+apps/client test:   useReconnect: [33mfalse[39m,
+apps/client test:   hasJoinOptions: [33mtrue[39m,
+apps/client test:   joinOptionKeys: [ [32m'tableId'[39m ]
+apps/client test: }
+apps/client test: [COLYSEUS_RT] DISCONNECT_REQUESTED { roomId: [32m'room-1'[39m }
+apps/client test: [90mstdout[2m | src/tests/transport.colyseus.dispose.test.ts[2m > [22m[2mColyseus transport double-mount prevention[2m > [22m[2mdispose during preflight resolveRoomIdByTableId await: no join afterward
+apps/client test: [22m[39m[COLYSEUS_RT] DISCONNECT_REQUESTED { roomId: [32m't1'[39m }
+apps/client test:  [32m✓[39m src/tests/transport.colyseus.dispose.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/multitable.store.actions.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/prehydration.invariant.harness.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/rejoin.helpers.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/createGame.constants.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 55[2mms[22m[39m
+apps/client test: [90mstderr[2m | src/tests/useTableRealtime.test.ts[2m > [22m[2museTableRealtime behavior[2m > [22m[2mignores stale snapshot sequence
+apps/client test: [22m[39m[TableStore] Dropping outdated snapshot for table t1: seq 2 <= last 3
+apps/client test:  [32m✓[39m src/tests/useTableRealtime.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/actionbar.hand-transition.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/lessons-v2.resolveStepRuntimeConfig.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/sound.policy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/history.service.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useResolvedBuyIn.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/sound.player.polyphony.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/avatar.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/contract.guards.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/tableScene.orchestration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/sound.events.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/action-bar.wager.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/lesson.service.utilities.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/replay.scrubber.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/tablePageController.contract.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/withApiError.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/cardFaceAssets.pack-switch.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/lobbyTables.normalize.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/authNavigation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useVoiceControllerLifecycle.peerIds.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/table-action.registry.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/tableLayout.constants.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/screen.registry.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/action.mapper.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useRealtimeChannel.guard.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/toast.sound-event.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useJoiningTableState.timeout.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/lessons-v2.useDecisionNodeRuntime.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 16[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useLatestReplayHand.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 311[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useLessonSession.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 370[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/useReplayTableProviderFromSnapshots.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+apps/client test:  [32m✓[39m src/tests/replay.hermetic.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+apps/client test: [2m Test Files [22m [1m[32m53 passed[39m[22m[90m (53)[39m
+apps/client test: [2m      Tests [22m [1m[32m214 passed[39m[22m[90m (214)[39m
+apps/client test: [2m   Start at [22m 10:06:24
+apps/client test: [2m   Duration [22m 6.82s[2m (transform 10.82s, setup 6.69s, collect 25.70s, tests 1.23s, environment 2.57s, prepare 14.90s)[22m
+apps/client test: [1m[7m[32m PASS [39m[27m[22m [32mWaiting for file changes...[39m
+apps/client test:        [2mpress [22m[1mh[22m[2m to show help[22m[2m, [22m[2mpress [22m[1mq[22m[2m to quit[22m
+apps/client test: Failed

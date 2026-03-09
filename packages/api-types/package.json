@@ -1,0 +1,11 @@
+{
+  "name": "@poker-champ/api-types",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "zod": "^4.3.6",
+    "@colyseus/schema": "^4.0.12"
+  }
+}

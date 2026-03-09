@@ -3,10 +3,10 @@ name: Contract First
 on:
   push:
     paths:
-      - "src/http/openapi.ts"
-      - "src/index.ts"
-      - "src/http/**"
-      - "src/engine/auth/**"
+      - "apps/server/src/http/openapi.ts"
+      - "apps/server/src/index.ts"
+      - "apps/server/src/http/**"
+      - "apps/server/src/engine/auth/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "packages/sdk/**"
@@ -18,10 +18,10 @@ on:
       - ".github/workflows/contract-first.yml"
   pull_request:
     paths:
-      - "src/http/openapi.ts"
-      - "src/index.ts"
-      - "src/http/**"
-      - "src/engine/auth/**"
+      - "apps/server/src/http/openapi.ts"
+      - "apps/server/src/index.ts"
+      - "apps/server/src/http/**"
+      - "apps/server/src/engine/auth/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "packages/sdk/**"
@@ -57,9 +57,9 @@ jobs:
           fi
 
           CHANGED_FILES="$(git diff --name-only "$BASE" "$HEAD")"
-          if echo "$CHANGED_FILES" | grep -q "^src/http/openapi.ts$"; then
+          if echo "$CHANGED_FILES" | grep -q "^apps/server/src/http/openapi.ts$"; then
             if ! echo "$CHANGED_FILES" | grep -q "^openapi.json$"; then
-              echo "src/http/openapi.ts changed without openapi.json in the same change set."
+              echo "apps/server/src/http/openapi.ts changed without openapi.json in the same change set."
               echo "Run: pnpm sdk:gen"
               exit 1
             fi
@@ -96,8 +96,8 @@ jobs:
             "
           }
 
-          OLD_VERSION="$(git show \"$BASE:src/http/openapi.ts\" 2>/dev/null | extract_version)"
-          NEW_VERSION="$(git show \"$HEAD:src/http/openapi.ts\" 2>/dev/null | extract_version)"
+          OLD_VERSION="$(git show \"$BASE:apps/server/src/http/openapi.ts\" 2>/dev/null | extract_version)"
+          NEW_VERSION="$(git show \"$HEAD:apps/server/src/http/openapi.ts\" 2>/dev/null | extract_version)"
 
           if [ -z "$OLD_VERSION" ] || [ -z "$NEW_VERSION" ] || [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
             echo "No OpenAPI version bump detected."
@@ -130,5 +130,5 @@ jobs:
           version: 9
       - run: pnpm install --frozen-lockfile
       - run: pnpm sdk:gen
-      - run: git diff --exit-code -- openapi.json packages/sdk/src/types.gen.ts packages/sdk/src/version.ts
+      - run: git diff --exit-code -- openapi.json packages/sdk/apps/server/src/types.gen.ts packages/sdk/apps/server/src/version.ts
       - run: pnpm verify

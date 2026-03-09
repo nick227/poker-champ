@@ -7,6 +7,7 @@ export function Screen({ children }: { children: ReactNode }) {
     <Surface
       as={SafeAreaView}
       styleId="surface.screen.base"
+      // eslint-disable-next-line no-restricted-syntax
       unsafeStyle={{ backgroundColor: "rgba(0, 0, 0, 0.97)" }}
     >
       {children}

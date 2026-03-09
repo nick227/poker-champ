@@ -31,6 +31,7 @@ export function AppPageRoot({ children }: AppPageRootProps) {
   if (Platform.OS === "web") {
     return (
       <View
+        // @ts-expect-error dataSet is used by react-native-web but missing from ViewProps
         dataSet={{ appPage: true }}
         className="app-page"
         style={(webStyle ?? {}) as ViewStyle}

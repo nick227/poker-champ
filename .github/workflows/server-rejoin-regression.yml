@@ -3,10 +3,10 @@ name: Server Rejoin Regression
 on:
   pull_request:
     paths:
-      - "src/engine/**"
-      - "src/rooms/**"
-      - "src/state/**"
-      - "src/tests/**"
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/state/**"
+      - "apps/server/src/tests/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/server-rejoin-regression.yml"
@@ -14,10 +14,10 @@ on:
     branches:
       - main
     paths:
-      - "src/engine/**"
-      - "src/rooms/**"
-      - "src/state/**"
-      - "src/tests/**"
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/state/**"
+      - "apps/server/src/tests/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/server-rejoin-regression.yml"

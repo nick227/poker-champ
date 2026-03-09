@@ -4,10 +4,10 @@ on:
   pull_request:
     paths:
       - "scripts/headless-two-client.ts"
-      - "src/engine/**"
-      - "src/rooms/**"
-      - "src/state/**"
-      - "src/lobby/**"
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/state/**"
+      - "apps/server/src/lobby/**"
       - "packages/realtime-contract/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -17,10 +17,10 @@ on:
       - main
     paths:
       - "scripts/headless-two-client.ts"
-      - "src/engine/**"
-      - "src/rooms/**"
-      - "src/state/**"
-      - "src/lobby/**"
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/state/**"
+      - "apps/server/src/lobby/**"
       - "packages/realtime-contract/**"
       - "package.json"
       - "pnpm-lock.yaml"
