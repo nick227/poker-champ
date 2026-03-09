@@ -22,8 +22,35 @@ function gradientToCss(g: FeltGradient): string {
 
 export type GetBackgroundImageUrl = (id: BackgroundImageId) => string | null;
 
+/** Selector for the single page root element that owns the app background (web). */
+export const APP_PAGE_SELECTOR = "[data-app-page]";
+
+const WEB_BG_KEYS = [
+  "background",
+  "background-color",
+  "background-image",
+  "background-size",
+  "background-repeat",
+  "background-position",
+] as const;
+
+function toCssProp(name: string): string {
+  return name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+}
+
+/** Applies background style to the app page root element. Used for theme preview. */
+export function applyAppPageBackgroundStyle(style: Record<string, string>): void {
+  if (typeof document === "undefined") return;
+  const page = document.querySelector<HTMLElement>(APP_PAGE_SELECTOR);
+  if (!page) return;
+  for (const key of WEB_BG_KEYS) page.style.removeProperty(key);
+  for (const [name, value] of Object.entries(style)) {
+    page.style.setProperty(toCssProp(name), value);
+  }
+}
+
 /**
- * Converts ResolvedBackground to inline CSS for body / #root.
+ * Converts ResolvedBackground to inline CSS for the app page container.
  * Caller provides getImageUrl so asset resolution stays outside the adapter.
  */
 export function resolvedToBodyStyle(

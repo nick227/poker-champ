@@ -2,7 +2,7 @@ import { View, Pressable, ScrollView, Image, Platform } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
-import { resolveBackground, resolvedToBodyStyle, type SurfaceBackground } from "@/theme/backgrounds";
+import { resolveBackground, resolvedToBodyStyle, applyAppPageBackgroundStyle, type SurfaceBackground } from "@/theme/backgrounds";
 import { getBackgroundImageUrl } from "@/theme/backgrounds/getBackgroundImageUrl.web";
 import { PROCEDURAL_CARD_BACK_PATTERNS } from "@/assets/cards/cardBackProcedural";
 import {
@@ -64,26 +64,10 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
     feltBackground.color === null && feltBackground.imageId === null && feltBackground.gradient === null;
 
   const applyWebAppBackgroundNow = (next: SurfaceBackground) => {
-    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (Platform.OS !== "web") return;
     const resolved = resolveBackground(next, "app");
     const style = resolvedToBodyStyle(resolved, getBackgroundImageUrl);
-    const root = document.getElementById("root");
-    const targets = [document.body, root].filter(Boolean) as HTMLElement[];
-    const keys = [
-      "background",
-      "background-color",
-      "background-image",
-      "background-size",
-      "background-repeat",
-      "background-position",
-    ];
-    for (const target of targets) {
-      for (const key of keys) target.style.removeProperty(key);
-      for (const [name, value] of Object.entries(style)) {
-        const cssName = name.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-        target.style.setProperty(cssName, value);
-      }
-    }
+    applyAppPageBackgroundStyle(style);
   };
 
   const onAppBackgroundColorPress = (value: string) => {

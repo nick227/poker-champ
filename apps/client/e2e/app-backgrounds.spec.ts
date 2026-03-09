@@ -99,30 +99,14 @@ test.describe("app backgrounds", () => {
       const parsed = persisted ? JSON.parse(persisted) : null;
       expect(parsed?.state?.appBackground?.color ?? null).toBe(appBackground.color ?? null);
       expect(parsed?.state?.appBackground?.imageId ?? null).toBe(appBackground.imageId ?? null);
-      const expectedKind =
-        appBackground.imageId != null
-          ? "image"
-          : appBackground.gradient != null && appBackground.gradient.colors.length >= 2
-            ? "gradient"
-            : appBackground.color != null
-              ? "color"
-              : "none";
-      await expect
-        .poll(async () => page.evaluate(() => document.documentElement.dataset.appBgResolved ?? null), {
-          timeout: 15_000,
-        })
-        .toBe(expectedKind);
       const computed = await page.evaluate(() => {
-        const html = getComputedStyle(document.documentElement);
-        const body = getComputedStyle(document.body);
-        const rootEl = document.getElementById("root");
-        const root = rootEl ? getComputedStyle(rootEl) : null;
-        return {
-          html: { bg: html.backgroundColor, img: html.backgroundImage },
-          body: { bg: body.backgroundColor, img: body.backgroundImage },
-          root: root ? { bg: root.backgroundColor, img: root.backgroundImage } : null,
-        };
+        const pageEl = document.querySelector<HTMLElement>("[data-app-page]");
+        const style = pageEl ? getComputedStyle(pageEl) : null;
+        return style
+          ? { page: { bg: style.backgroundColor, img: style.backgroundImage } }
+          : { page: null };
       });
+      expect(computed.page).not.toBeNull();
       await context.close();
       return computed;
     };
@@ -132,15 +116,15 @@ test.describe("app backgrounds", () => {
       imageId: null,
       gradient: null,
     });
-    expect(colorComputed.body.img).toBe("none");
-    expect(colorComputed.body.bg).not.toBe("rgb(13, 13, 13)");
+    expect(colorComputed.page!.img).toBe("none");
+    expect(colorComputed.page!.bg).not.toBe("rgb(13, 13, 13)");
 
     const imageComputed = await captureComputedFor({
       color: "0 0% 5%",
       imageId: "green",
       gradient: null,
     });
-    expect(imageComputed.body.img).toContain("poker_table_green_surface_texture_full-screen.png");
+    expect(imageComputed.page!.img).toContain("poker_table_green_surface_texture_full-screen.png");
 
     const gradientComputed = await captureComputedFor({
       color: "0 0% 5%",
@@ -151,15 +135,15 @@ test.describe("app backgrounds", () => {
         angleDeg: 180,
       },
     });
-    expect(gradientComputed.body.img).toContain("linear-gradient");
+    expect(gradientComputed.page!.img).toContain("linear-gradient");
 
     const noneComputed = await captureComputedFor({
       color: null,
       imageId: null,
       gradient: null,
     });
-    expect(noneComputed.body.img).toBe("none");
-    expect(noneComputed.body.bg).toBe("rgb(13, 13, 13)");
+    expect(noneComputed.page!.img).toBe("none");
+    expect(noneComputed.page!.bg).toBe("rgb(13, 13, 13)");
   });
 
   test("theme pack preset applies app background via ThemePickerSheet", async ({ page, request }) => {
@@ -207,7 +191,10 @@ test.describe("app backgrounds", () => {
     await expect(page).toHaveURL(new RegExp(`/table/${roomId}`), { timeout: 20_000 });
     await expect(page.locator("#root")).toBeVisible({ timeout: 15_000 });
 
-    const before = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const before = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>("[data-app-page]");
+      return el ? getComputedStyle(el).backgroundColor : null;
+    });
     await page.locator(".btn-icon").first().click();
     await page.getByRole("button", { name: "Theme" }).click();
     await expect(page.getByText("Table Experience")).toBeVisible({ timeout: 10_000 });
@@ -232,7 +219,14 @@ test.describe("app backgrounds", () => {
       .toBe("70 8% 15%");
 
     await expect
-      .poll(async () => page.evaluate(() => getComputedStyle(document.body).backgroundColor), { timeout: 15_000 })
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const el = document.querySelector<HTMLElement>("[data-app-page]");
+            return el ? getComputedStyle(el).backgroundColor : null;
+          }),
+        { timeout: 15_000 },
+      )
       .not.toBe(before);
   });
 });

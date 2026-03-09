@@ -17,4 +17,9 @@ export {
   nextFeltBackgroundImageId,
 } from "./background.helpers";
 export { resolveBackground } from "./background.resolver";
-export { resolvedToBodyStyle, type GetBackgroundImageUrl } from "./background.web";
+export {
+  APP_PAGE_SELECTOR,
+  applyAppPageBackgroundStyle,
+  resolvedToBodyStyle,
+  type GetBackgroundImageUrl,
+} from "./background.web";

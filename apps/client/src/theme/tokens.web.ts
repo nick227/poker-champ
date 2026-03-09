@@ -108,27 +108,41 @@ export const TOKENS_CSS = `/* Design tokens: single source of truth. 4px base sc
   --table-action: 14vh;
 }
 
-/* Document: dark theme (in tokens so web build includes it) */
+/* Document: viewport only (in tokens so web build includes it) */
 html, body {
   height: 100%;
+  width: 100%;
   margin: 0;
   background-color: hsl(var(--c-bg));
   color: hsl(var(--c-text));
 }
+
+/* React mount */
 #root {
-  height: 100%;
-  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
   color: hsl(var(--c-text));
 }
-body {
+
+/* Full viewport background container */
+.app-page {
+  flex: 1;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Constrained content */
+.app-content {
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  overflow: hidden;
-}
-#root {
-  display: flex;
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 #root, #root div, #root span {
@@ -159,10 +173,6 @@ body {
   max-width: 100% !important;
   width: 640px !important;
   margin: 0 auto;
-}
-
-#root .bg-red-500 {
-  background-color: #ef4444 !important;
 }
 
 #root .dealer-button {
