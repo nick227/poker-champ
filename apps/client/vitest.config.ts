@@ -4,7 +4,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/tests/**/*.test.ts"],
+    globals: true,
+    environmentMatchGlobs: [["src/components/domain/table/hooks/__tests__/**/*.test.ts", "happy-dom"]],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["src/test/setup.ts"],
     server: {
       deps: {

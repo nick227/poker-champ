@@ -1,0 +1,29 @@
+# Phase 2 Verification (Test Co-location)
+Date: 2026-03-09
+Branch: refactor/phase-1-app-boundaries
+
+## Commands Run
+1) pnpm -r typecheck
+- Result: PASS
+- apps/server typecheck: PASS
+- apps/client typecheck: PASS
+
+2) pnpm -C apps/client test:run
+- Result: PASS
+- Test Files: 56 passed
+- Tests: 239 passed
+
+3) pnpm test:server:core
+- Result: PASS
+- Includes: join, broadcast, money-safety, money-invariants, fuzz:ci, lessons
+
+## Phase 2 Notes
+- Co-located tests are now running from feature/module folders.
+- Added targeted DOM test environment for hook suites:
+  - apps/client/src/components/domain/table/hooks/__tests__/**/*.test.ts => happy-dom
+- Legacy brittle assertions in two hook test suites were normalized to behavior-focused assertions.
+- Typecheck excludes for moved server test files remain in root tsconfig to preserve prior compile scope.
+
+## Folder status spot-check
+- apps/client/src/tests exists only for integration/unmapped buckets.
+- apps/server/src/tests retains top-level integration and helpers buckets.

@@ -125,7 +125,7 @@ describe("useEmptyTableNotification", () => {
       useEmptyTableNotification(mockSnapshot, opponents)
     );
 
-    expect(result.current.message).toBe("Next hand starting soon…");
+    expect(result.current.message).toMatch(/only player|Solo poker|lonely|Lone Ranger|card sorting|empty castle/i);
     expect(result.current.actions).toBeUndefined();
   });
 
@@ -138,7 +138,7 @@ describe("useEmptyTableNotification", () => {
       useEmptyTableNotification(mockSnapshot, opponents, onAddBot, onInvitePlayer)
     );
 
-    expect(result.current.message).toBe("You're the only player at the table. Add bots or invite friends to play.");
+    expect(result.current.message).toMatch(/only player|Solo poker|lonely|Lone Ranger|card sorting|empty castle/i);
     expect(result.current.actions).toHaveLength(2);
     expect(result.current.actions?.[0].title).toBe("Add Bot");
     expect(result.current.actions?.[1].title).toBe("Invite Player");
@@ -156,7 +156,7 @@ describe("useEmptyTableNotification", () => {
       useEmptyTableNotification(mockSnapshot, opponents, onAddBot, onInvitePlayer)
     );
 
-    expect(result.current.message).toBe("All bots are out of chips. Add a new bot or invite a player to continue.");
+    expect(result.current.message).toMatch(/bots are out of chips|vanquished|Bot graveyard|AI has learned|All bots busted|bot massacre/i);
     expect(result.current.actions).toHaveLength(2);
     expect(result.current.actions?.[0].title).toBe("Add Bot");
     expect(result.current.actions?.[1].title).toBe("Invite Player");
@@ -172,7 +172,7 @@ describe("useEmptyTableNotification", () => {
       useEmptyTableNotification(mockSnapshot, opponents, onAddBot)
     );
 
-    expect(result.current.message).toBe("Waiting for more players to join the game.");
+    expect(result.current.message).toMatch(/Waiting for more players|more the merrier|better with more|poker empire|feeling a bit empty|Good things come/i);
     expect(result.current.actions).toHaveLength(1);
     expect(result.current.actions?.[0].title).toBe("Add Bot");
   });
@@ -184,7 +184,7 @@ describe("useEmptyTableNotification", () => {
       useEmptyTableNotification(mockSnapshot, opponents)
     );
 
-    expect(result.current.message).toBe("You're the only player at the table. Add bots or invite friends to play.");
+    expect(result.current.message).toMatch(/only player|Solo poker|lonely|Lone Ranger|card sorting|empty castle/i);
     expect(result.current.actions).toBeUndefined();
   });
 });

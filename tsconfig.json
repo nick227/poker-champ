@@ -22,5 +22,9 @@
     "useDefineForClassFields": false
   },
   "include": ["apps/server/src/**/*", "packages/api-types/src/**/*"],
-  "exclude": ["apps/server/src/tests/**/*", "apps/server/src/engine/__tests__/**/*"]
+  "exclude": [
+    "apps/server/src/**/*.test.ts",
+    "apps/server/src/**/*.test.tsx",
+    "apps/server/src/**/__tests__/**/*"
+  ]
 }

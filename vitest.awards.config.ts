@@ -11,9 +11,9 @@ export default defineConfig({
     environment: "node",
     globalSetup: ["./vitest.global-setup.ts"],
     include: [
-      "apps/server/src/tests/evaluateLessonAwards.test.ts",
-      "apps/server/src/tests/evaluateHandAwards.test.ts",
-      "apps/server/src/tests/AwardService.test.ts",
+      "apps/server/src/awards/evaluateLessonAwards.test.ts",
+      "apps/server/src/awards/evaluateHandAwards.test.ts",
+      "apps/server/src/awards/AwardService.test.ts",
       "apps/server/src/http/__tests__/AwardsRouter.test.ts",
     ],
     coverage: {
