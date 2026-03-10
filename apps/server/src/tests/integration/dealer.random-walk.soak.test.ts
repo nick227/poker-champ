@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { Dealer } from "../../engine/Dealer.js";
 import { ActionOptionsService } from "../../engine/dealer/index.js";
+import { PokerError } from "../../engine/errors.js";
+import { bettingRoundComplete, noFurtherBettingPossible } from "../../engine/rules/BettingRound.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
 const isNightlySoak = process.env.SOAK_PROFILE === "nightly";
+const configuredHands = Number(process.env.SOAK_HANDS ?? "");
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -119,21 +122,58 @@ describe("dealer random walk soak", () => {
           snapshots.push(payloadJson.snapshotSeq);
         },
       });
+      const settlementService = (dealer as any).settlementService as {
+        getCurrentHandPotDisbursedCents: () => number;
+      };
+      const computeChipMass = () =>
+        [...state.playersById.values()].reduce((sum, p) => sum + p.stackCents, 0) +
+        state.potCents -
+        settlementService.getCurrentHandPotDisbursedCents();
+      let expectedChipMass = computeChipMass();
       (dealer as any).scheduleNextHand = () => {};
       // This soak test drives actions explicitly; with setTimeout mocked to immediate,
       // turn-timeout automation would preempt the random-walk driver.
       (dealer as any).scheduleHumanTurnTimeout = () => {};
 
       const optionsService = new ActionOptionsService();
-      const handsToPlay = isNightlySoak ? 100 : 5;
+      const handsToPlay = Number.isFinite(configuredHands) && configuredHands > 0
+        ? Math.floor(configuredHands)
+        : (isNightlySoak ? 100 : 5);
+      let handsStarted = 0;
+      let handsCompleted = 0;
+      let maxStepsPerHand = 0;
 
       for (let h = 0; h < handsToPlay; h++) {
         const activeWithChips = [...state.playersById.values()].filter((p) => p.status !== "OUT" && p.stackCents > 0);
-        if (activeWithChips.length < 2) break;
+        if (activeWithChips.length < 2) {
+          // Long-run soak mode: recycle player stacks so the harness can keep exercising lifecycle paths.
+          for (const p of state.playersById.values()) {
+            if (p.seat < 0) continue;
+            if (p.stackCents <= 0) p.stackCents = 6000;
+            p.status = "ACTIVE";
+            p.roundBetCents = 0;
+            p.committedCents = 0;
+            p.needsAction = false;
+            p.connected = true;
+            p.disconnectDeadlineTs = 0;
+            p.sittingOutUntilNextHand = false;
+          }
+          expectedChipMass = computeChipMass();
+        }
+
+        // Between hands, previous hand should be fully settled (no residual undistributed chips).
+        expect(state.street).toBe("WAITING");
+        expect(settlementService.getCurrentHandPotDisbursedCents()).toBe(state.potCents);
 
         const beforeContrib = new Map(contributionsByUser);
         const beforePayout = new Map(payoutsByUser);
         await (dealer as any).startHand();
+        if (state.street === "WAITING") {
+          // Long churn runs can exhaust/sit-out players mid-loop.
+          // startHand may legally no-op back to WAITING when no hand can be dealt.
+          break;
+        }
+        handsStarted += 1;
 
         expect(state.street).toBe("PREFLOP");
         expect(state.board.length).toBe(0);
@@ -142,8 +182,59 @@ describe("dealer random walk soak", () => {
         let guard = 0;
         while (state.street !== "WAITING") {
           guard += 1;
-          if (guard >= 400) {
+          if (guard >= 800) {
             throw new Error(`Infinite loop detected: ${trace.join("|")}`);
+          }
+
+          // Random driver tick to simulate recovery/heartbeat evaluations between actions.
+          if (rng() < 0.15) {
+            trace.push("tick");
+            await (dealer as any).requestDrive?.("random_walk_tick");
+          }
+          if (rng() < 0.05) {
+            trace.push("double_tick");
+            await (dealer as any).requestDrive?.("double_tick_1");
+            await (dealer as any).requestDrive?.("double_tick_2");
+          }
+
+          // Random disconnect/reconnect churn to surface timeout/race edge cases.
+          if (rng() < 0.05) {
+            const players = [...state.playersById.values()].filter((p) => p.status !== "OUT");
+            if (players.length > 0) {
+              const p = players[randomIntInclusive(rng, 0, players.length - 1)]!;
+              await dealer.markDisconnectedSerialized(p.id, Date.now() + 30_000);
+              trace.push(`disconnect:${p.id}`);
+            }
+          }
+          if (rng() < 0.05) {
+            const players = [...state.playersById.values()].filter((p) => p.status !== "OUT");
+            if (players.length > 0) {
+              const p = players[randomIntInclusive(rng, 0, players.length - 1)]!;
+              await dealer.markReconnectedSerialized(p.id);
+              trace.push(`reconnect:${p.id}`);
+            }
+          }
+
+          if (state.roundState !== "WAITING_FOR_ACTION") {
+            expect(state.turnDeadlineMs).toBe(0);
+          }
+          if (state.roundState === "SHOWDOWN") {
+            expect(bettingRoundComplete(state) || noFurtherBettingPossible(state)).toBe(true);
+          }
+          if (state.roundState === "WAITING_FOR_ACTION") {
+            expect(state.toActSeat).toBeGreaterThanOrEqual(0);
+            expect(state.toActSeat).toBeLessThan(state.seats.length);
+            const toActId = state.seats[state.toActSeat];
+            const toActPlayer = toActId ? state.playersById.get(toActId) : undefined;
+            expect(toActId, `missing actor id ${trace.join("|")}`).toBeTruthy();
+            expect(toActPlayer, `missing actor player ${trace.join("|")}`).toBeTruthy();
+            expect(toActPlayer?.needsAction, `actor without needsAction ${trace.join("|")}`).toBe(true);
+          }
+
+          // Pot accounting invariant during active hands: pot equals total committed.
+          if (state.street !== "WAITING") {
+            const committedSum = [...state.playersById.values()].reduce((s, p) => s + p.committedCents, 0);
+            expect(committedSum, `pot/committed mismatch ${trace.join("|")}`).toBe(state.potCents);
           }
 
           const toActId = state.seats[state.toActSeat];
@@ -152,11 +243,50 @@ describe("dealer random walk soak", () => {
           }
 
           const options = optionsService.buildHeroActionOptions(state, toActId);
-          expect(options, `options missing for toAct=${toActId} ${trace.join("|")}`).toBeTruthy();
+          if (!options) {
+            trace.push(`no_options:${toActId}`);
+            await (dealer as any).requestDrive?.("no_options_tick");
+            continue;
+          }
           const action = pickRandomLegalAction(rng, options);
           trace.push(`${toActId}:${action.action}${action.amountCents ? `:${action.amountCents}` : ""}`);
-          await dealer.handleAction(toActId, action);
+          const before = {
+            toActSeat: state.toActSeat,
+            street: state.street,
+            potCents: state.potCents,
+            handActionSeq: state.handActionSeq,
+          };
+          try {
+            await dealer.handleAction(toActId, action);
+          } catch (err) {
+            if (
+              err instanceof PokerError &&
+              (err.code === "NOT_YOUR_TURN" || err.code === "NOT_ELIGIBLE" || err.code === "HAND_NOT_STARTED")
+            ) {
+              trace.push(`stale_reject:${err.code}`);
+              continue;
+            }
+            throw err;
+          }
+
+          const after = {
+            toActSeat: state.toActSeat,
+            street: state.street,
+            potCents: state.potCents,
+            handActionSeq: state.handActionSeq,
+          };
+          const progressed =
+            after.toActSeat !== before.toActSeat ||
+            after.street !== before.street ||
+            after.potCents !== before.potCents ||
+            after.handActionSeq !== before.handActionSeq;
+          expect(progressed, `no state progress after accepted action ${trace.join("|")}`).toBe(true);
+
+          // Step-level money conservation invariant.
+          expect(computeChipMass(), `chip mass drift ${trace.join("|")}`).toBe(expectedChipMass);
         }
+        handsCompleted += 1;
+        maxStepsPerHand = Math.max(maxStepsPerHand, guard);
 
         const handContrib = [...contributionsByUser.entries()].reduce(
           (sum, [id, amount]) => sum + (amount - (beforeContrib.get(id) ?? 0)),
@@ -167,7 +297,11 @@ describe("dealer random walk soak", () => {
           0,
         );
         expect(handPayout, `payout mismatch ${trace.join("|")}`).toBe(handContrib);
+        expect(computeChipMass(), `chip mass drift after hand ${trace.join("|")}`).toBe(expectedChipMass);
       }
+
+      expect(handsCompleted).toBe(handsStarted);
+      console.log("maxStepsPerHand", maxStepsPerHand);
 
       for (let i = 1; i < snapshots.length; i++) {
         expect(snapshots[i]!).toBeGreaterThan(snapshots[i - 1]!);

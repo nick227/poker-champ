@@ -117,4 +117,43 @@ describe("hand lifecycle", () => {
     expect(botOnNextHand?.sittingOutUntilNextHand).toBe(false);
     expect((d as any).holeCardsByPlayerId.has("bot_2")).toBe(true);
   }, 15000);
+
+  it("does not throw when heads-up SB posts all-in blind and no action remains", async () => {
+    const s = new PokerState();
+    s.maxSeats = 2;
+    s.smallBlindCents = 100;
+    s.bigBlindCents = 200;
+    s.minBuyInCents = 100;
+    s.maxBuyInCents = 10000;
+
+    const d = new Dealer(s);
+    await d.addPlayer("hero", "Hero", 100);
+    await d.addBot("bot_1", "Bot", 3900);
+
+    const hero = s.playersById.get("hero");
+    const bot = s.playersById.get("bot_1");
+    expect(hero).toBeTruthy();
+    expect(bot).toBeTruthy();
+    if (!hero || !bot) throw new Error("missing players");
+
+    // Force a clean WAITING state and a deterministic heads-up blind/all-in start.
+    s.street = "WAITING";
+    s.runoutMode = "NONE";
+    s.dealerSeat = hero.seat;
+    hero.status = "ACTIVE";
+    hero.stackCents = 100;
+    hero.sittingOutUntilNextHand = false;
+    bot.status = "ACTIVE";
+    bot.stackCents = 3900;
+    bot.sittingOutUntilNextHand = false;
+
+    const plans = await (d as any).handLifecycleService.startHand();
+    expect(plans.some((p: { kind: string }) => p.kind === "HAND_ENDED")).toBe(true);
+    expect(
+      plans.some(
+        (p: { kind: string; reason?: string }) =>
+          p.kind === "HAND_ENDED" && p.reason === "SHOWDOWN",
+      ),
+    ).toBe(true);
+  });
 });

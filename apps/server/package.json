@@ -7,6 +7,10 @@
     "typecheck": "tsc -p ../../tsconfig.json --noEmit --incremental false",
     "test": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
     "test:run": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
+    "test:round-state-parity": "node scripts/check-round-state-parity.mjs",
+    "analyze:game-bugs": "node scripts/analyze-game-bugs-timeouts.mjs",
+    "analyze:phase4": "node scripts/analyze-game-bugs-timeouts.mjs --max-issues 100",
+    "analyze:phase4:compare": "node scripts/compare-phase4-captures.mjs",
     "lint": "eslint src --config ../../eslint.config.mjs"
   },
   "dependencies": {

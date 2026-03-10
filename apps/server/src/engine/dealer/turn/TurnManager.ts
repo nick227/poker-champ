@@ -415,6 +415,7 @@ class TurnTimeoutScheduler {
     }
     this.pendingHumanTurnTimeoutKey = key;
     this.turnStartedAt = Date.now();
+    this.deps.state.turnDeadlineMs = this.turnStartedAt + TURN_TIMEOUT_TOTAL_MS;
 
     this.pendingHumanTurnTimeoutId = setTimeout(() => {
       void this.deps.actionQueue.enqueueSerializedStateMutation(async () => {
@@ -448,6 +449,8 @@ class TurnTimeoutScheduler {
           return;
         }
 
+        // Idempotency token consumption: clear deadline before applying timeout action.
+        this.deps.state.turnDeadlineMs = 0;
         await this.deps.setPlayerSittingOutInternal(userId, true);
         this.clearPendingTimeoutIfCurrent(key);
       });
@@ -461,6 +464,7 @@ class TurnTimeoutScheduler {
   clearPendingHumanTurnTimeout(): void {
     this.pendingHumanTurnTimeoutKey = null;
     this.turnStartedAt = 0;
+    this.deps.state.turnDeadlineMs = 0;
     if (this.pendingHumanTurnTimeoutId != null) {
       clearTimeout(this.pendingHumanTurnTimeoutId);
       this.pendingHumanTurnTimeoutId = null;
@@ -470,6 +474,7 @@ class TurnTimeoutScheduler {
   private clearPendingTimeoutIfCurrent(key: string): void {
     if (this.pendingHumanTurnTimeoutKey !== key) return;
     this.pendingHumanTurnTimeoutKey = null;
+    this.deps.state.turnDeadlineMs = 0;
     if (this.pendingHumanTurnTimeoutId != null) {
       clearTimeout(this.pendingHumanTurnTimeoutId);
     }

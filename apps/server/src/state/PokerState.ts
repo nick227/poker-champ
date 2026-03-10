@@ -3,6 +3,13 @@ import { PlayerState } from "./PlayerState.js";
 
 export type Street = "WAITING" | "PREFLOP" | "FLOP" | "TURN" | "RIVER" | "SHOWDOWN";
 export type RunoutMode = "NONE" | "STAGED";
+export type RoundState =
+  | "ROUND_INIT"
+  | "WAITING_FOR_ACTION"
+  | "ROUND_COMPLETE"
+  | "RUNOUT"
+  | "SHOWDOWN"
+  | "HAND_COMPLETE";
 
 export class PokerState extends Schema {
   @type("string") tableId: string = "";
@@ -26,6 +33,9 @@ export class PokerState extends Schema {
   @type("number") actionCount: number = 0;
   @type("number") initialChipMassCents: number = 0;
   @type("number") nextHandAtTs: number = 0;
+  /** Absolute deadline for current human turn timeout; 0 means no active deadline. */
+  @type("number") turnDeadlineMs: number = 0;
+  @type("string") roundState: RoundState = "HAND_COMPLETE";
   @type("string") street: Street = "WAITING";
   @type("string") runoutMode: RunoutMode = "NONE";
 

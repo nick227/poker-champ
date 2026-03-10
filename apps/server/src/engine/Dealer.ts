@@ -42,11 +42,13 @@
  */
 
 import { Client } from "@colyseus/core";
+import { randomUUID } from "node:crypto";
 import { logger } from "../lib/logger.js";
 import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import {
+  allRemainingPlayersAllInOrFolded,
   bettingRoundComplete,
   eligibleToAct,
   noFurtherBettingPossible,
@@ -79,6 +81,8 @@ import { buildActionKey, buildClaimKey } from "./dealer/utils/actionKeys.js";
 import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
 import { HandContext } from "./dealer/HandContext.js";
 import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
+import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type StallReason } from "./dealer/decision/index.js";
+import type { EngineQueries } from "./dealer/decision/engineQueries.js";
 
 export type DealerDiagnosticType =
   | "QUEUE_FULL"
@@ -231,6 +235,8 @@ export class Dealer {
   private readonly disconnectManager: DisconnectManager;
   private readonly actionOptionsService = new ActionOptionsService();
   private readonly sessionStatsTracker = new SessionPlayerStatsTracker();
+  private readonly engineDecisionSampleRate = Dealer.parseSampleRate(process.env.ENGINE_DECISION_SAMPLE_RATE, 0);
+  private readonly engineDecisionTableIdFilter = (process.env.ENGINE_DECISION_TABLE_ID ?? "").trim();
 
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
@@ -238,6 +244,14 @@ export class Dealer {
   private readonly turnManager: TurnManager;
   private disposed = false;
   private readonly onHandEndedAwards?: HandEndedAwardsCallback;
+
+  private static parseSampleRate(raw: string | undefined, defaultValue: number): number {
+    const parsed = Number(raw ?? "");
+    if (!Number.isFinite(parsed)) return defaultValue;
+    if (parsed <= 0) return 0;
+    if (parsed >= 1) return 1;
+    return parsed;
+  }
 
   // Legacy test compatibility: older tests access dealer.holeCardsByPlayerId directly.
   // Keep this bridge so tests can seed showdown cards without reaching into HandContext.
@@ -354,7 +368,14 @@ export class Dealer {
       sendTableSnapshotToAll: (reason, actionId) => this.sendTableSnapshotToAll(reason, actionId),
       isDisposed: () => this.disposed,
       flushSessionStatsOnly: () => this.flushSessionStatsOnly(),
-      maybeActForBot: () => this.maybeActForBot(),
+      maybeActForBot: async () => {
+        this.maybeActForBot();
+      },
+      getLifecycleLogContext: () => ({
+        tableId: this.state.tableId,
+        handId: this.state.handId ?? "",
+        street: this.state.street,
+      }),
       transitionToWaiting: () => this.transitionToWaiting(),
       releasePendingSeats: () => this.releasePendingSeats(),
       scheduleNextHand: (reason, delayMs) => this.scheduleNextHand(reason, delayMs),
@@ -679,6 +700,17 @@ export class Dealer {
           }
         }
         if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) {
+          logger.warn(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              userId,
+              actionId,
+              action: msg.action,
+              reason: "DUPLICATE_ACTION",
+            },
+            "ACTION_REJECTED",
+          );
           logger.info(
             { tableId: this.state.tableId, handId: this.state.handId, userId, actionId, action: msg.action },
             "ACTION_DUPLICATE_IGNORED",
@@ -688,7 +720,7 @@ export class Dealer {
         }
         const handIdBefore = this.state.handId;
         try {
-          await this._handleAction(userId, msg, "PLAYER");
+          await this._handleAction(userId, msg, "PLAYER", actionId);
           if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
             handContext.recordProcessed(actionKey);
           }
@@ -729,7 +761,12 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Core action execution, result application, and preflop statistics
 
-  private async _handleAction(userId: string, msg: ActionPayload, origin: TableLastAction["origin"]) {
+  private async _handleAction(
+    userId: string,
+    msg: ActionPayload,
+    origin: TableLastAction["origin"],
+    actionId?: string,
+  ) {
     if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
       this.currentHand = new HandContext();
     }
@@ -755,6 +792,7 @@ export class Dealer {
         tableId: this.state.tableId,
         handId: this.state.handId,
         userId,
+        actionId,
         action: msg.action,
       },
       "ACTION_ACCEPTED",
@@ -807,6 +845,167 @@ export class Dealer {
     this.handOrchestrator.transitionToWaiting();
   }
 
+  private shouldLogEngineDecision(): boolean {
+    if (this.engineDecisionSampleRate <= 0) return false;
+    if (
+      this.engineDecisionTableIdFilter.length > 0 &&
+      this.engineDecisionTableIdFilter !== this.state.tableId
+    ) {
+      return false;
+    }
+    return Math.random() <= this.engineDecisionSampleRate;
+  }
+
+  private buildEngineDecisionLogPayload(reason: string): {
+    decisionTraceId: string;
+    tableId: string;
+    handId: string;
+    street: string;
+    toActSeat: number;
+    toActUserId: string;
+    turnDeadlineMs: number;
+    step: string;
+    stallReason: string | null;
+    reason: string;
+    now: number;
+  } {
+    const now = Date.now();
+    const decisionState = this.buildDecisionState(now);
+    const runtimeQueries = this.buildRuntimeEngineQueries();
+    const step = computeNextStep(decisionState, now, runtimeQueries);
+    const stallReason = getStallReason(decisionState, now, runtimeQueries);
+    const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+
+    return {
+      decisionTraceId: randomUUID(),
+      tableId: this.state.tableId,
+      handId: this.state.handId,
+      street: this.state.street,
+      toActSeat: this.state.toActSeat,
+      toActUserId,
+      turnDeadlineMs: this.state.turnDeadlineMs,
+      step,
+      stallReason,
+      reason,
+      now,
+    };
+  }
+
+  private deriveRuntimeStep(now: number): string {
+    if (this.state.street === "WAITING") {
+      return countNonOutPlayers(this.state) >= 2 ? "START_NEXT_HAND" : "NO_OP";
+    }
+
+    if (
+      this.state.street === "SHOWDOWN" ||
+      this.state.runoutMode === "STAGED" ||
+      allRemainingPlayersAllInOrFolded(this.state)
+    ) {
+      return "RUN_SHOWDOWN";
+    }
+
+    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+      return "ADVANCE_STREET";
+    }
+
+    const toActId = this.state.seats[this.state.toActSeat] ?? "";
+    const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
+    if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
+      return "NO_OP";
+    }
+
+    if (toAct.kind === "BOT" || !toAct.connected) {
+      return "RUN_BOT_ACTION";
+    }
+
+    const turnDeadlineMs = this.state.turnDeadlineMs;
+    if (turnDeadlineMs > 0 && now >= turnDeadlineMs) {
+      return "AUTO_ACTION_TIMEOUT";
+    }
+
+    return "WAIT_FOR_HUMAN";
+  }
+
+  private buildDecisionState(now: number): DecisionState {
+    void now;
+    const turnDeadlineMs = this.state.turnDeadlineMs > 0 ? this.state.turnDeadlineMs : undefined;
+    return projectDecisionState({
+      tableId: this.state.tableId,
+      handId: this.state.handId || undefined,
+      street: this.state.street,
+      toActSeat: this.state.toActSeat,
+      turnDeadlineMs,
+      players: [...this.state.playersById.values()].map((p) => ({
+        id: p.id,
+        seat: p.seat,
+        kind: p.kind,
+        status: p.status,
+        connected: p.connected,
+        needsAction: p.needsAction,
+      })),
+    });
+  }
+
+  private buildRuntimeEngineQueries(): EngineQueries {
+    return {
+      getToActPlayer: (state) => {
+        const seat = state.hand?.toActSeat;
+        if (seat == null || seat < 0) return undefined;
+        return state.players.find((p) => p.seat === seat);
+      },
+      startNextHandDue: () => this.state.street === "WAITING" && countNonOutPlayers(this.state) >= 2,
+      bettingClosed: () => bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state),
+      showdownRequired: () =>
+        this.state.street === "SHOWDOWN" ||
+        this.state.runoutMode === "STAGED" ||
+        allRemainingPlayersAllInOrFolded(this.state),
+      botActionDue: () => {
+        const toActId = this.state.seats[this.state.toActSeat] ?? "";
+        const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
+        return !!toAct && eligibleToAct(toAct) && toAct.needsAction && (toAct.kind === "BOT" || !toAct.connected);
+      },
+      humanTurnExpired: (state, currentNow) => {
+        const toActId = this.state.seats[this.state.toActSeat] ?? "";
+        const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
+        if (!toAct || toAct.kind !== "HUMAN" || !toAct.connected || !toAct.needsAction) return false;
+        const deadline = state.hand?.turnDeadlineMs;
+        if (deadline == null || deadline <= 0) return false;
+        return currentNow >= deadline;
+      },
+    };
+  }
+
+  private logEngineDecision(reason: string): void {
+    if (!this.shouldLogEngineDecision()) return;
+    logger.info(this.buildEngineDecisionLogPayload(reason), "ENGINE_DECISION");
+  }
+
+  private logEngineDecisionAndRuntimeStep(reason: string): void {
+    if (!this.shouldLogEngineDecision()) return;
+    const payload = this.buildEngineDecisionLogPayload(reason);
+    const runtimeStep = this.deriveRuntimeStep(payload.now);
+    logger.info(payload, "ENGINE_DECISION");
+    logger.info(
+      {
+        ...payload,
+        runtimeStep,
+      },
+      "ENGINE_RUNTIME_STEP",
+    );
+  }
+
+  /** Phase-1 observability: sampled decision trace emission from external monitors. */
+  logEngineDecisionPublic(reason: string): void {
+    this.logEngineDecision(reason);
+  }
+
+  /** Phase-3 stall authority helper for room-level monitoring. */
+  getStallReasonPublic(now?: number): StallReason | null {
+    const evalNow = now ?? Date.now();
+    const decisionState = this.buildDecisionState(evalNow);
+    return getStallReason(decisionState, evalNow, this.buildRuntimeEngineQueries());
+  }
+
   // ---------------------------------------------------------------------------
   // HAND LIFECYCLE MANAGEMENT
   // ---------------------------------------------------------------------------
@@ -814,17 +1013,31 @@ export class Dealer {
 
   private async startHand() {
     await this.handOrchestrator.startHand();
+    this.logEngineDecisionAndRuntimeStep("START_HAND");
   }
 
   private async advanceStreetOrShowdown() {
     await this.handOrchestrator.advanceStreetOrShowdown();
+    this.logEngineDecisionAndRuntimeStep("ADVANCE_STREET_OR_SHOWDOWN");
   }
 
   private async finishHandByLastStanding() {
     await this.handOrchestrator.finishHandByLastStanding();
+    this.logEngineDecisionAndRuntimeStep("FINISH_HAND_LAST_STANDING");
   }
   private async finishHandShowdownWithSidePots() {
     await this.handOrchestrator.finishHandShowdownWithSidePots();
+    this.logEngineDecisionAndRuntimeStep("FINISH_HAND_SHOWDOWN");
+  }
+
+  /**
+   * Phase-0 boundary placeholder for unified deterministic table progression.
+   * Captures time once at the boundary; later phases will make this authoritative.
+   */
+  private requestDrive(reason: string, now?: number): void {
+    const driveNow = now ?? Date.now();
+    void reason;
+    void driveNow;
   }
 
   // ---------------------------------------------------------------------------
@@ -1095,6 +1308,33 @@ export class Dealer {
     }
 
     this.ensureHumanTurnTimerForCurrentActor("ACTION_RESOLVED_NEXT_ACTOR");
+    this.logToActDerivationWarning("ACTION_RESOLVED_NEXT_ACTOR");
+    this.logEngineDecisionAndRuntimeStep("ACTION_RESOLVED_NEXT_ACTOR");
+  }
+
+  private logToActDerivationWarning(trigger: string): void {
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) return;
+    if (this.state.maxSeats <= 0) return;
+
+    const pivot = this.state.toActSeat >= 0
+      ? ((this.state.toActSeat - 1 + this.state.maxSeats) % this.state.maxSeats)
+      : (this.state.maxSeats - 1);
+    const derivedToAct = findNextToActSeat(this.state, pivot);
+    if (derivedToAct === -1) return;
+    if (derivedToAct === this.state.toActSeat) return;
+
+    logger.warn(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        toActSeatStored: this.state.toActSeat,
+        toActSeatDerived: derivedToAct,
+        trigger,
+      },
+      "TO_ACT_DERIVATION_MISMATCH",
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1204,15 +1444,16 @@ export class Dealer {
   logTurnStalledIfNeeded(): void {
     if (this.state.toActSeat < 0) return;
     if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
-    const turnStartTs = this.turnManager.getTurnStartTs();
-    if (turnStartTs <= 0) return;
-    if (Date.now() - turnStartTs <= TURN_TIMEOUT_TOTAL_MS + 5000) return;
+    const turnDeadlineMs = this.state.turnDeadlineMs;
+    if (turnDeadlineMs <= 0) return;
+    if (Date.now() <= turnDeadlineMs + 5000) return;
     logger.warn(
       {
         tableId: this.state.tableId,
         handId: this.state.handId,
         seat: this.state.toActSeat,
         street: this.state.street,
+        turnDeadlineMs,
       },
       "TURN_STALLED",
     );

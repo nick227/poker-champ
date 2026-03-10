@@ -210,6 +210,7 @@ export class SnapshotService {
     const snapshotSeq = this.nextSnapshotSeq();
     this.refreshHandCalculationsIfNeeded();
     const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+
     const toActUserId = this.deps.state.street !== "WAITING"
       ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
       : null;

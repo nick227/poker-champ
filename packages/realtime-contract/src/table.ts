@@ -41,6 +41,7 @@ export const TableJoinOptionsSchema = z.object({
 
 export const ActionEnvelopePayloadSchema = z.object({
   actionId: z.string().min(1),
+  handId: z.string().min(1).optional(),
   payload: ActionPayloadSchema,
 });
 
@@ -48,6 +49,7 @@ export const ActionWithIdPayloadSchema = z.intersection(
   ActionPayloadSchema,
   z.object({
     actionId: z.string().min(1),
+    handId: z.string().min(1).optional(),
   }),
 );
 

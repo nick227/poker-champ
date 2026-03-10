@@ -116,7 +116,7 @@ export interface PokerRoomFacade {
   // Additional methods used by other controller services
   sendTableMessageInternal(client: { send: (type: string, payload: unknown) => void }, type: string, payload: unknown): void;
   updateMetadataCountsInternal(): void;
-  normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string } | null;
+  normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null;
   getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string } | null;
   getPlayerStackCentsInternal(userId: string): number;
   findPlayerSeatInternal(userId: string): number | null;

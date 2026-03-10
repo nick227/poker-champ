@@ -218,6 +218,25 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         }
 
         room.touchActivityInternal();
+        const currentHandId = this.ctx.state.handId;
+        if (normalized.handId && normalized.handId !== currentHandId) {
+          this.ctx.logger.warn(
+            {
+              roomId: room.roomId,
+              tableId: this.ctx.state.tableId,
+              userId,
+              action: parsed.data.action,
+              providedHandId: normalized.handId,
+              currentHandId,
+            },
+            "ACTION_REJECTED reason=HAND_ID_MISMATCH",
+          );
+          throw new PokerError(
+            "HAND_NOT_STARTED",
+            "Action handId does not match the current hand.",
+            { providedHandId: normalized.handId, currentHandId },
+          );
+        }
         this.ctx.logger.info(
           { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, action: parsed.data.action, amountCents: parsed.data.amountCents },
           "POKER_ACTION_ATTEMPT",

@@ -18,7 +18,11 @@ import {
 } from "@poker-champ/realtime-contract";
 import { nanoid } from "nanoid";
 import { newBotId } from "../engine/bots/botIds.js";
-import { isPersistentSeatsEnabled, isTableSnapshotLogPersistenceEnabled } from "../config/features.js";
+import {
+  isDecisionStallDetectionEnabled,
+  isPersistentSeatsEnabled,
+  isTableSnapshotLogPersistenceEnabled,
+} from "../config/features.js";
 import { getSeatHardDeleteHours, getSeatRetentionHours } from "../config/seats.js";
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 import { CashierService } from "../engine/economy/CashierService.js";
@@ -120,6 +124,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * Interval for table stall detection. Cleared in onDispose.
    */
   private stallCheckInterval: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Rate-limit stall diagnostics to avoid log storms when a table is unhealthy.
+   */
+  private lastStallLogAtMs = 0;
+  private lastStallRedriveLogAtMs = 0;
   /**
    * Per-key join locks to prevent race conditions when multiple clients
    * try to join simultaneously for the same user. Key format: "tableId:userId"
@@ -378,35 +387,96 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   startStallMonitorInternal(): void {
     const STALL_CHECK_MS = 10_000;
     const STALL_THRESHOLD_MS = 15_000;
+    const STALL_LOG_MIN_INTERVAL_MS = 5_000;
+    const decisionStallDetectionEnabled = isDecisionStallDetectionEnabled();
     this.stallCheckInterval = setInterval(() => {
       const connectedHumanCount = this.computeConnectedHumanCount();
       if (connectedHumanCount === 0) return;
+      this.dealer.logEngineDecisionPublic("STALL_MONITOR_TICK");
 
       const queueDepth = this.dealer.getQueueDepth();
+      const now = Date.now();
+      if (decisionStallDetectionEnabled) {
+        const stallReason = this.dealer.getStallReasonPublic(now);
+        if (stallReason) {
+          if (this.lastStallLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
+            logger.warn(
+              {
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                stallReason,
+                street: this.state.street,
+                toActSeat: this.state.toActSeat,
+                snapshotSeq: this.lastSnapshotSeq,
+                lastSnapshotAt: this.lastSnapshotAt,
+                queueDepth,
+              },
+              "TABLE_STALLED",
+            );
+            this.lastStallLogAtMs = now;
+          }
+          if (this.state.street !== "WAITING" && queueDepth === 0) {
+            if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
+              logger.warn(
+                {
+                  roomId: this.roomId,
+                  tableId: this.state.tableId,
+                  handId: this.state.handId,
+                  stallReason,
+                },
+                "TABLE_STALLED_RECOVERY_REDRIVE",
+              );
+              this.lastStallRedriveLogAtMs = now;
+            }
+            this.dealer.maybeActForBotPublic();
+          }
+        }
+      } else {
+        const toActUserId =
+          this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+        const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+        const waitingOnConnectedHumanTurn =
+          this.state.street !== "WAITING" &&
+          this.state.street !== "SHOWDOWN" &&
+          this.state.runoutMode !== "STAGED" &&
+          !!toActPlayer &&
+          toActPlayer.kind === "HUMAN" &&
+          toActPlayer.connected &&
+          toActPlayer.status === "ACTIVE" &&
+          toActPlayer.needsAction;
 
-      if (this.lastSnapshotAt > 0 && Date.now() - this.lastSnapshotAt > STALL_THRESHOLD_MS) {
-        logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            street: this.state.street,
-            toActSeat: this.state.toActSeat,
-            snapshotSeq: this.lastSnapshotSeq,
-            lastSnapshotAt: this.lastSnapshotAt,
-            queueDepth,
-          },
-          "TABLE_STALLED",
-        );
-        // Defensive stall recovery: if the hand is active and the queue is idle,
-        // re-drive automation. This should never normally be needed but prevents
-        // permanent freezes if a discard/failure slips through without re-scheduling.
-        if (this.state.street !== "WAITING" && queueDepth === 0) {
-          logger.warn(
-            { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId },
-            "TABLE_STALLED_RECOVERY_REDRIVE",
-          );
-          this.dealer.maybeActForBotPublic();
+        if (
+          !waitingOnConnectedHumanTurn &&
+          this.lastSnapshotAt > 0 &&
+          now - this.lastSnapshotAt > STALL_THRESHOLD_MS
+        ) {
+          if (this.lastStallLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
+            logger.warn(
+              {
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                street: this.state.street,
+                toActSeat: this.state.toActSeat,
+                snapshotSeq: this.lastSnapshotSeq,
+                lastSnapshotAt: this.lastSnapshotAt,
+                queueDepth,
+              },
+              "TABLE_STALLED",
+            );
+            this.lastStallLogAtMs = now;
+          }
+          if (this.state.street !== "WAITING" && queueDepth === 0) {
+            if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
+              logger.warn(
+                { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId },
+                "TABLE_STALLED_RECOVERY_REDRIVE",
+              );
+              this.lastStallRedriveLogAtMs = now;
+            }
+            this.dealer.maybeActForBotPublic();
+          }
         }
       }
       this.dealer.logTurnStalledIfNeeded();
@@ -474,7 +544,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.updateMetadataCounts();
   }
 
-  normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string } | null {
+  normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null {
     return this.normalizeActionPayload(payload);
   }
 
@@ -1138,13 +1208,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param payload - The raw action payload to normalize
    * @returns Normalized payload with actionId or null if invalid
    */
-  private normalizeActionPayload(payload: unknown): { payload: unknown; actionId: string } | null {
+  private normalizeActionPayload(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null {
     if (!payload || typeof payload !== "object") {
       return null;
     }
     const candidate = payload as Record<string, unknown>;
     const payloadRecord = candidate.payload as Record<string, unknown> | undefined;
     const payloadActionId = payloadRecord?.actionId;
+    const payloadHandId = payloadRecord?.handId;
+    const handId: string | undefined =
+      typeof candidate.handId === "string"
+        ? candidate.handId
+        : candidate.payload !== undefined && typeof payloadHandId === "string"
+          ? payloadHandId
+          : undefined;
     const actionId: string | undefined =
       typeof candidate.actionId === "string"
         ? candidate.actionId
@@ -1153,11 +1230,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           : undefined;
     if (candidate.payload !== undefined) {
       if (typeof actionId !== "string" || actionId.length < 1) return null;
-      return { payload: candidate.payload, actionId };
+      return { payload: candidate.payload, actionId, handId };
     }
-    const { actionId: embedded, ...rest } = candidate;
+    const { actionId: embedded, handId: embeddedHandId, ...rest } = candidate;
     if (typeof embedded !== "string" || embedded.length < 1) return null;
-    return { payload: rest, actionId: embedded };
+    return {
+      payload: rest,
+      actionId: embedded,
+      handId: typeof embeddedHandId === "string" ? embeddedHandId : undefined,
+    };
   }
 
   /**

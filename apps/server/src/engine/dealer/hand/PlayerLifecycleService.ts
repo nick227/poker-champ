@@ -75,6 +75,7 @@ import type { SnapshotReason } from "./SnapshotService.js";
  */
 export type PlayerLifecyclePlan =
   | { kind: "EMIT_SNAPSHOT"; reason: SnapshotReason; actionId?: string }
+
   | { kind: "LIFECYCLE_DEFERRED_REMOVAL"; userId: string; reason: string }
   | { kind: "MAYBE_AUTOMATE_TURN" }
   | { kind: "START_HAND" }

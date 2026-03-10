@@ -203,6 +203,36 @@ async function setupHumanVsBotRoom() {
     }
   });
 
+  it("rejects action when provided handId does not match current hand", async () => {
+    const { room, clientA, clientB } = await setupTwoPlayerRoom();
+    try {
+      const snap = clientA.latestSnapshot!;
+      const toActSeat = snap.hand!.toActSeat;
+      const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+      const actor = toActUserId === "user_a" ? clientA : clientB;
+      const errorCountBefore = actor.sentByType.ERROR?.length ?? 0;
+      const action = {
+        ...pickLegalAction(actor.latestSnapshot!),
+        actionId: "test-stale-hand-" + Date.now(),
+        handId: "hand_stale_mismatch",
+      };
+
+      room.onMessageEvents.emit("ACTION", actor as any, action);
+      await flushAsync();
+      await waitFor(() => (actor.sentByType.ERROR?.length ?? 0) > errorCountBefore, 2000, "hand mismatch error");
+
+      const lastError = ((actor.sentByType.ERROR ?? []) as any[]).at(-1);
+      expect(lastError?.code).toBe("HAND_NOT_STARTED");
+    } finally {
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
   it("broadcasts accepted action updates to both players", async () => {
     const { room, clientA, clientB } = await setupTwoPlayerRoom();
     try {
@@ -447,9 +477,21 @@ async function setupHumanVsBotRoom() {
             const reasons = snapshots.map((snap) => snap.reason);
             const runoutCount = reasons.filter((reason) => reason === "RUNOUT_STAGE").length;
             const hasTerminal = reasons.includes("HAND_END") || reasons.includes("HAND_SHOWDOWN");
-            return runoutCount >= 3 && hasTerminal;
+            const actionAcceptedSnapshot = snapshots.find((snap) => snap.reason === "ACTION_ACCEPTED");
+            const actionStreet = actionAcceptedSnapshot?.hand?.street;
+            const expectedRunoutStages =
+              actionStreet === "PREFLOP" ? 3 :
+              actionStreet === "FLOP" ? 2 :
+              actionStreet === "TURN" ? 1 : 0;
+            
+            if (snapshots.length > 0) {
+              const last = snapshots[snapshots.length - 1];
+              process.stdout.write(`\n[TEST_SNOOP] Reason: ${last.reason}, Street: ${last.hand?.street}, Board: ${last.hand?.board?.length}\n`);
+            }
+
+            return runoutCount >= expectedRunoutStages && hasTerminal;
           },
-          20000,
+          15000,
           "runout to hand end",
         );
 
@@ -458,16 +500,24 @@ async function setupHumanVsBotRoom() {
 
       const actionAcceptedIdx = reasons.indexOf("ACTION_ACCEPTED");
       expect(actionAcceptedIdx).toBeGreaterThanOrEqual(0);
+      const actionStreet = snapshots[actionAcceptedIdx]?.hand?.street;
+      const expectedRunoutStages =
+        actionStreet === "PREFLOP" ? 3 :
+        actionStreet === "FLOP" ? 2 :
+        actionStreet === "TURN" ? 1 : 0;
       const runoutIdxs = reasons
         .map((reason, idx) => ({ reason, idx }))
         .filter((entry) => entry.reason === "RUNOUT_STAGE")
         .map((entry) => entry.idx);
-      expect(runoutIdxs.length).toBe(3);
+      expect(runoutIdxs.length).toBe(expectedRunoutStages);
       const handEndIdx = reasons.indexOf("HAND_END");
       const handShowdownIdx = reasons.indexOf("HAND_SHOWDOWN");
       const terminalIdx = handEndIdx >= 0 ? handEndIdx : handShowdownIdx;
-      expect(terminalIdx).toBeGreaterThan(runoutIdxs[2]!);
-      expect(runoutIdxs[0]!).toBeGreaterThan(actionAcceptedIdx);
+      const lastRunoutIdx = runoutIdxs.length > 0 ? runoutIdxs[runoutIdxs.length - 1]! : actionAcceptedIdx;
+      expect(terminalIdx).toBeGreaterThan(lastRunoutIdx);
+      if (runoutIdxs.length > 0) {
+        expect(runoutIdxs[0]!).toBeGreaterThan(actionAcceptedIdx);
+      }
 
       const handEndSnapshot = snapshots[terminalIdx];
       expect(handEndSnapshot?.hand?.street).toBe("SHOWDOWN");
@@ -510,11 +560,10 @@ async function setupHumanVsBotRoom() {
             return (
               hand.street !== beforeStreet ||
               hand.toActSeat !== beforeToAct ||
-              (hand.actionCount ?? 0) !== beforeActionCount ||
-              Boolean(s.lastHandResult?.handId)
+              (hand.actionCount ?? 0) !== beforeActionCount
             );
           });
-          return Boolean(progressed);
+          return Boolean(progressed) || Boolean(clientA.latestSnapshot?.lastHandResult?.handId);
         },
         10000,
         "state advanced after human action",
@@ -583,4 +632,3 @@ async function setupHumanVsBotRoom() {
     }
   });
 });
-

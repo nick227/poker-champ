@@ -28,6 +28,7 @@
 import { newId } from "../../../lib/ids.js";
 import { logger } from "../../../lib/logger.js";
 import pokersolver from "pokersolver";
+import { isRoundStateMachineEnabled } from "../../../config/features.js";
 
 // ============================================================================
 // IMPORTS - Internal Dependencies
@@ -35,7 +36,7 @@ import pokersolver from "pokersolver";
 import { DeckService } from "../../cards/DeckService.js";
 import { PokerError } from "../../errors.js";
 import type { PersistenceFacade } from "../../persistence/PersistenceFacade.js";
-import type { PokerState, Street } from "../../../state/PokerState.js";
+import type { PokerState, RoundState, Street } from "../../../state/PokerState.js";
 
 // ============================================================================
 // IMPORTS - Poker Rules & Game Logic
@@ -115,6 +116,7 @@ export type HandLifecyclePlan =
   | { kind: "RELEASE_PENDING_SEATS" }
   | { kind: "SCHEDULE_NEXT_HAND"; reason: string; delayMs?: number }
   | { kind: "HAND_ENDED"; reason: "LAST_PLAYER" | "SHOWDOWN" | "DEFENSIVE_FALLBACK"; outcome: { potCents: number; winnerId?: string; payoutsByUserId: Record<string, number> } };
+
 
 // ============================================================================
 // MAIN CLASS - Hand Lifecycle Management
@@ -198,6 +200,63 @@ export class HandLifecycleService {
       return this.deps.getProcessedActionIds();
     }
     return new Set<string>();
+  }
+
+  private isAllowedRoundTransition(from: RoundState, to: RoundState): boolean {
+    // New hand creation is a lifecycle reset boundary; allow transition to ROUND_INIT.
+    if (to === "ROUND_INIT") return true;
+    if (from === to) return true;
+    switch (from) {
+      case "ROUND_INIT":
+        return to === "WAITING_FOR_ACTION" || to === "ROUND_COMPLETE" || to === "RUNOUT" || to === "HAND_COMPLETE";
+      case "WAITING_FOR_ACTION":
+        return to === "WAITING_FOR_ACTION" || to === "ROUND_COMPLETE" || to === "HAND_COMPLETE";
+      case "ROUND_COMPLETE":
+        return to === "RUNOUT" || to === "SHOWDOWN";
+      case "RUNOUT":
+        return to === "SHOWDOWN";
+      case "SHOWDOWN":
+        return to === "HAND_COMPLETE";
+      case "HAND_COMPLETE":
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  private transitionRoundState(next: RoundState, reason: string): boolean {
+    if (!isRoundStateMachineEnabled()) return true;
+    const prev = this.deps.state.roundState;
+    if (prev === next) return true;
+    const playersRemaining = [...this.deps.state.playersById.values()].filter(
+      (player) =>
+        this.currentHandInHandIds.has(player.id) &&
+        player.status !== "FOLDED" &&
+        player.status !== "OUT" &&
+        player.status !== "ABANDONED",
+    ).length;
+    const actionablePlayers = findNextToActSeat(this.deps.state, this.deps.state.dealerSeat) === -1 ? 0 : 1;
+    const bettingClosed = noFurtherBettingPossible(this.deps.state);
+    const commonLogFields = {
+      tableId: this.deps.state.tableId,
+      handId: this.deps.state.handId,
+      street: this.deps.state.street,
+      toActSeat: this.deps.state.toActSeat,
+      turnDeadlineMs: this.deps.state.turnDeadlineMs,
+      playersRemaining,
+      actionablePlayers,
+      bettingClosed,
+      fromRoundState: prev,
+      toRoundState: next,
+      reason,
+    };
+    if (!this.isAllowedRoundTransition(prev, next)) {
+      logger.warn(commonLogFields, "ROUND_STATE_TRANSITION_REJECTED");
+      return false;
+    }
+    this.deps.state.roundState = next;
+    logger.info(commonLogFields, "ROUND_STATE_TRANSITION");
+    return true;
   }
 
   /**
@@ -352,6 +411,7 @@ export class HandLifecycleService {
     state.runningSinceTs = Date.now();
 
     const handId = newId("hand");
+    this.transitionRoundState("ROUND_INIT", "HAND_CREATE");
     state.handId = handId;
     state.handNumber += 1;
     this.deps.currentHandAutoActedUserIds.clear();
@@ -390,6 +450,7 @@ export class HandLifecycleService {
     if (activePlayers.length < 2) {
       state.street = "WAITING";
       state.runoutMode = "NONE";
+      this.transitionRoundState("HAND_COMPLETE", "START_HAND_INSUFFICIENT_PLAYERS");
       this.currentHandInHandIds.clear();
       plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });
       maybeAssertStateInvariants(state);
@@ -484,11 +545,36 @@ export class HandLifecycleService {
     }
     state.minRaiseCents = state.bigBlindCents;
     this.applyNeedsActionForCurrentHand();
-    // In heads-up, SB (Dealer) acts first pre-flop, BB acts first on subsequent streets
-    // In full ring, BB acts first pre-flop, action proceeds left from BB
-    const firstToActSeat = isHeadsUp ? sbSeat : findNextToActSeat(state, bbSeat);
+
+    // Preflop at hand start: players already matched to the current blind level
+    // do not owe an action yet (e.g. BB before action reaches them).
+    if (state.roundCurrentBetCents > 0) {
+      for (const player of state.playersById.values()) {
+        if (!this.currentHandInHandIds.has(player.id)) continue;
+        if (!eligibleToAct(player)) continue;
+        if (player.roundBetCents >= state.roundCurrentBetCents) {
+          player.needsAction = false;
+        }
+      }
+    }
+
+    // Preflop always begins from the seat left of the BB among players who still need action.
+    // Heads-up naturally resolves to SB first when SB is actionable.
+    const firstToActSeat = findNextToActSeat(state, bbSeat);
     state.toActSeat = firstToActSeat;
     if (state.toActSeat === -1) {
+      if (allRemainingPlayersAllInOrFolded(state) || noFurtherBettingPossible(state)) {
+        this.transitionRoundState("RUNOUT", "START_HAND_NO_ACTIONABLE_ACTOR");
+        state.runoutMode = "STAGED";
+        logger.info(
+          { handId: state.handId, tableId: state.tableId, sbSeat, bbSeat },
+          "HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT",
+        );
+        plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_START" });
+        plans.push(...(await this.finishHandShowdownWithSidePots()));
+        maybeAssertStateInvariants(state);
+        return plans;
+      }
       throw new PokerError("BAD_STATE", "No seat needs action at hand start.");
     }
     const toActId = state.seats[state.toActSeat] ?? "";
@@ -496,11 +582,7 @@ export class HandLifecycleService {
     if (!toActPlayer || toActPlayer.status !== "ACTIVE" || !toActPlayer.needsAction) {
       throw new PokerError("BAD_STATE", "toAct must be ACTIVE with needsAction at hand start.");
     }
-
-    if (bbId && !isHeadsUp) {
-      const bb = state.playersById.get(bbId);
-      if (bb) bb.needsAction = false;
-    }
+    this.transitionRoundState("WAITING_FOR_ACTION", "HAND_START_READY_FOR_ACTION");
 
     logger.info({ handId: state.handId }, "hand started");
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "HAND_START" });
@@ -524,6 +606,7 @@ export class HandLifecycleService {
   async advanceStreetOrShowdown(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    state.turnDeadlineMs = 0;
     const totalStacksBeforeCents = this.sumStacksCents();
     const potCentsBefore = state.potCents;
     const disbursedBefore = this.deps.settlementService.getCurrentHandPotDisbursedCents();
@@ -543,19 +626,25 @@ export class HandLifecycleService {
       allRemainingPlayersAllInOrFolded(state) ||
       noFurtherBettingPossible(state)
     ) {
+      this.transitionRoundState("ROUND_COMPLETE", "BETTING_CLOSED_OR_RUNOUT");
+      this.transitionRoundState("RUNOUT", "RUNOUT_REQUIRED");
       state.runoutMode = "STAGED";
       return this.finishHandShowdownWithSidePots();
     }
 
     const next = this.nextStreet(state.street);
     if (next === "SHOWDOWN") {
+      this.transitionRoundState("ROUND_COMPLETE", "RIVER_ROUND_COMPLETE");
+      this.transitionRoundState("SHOWDOWN", "RIVER_TERMINAL");
       state.street = "SHOWDOWN";
       return this.finishHandShowdownWithSidePots();
     }
 
+    this.transitionRoundState("ROUND_COMPLETE", "ROUND_COMPLETE_ADVANCE_STREET");
     state.street = next;
     state.runoutMode = "NONE";
     this.dealCommunityForStreet(next);
+    this.transitionRoundState("ROUND_INIT", "STREET_ADVANCED_ROUND_INIT");
 
     resetBettingRound(state);
     this.applyNeedsActionForCurrentHand();
@@ -563,9 +652,11 @@ export class HandLifecycleService {
     if (state.toActSeat === -1) {
       // Churn windows can transition streets with no actionable seat (all-in/folded/abandoned mix).
       // In this case run out directly to showdown instead of surfacing BAD_STATE.
+      this.transitionRoundState("RUNOUT", "STREET_ADVANCE_NO_ACTIONABLE_ACTOR");
       state.runoutMode = "STAGED";
       return this.finishHandShowdownWithSidePots();
     }
+    this.transitionRoundState("WAITING_FOR_ACTION", "NEXT_STREET_ACTIONABLE");
 
     const toActUserId = state.seats[state.toActSeat] ?? "";
     logger.info(
@@ -620,6 +711,7 @@ export class HandLifecycleService {
   async finishHandByLastStanding(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    state.turnDeadlineMs = 0;
     const remaining = [...state.playersById.values()].filter(
       (p) => p.status === "ACTIVE" || p.status === "ALL_IN",
     );
@@ -630,6 +722,7 @@ export class HandLifecycleService {
     // ── DEFENSIVE FALLBACK: no ACTIVE/ALL_IN players remain ──────────────────
     // e.g. a sole survivor who is ABANDONED with chips.
     if (remaining.length === 0) {
+      this.transitionRoundState("HAND_COMPLETE", "LAST_PLAYER_DEFENSIVE_FALLBACK");
       let winner: typeof notFoldedOrOut[0];
       const payoutsByUserId: Record<string, number> = {};
 
@@ -703,6 +796,7 @@ export class HandLifecycleService {
 
     // ── NORMAL LAST-STANDING: winner is the one remaining ACTIVE/ALL_IN player ──
     const winner = remaining[0]!;
+    this.transitionRoundState("HAND_COMPLETE", "LAST_PLAYER_STANDING");
     const payoutsByUserId: Record<string, number> = {};
 
     // Step 1: Identify and return uncalled chips before touching the pot.
@@ -783,9 +877,13 @@ export class HandLifecycleService {
   async finishHandShowdownWithSidePots(): Promise<HandLifecyclePlan[]> {
     const plans: HandLifecyclePlan[] = [];
     const { state } = this.deps;
+    console.log("[DEBUG_FLOW] RUNOUT START", state.street, "handId:", state.handId);
+    state.turnDeadlineMs = 0;
     if (state.street !== "SHOWDOWN") {
+      this.transitionRoundState("RUNOUT", "SHOWDOWN_RUNOUT_STAGE");
       plans.push(...this.runoutToRiverStaged());
       // Street is forced to SHOWDOWN after staged runout.
+      this.transitionRoundState("SHOWDOWN", "RUNOUT_COMPLETE");
       state.street = "SHOWDOWN";
     }
 
@@ -920,6 +1018,8 @@ export class HandLifecycleService {
       winningHandDescr: typeof winningDescr === "string" ? winningDescr : undefined,
     });
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
+    this.transitionRoundState("HAND_COMPLETE", "SHOWDOWN_COMPLETE");
+    console.log("[DEBUG_FLOW] HAND_END", state.handId);
     plans.push({ 
       kind: "HAND_ENDED", 
       reason: "SHOWDOWN", 
@@ -1013,4 +1113,6 @@ export class HandLifecycleService {
     }
     return plans;
   }
+
+
 }

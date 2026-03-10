@@ -13,6 +13,14 @@ export function isLeaderboardEnabled(): boolean {
   return value === "true";
 }
 
+export function isDecisionStallDetectionEnabled(): boolean {
+  return process.env.FEATURE_DECISION_STALL_DETECTION === "true";
+}
+
+export function isRoundStateMachineEnabled(): boolean {
+  return process.env.FEATURE_ROUND_STATE_MACHINE === "true";
+}
+
 export function isLessonsV1Enabled(): boolean {
   return process.env.ENABLE_LESSONS_V1 === "true";
 }

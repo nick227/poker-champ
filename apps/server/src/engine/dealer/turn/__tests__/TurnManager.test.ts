@@ -139,6 +139,53 @@ describe("TurnManager", () => {
     expect(setPlayerSittingOutInternal).not.toHaveBeenCalled();
   });
 
+  it("sets deadline on arm and consumes it before executing timeout auto-action", async () => {
+    vi.useFakeTimers();
+    const state = createActionableState();
+    let deadlineAtCallback = -1;
+    const setPlayerSittingOutInternal = vi.fn(async () => {
+      deadlineAtCallback = state.turnDeadlineMs;
+    });
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction: async () => {},
+      setPlayerSittingOutInternal,
+    });
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+    expect(state.turnDeadlineMs).toBeGreaterThan(0);
+
+    await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_TOTAL_MS);
+    await turnManager.getActionQueue();
+
+    expect(setPlayerSittingOutInternal).toHaveBeenCalledTimes(1);
+    expect(deadlineAtCallback).toBe(0);
+    expect(state.turnDeadlineMs).toBe(0);
+  });
+
+  it("clears deadline when pending timeout is cancelled", () => {
+    const state = createActionableState();
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction: async () => {},
+      setPlayerSittingOutInternal: async () => {},
+    });
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+    expect(state.turnDeadlineMs).toBeGreaterThan(0);
+
+    turnManager.clearPendingHumanTurnTimeout();
+    expect(state.turnDeadlineMs).toBe(0);
+  });
+
   it("honors delayed internal action scheduling", async () => {
     vi.useFakeTimers();
     const state = createActionableState();

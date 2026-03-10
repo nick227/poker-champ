@@ -3,7 +3,7 @@ import type { Opponent } from "../table.adapter";
 import { CONTAINER } from "./layout";
 import { opponentStripStyles as s } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
-import { OpponentStripItem } from "./OpponentStripItem";
+import { OpponentStripItem } from "../opponent-item";
 
 export type { Opponent } from "../table.adapter";
 

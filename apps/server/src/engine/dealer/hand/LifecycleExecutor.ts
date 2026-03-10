@@ -1,6 +1,7 @@
 import type { HandLifecyclePlan } from "./HandLifecycleService.js";
 import type { PlayerLifecyclePlan } from "./PlayerLifecycleService.js";
 import type { SnapshotReason } from "./SnapshotService.js";
+import { logger } from "../../../lib/logger.js";
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 type HandEndedPlan = Extract<HandLifecyclePlan, { kind: "HAND_ENDED" }>;
@@ -9,7 +10,8 @@ type LifecycleExecutorDeps = {
   sendTableSnapshotToAll: (reason: SnapshotReason, actionId?: string) => Promise<void>;
   isDisposed?: () => boolean;
   flushSessionStatsOnly: () => void;
-  maybeActForBot: () => void;
+  maybeActForBot: () => Promise<void>;
+  getLifecycleLogContext: () => { tableId: string; handId: string; street: string };
   transitionToWaiting: () => void;
   releasePendingSeats: () => Promise<void>;
   scheduleNextHand: (reason: string, delayMs?: number) => void;
@@ -28,6 +30,8 @@ export class LifecycleExecutor {
   async executeHandLifecyclePlans(plans: HandLifecyclePlan[]): Promise<void> {
     if (this.deps.isDisposed?.()) return;
     for (const plan of plans) {
+      const context = this.deps.getLifecycleLogContext();
+      logger.info({ ...context, plan: plan.kind }, "LIFECYCLE_PLAN_EXECUTED");
       switch (plan.kind) {
         case "EMIT_SNAPSHOT":
           if (plan.reason === "HAND_END") this.deps.flushSessionStatsOnly();
@@ -37,7 +41,7 @@ export class LifecycleExecutor {
           await delay(plan.ms);
           break;
         case "MAYBE_AUTOMATE_TURN":
-          this.deps.maybeActForBot();
+          await this.deps.maybeActForBot();
           break;
         case "TRANSITION_TO_WAITING":
           this.deps.transitionToWaiting();
@@ -64,6 +68,8 @@ export class LifecycleExecutor {
   async executePlayerLifecyclePlans(plans: PlayerLifecyclePlan[]): Promise<void> {
     if (this.deps.isDisposed?.()) return;
     for (const plan of plans) {
+      const context = this.deps.getLifecycleLogContext();
+      logger.info({ ...context, plan: plan.kind }, "LIFECYCLE_PLAN_EXECUTED");
       switch (plan.kind) {
         case "EMIT_SNAPSHOT":
           await this.deps.sendTableSnapshotToAll(plan.reason, plan.actionId);
@@ -72,7 +78,7 @@ export class LifecycleExecutor {
           this.deps.onLifecycleDeferredRemoval(plan);
           break;
         case "MAYBE_AUTOMATE_TURN":
-          this.deps.maybeActForBot();
+          await this.deps.maybeActForBot();
           break;
         case "START_HAND":
           await this.deps.startHand();
