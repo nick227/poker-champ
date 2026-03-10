@@ -44,6 +44,7 @@ export function OpponentCardsView({
     );
   }
 
+  const slotStyle = { width: slotWidth, height: slotHeight };
   const transformLeft = cardSlotTransform(scale, rotationLeftDeg);
   const transformRight = cardSlotTransform(scale, rotationRightDeg);
   return (
@@ -53,15 +54,10 @@ export function OpponentCardsView({
     >
       <View style={s.cardsViewportContent}>
         <View style={[s.cardsRow, { width: pairWidth, alignSelf: "center" }]}>
-          <View style={[s.cardSlot, { width: slotWidth, height: slotHeight }]}>
+          <View style={[s.cardSlot, slotStyle]}>
             <View style={[s.cardScaledInner, transformLeft]}>{leftCard}</View>
           </View>
-          <View
-            style={[
-              s.cardSlot,
-              { width: slotWidth, height: slotHeight, marginLeft: -CARDS.PAIR_OVERLAP },
-            ]}
-          >
+          <View style={[s.cardSlot, slotStyle, { marginLeft: -CARDS.PAIR_OVERLAP }]}>
             <View style={[s.cardScaledInner, transformRight]}>{rightCard}</View>
           </View>
         </View>

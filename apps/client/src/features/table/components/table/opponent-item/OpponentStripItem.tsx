@@ -18,7 +18,7 @@ export type OpponentStripItemProps = {
 };
 
 function renderCards(opponent: Opponent, packId: CardFacePackId): { left: ReactNode; right: ReactNode } {
-  const cards = opponent.cards;
+  const { cards } = opponent;
   if (!cards?.visible) {
     const placeholder = <PlayingCard faceDown />;
     return { left: placeholder, right: placeholder };
@@ -79,7 +79,7 @@ export function OpponentStripItem({
     isActive: opponent.isActive,
     inactive,
     stackFormatted: formatCents(opponent.stackCents ?? 0),
-    actionText: actionText,
+    actionText,
     actionTextClassName: opponent.status === "folded" ? "text-danger" : undefined,
     isWinner,
     showTurnBar,

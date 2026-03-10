@@ -25,11 +25,11 @@ function randomIntInclusive(rng: () => number, min: number, max: number): number
   return Math.floor(rng() * (max - min + 1)) + min;
 }
 
-function makePlayer(id: string, seat: number, stackCents: number): PlayerState {
+function makePlayer(id: string, seat: number, stackCents: number, kind: "HUMAN" | "BOT" = "HUMAN"): PlayerState {
   const p = new PlayerState();
   p.id = id;
   p.userId = id;
-  p.kind = "HUMAN";
+  p.kind = kind;
   p.name = id;
   p.seat = seat;
   p.status = "ACTIVE";
@@ -229,6 +229,9 @@ describe("dealer random walk soak", () => {
             expect(toActId, `missing actor id ${trace.join("|")}`).toBeTruthy();
             expect(toActPlayer, `missing actor player ${trace.join("|")}`).toBeTruthy();
             expect(toActPlayer?.needsAction, `actor without needsAction ${trace.join("|")}`).toBe(true);
+            if (toActPlayer?.kind === "HUMAN" && toActPlayer.connected) {
+              expect(state.turnDeadlineMs, `missing human turn deadline ${trace.join("|")}`).toBeGreaterThan(0);
+            }
           }
 
           // Pot accounting invariant during active hands: pot equals total committed.
@@ -314,5 +317,120 @@ describe("dealer random walk soak", () => {
       setTimeoutSpy.mockRestore();
     }
   }, isNightlySoak ? 300_000 : 120_000);
+
+  it("arms a human turn deadline after preflop-to-flop transition", async () => {
+    const state = new PokerState();
+    state.tableId = "table_soak_transition_deadline";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.dealerSeat = 1;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("h1", "h2");
+    state.street = "WAITING";
+
+    state.playersById.set("h1", makePlayer("h1", 0, 6000));
+    state.playersById.set("h2", makePlayer("h2", 1, 6000));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      creditRefund: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
+    const optionsService = new ActionOptionsService();
+
+    await (dealer as any).startHand();
+    expect(state.street).toBe("PREFLOP");
+
+    let guard = 0;
+    let lastPreflopActor = "";
+    while (state.street === "PREFLOP") {
+      guard += 1;
+      if (guard > 8) throw new Error("preflop guard exceeded");
+      const toActId = state.seats[state.toActSeat];
+      expect(toActId).toBeTruthy();
+      const options = optionsService.buildHeroActionOptions(state, toActId!);
+      expect(options).toBeTruthy();
+      const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
+      lastPreflopActor = toActId!;
+      await dealer.handleAction(toActId!, action);
+    }
+
+    expect(state.street).toBe("FLOP");
+    const toActId = state.seats[state.toActSeat];
+    expect(toActId).toBeTruthy();
+    const toActPlayer = state.playersById.get(toActId!);
+    expect(toActPlayer).toBeTruthy();
+    expect(toActPlayer!.kind).toBe("HUMAN");
+    expect(toActPlayer!.connected).toBe(true);
+    expect(toActPlayer!.needsAction).toBe(true);
+    expect(state.turnDeadlineMs, "missing turn deadline on human flop turn").toBeGreaterThan(0);
+    expect(lastPreflopActor).toBeTruthy();
+  });
+
+  it("keeps human deadline armed after preflop check in human-vs-bot flop transition", async () => {
+    const state = new PokerState();
+    state.tableId = "table_soak_human_bot_flop_deadline";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("bot1", "h1");
+    state.street = "WAITING";
+
+    state.playersById.set("bot1", makePlayer("bot1", 0, 6000, "BOT"));
+    state.playersById.set("h1", makePlayer("h1", 1, 6000, "HUMAN"));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      creditRefund: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
+    const optionsService = new ActionOptionsService();
+
+    await (dealer as any).startHand();
+    expect(state.street).toBe("PREFLOP");
+
+    let guard = 0;
+    while (state.street === "PREFLOP") {
+      guard += 1;
+      if (guard > 80) throw new Error("preflop guard exceeded in human-vs-bot setup");
+      const toActId = state.seats[state.toActSeat];
+      if (!toActId) throw new Error("missing toAct seat");
+      if (toActId !== "h1") {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        continue;
+      }
+      const options = optionsService.buildHeroActionOptions(state, toActId);
+      expect(options).toBeTruthy();
+      const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
+      await dealer.handleAction(toActId, action);
+    }
+
+    expect(state.street).toBe("FLOP");
+    const toActId = state.seats[state.toActSeat];
+    expect(toActId).toBe("h1");
+    const toActPlayer = state.playersById.get("h1");
+    expect(toActPlayer?.kind).toBe("HUMAN");
+    expect(toActPlayer?.connected).toBe(true);
+    expect(toActPlayer?.needsAction).toBe(true);
+    expect(state.turnDeadlineMs, "missing turn deadline for human at flop after preflop transition").toBeGreaterThan(0);
+  });
 });
 

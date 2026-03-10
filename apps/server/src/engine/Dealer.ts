@@ -310,6 +310,7 @@ export class Dealer {
       applyDisconnectedAutoActionCapForHand: () => this.applyDisconnectedAutoActionCapForHand(),
       setLastHandResult: (value) => { this.lastHandResult = value; },
       setLastAction: (value) => { if (this.currentHand) this.currentHand.lastAction = value; },
+      onWaitingForActionEntered: (reason) => this.onWaitingForActionEntered(reason),
     });
     this.handOrchestrator = new HandOrchestrator({
       state: this.state,
@@ -615,9 +616,43 @@ export class Dealer {
 
     const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
     const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
-    if (!toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction) {
+    if (!toActPlayer || !eligibleToAct(toActPlayer)) {
       this.clearPendingHumanTurnTimeout();
       return;
+    }
+    if (!toActPlayer.needsAction) {
+      const actionableRound =
+        !bettingRoundComplete(this.state) &&
+        !noFurtherBettingPossible(this.state) &&
+        this.state.runoutMode !== "STAGED";
+      if (
+        actionableRound &&
+        this.state.roundState === "WAITING_FOR_ACTION" &&
+        toActPlayer.kind === "HUMAN" &&
+        toActPlayer.connected &&
+        process.env.NODE_ENV !== "production"
+      ) {
+        throw new PokerError(
+          "BAD_STATE",
+          `WAITING actor does not require action: hand=${this.state.handId} seat=${this.state.toActSeat} street=${this.state.street}`,
+        );
+      }
+      if (!actionableRound) {
+        this.clearPendingHumanTurnTimeout();
+        return;
+      }
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          toActSeat: this.state.toActSeat,
+          userId: toActUserId,
+          trigger,
+        },
+        "TO_ACT_NEEDS_ACTION_REPAIRED_BEFORE_TIMER_ARM",
+      );
+      toActPlayer.needsAction = true;
     }
 
     if (toActPlayer.kind !== "HUMAN" || !toActPlayer.connected) {
@@ -642,6 +677,12 @@ export class Dealer {
         "TURN_TIMER_STARTED",
       );
     }
+  }
+
+  private onWaitingForActionEntered(reason: string): void {
+    this.maybeActForBot();
+    this.ensureHumanTurnTimerForCurrentActor(`ROUND_STATE_ENTER:${reason}`);
+    this.logEngineDecisionState(`ROUND_STATE_ENTER:${reason}`);
   }
 
   async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
@@ -1308,8 +1349,32 @@ export class Dealer {
     }
 
     this.ensureHumanTurnTimerForCurrentActor("ACTION_RESOLVED_NEXT_ACTOR");
+    this.logEngineDecisionState("ACTION_RESOLVED_NEXT_ACTOR");
     this.logToActDerivationWarning("ACTION_RESOLVED_NEXT_ACTOR");
     this.logEngineDecisionAndRuntimeStep("ACTION_RESOLVED_NEXT_ACTOR");
+  }
+
+  private logEngineDecisionState(trigger: string): void {
+    const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        toActUserId,
+        needsAction: toActPlayer?.needsAction ?? null,
+        actorKind: toActPlayer?.kind ?? null,
+        actorConnected: toActPlayer?.connected ?? null,
+        deadline: this.state.turnDeadlineMs,
+        runoutMode: this.state.runoutMode,
+        queueDepth: this.turnManager.getQueueDepth(),
+        trigger,
+      },
+      "ENGINE_DECISION_STATE",
+    );
   }
 
   private logToActDerivationWarning(trigger: string): void {

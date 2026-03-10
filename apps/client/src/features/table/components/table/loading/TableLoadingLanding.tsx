@@ -60,10 +60,10 @@ export function TableLoadingLanding({
       style={{
         paddingHorizontal: compact ? 12 : 16,
         paddingVertical: compact ? 14 : 22,
-        justifyContent: "center",
+        justifyContent: "flex-start",
       }}
     >
-      <View style={{ width: "100%", maxWidth: 760, alignSelf: "center" }} className="gap-4">
+      <View style={{ width: "100%" }} className="gap-4">
         <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
           <View className="flex-row items-center gap-3">
             <LoadingIndicatorMinimal reducedMotion={reducedMotion} />

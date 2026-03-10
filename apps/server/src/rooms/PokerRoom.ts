@@ -451,12 +451,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           this.lastSnapshotAt > 0 &&
           now - this.lastSnapshotAt > STALL_THRESHOLD_MS
         ) {
+          const stallReason = this.dealer.getStallReasonPublic(now);
           if (this.lastStallLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
             logger.warn(
               {
                 roomId: this.roomId,
                 tableId: this.state.tableId,
                 handId: this.state.handId,
+                stallReason,
                 street: this.state.street,
                 toActSeat: this.state.toActSeat,
                 snapshotSeq: this.lastSnapshotSeq,
@@ -470,7 +472,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
               logger.warn(
-                { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId },
+                { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, stallReason },
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;

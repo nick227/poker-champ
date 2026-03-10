@@ -161,6 +161,7 @@ export class HandLifecycleService {
     applyDisconnectedAutoActionCapForHand: () => Promise<void>;
     setLastHandResult: (value: TableSnapshotPayload["lastHandResult"] | undefined) => void;
     setLastAction: (value: TableSnapshotPayload["lastAction"] | undefined) => void;
+    onWaitingForActionEntered?: (reason: string) => void;
   }) {}
 
   // ============================================================================
@@ -256,6 +257,9 @@ export class HandLifecycleService {
     }
     this.deps.state.roundState = next;
     logger.info(commonLogFields, "ROUND_STATE_TRANSITION");
+    if (next === "WAITING_FOR_ACTION") {
+      this.deps.onWaitingForActionEntered?.(reason);
+    }
     return true;
   }
 
@@ -656,9 +660,26 @@ export class HandLifecycleService {
       state.runoutMode = "STAGED";
       return this.finishHandShowdownWithSidePots();
     }
-    this.transitionRoundState("WAITING_FOR_ACTION", "NEXT_STREET_ACTIONABLE");
-
     const toActUserId = state.seats[state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || toActPlayer.status !== "ACTIVE") {
+      throw new PokerError("BAD_STATE", "Street advance selected non-ACTIVE toAct player.");
+    }
+    // Defensive self-heal: actionable toAct must require action on new street.
+    if (!toActPlayer.needsAction) {
+      logger.warn(
+        {
+          tableId: state.tableId,
+          handId: state.handId,
+          street: state.street,
+          toActSeat: state.toActSeat,
+          toActUserId,
+        },
+        "TO_ACT_NEEDS_ACTION_REPAIRED_AFTER_STREET_ADVANCE",
+      );
+      toActPlayer.needsAction = true;
+    }
+    this.transitionRoundState("WAITING_FOR_ACTION", "NEXT_STREET_ACTIONABLE");
     logger.info(
       { tableId: state.tableId, handId: state.handId, street: next, toActSeat: state.toActSeat, toActUserId },
       "STREET_ADVANCE_COMPLETED",
