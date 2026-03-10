@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import pLimit from "p-limit";
 import { nanoid } from "nanoid";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { logger } from "../../lib/logger.js";
 
 export type LeaderboardPeriod = "daily" | "weekly" | "all_time";
@@ -875,3 +875,4 @@ export async function recomputeLeaderboardSafely() {
     logger.info({ computedAt, durationMs }, "Leaderboard snapshots recomputed");
   }
 }
+

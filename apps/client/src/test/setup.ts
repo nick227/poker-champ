@@ -48,3 +48,37 @@ vi.mock("@/registry/sound.registry", () => ({
   getSoundsByCategory: (category: string) =>
     SOUND_KEYS_LIST.filter((k) => SOUND_MAP[k].category === category),
 }));
+
+const noop = () => {};
+
+vi.mock("expo-router", () => {
+  const Stack = Object.assign(noop, { Screen: noop });
+  const Redirect = noop;
+  const Link = ({ children }: { children?: unknown }) => children ?? null;
+
+  return {
+    Stack,
+    Redirect,
+    Link,
+    useRouter: () => ({
+      push: noop,
+      replace: noop,
+      back: noop,
+      setParams: noop,
+      canGoBack: () => false,
+    }),
+    useLocalSearchParams: () => ({}),
+    usePathname: () => "/",
+  };
+});
+
+vi.mock("@react-navigation/native", () => ({
+  DarkTheme: {},
+  ThemeProvider: ({ children }: { children?: unknown }) => children ?? null,
+  useNavigation: () => ({
+    navigate: noop,
+    goBack: noop,
+    dispatch: noop,
+    setOptions: noop,
+  }),
+}));

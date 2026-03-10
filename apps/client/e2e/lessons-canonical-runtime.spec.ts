@@ -47,6 +47,25 @@ async function recoverFromSdkBootstrapRace(page: Page) {
   }
 }
 
+async function waitForLessonScreen(page: Page, timeoutMs = 25_000) {
+  await expect(
+    page.getByText(/Loading lesson\.\.\.|Step \d+\/\d+|Lesson unavailable\.|SDK base URL is not configured/i).first(),
+  ).toBeVisible({ timeout: timeoutMs });
+}
+
+async function recoverIfBundleFails(page: Page, timeoutMs = 15_000): Promise<void> {
+  try {
+    const res = await page.waitForResponse((r) => r.url().includes(".bundle"), { timeout: timeoutMs });
+    if (res.status() >= 500) {
+      console.warn(`App bundle failed (${res.status()}), reloading...`);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await recoverFromSdkBootstrapRace(page);
+    }
+  } catch (err) {
+    // If it timeouts, maybe it was cached or already loaded, proceed.
+  }
+}
+
 async function chooseAction(page: Page, preferred: RegExp) {
   const candidates = [preferred, /^Call\b/i, /^Fold\b/i, /^Raise\b/i, /^All-In\b/i];
   for (const pattern of candidates) {
@@ -73,6 +92,8 @@ test.describe("canonical lessons runtime", () => {
     await hydrateToken(page, token);
     await page.goto("/lesson/L01", { waitUntil: "domcontentloaded" });
     await recoverFromSdkBootstrapRace(page);
+    await recoverIfBundleFails(page);
+    await waitForLessonScreen(page);
     await expect(page.getByText(/Step 1\/1/i)).toBeVisible({ timeout: 20_000 });
 
     let decisionSubmitCount = 0;
@@ -120,6 +141,8 @@ test.describe("canonical lessons runtime", () => {
     await hydrateToken(page, token);
     await page.goto("/lesson/L13", { waitUntil: "domcontentloaded" });
     await recoverFromSdkBootstrapRace(page);
+    await recoverIfBundleFails(page);
+    await waitForLessonScreen(page);
     await expect(page.getByText(/Step 1\/1/i)).toBeVisible({ timeout: 20_000 });
 
     await chooseAction(page, /^Call$/i);

@@ -5,7 +5,7 @@ import { buildTableConfig } from "../lobby/TableManager.js";
 import { CreateTableSchema } from "../lobby/schemas.js";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 
 const router = express.Router();
 const InstantPresetIdSchema = z.enum(["MULTIPLAYER_RING", "HEADS_UP_BOT"]);
@@ -331,7 +331,7 @@ router.get("/chat/messages", requireAuth, async (req, res) => {
   }
 
   try {
-    const prisma = getPrisma() as any;
+    const prisma = getPrisma();
     const rows = await prisma.lobbyChatMessage.findMany({
       where: {
         scope,
@@ -359,7 +359,7 @@ router.get("/chat/messages", requireAuth, async (req, res) => {
     });
 
     res.json({
-      messages: rows.map((row: any) => ({
+      messages: rows.map((row) => ({
         id: row.id,
         scope: row.scope,
         senderUserId: row.senderUserId,
@@ -376,3 +376,4 @@ router.get("/chat/messages", requireAuth, async (req, res) => {
 });
 
 export const lobbyRouter = router;
+

@@ -9,7 +9,7 @@ describe("auto action rule", () => {
   });
 
   it("auto fold when facing bet", () => {
-    const callAmount = 200;
+    const callAmount: number = 200;
     const action = callAmount===0 ? "AUTO_CHECK" : "AUTO_FOLD";
     expect(action).toBe("AUTO_FOLD");
   });

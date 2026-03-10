@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import express from "express";
 import http from "node:http";
-import * as prismaDb from "../../db/prisma.js";
+import * as prismaDb from "@poker-champ/db";
 import { botRouter } from "../BotRouter.js";
 
 const app = express();
@@ -106,3 +106,4 @@ describe("BotRouter", () => {
     });
   });
 });
+

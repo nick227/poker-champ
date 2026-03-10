@@ -43,7 +43,7 @@
 
 import { Client } from "@colyseus/core";
 import { logger } from "../lib/logger.js";
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import {
@@ -56,19 +56,19 @@ import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
 import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { BotResolver } from "./bots/BotResolver.js";
-import { SnapshotService, type SnapshotReason } from "./dealer/services/SnapshotService.js";
-import { ActionService, type ActionResult, type ActionServiceLastAction, type ActionDebitKind } from "./dealer/services/ActionService.js";
-import { SettlementService } from "./dealer/services/SettlementService.js";
-import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/services/HandLifecycleService.js";
-import { TurnAutomationService } from "./dealer/services/TurnAutomationService.js";
+import { SnapshotService, type SnapshotReason } from "./dealer/hand/SnapshotService.js";
+import { ActionService, type ActionResult, type ActionServiceLastAction, type ActionDebitKind } from "./dealer/turn/ActionService.js";
+import { SettlementService } from "./dealer/settlement/SettlementService.js";
+import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/hand/HandLifecycleService.js";
+import { TurnAutomationService } from "./dealer/turn/TurnAutomationService.js";
 import { BOT_ACTION_DELAY_MIN_MS, BOT_ACTION_DELAY_MAX_MS, TURN_TIMEOUT_TOTAL_MS } from "./dealer/timing.js";
-import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/services/PlayerLifecycleService.js";
-import { ActionOptionsService } from "./dealer/services/ActionOptionsService.js";
-import { SessionPlayerStatsTracker } from "./dealer/services/SessionPlayerStatsTracker.js";
-import { TurnManager } from "./dealer/services/TurnManager.js";
-import { LifecycleExecutor } from "./dealer/services/LifecycleExecutor.js";
-import { HandOrchestrator } from "./dealer/services/HandOrchestrator.js";
-import { DisconnectManager } from "./dealer/services/DisconnectManager.js";
+import { PlayerLifecycleService, type PlayerLifecyclePlan } from "./dealer/hand/PlayerLifecycleService.js";
+import { ActionOptionsService } from "./dealer/turn/ActionOptionsService.js";
+import { SessionPlayerStatsTracker } from "./dealer/settlement/SessionPlayerStatsTracker.js";
+import { TurnManager } from "./dealer/turn/TurnManager.js";
+import { LifecycleExecutor } from "./dealer/hand/LifecycleExecutor.js";
+import { HandOrchestrator } from "./dealer/hand/HandOrchestrator.js";
+import { DisconnectManager } from "./dealer/hand/DisconnectManager.js";
 import type { FrameReason } from "./replay/FrameReason.js";
 import {
   countNonOutPlayers,
@@ -160,7 +160,9 @@ export class Dealer {
     for (const listener of this.diagnosticListeners) {
       try {
         listener(event);
-      } catch {}
+      } catch (err) {
+        void err;
+      }
     }
   }
 
@@ -539,11 +541,14 @@ export class Dealer {
   }
 
   async kickUser(userId: string, reason: string) {
+    void reason;
     const client = this.clientsByUserId.get(userId);
     if (client) {
       try {
         client.leave();
-      } catch {}
+      } catch (err) {
+        void err;
+      }
     }
     await this.markAbandoned(userId);
   }
@@ -1178,3 +1183,4 @@ export class Dealer {
   }
 
 }
+

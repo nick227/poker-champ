@@ -1,5 +1,5 @@
 export const SURFACE_RHYTHM = {
-  screenPadding: "px-5",
+  screenPadding: "px-0",
   sectionPadding: "p-4",
   cardPadding: "p-4",
   stackGap: "gap-3",

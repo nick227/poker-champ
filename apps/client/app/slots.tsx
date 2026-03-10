@@ -2,15 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { BottomBar } from "@/components/containers/BottomBar";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { OnlinePlayersSheet } from "@/features/lobby";
 import { storeRegistry } from "@/registry/store.registry";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 
 export default function SlotsScreen() {
   const profile = useProfile();
@@ -75,3 +75,4 @@ export default function SlotsScreen() {
     </Screen>
   );
 }
+

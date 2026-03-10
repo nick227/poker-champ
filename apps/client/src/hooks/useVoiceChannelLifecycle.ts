@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { createVoiceController } from "@/voice/client/create-voice-controller";
 import { ColyseusVoiceAdapter } from "@/voice/adapters/ColyseusVoiceAdapter";
-import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
+import type { TableRealtimeRoom } from "@/features/table/realtime/useTableRealtime";
 
 export type UseVoiceChannelLifecycleOptions = {
   room: TableRealtimeRoom | null;
@@ -92,3 +92,4 @@ export function useVoiceChannelLifecycle({
 
   return { controllerRef };
 }
+

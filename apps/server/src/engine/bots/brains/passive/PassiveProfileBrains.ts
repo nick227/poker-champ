@@ -1,4 +1,4 @@
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { BotActionContext, BotBrain } from "../../BotBrain.js";
 import { computeDerived, getLegalActions, type LegalActionDescriptor } from "../../utils/decision.js";
 import { nextRandom } from "../../rng.js";

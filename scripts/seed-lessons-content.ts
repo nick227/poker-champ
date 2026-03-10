@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TableSnapshotPayloadSchema, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 
 type StepConfigOption = {
   optionKey: string;
@@ -401,3 +401,4 @@ seedLessons()
     await disconnectPrisma();
     process.exit(1);
   });
+

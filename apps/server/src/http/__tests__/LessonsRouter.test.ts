@@ -287,7 +287,7 @@ const {
   return { state, prismaMock };
 });
 
-vi.mock("../../db/prisma.js", () => ({
+vi.mock("@poker-champ/db", () => ({
   getPrisma: () => prismaMock,
 }));
 
@@ -811,3 +811,4 @@ describe("LessonsRouter", () => {
     expect(submitBody.attempt.status).toBe("COMPLETED");
   });
 });
+

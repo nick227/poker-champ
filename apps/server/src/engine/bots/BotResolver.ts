@@ -1,4 +1,4 @@
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { PlayerState } from "../../state/PlayerState.js";
 import type { BotActionContext } from "./BotBrain.js";
 import { SeededRng } from "./BotBrain.js";

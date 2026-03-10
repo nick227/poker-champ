@@ -15,7 +15,7 @@ function shouldRetryPrismaGenerate(message) {
 }
 
 function runPrismaGenerate() {
-  const result = spawnSync("pnpm", ["exec", "prisma", "generate"], {
+  const result = spawnSync("pnpm", ["exec", "prisma", "generate", "--schema", "packages/db/prisma/schema.prisma"], {
     shell: process.platform === "win32",
     encoding: "utf8",
   });

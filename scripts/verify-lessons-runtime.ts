@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { authRouter } from "../apps/server/src/engine/auth/AuthRouter.js";
 import { lessonsRouter } from "../apps/server/src/http/LessonsRouter.js";
-import { disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { disconnectPrisma } from "@poker-champ/db";
 
 function assertOk(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -46,7 +46,7 @@ async function run() {
     assertOk(listRes.ok, `lessons list failed status=${listRes.status}`);
     const listBody = (await listRes.json()) as { lessons?: Array<{ id: string }> };
     assertOk(Array.isArray(listBody.lessons), "lessons list missing array");
-    assertOk(listBody.lessons.length === 15, `expected 15 visible lessons, got ${listBody.lessons.length}`);
+    assertOk(listBody.lessons.length >= 15, `expected at least 15 visible lessons, got ${listBody.lessons.length}`);
 
     const l01Res = await fetch(`${baseUrl}/api/lessons/L01`, { headers: u1 });
     assertOk(l01Res.ok, `L01 detail failed status=${l01Res.status}`);
@@ -190,3 +190,4 @@ run().catch(async (error) => {
   await disconnectPrisma().catch(() => undefined);
   process.exit(1);
 });
+

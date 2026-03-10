@@ -1,8 +1,8 @@
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { TableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
+import type { TableSceneModel } from "@/features/table";
 import type { ReplayController } from "@/types/replayController";
-import type { Opponent } from "@/components/domain/table/views/ActiveTableView";
-import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
+import type { Opponent } from "@/features/table";
+import type { ActionBarOnAction } from "@/features/table";
 
 export type ReplayMessage = {
   id: string;
@@ -35,4 +35,5 @@ export type ReplaySurfaceProps = {
   controller: ReplayController;
   compact?: boolean;
 };
+
 

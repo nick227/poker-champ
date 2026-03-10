@@ -1,5 +1,5 @@
 import type { TableLastAction, TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { HandResultMessage } from "@/components/domain/table/table.types";
+import type { HandResultMessage } from "@/features/table";
 import { formatCents } from "@/lib/format";
 
 function buildActionMessage(action: TableLastAction, actorName: string): string {
@@ -60,3 +60,4 @@ export function getReplayHandResultMessage(
     winningHandDescr: result.winningHandDescr,
   };
 }
+

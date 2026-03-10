@@ -2,7 +2,7 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 
 type LockFile = {
   curriculumTag: string;
@@ -109,4 +109,5 @@ run()
     await disconnectPrisma();
     process.exit(1);
   });
+
 

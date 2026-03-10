@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildSidePots, splitPotCents } from "./SidePotManager.js";
 import { PlayerState } from "../../state/PlayerState.js";
-import { SettlementService } from "../dealer/services/SettlementService.js";
+import { SettlementService } from "../dealer/settlement/SettlementService.js";
 import { PokerState } from "../../state/PokerState.js";
 
 function makePlayer(input: {
@@ -49,7 +49,12 @@ function makeSettlementService() {
     assertHandBalanced: vi.fn(),
   } as any;
 
-  const service = new SettlementService({ state, persistence });
+  const service = new SettlementService({
+    state,
+    persistence,
+    getHoleCardsByPlayerId: () => new Map<string, string[]>(),
+    getHandStartingStacksByPlayerId: () => new Map<string, number>(),
+  });
   return { service, state, persistence, recordPayout };
 }
 
@@ -314,3 +319,4 @@ describe("SettlementService - End-to-End Money Safety", () => {
     expect(players.find(p => p.id === "P2")!.stackCents).toBe(stacksBefore.get("P2")!);
   });
 });
+

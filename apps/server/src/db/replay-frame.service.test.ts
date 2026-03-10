@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import * as prismaDb from "./prisma.js";
+import * as prismaDb from "@poker-champ/db";
 import { ReplayFrameService } from "../engine/persistence/ReplayFrameService.js";
 
 function makeSnapshot(
@@ -25,6 +25,7 @@ function makeSnapshot(
       bigBlindCents: 100,
       minBuyInCents: 1000,
       maxBuyInCents: 10000,
+      showStats: false,
     },
     hand: {
       handId: "h_replay",
@@ -52,6 +53,7 @@ function makeSnapshot(
         roundBetCents: 50,
         committedCents: 50,
         connected: true,
+        disconnectDeadlineTs: 0,
         isDealer: true,
         isToAct: true,
       },
@@ -66,6 +68,7 @@ function makeSnapshot(
         roundBetCents: 100,
         committedCents: 100,
         connected: true,
+        disconnectDeadlineTs: 0,
         isDealer: false,
         isToAct: false,
       },

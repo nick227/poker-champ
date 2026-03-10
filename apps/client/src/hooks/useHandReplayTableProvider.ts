@@ -9,9 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { historyService } from "@/services/history.service";
 import { storeRegistry } from "@/registry/store.registry";
-import { assertTableProvider } from "@/types/tableProvider";
 import type { ReplayController, ReplayTableProvider } from "@/types/replayController";
-import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
+import { buildTableSceneModel } from "@/features/table/model";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
 
 export interface HandReplayResult {
@@ -125,13 +124,13 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
   const sceneModel = buildReplayDisabledSceneModel(
     buildTableSceneModel(currentSnapshot, null, "CONNECTED"),
   );
-  const tableProvider = assertTableProvider({
+  const tableProvider = {
     snapshot: currentSnapshot,
     sceneModel,
     onAction: () => {
       console.warn("[REPLAY] Actions are disabled in replay mode");
     },
-  });
+  };
 
   const replayController: ReplayController = {
     currentStep,
@@ -160,4 +159,5 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
     error: null,
   };
 }
+
 

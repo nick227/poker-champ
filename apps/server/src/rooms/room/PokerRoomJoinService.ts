@@ -13,12 +13,29 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
     private readonly session: PokerRoomSessionManager,
   ) {}
 
-  async handleJoin(client: Client, options: any, auth?: any): Promise<void> {
+  private static asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  }
+
+  private static asErrorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+  }
+
+  async handleJoin(client: Client, options: unknown, auth?: unknown): Promise<void> {
     const room = this.ctx.room;
-    const userId = auth?.userId;
+    const authObj = PokerRoomJoinService.asRecord(auth);
+    const userId = typeof authObj.userId === "string" ? authObj.userId : undefined;
+    const username =
+      typeof authObj.username === "string" && authObj.username.trim().length > 0
+        ? authObj.username
+        : userId
+          ? `player_${userId.slice(0, 6)}`
+          : "player_unknown";
+    const optionsObj = PokerRoomJoinService.asRecord(options);
+    const buyInValue = optionsObj.buyInCents;
     const requestedBuyInCents =
-      Number.isInteger(options?.buyInCents) && (options?.buyInCents as number) > 0
-        ? (options!.buyInCents as number)
+      Number.isInteger(buyInValue) && (buyInValue as number) > 0
+        ? (buyInValue as number)
         : null;
 
     const lockKey = `${this.ctx.state.tableId}:${userId ?? client.sessionId}`;
@@ -37,8 +54,8 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
           tableId: this.ctx.state.tableId,
           sessionId: client.sessionId,
           userId,
-          hasBuyIn: Number.isInteger(options?.buyInCents),
-          buyInCents: options?.buyInCents,
+          hasBuyIn: Number.isInteger(optionsObj.buyInCents),
+          buyInCents: optionsObj.buyInCents,
         },
         "POKER_JOIN_ATTEMPT",
       );
@@ -78,7 +95,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         if (shouldApplyJoinBuyInOverride) {
           try {
             await room.processJoinBuyInForZeroStackSeatInternal(userId, requestedBuyInCents);
-          } catch (err: any) {
+          } catch (err: unknown) {
             this.ctx.logger.warn(
               {
                 roomId: room.roomId,
@@ -86,12 +103,12 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
                 userId,
                 buyInCents: requestedBuyInCents,
                 code: err instanceof PokerError ? err.code : "JOIN_BUYIN_FAILED",
-                message: err?.message ?? String(err),
+                message: PokerRoomJoinService.asErrorMessage(err),
               },
               "POKER_JOIN_BUYIN_OVERRIDE_FAILED",
             );
             if (err instanceof PokerError) room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message });
-            else room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_BUYIN_FAILED", message: err?.message ?? String(err) });
+            else room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_BUYIN_FAILED", message: PokerRoomJoinService.asErrorMessage(err) });
             client.leave();
             return;
           }
@@ -101,7 +118,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         room.logRestoreBindOkInternal(userId, client.sessionId);
         await room.markReconnectedSafeInternal(userId);
         await room.clearSittingOutOnRestoreSafeInternal(userId);
-        room.addTablePresenceInternal(client, userId, auth.username);
+        room.addTablePresenceInternal(client, userId, username);
         if (room.persistentSeatsEnabledInternal) {
           const stackCents = room.getPlayerStackCentsInternal(userId);
           await TableSeatSessionService.touchConnected({
@@ -138,13 +155,13 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
             });
           } else {
             try {
-              await this.ctx.dealer.restorePlayerFromSession(userId, auth.username, persisted.seat, persisted.stackCentsSnapshot);
+              await this.ctx.dealer.restorePlayerFromSession(userId, username, persisted.seat, persisted.stackCentsSnapshot);
               room.updateMetadataCountsInternal();
               this.session.rebindClientExclusive(userId, client);
               room.logRestoreBindOkInternal(userId, client.sessionId);
               await room.markReconnectedSafeInternal(userId);
               await room.clearSittingOutOnRestoreSafeInternal(userId);
-              room.addTablePresenceInternal(client, userId, auth.username);
+              room.addTablePresenceInternal(client, userId, username);
               await TableSeatSessionService.touchConnected({
                 tableId: this.ctx.state.tableId,
                 userId,
@@ -156,20 +173,20 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
               this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_JOIN_REBOUND_PERSISTED");
               room.handleEmptyStateChangeInternal();
               return;
-            } catch (err: any) {
+            } catch (err: unknown) {
               this.ctx.logger.warn(
                 {
                   roomId: room.roomId,
                   tableId: this.ctx.state.tableId,
                   userId,
                   code: err instanceof PokerError ? err.code : "RESTORE_FAILED",
-                  message: err?.message ?? String(err),
+                  message: PokerRoomJoinService.asErrorMessage(err),
                 },
                 "POKER_JOIN_REBOUND_PERSISTED_FAILED",
               );
               room.sendTableMessageInternal(client, "ERROR", {
                 code: err instanceof PokerError ? err.code : "RESTORE_FAILED",
-                message: err?.message ?? "Failed to restore persisted seat.",
+                message: err instanceof PokerError ? err.message : "Failed to restore persisted seat.",
               });
               client.leave();
               return;
@@ -178,7 +195,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         }
       }
 
-      const parsedJoin = TableJoinOptionsSchema.safeParse(options ?? {});
+      const parsedJoin = TableJoinOptionsSchema.safeParse(optionsObj);
       if (!parsedJoin.success) {
         const hasBuyInIssue = parsedJoin.error.issues.some((issue: ZodIssue) => issue.path[0] === "buyInCents");
         this.ctx.logger.warn(
@@ -199,7 +216,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         return;
       }
 
-      const name = auth.username;
+      const name = username;
       const buyInCents = parsedJoin.data.buyInCents;
 
       try {
@@ -232,23 +249,23 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
           tableId: this.ctx.state.tableId,
           joinMode: "NEW",
         });
-        room.addTablePresenceInternal(client, userId, auth.username);
+        room.addTablePresenceInternal(client, userId, username);
         await room.emitSnapshotsToAllSafeInternal("JOIN");
         this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_JOIN_SUCCESS");
         room.handleEmptyStateChangeInternal();
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.ctx.logger.warn(
           {
             roomId: room.roomId,
             tableId: this.ctx.state.tableId,
             userId,
             code: err instanceof PokerError ? err.code : "JOIN_FAILED",
-            message: err?.message ?? String(err),
+            message: PokerRoomJoinService.asErrorMessage(err),
           },
           "POKER_JOIN_FAILED",
         );
         if (err instanceof PokerError) room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message });
-        else room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: err?.message ?? String(err) });
+        else room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: PokerRoomJoinService.asErrorMessage(err) });
         client.leave();
       }
     });

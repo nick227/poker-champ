@@ -5,8 +5,8 @@
     "moduleResolution": "Bundler",
     "baseUrl": ".",
     "paths": {
-      "@poker-champ/api-types": ["packages/api-types/src/index.ts"],
-      "@poker-champ/api-types/*": ["packages/api-types/src/*"]
+      "@poker-champ/db": ["packages/db/src/index.ts"],
+      "@poker-champ/db/*": ["packages/db/src/*"]
     },
     "outDir": "dist",
     "rootDir": "./",
@@ -20,11 +20,9 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false,
     "useDefineForClassFields": false
-  },
-  "include": ["apps/server/src/**/*", "packages/api-types/src/**/*"],
-  "exclude": [
-    "apps/server/src/**/*.test.ts",
-    "apps/server/src/**/*.test.tsx",
-    "apps/server/src/**/__tests__/**/*"
-  ]
-}
+    },
+    "include": [
+      "apps/server/src/**/*",
+      "packages/db/src/**/*"
+    ]
+    }

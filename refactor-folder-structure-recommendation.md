@@ -46,10 +46,10 @@ Remove generic container folders like `services/`, `utils/`, or `helpers/` when 
 As directories like `src/engine/dealer/` or its sub-features are flattened/restructured, introduce `index.ts` files at domain boundaries to explicitly export public-facing logic.
 - **Why?** This defines a clear "Public API" for the domain, preventing consumers from making "deep imports" into internal logic. It makes future refactoring easier by decoupling the internal file structure of a domain from its external consumers.
 
-## Priority 5: Formalize a `packages/api-types` Package
+## Priority 5: Use `packages/realtime-contract` as Contract Source of Truth
 
 **Recommendation:**
-Extract shared TypeScript interfaces used by both the frontend and backend into a dedicated shared package (e.g., `packages/api-types` or `packages/shared-types`).
+Use `packages/realtime-contract` as the single shared contract package for frontend/backend message and DTO schemas.
 - **Why?** This ensures that changes to core poker logic, models, or message shapes are immediately and safely reflected in both the server and client, reducing runtime boundary errors and "out of sync" type definitions.
 
 ## Priority 6: Move from Layer-Based to Feature-Based Client Structure
@@ -113,11 +113,10 @@ poker-champ/
 │           ├── http/
 │           └── tests/             <-- (Integration only)
 ├── packages/
-│   ├── api-types/                 <-- (Shared interfaces)
 │   ├── db/                        <-- (Shared Prisma client/migrations)
 │   ├── lessons-engine/            <-- (Shared grading/state logic)
 │   ├── poker-math/                <-- (Shared stack/pot/odds logic)
-│   ├── realtime-contract/
+│   ├── realtime-contract/         <-- (Shared contracts source of truth)
 │   └── sdk/
 └── package.json
 ```
@@ -126,11 +125,11 @@ poker-champ/
 
 To limit breakage, this refactor should not be a single massive PR. Execute this in strictly green-CI phases:
 
-**Phase 1: App Boundaries & Shared Types**
+**Phase 1: App Boundaries & Shared Contracts**
 1. **ADR:** Write a short Architecture Decision Record (ADR) or checklist so the team follows this convention going forward.
 2. Initialize `apps/server` (or `apps/engine`) and its `package.json`. Move the root `src/` directory into it. 
 3. **Important:** Add/update project references and aliases (`tsconfig.json`, Jest/Vitest, ESLint, bundler) **before** moving files to avoid import chaos.
-4. Extract shared types into `packages/api-types`. Wait for CI green.
+4. Extract shared types into `packages/realtime-contract`. Wait for CI green.
 
 **Phase 2: Test Co-location**
 1. Run a migration script to automatically move `tests/**/*.test.ts` files (unit tests) to their corresponding source directories based on import statements or filename matching.
@@ -164,7 +163,7 @@ To limit breakage, this refactor should not be a single massive PR. Execute this
 6. Define `index.ts` boundary policy:
    - Consumers import only from public `index.ts` boundaries
    - Deep imports into internal module files are disallowed
-7. Define ownership and versioning for `packages/api-types`:
+7. Define ownership and versioning for `packages/realtime-contract`:
    - Assign package owners for approval on breaking type changes
    - Choose versioning and release flow (workspace lockstep or independent semver) before migration starts
 
@@ -175,7 +174,7 @@ Use this map to execute changes in deterministic chunks and resume safely if wor
 | Scope | Current Path(s) | Target Path(s) | Completion Signal |
 |---|---|---|---|
 | Server app boundary | `src/**` | `apps/server/src/**` | `apps/server/package.json` exists, root `src/` removed |
-| Shared contracts | `src/types/**`, `src/messages/**`, shared DTOs in `src/http/**` and `src/engine/**` | `packages/api-types/src/**` | Both server and client import from `@poker-champ/api-types` |
+| Shared contracts | `src/types/**`, `src/messages/**`, shared DTOs in `src/http/**` and `src/engine/**` | `packages/realtime-contract/src/**` | Both server and client import from `@poker-champ/realtime-contract` |
 | Dealer domain flattening | `apps/server/src/engine/dealer/services/**` and `apps/server/src/engine/dealer/utils/**` | `apps/server/src/engine/dealer/turn/**`, `.../hand/**`, `.../settlement/**` | No imports from `dealer/services` remain |
 | Backend tests | `apps/server/src/tests/**/*.test.ts` | Co-located under owning domain (`engine/**`, `http/**`, `rooms/**`) | `apps/server/src/tests` contains only integration suites |
 | Client tests | `apps/client/src/tests/**`, `apps/client/src/test/**`, scattered `__tests__` | Co-located unit tests + keep `apps/client/e2e/**` | `src/tests` removed or only contains agreed integration tests |
@@ -229,7 +228,7 @@ Beyond folder movement, this refactor is a good time to standardize conventions 
 7. Logging/observability shape:
    - Standard structured log fields (`requestId`, `tableId`, `playerId`, `phase`, `durationMs`) across `http`, `engine`, and `rooms`.
 8. API versioning discipline:
-   - Version API contracts in `packages/api-types` and `openapi.json` together, with a compatibility checklist in PR template.
+   - Version API contracts in `packages/realtime-contract` and `openapi.json` together, with a compatibility checklist in PR template.
 9. Code generation boundaries:
    - Generated files (for example `packages/sdk/src/types.gen.ts`) should have explicit source-of-truth pointers and a single regeneration command.
 10. CI pipeline consistency:

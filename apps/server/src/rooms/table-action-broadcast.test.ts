@@ -6,7 +6,7 @@ import { TableSnapshotLogService } from "../engine/persistence/TableSnapshotLogS
 import { RandomBotBrain } from "../engine/bots/BotBrain.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
-vi.mock("../db/prisma.js", () => {
+vi.mock("@poker-champ/db", () => {
   const mockTx = {
     userAward: { findMany: () => Promise.resolve([]), create: () => Promise.resolve({}), update: () => Promise.resolve({}) },
     userHandCount: { findMany: () => Promise.resolve([]), update: () => Promise.resolve({}) },
@@ -583,3 +583,4 @@ async function setupHumanVsBotRoom() {
     }
   });
 });
+

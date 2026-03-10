@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { useHandReplayTableProvider } from "@/hooks/useHandReplayTableProvider";
 import { useBankroll } from "@/hooks/useBankroll";
-import { mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
+import { mapSeatsToOpponents } from "@/features/table";
 import { ReplaySurface } from "./ReplaySurface";
 
 interface ReplayFromRemoteSourceProps {
@@ -55,3 +55,4 @@ export function ReplayFromRemoteSource({
 
   return <ReplaySurface {...surfaceProps} />;
 }
+

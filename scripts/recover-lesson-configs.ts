@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -93,4 +93,5 @@ recover()
     await disconnectPrisma();
     process.exit(1);
   });
+
 

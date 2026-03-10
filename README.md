@@ -31,6 +31,22 @@ This is a monorepo containing the following components:
 pnpm install
 ```
 
+**Adding client (Expo) dependencies:** Use pnpm so the repo’s `workspace:*` protocol is respected.
+
+From repo root (recommended):
+```bash
+pnpm add <package-name> --filter @poker-champ/client
+```
+
+If you use Expo’s installer for SDK-compatible versions, pass `--pnpm` (or use the script):
+```bash
+pnpm -C apps/client exec expo install --pnpm <package-name>
+# or
+pnpm -C apps/client add-expo -- <package-name>
+```
+
+Use [Expo SDK docs](https://docs.expo.dev/versions/latest/) or [reactnative.directory](https://reactnative.directory) for compatible versions.
+
 ### Running the Project
 
 **1. Start the Server:**

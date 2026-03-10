@@ -6,7 +6,7 @@
  */
 
 import "dotenv/config";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 import { ReplayFrameService } from "../apps/server/src/engine/persistence/ReplayFrameService.js";
 
 const STREET_ORDER: Record<string, number> = {
@@ -170,3 +170,4 @@ main()
     console.error(err);
     process.exit(1);
   });
+

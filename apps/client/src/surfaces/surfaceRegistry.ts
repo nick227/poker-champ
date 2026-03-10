@@ -63,7 +63,7 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     { elevationPreset: 0 },
   ),
   "surface.screen.base": createDefinition(
-    `flex-1 bg-bg/70 ${SURFACE_SPACING.screenX}`,
+    `flex-1 ${SURFACE_SPACING.screenX}`,
     { paddingPreset: "lg", elevationPreset: 0 },
   ),
   "surface.nav.top": createDefinition(
@@ -116,7 +116,7 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     radiusPreset: "md",
     elevationPreset: 2,
   }),
-  "surface.sim.table": createDefinition("bg-transparent", {
+  "surface.sim.table": createDefinition("bg-table", {
     paddingPreset: "none",
     elevationPreset: 0,
   }),
@@ -136,7 +136,7 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     "border-t border-border-subtle flex items-center justify-center",
     { paddingPreset: "none", elevationPreset: 1 },
   ),
-  "surface.sim.replay": createDefinition("bg-transparent", {
+  "surface.sim.replay": createDefinition("bg-replay", {
     paddingPreset: "none",
     elevationPreset: 0,
   }),

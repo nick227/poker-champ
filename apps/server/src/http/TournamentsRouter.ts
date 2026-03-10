@@ -3,7 +3,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { requireAdmin } from "../engine/auth/AdminMiddleware.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../engine/economy/CashierService.js";
 
 const router = express.Router();
@@ -88,8 +88,8 @@ router.post("/:id/register", requireAuth, async (req, res) => {
       externalRef: `tournament_${tournament.id}_${req.user!.id}_${nanoid(8)}`,
     });
     res.json(result);
-  } catch (err: any) {
-    const message = err?.message ?? "Tournament registration failed";
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament registration failed";
     if (message === "INSUFFICIENT_BANKROLL" || message === "TOURNAMENT_CLOSED") {
       res.status(400).json({ error: message });
       return;
@@ -99,3 +99,4 @@ router.post("/:id/register", requireAuth, async (req, res) => {
 });
 
 export const tournamentsRouter = router;
+

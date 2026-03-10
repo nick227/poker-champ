@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { authRouter } from "../apps/server/src/engine/auth/AuthRouter.js";
 import { lessonsRouter } from "../apps/server/src/http/LessonsRouter.js";
-import { disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { disconnectPrisma } from "@poker-champ/db";
 
 type LessonListItem = {
   id: string;
@@ -145,3 +145,4 @@ run().catch((error) => {
   console.error("Lessons smoke failed:", error?.message ?? error);
   process.exit(1);
 });
+

@@ -1,0 +1,13 @@
+phase,from,to
+3,@/components/domain/table,@/features/table/components/table
+3,@/components/domain/lobby,@/features/lobby/components/lobby
+3,@/stores/table.store,@/features/table/stores/table.store
+3,@/stores/multitable.store,@/features/table/stores/multitable.store
+3,@/stores/lobby.store,@/features/lobby/stores/lobby.store
+3,@/realtime/useTableRealtime,@/features/table/realtime/useTableRealtime
+3,@/realtime/useLobbyRealtime,@/features/lobby/realtime/useLobbyRealtime
+3,@/realtime/lobbyRealtimeBridge,@/features/lobby/realtime/lobbyRealtimeBridge
+3,@/hooks/useTablePageStores,@/features/table/hooks/useTablePageStores
+3,src/engine/dealer/services/*,src/engine/dealer/{turn|hand|settlement}/*
+3,prisma/*,packages/db/prisma/*
+3,../db/prisma.js,@poker-champ/db

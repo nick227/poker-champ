@@ -15,12 +15,36 @@ type RecordedEvent = {
   };
 };
 
-function parseArgs(): { folder: string } {
-  const folder = process.argv[2];
-  if (!folder) {
-    throw new Error("Usage: pnpm exec tsx scripts/churn-repro-scan.ts <repro-folder>");
+async function resolveLatestReproFolder(): Promise<string | null> {
+  const root = path.join(process.cwd(), "artifacts", "churn-repro");
+  let entries: import("node:fs").Dirent[];
+  try {
+    const fs = await import("node:fs/promises");
+    entries = await fs.readdir(root, { withFileTypes: true });
+    const dirs = entries.filter((entry) => entry.isDirectory());
+    if (dirs.length === 0) return null;
+    const stamped = await Promise.all(
+      dirs.map(async (dir) => {
+        const fullPath = path.join(root, dir.name);
+        const stats = await fs.stat(fullPath);
+        return { fullPath, mtimeMs: stats.mtimeMs };
+      }),
+    );
+    stamped.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return stamped[0]?.fullPath ?? null;
+  } catch {
+    return null;
   }
-  return { folder };
+}
+
+async function parseArgs(): Promise<{ folder: string }> {
+  const folder = process.argv[2];
+  if (folder) {
+    return { folder };
+  }
+  const latest = await resolveLatestReproFolder();
+  if (!latest) throw new Error("Usage: pnpm repro:scan <repro-folder> (or run after a churn repro artifact exists)");
+  return { folder: latest };
 }
 
 function parseJsonl<T>(raw: string): T[] {
@@ -39,7 +63,7 @@ function findFirst<T>(items: T[], predicate: (value: T) => boolean): T | undefin
 }
 
 async function main(): Promise<void> {
-  const { folder } = parseArgs();
+  const { folder } = await parseArgs();
   const eventsPath = path.join(folder, "events.jsonl");
   const eventsRaw = await readFile(eventsPath, "utf8");
   const events = parseJsonl<RecordedEvent>(eventsRaw);

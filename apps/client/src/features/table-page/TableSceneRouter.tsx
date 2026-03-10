@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Share, View, Image } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
-import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
-import { EmptyTableView } from "@/components/domain/table/views/EmptyTableView";
-import { StatusTableView } from "@/components/domain/table/views/StatusTableView";
+import { ActiveTableView } from "@/features/table";
+import { EmptyTableView } from "@/features/table";
+import { StatusTableView } from "@/features/table";
 
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
@@ -275,3 +275,4 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
       );
   }
 }
+

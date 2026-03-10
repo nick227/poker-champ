@@ -3,7 +3,7 @@ import { Dealer } from "../../engine/Dealer.js";
 import { PokerState } from "../../state/PokerState.js";
 import { CashierService } from "../../engine/economy/CashierService.js";
 import { assertStateInvariants } from "../../engine/invariants/assertState.js";
-import { ActionOptionsService } from "../../engine/dealer/services/ActionOptionsService.js";
+import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { getActionableToActSeatFindingFromState, getStateMoneyFindings } from "../../engine/invariants/churnInvariantContract.js";
 import { expectDeferredOrRemoved } from "../helpers/churnBoundaryAssertions.js";
 
@@ -192,3 +192,4 @@ describe("multiplayer churn matrix", () => {
     expect(() => assertStateInvariants(state)).not.toThrow();
   });
 });
+

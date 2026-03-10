@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import pokersolver from "pokersolver";
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { Dealer } from "../../engine/Dealer.js";
-import { ActionOptionsService } from "../../engine/dealer/services/ActionOptionsService.js";
+import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
@@ -289,3 +289,4 @@ describe("payout randomized heads-up accuracy", () => {
     expect(showdownCount).toBeGreaterThan(2);
   }, 90_000);
 });
+

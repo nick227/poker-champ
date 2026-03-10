@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import express from "express";
 import http from "node:http";
 import { nanoid } from "nanoid";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { handHistoryRouter } from "../HandHistoryRouter.js";
 import { createTestUser, createAuthToken, cleanupTestUsers } from "../../__tests__/testUtils.js";
 
@@ -21,7 +21,7 @@ describe("GET /api/history/overview and /api/history/hands", () => {
   let pokerPlayerId: string;
   let opponentPokerPlayerId: string;
   let handId: string;
-  let handIdsForCleanup: string[] = [];
+  const handIdsForCleanup: string[] = [];
 
   async function get(path: string, tokenHeader: string | null) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -485,3 +485,4 @@ describe("GET /api/history/overview and /api/history/hands", () => {
     expect(body.error).toBe("Hand not found");
   });
 });
+

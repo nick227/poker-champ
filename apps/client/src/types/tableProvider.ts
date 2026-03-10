@@ -1,4 +1,4 @@
-import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
+import type { ActionBarOnAction } from "@/features/table";
 import type { TableSceneContract } from "@/types/tableSceneContract";
 
 /**
@@ -12,14 +12,6 @@ export type TableProvider = TableSceneContract & {
   onAction: ActionBarOnAction;
 };
 
-/**
- * TypeScript helper to enforce frozen TableProvider contract.
- * 
- * If someone adds extra fields or misses required ones,
- * the compiler will catch it immediately.
- */
-function assertTableProvider(p: TableProvider): TableProvider {
-  return p;
-}
 
-export { assertTableProvider };
+
+

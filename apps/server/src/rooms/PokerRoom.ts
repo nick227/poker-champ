@@ -7,21 +7,14 @@
  * - Services: Authentication, persistence, economy, and other business logic
  * - Utilities: Logging, rate limiting, bot management, etc.
  */
-import { Room, Client, CloseCode } from "@colyseus/core";
+import { Room, Client } from "@colyseus/core";
 import { PokerState } from "../state/PokerState.js";
 import { Dealer } from "../engine/Dealer.js";
-import { ActionPayloadSchema } from "@poker-champ/api-types";
 import { logger } from "../lib/logger.js";
-import { PokerError } from "../engine/errors.js";
 import { PersistenceFacade } from "../engine/persistence/PersistenceFacade.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import {
-  TableInboundMessageSchema,
-  type TableOutboundMessage,
   TableOutboundMessageSchema,
-  AddBotPayloadSchema,
-  RemoveBotPayloadSchema,
-  ChatPayloadSchema,
 } from "@poker-champ/realtime-contract";
 import { nanoid } from "nanoid";
 import { newBotId } from "../engine/bots/botIds.js";
@@ -33,19 +26,20 @@ import { TableSnapshotLogService, type SnapshotLogReason } from "../engine/persi
 import type { FrameReason } from "../engine/replay/FrameReason.js";
 import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
-import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../engine/bots/BotCatalog.js";
-import { getPrisma } from "../db/prisma.js";
+import { listEnabledBotSummaries } from "../engine/bots/BotCatalog.js";
+import { getPrisma } from "@poker-champ/db";
 import { awardService } from "../awards/index.js";
 import { PokerRoomController } from "./room/PokerRoomController.js";
+import type {
+  PokerRoomFacade,
+  JoinOptions,
+  AuthContext,
+  TableConfig,
+  PokerRoomMetadata,
+  SittingOutSweepOptions,
+  InstantGamePresetId,
+} from "./room/types/PokerRoomTypes.js";
 
-/**
- * Type definition for join options when a client connects to the table
- * - name: Optional display name for the player
- * - buyInCents: Optional initial buy-in amount in cents
- * - password: Optional password for private tables
- * - tableId: Optional table identifier for routing
- */
-type JoinOptions = { name?: string; buyInCents?: number; password?: string; tableId?: string };
 
 /** Close code when leaving due to joining another table; client treats as non-error and does not reconnect. */
 /** Must differ from CloseCode.CONSENTED (4000) so onLeave can tell user leave from session-replaced. */
@@ -58,90 +52,9 @@ export function resolveReconnectTimeoutMs(rawValue: unknown): number {
   return Math.max(MIN_RECONNECT_TIMEOUT_MS, Math.floor(raw));
 }
 
-/**
- * Authentication context returned after successful token validation
- * - userId: Unique identifier for the authenticated user
- * - sessionId: The JWT token that was validated
- * - roles: Array of user roles (e.g., 'player', 'admin')
- * - username: Display name for the user
- */
-type AuthContext = { userId: string; sessionId: string; roles: string[]; username: string };
 
-/**
- * Configuration for creating a new poker table
- * - tableId: Unique identifier for the table
- * - name: Display name for the table
- * - maxSeats: Maximum number of players allowed
- * - smallBlindCents/bigBlindCents: Blind amounts in cents
- * - minBuyInCents/maxBuyInCents: Buy-in limits
- * - visibility: Whether table is public or private
- * - showStats: Whether to display player statistics
- * - passwordHash: Hashed password for private tables
- * - speed: Game speed (normal or fast)
- * - createdAt: Timestamp when table was created
- * - creatorId: Optional ID of the table creator
- */
-type TableConfig = {
-  tableId: string;
-  name: string;
-  maxSeats: number;
-  smallBlindCents: number;
-  bigBlindCents: number;
-  minBuyInCents: number;
-  maxBuyInCents: number;
-  visibility: "PUBLIC" | "PRIVATE";
-  showStats: boolean;
-  passwordHash?: string;
-  speed: "normal" | "fast";
-  createdAt: number;
-  updatedAt: number;
-  creatorId?: string;
-  creatorName: string;
-  creatorAvatarUrl: string | null;
-};
 
-/**
- * Metadata exposed to the lobby system for table discovery
- * Includes all table configuration plus runtime state:
- * - runningSince: When the table became active
- * - humanCount: Total number of human players (including disconnected)
- * - connectedHumanCount: Number of currently connected human players
- */
-type PokerRoomMetadata = {
-  tableId: string;
-  name: string;
-  maxSeats: number;
-  smallBlindCents: number;
-  bigBlindCents: number;
-  minBuyInCents: number;
-  maxBuyInCents: number;
-  visibility: "PUBLIC" | "PRIVATE";
-  showStats: boolean;
-  passwordHash?: string;
-  speed: "normal" | "fast";
-  createdAt: number;
-  updatedAt: number;
-  runningSince?: number;
-  creatorId?: string;
-  creatorName: string;
-  creatorAvatarUrl: string | null;
-  humanCount?: number;
-  connectedHumanCount?: number;
-  avgPotCents?: number;
-  waitlistCount?: number;
-};
 
-/**
- * Configuration options for the sitting out cleanup sweep
- * - nowTs: Optional timestamp to use for "now" (testing)
- * - abandonedPurgeMs: How long to wait before purging abandoned players
- */
-type SittingOutSweepOptions = {
-  nowTs?: number;
-  abandonedPurgeMs?: number;
-};
-
-type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
 
 /**
  * Main poker room class that manages a single poker table
@@ -159,7 +72,8 @@ type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
  * The room acts as the orchestrator between clients, the Dealer engine,
  * and various persistence/services layers.
  */
-export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMetadata }> {
+export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMetadata }> implements PokerRoomFacade {
+
   /**
    * Keep cash-game rooms discoverable/joinable even when temporarily empty.
    * This allows players to rejoin after disconnects and maintains table
@@ -278,7 +192,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * 
    * @param options - Room creation options including table configuration
    */
-  onCreate(options: any) {
+  onCreate(options: unknown) {
+    const optionsObj = (options && typeof options === "object" ? (options as Record<string, unknown>) : {});
     // Keep explicit in onCreate as well for defensive clarity in runtime logs.
     this.autoDispose = false;
     logger.info(
@@ -294,10 +209,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.setState(new PokerState());
 
     // Extract table configuration from creation options
-    const cfg: TableConfig | undefined = options?.tableConfig;
+    const cfg = (optionsObj.tableConfig && typeof optionsObj.tableConfig === "object"
+      ? (optionsObj.tableConfig as TableConfig)
+      : undefined);
 
     // Configure table state from provided config or use defaults
-    this.state.tableId = cfg?.tableId ?? (options?.tableId ?? "table_poc");
+    this.state.tableId = cfg?.tableId ?? ((typeof optionsObj.tableId === "string" ? optionsObj.tableId : undefined) ?? "table_poc");
     this.state.tableName = cfg?.name ?? "Hold'em";
     this.state.creatorId = cfg?.creatorId != null ? String(cfg.creatorId) : "";
     this.state.visibility = cfg?.visibility ?? "PUBLIC";
@@ -624,7 +541,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.lastAcceptedActionByUserId.get(userId);
   }
 
-  async onAuth(client: Client, options: any, context: { token?: string; headers?: Headers }) {
+  async onAuth(client: Client, options: unknown, context: { token?: string; headers?: Headers }) {
     if (!this.controller) {
       return this.authenticateInternal(client, options, context);
     }
@@ -649,11 +566,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @returns Authentication context with user details
    * @throws Error if authentication fails
    */
-  async authenticateInternal(_client: Client, options: any, context: { token?: string; headers?: Headers }) {
+  async authenticateInternal(_client: Client, options: unknown, context: { token?: string; headers?: Headers }) {
+    const optionsObj = (options && typeof options === "object" ? (options as Record<string, unknown>) : {});
     // Extract token from multiple possible sources in order of preference
-    const tokenFromHeader = context?.headers?.get("authorization") ?? options?.authorization;
+    const tokenFromHeader = context?.headers?.get("authorization") ?? optionsObj.authorization;
     const tokenFromContext = context?.token;
-    const tokenFromOptions = options?.token;
+    const tokenFromOptions = optionsObj.token;
     const raw = tokenFromHeader ?? tokenFromContext ?? tokenFromOptions;
     const token = this.extractBearerToken(raw);
 
@@ -736,10 +654,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     if (client) {
       try {
         this.sendTableMessage(client, "ERROR", { code: "KICKED", message: reason });
-      } catch {}
+      } catch (err) {
+        void err;
+      }
       try {
         client.leave();
-      } catch {}
+      } catch (err) {
+        void err;
+      }
     }
     await this.dealer.kickUser(userId, reason);
   }
@@ -767,7 +689,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         this.sendTableMessage(client, "ERROR", { code: "SESSION_REPLACED", message: "You joined another table." });
         client.leave(LEAVE_CODE_SESSION_REPLACED);
-      } catch {}
+      } catch (err) {
+        void err;
+      }
     }
   }
 
@@ -976,8 +900,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       logger.warn({ room: "poker", roomId: this.roomId, type, errors: parsed.error.flatten() }, "Dropping invalid poker outbound message");
       return;
     }
-    const outbound = parsed.data as any;
-    client.send(outbound.type, outbound.payload);
+    client.send(parsed.data.type, parsed.data.payload);
   }
 
   /**
@@ -1298,13 +1221,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           await this.dealer.removePlayer(userId);
           await this.maybeRemoveBotsIfNoHumans();
           this.updateMetadataCounts();
-        } catch (err: any) {
+        } catch (err: unknown) {
           logger.warn(
             {
               roomId: this.roomId,
               tableId: this.state.tableId,
               userId,
-              message: err?.message ?? String(err),
+              message: err instanceof Error ? err.message : String(err),
             },
             "SEAT_TTL_REMOVE_PLAYER_FAILED",
           );
@@ -1325,14 +1248,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             name: this.state.tableName,
           },
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.warn(
           {
             roomId: this.roomId,
             tableId: this.state.tableId,
             userId,
             externalRef,
-            message: err?.message ?? String(err),
+            message: err instanceof Error ? err.message : String(err),
           },
           "SEAT_TTL_CASHOUT_FAILED",
         );
@@ -1494,7 +1417,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         await this.dealer.removeBot(botId);
       } catch (err) {
-        logger.warn({ roomId: this.roomId, tableId: this.state.tableId, botId }, "maybeRemoveBots removeBot failed");
+        logger.warn(
+          { roomId: this.roomId, tableId: this.state.tableId, botId, message: (err as Error)?.message ?? String(err) },
+          "maybeRemoveBots removeBot failed",
+        );
       }
     }
     if (botIds.length > 0) this.updateMetadataCounts();
@@ -1585,7 +1511,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       try {
         this.sendTableMessage(c, "ERROR", payload);
       } catch (err) {
-        logger.warn({ roomId: this.roomId, sessionId: c.sessionId }, "requestDisconnect sendTableMessage failed");
+        logger.warn(
+          { roomId: this.roomId, sessionId: c.sessionId, message: (err as Error)?.message ?? String(err) },
+          "requestDisconnect sendTableMessage failed",
+        );
       }
     });
     this.disconnect();
@@ -1665,14 +1594,14 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 name: this.state.tableName,
               },
             });
-          } catch (err: any) {
+          } catch (err: unknown) {
             logger.warn(
               {
                 roomId: this.roomId,
                 tableId: this.state.tableId,
                 userId: session.userId,
                 externalRef,
-                message: err?.message ?? String(err),
+                message: err instanceof Error ? err.message : String(err),
               },
               "SEAT_RESTORE_VERSION_MISMATCH_CASHOUT_FAILED",
             );
@@ -1693,13 +1622,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           { connected: false, sittingOut: true, reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS },
         );
         this.updateMetadataCounts();
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.warn(
           {
             roomId: this.roomId,
             tableId: this.state.tableId,
             userId: session.userId,
-            message: err?.message ?? String(err),
+            message: err instanceof Error ? err.message : String(err),
           },
           "SEAT_RESTORE_SKIPPED",
         );
@@ -1756,3 +1685,4 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 }
+

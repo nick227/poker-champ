@@ -1,4 +1,4 @@
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { AxisDefinitionCompiled, DerivedFeatures } from "../types.js";
 
 type WeightMap = Partial<Record<ActionPayload["action"], number>>;

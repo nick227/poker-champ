@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Dealer } from "../../engine/Dealer.js";
-import { ActionOptionsService } from "../../engine/dealer/services/ActionOptionsService.js";
+import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
@@ -221,3 +221,4 @@ describe("dealer all-in matrix 6-max", () => {
     expect(state.street).toBe("WAITING");
   }, 120_000);
 });
+

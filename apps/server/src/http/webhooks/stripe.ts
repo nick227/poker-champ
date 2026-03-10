@@ -4,12 +4,25 @@ import { MembershipService } from '../../api/memberships.js';
 import { STRIPE_CONFIG } from '../../config/features.js';
 
 const require = createRequire(import.meta.url);
-type StripeEvent = { type: string; id: string; created: number; data: { object: any } };
+type StripeEvent = {
+  type: string;
+  id: string;
+  created: number;
+  data: { object: Record<string, unknown> };
+};
+type StripeClient = {
+  webhooks: {
+    constructEvent: (body: unknown, signature: string, secret: string) => StripeEvent;
+  };
+};
 
-let stripeClient: any | null = null;
+let stripeClient: StripeClient | null = null;
 function getStripeClient() {
   if (stripeClient) return stripeClient;
-  const StripeCtor = require('stripe');
+  const StripeCtor = require('stripe') as new (
+    apiKey: string,
+    options: { apiVersion: string },
+  ) => StripeClient;
   stripeClient = new StripeCtor(process.env.STRIPE_SECRET_KEY ?? '', {
     apiVersion: '2024-11-20.acacia',
   });
@@ -78,13 +91,15 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
 // Webhook event logging for debugging
 export function logWebhookEvent(event: StripeEvent) {
+  const objectId = typeof event.data.object.id === 'string' ? event.data.object.id : null;
+  const objectType = typeof event.data.object.object === 'string' ? event.data.object.object : null;
   const logData = {
     type: event.type,
     id: event.id,
     created: new Date(event.created * 1000).toISOString(),
     data: {
-      object: event.data.object.id,
-      type: event.data.object.object,
+      object: objectId,
+      type: objectType,
     },
   };
 

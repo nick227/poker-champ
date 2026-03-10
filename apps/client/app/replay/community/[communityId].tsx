@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";

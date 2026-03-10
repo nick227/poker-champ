@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { useReplayTableProviderFromSnapshots } from "@/hooks/useReplayTableProviderFromSnapshots";
-import { useMultiTableStore } from "@/stores/multitable.store";
-import { useTableStore } from "@/stores/table.store";
-import { useLobbyStore } from "@/stores/lobby.store";
+import { useMultiTableStore } from "@/features/table/stores/multitable.store";
+import { useTableStore } from "@/features/table/stores/table.store";
+import { useLobbyStore } from "@/features/lobby/stores/lobby.store";
 
 function makeSnapshot(seq: number): TableSnapshotPayload {
   return {
@@ -183,3 +183,4 @@ describe("replay hermetic behavior", () => {
     }).toEqual(beforeLobbyStore);
   });
 });
+

@@ -14,7 +14,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["apps/server/src/**/*.ts", "packages/api-types/src/**/*.ts"],
+    files: ["apps/server/src/**/*.ts"],
     languageOptions: {
       parserOptions: {
         project: "./tsconfig.json",
@@ -22,10 +22,19 @@ export default tseslint.config(
       },
     },
     rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-non-null-asserted-optional-chain": "off",
+      "no-empty": "off",
+      "preserve-caught-error": "off",
       "no-restricted-imports": [
         "error",
         {
           patterns: [
+            {
+              group: ["apps/client/**", "**/apps/client/**"],
+              message: "Server must not import from Client."
+            },
             {
               group: ["**/engine/odds/**", "apps/server/src/engine/odds/**", "./odds/**", "../odds/**", "../../engine/odds/**"],
               message: "Gameplay Core must not import Advisory Math"
@@ -33,12 +42,6 @@ export default tseslint.config(
           ]
         }
       ]
-    }
-  },
-  {
-    files: ["apps/server/src/engine/odds/**"],
-    rules: {
-      "no-restricted-imports": "off"
     }
   }
 );

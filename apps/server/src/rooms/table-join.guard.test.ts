@@ -62,9 +62,11 @@ describe("table join guardrails", () => {
     const dealer = {
       hasPlayer: vi.fn().mockReturnValue(false),
       bindClient: vi.fn(),
+      getClient: vi.fn(),
       markReconnected: vi.fn(),
       restorePlayerFromSession: vi.fn().mockResolvedValue(undefined),
       addPlayer: vi.fn().mockResolvedValue(undefined),
+      removePlayer: vi.fn().mockResolvedValue(undefined),
       emitSnapshotToUser: vi.fn(),
       handleAction: vi.fn().mockResolvedValue(undefined),
     };

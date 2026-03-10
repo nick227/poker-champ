@@ -1,7 +1,7 @@
 import { Alert, Platform } from "react-native";
 import { serviceRegistry } from "@/registry/service.registry";
 import { useToastStore } from "@/stores/toast.store";
-import { useLobbyStore } from "@/stores/lobby.store";
+import { useLobbyStore } from "@/features/lobby/stores/lobby.store";
 
 const deleteInProgress = { current: false };
 
@@ -47,4 +47,5 @@ export function confirmDeleteTable(tableId: string, options: { onSuccess?: () =>
     { text: "Delete", style: "destructive", onPress: () => void performDelete(tableId, options) },
   ]);
 }
+
 

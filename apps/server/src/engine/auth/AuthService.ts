@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
 import { User } from "@prisma/client";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { logger } from "../../lib/logger.js";
 
 type AuthToken = string;
@@ -9,6 +9,13 @@ const DEFAULT_SESSION_TTL_DAYS = 14;
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 24;
 const STARTING_BANKROLL_CENTS = 1_000_000;
+
+class AuthBackendUnavailableError extends Error {
+  readonly code = "AUTH_BACKEND_UNAVAILABLE";
+  constructor() {
+    super("Auth backend unavailable");
+  }
+}
 
 export class AuthService {
   static async register(
@@ -95,11 +102,9 @@ export class AuthService {
       });
 
       return this.ensureUserHandle(session.user);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error({ err }, "validateSession failed due to backend error");
-      const backendErr = new Error("Auth backend unavailable");
-      (backendErr as any).code = "AUTH_BACKEND_UNAVAILABLE";
-      throw backendErr;
+      throw new AuthBackendUnavailableError();
     }
   }
 
@@ -203,3 +208,4 @@ export class AuthService {
     return days * 24 * 60 * 60 * 1000;
   }
 }
+

@@ -75,6 +75,17 @@ export default [
       },
     },
     rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["apps/server/**", "**/apps/server/**"],
+              message: "Client must not import from Server."
+            }
+          ]
+        }
+      ],
       // Critical TypeScript errors that break builds
       // Temporarily disabled unused vars to allow build to pass
       // "@typescript-eslint/no-unused-vars": ["error", { 
@@ -156,7 +167,7 @@ export default [
   },
   // Guardrail: table domain components remain store-free.
   {
-    files: ["src/components/domain/table/**/*.{ts,tsx}"],
+    files: ["src/features/table/components/table/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -195,7 +206,7 @@ export default [
     },
   },
   {
-    files: ["src/components/domain/table/**/*.{ts,tsx}"],
+    files: ["src/features/table/components/table/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -268,6 +279,29 @@ export default [
     files: ["src/components/containers/Surface.tsx"],
     rules: {
       "no-restricted-syntax": "off",
+    },
+  },
+  {
+    files: ["src/**/*.{ts,tsx}", "app/**/*.{ts,tsx}"],
+    ignores: ["src/features/table/**/*.{ts,tsx}", "src/features/lobby/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/features/table/components/table/**"],
+              message:
+                "Import from '@/features/table' public index instead of deep table internals.",
+            },
+            {
+              group: ["@/features/lobby/components/lobby/**"],
+              message:
+                "Import from '@/features/lobby' public index instead of deep lobby internals.",
+            },
+          ],
+        },
+      ],
     },
   },
   // Separate config for CommonJS files

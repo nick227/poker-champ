@@ -1,5 +1,5 @@
 import { TableSnapshotPayloadSchema, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { toFrameReason } from "../replay/FrameReason.js";
 
 export class ReplayFrameService {
@@ -34,4 +34,5 @@ export class ReplayFrameService {
       .map(([, payload]) => payload);
   }
 }
+
 

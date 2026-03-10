@@ -23,7 +23,7 @@ vi.mock("@colyseus/core", () => ({
   matchMaker: matchMakerMock,
 }));
 
-vi.mock("../../db/prisma.js", () => ({
+vi.mock("@poker-champ/db", () => ({
   getPrisma: () => prismaMock,
 }));
 
@@ -108,3 +108,4 @@ describe("EconomyRouter rebuy regressions", () => {
     expect(firstCall.externalRef).not.toBe(secondCall.externalRef);
   });
 });
+

@@ -4,7 +4,7 @@ import { Text } from "@/components/base/Text";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { useReplayTableProviderFromSnapshots } from "@/hooks/useReplayTableProviderFromSnapshots";
 import { useBankroll } from "@/hooks/useBankroll";
-import { mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
+import { mapSeatsToOpponents } from "@/features/table";
 import { ReplaySurface } from "./ReplaySurface";
 
 interface ReplayFromSnapshotsProps {
@@ -49,3 +49,4 @@ export function ReplayFromSnapshots({
 
   return <ReplaySurface {...surfaceProps} />;
 }
+

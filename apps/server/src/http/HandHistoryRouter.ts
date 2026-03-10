@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { ReplayFrameService } from "../engine/persistence/ReplayFrameService.js";
 import { logger } from "../lib/logger.js";
 
@@ -710,3 +710,4 @@ router.get("/hands/:id", async (req, res) => {
 });
 
 export const handHistoryRouter = router;
+

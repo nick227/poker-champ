@@ -1,4 +1,4 @@
-import type { RejoinUiState } from "@/components/domain/table/RejoinCTA";
+import type { RejoinUiState } from "@/features/table";
 
 export const REJOIN_ERROR_PATTERN =
   /REJOIN_FAILED|Could not rejoin table|Connection unavailable|Connection interrupted|Connection lost|Table no longer exists/i;
@@ -34,3 +34,4 @@ export function resolveTableGoneForRejoin(rejoinUiState: RejoinUiState): {
   }
   return { shouldCloseTable: true };
 }
+

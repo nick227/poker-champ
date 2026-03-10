@@ -1,5 +1,5 @@
 import express from "express";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { getBotCatalogEntry, listEnabledBotSummaries } from "../engine/bots/BotCatalog.js";
 
 const router = express.Router();
@@ -46,3 +46,4 @@ router.get("/:id/stats", async (req, res) => {
 });
 
 export const botRouter = router;
+

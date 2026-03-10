@@ -1,6 +1,6 @@
 
 import { describe, expect, it, beforeEach } from "vitest";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../../engine/economy/CashierService.js";
 import { nanoid } from "nanoid";
 
@@ -71,3 +71,4 @@ describe("Cashier Race Conditions", () => {
     expect(user?.bankrollCents).toBe(0);
   });
 });
+

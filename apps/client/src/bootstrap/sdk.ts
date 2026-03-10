@@ -51,6 +51,7 @@ export function bootstrapSdk() {
       });
 
       await storeRegistry.auth().hydrateToken();
+      storeRegistry.auth().markHydrated();
 
       const token = storeRegistry.auth().token;
       if (token) {
@@ -70,7 +71,6 @@ export function bootstrapSdk() {
     } catch (error) {
       console.error("[bootstrapSdk] startup failed", error);
     } finally {
-      storeRegistry.auth().markHydrated();
       booted = true;
     }
   })();

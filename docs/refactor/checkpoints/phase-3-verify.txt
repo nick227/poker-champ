@@ -1,0 +1,42 @@
+# Phase 3 Verification (Domain Flattening + Client Feature Restructure + DB Extraction)
+Date: 2026-03-09
+Timestamp: 2026-03-09 11:48:29 -05:00
+Branch: refactor/phase-1-app-boundaries
+
+## Commands Run
+1) pnpm -C apps/client typecheck
+- Result: PASS
+
+2) pnpm -C apps/client test:run
+- Result: PASS
+- Test Files: 55 passed
+- Tests: 232 passed
+
+3) pnpm test:server:core
+- Result: PASS
+- Includes: join, broadcast, money-safety, money-invariants, fuzz:ci, lessons
+
+4) pnpm -r typecheck
+- Result: FAIL (pre-existing server typing failures in this working tree)
+- Note: failures are concentrated in server test typings and legacy db test import paths, unrelated to client feature-folder path migration.
+
+## Phase 3 Scope Completed
+- Server dealer domain flattened from `dealer/services/*` into:
+  - `apps/server/src/engine/dealer/turn/*`
+  - `apps/server/src/engine/dealer/hand/*`
+  - `apps/server/src/engine/dealer/settlement/*`
+- Database extraction complete:
+  - `prisma/*` -> `packages/db/prisma/*`
+  - Prisma client import surface moved to `@poker-champ/db`
+- Client feature restructure complete for table/lobby:
+  - `components/domain/table/*` -> `features/table/components/table/*`
+  - `components/domain/lobby/*` -> `features/lobby/components/lobby/*`
+  - `stores/{table,multitable}.store*` -> `features/table/stores/*`
+  - `stores/lobby.store.ts` -> `features/lobby/stores/lobby.store.ts`
+  - `realtime/useTableRealtime*` -> `features/table/realtime/*`
+  - `realtime/{useLobbyRealtime,lobbyRealtimeBridge}.tsx` -> `features/lobby/realtime/*`
+  - `hooks/useTablePageStores.ts` -> `features/table/hooks/useTablePageStores.ts`
+
+## Notes
+- Updated `apps/client/vitest.config.ts` DOM test glob to new hook path under `features/table/components/table/hooks/__tests__/**`.
+- Updated root `tsconfig.json` include to add `packages/db/src/**/*`.

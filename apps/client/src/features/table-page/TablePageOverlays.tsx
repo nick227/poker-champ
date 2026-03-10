@@ -1,9 +1,9 @@
-import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
-import { PlayerHistoryPopup } from "@/components/domain/table/PlayerHistoryPopup";
+import { ChooseTableModal } from "@/features/lobby";
+import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
-import { ActiveTablesDropdown } from "@/components/domain/table/ActiveTablesDropdown";
-import { BotPickerSheet } from "@/components/domain/table/BotPickerSheet";
-import { ThemePickerSheet } from "@/components/domain/table/ThemePickerSheet";
+import { ActiveTablesDropdown } from "@/features/table";
+import { BotPickerSheet } from "@/features/table";
+import { ThemePickerSheet } from "@/features/table";
 import { MODAL } from "@/constants/copy";
 import type { TablePageController } from "@/types/tableSceneContract";
 
@@ -57,4 +57,5 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
     </>
   );
 }
+
 

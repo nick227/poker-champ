@@ -37,7 +37,10 @@ export class PokerRoomController {
       state: room.state,
       logger,
       startStallMonitor: () => room.startStallMonitorInternal(),
-      updateCreateMetadata: (cfg?: any) => room.updateCreateMetadataInternal(cfg),
+      updateCreateMetadata: (cfg?: unknown) =>
+        room.updateCreateMetadataInternal(
+          cfg && typeof cfg === "object" ? (cfg as Parameters<typeof room.updateCreateMetadataInternal>[0]) : undefined,
+        ),
       registerVoiceRelay: () => registerVoiceRelay(room),
       setSessionEventUnbind: (unbind: () => void) => room.setSessionEventUnbindInternal(unbind),
       touchActivity: () => room.touchActivityInternal(),
@@ -73,7 +76,7 @@ export class PokerRoomController {
     this.bots = new PokerRoomBotService(this.context);
   }
 
-  setupLifecycle(options?: { cfg?: any }): void {
+  setupLifecycle(options?: { cfg?: unknown }): void {
     this.lifecycle.setup(options);
   }
 

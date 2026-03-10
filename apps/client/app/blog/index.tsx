@@ -2,18 +2,18 @@ import { useCallback, useState } from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { OnlinePlayersSheet } from "@/features/lobby";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { getAllArticles } from "@/content/blog/blogManifest";
 import { useProfile } from "@/hooks/useProfile";
 import { useBankroll } from "@/hooks/useBankroll";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -94,3 +94,4 @@ export default function BlogListScreen() {
     </Screen>
   );
 }
+

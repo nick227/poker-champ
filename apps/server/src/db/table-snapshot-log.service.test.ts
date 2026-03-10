@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as prismaDb from "./prisma.js";
+import * as prismaDb from "@poker-champ/db";
 import * as loggerModule from "../lib/logger.js";
 import { TableSnapshotLogService } from "../engine/persistence/TableSnapshotLogService.js";
 

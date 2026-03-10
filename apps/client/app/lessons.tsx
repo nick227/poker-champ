@@ -3,14 +3,14 @@ import { ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { Masthead } from "@/features/lobby";
+import { OnlinePlayersSheet } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import { LESSONS_PAGE_COPY } from "./lessons.data";
 import {
   DailyChallengesSection,
@@ -107,3 +107,4 @@ export default function LessonsScreen() {
     </Screen>
   );
 }
+

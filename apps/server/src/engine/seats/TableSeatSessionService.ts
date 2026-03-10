@@ -1,4 +1,4 @@
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 
 type SeatSessionState = "SEATED_ACTIVE" | "SEATED_SITTING_OUT" | "LEFT";
 
@@ -313,3 +313,4 @@ export class TableSeatSessionService {
     });
   }
 }
+

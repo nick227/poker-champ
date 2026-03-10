@@ -104,7 +104,7 @@ const {
   };
 });
 
-vi.mock("../db/prisma.js", () => ({
+vi.mock("@poker-champ/db", () => ({
   getPrisma: () => prismaMock,
 }));
 
@@ -377,3 +377,4 @@ describe("AwardService.getUserAwards", () => {
     );
   });
 });
+

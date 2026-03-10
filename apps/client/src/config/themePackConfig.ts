@@ -1,4 +1,4 @@
-import type { FeltImageId } from "@/components/domain/table/feltImages";
+import type { FeltImageId } from "@/features/table";
 import type { FeltGradient } from "@/theme/backgrounds";
 import type { SurfaceBackground } from "@/theme/backgrounds";
 
@@ -101,3 +101,4 @@ export function getThemePackSurfaces(packId: ThemePackId): {
     felt: cfg?.felt ?? DEFAULT_FELT,
   };
 }
+

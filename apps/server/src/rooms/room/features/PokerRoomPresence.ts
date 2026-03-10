@@ -1,9 +1,10 @@
+import type { Client } from "@colyseus/core";
 import type { PokerRoomContext } from "../types/PokerRoomTypes.js";
 
 export class PokerRoomPresence {
   constructor(private readonly ctx: PokerRoomContext) {}
 
-  addTablePresence(client: any, userId: string, displayName?: string): void {
+  addTablePresence(client: Client, userId: string, displayName?: string): void {
     this.ctx.addTablePresence(client, userId, displayName);
   }
 

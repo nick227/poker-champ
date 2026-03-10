@@ -30,7 +30,7 @@ We will execute a sweeping folder structure refactoring to align the codebase wi
 - Implement strict linting rules (`no-restricted-imports`) to programmatically ban deep imports into domain internals from outside spaces.
 
 **5. Formalize Shared Logic Packages:**
-- Extract shared TypeScript interfaces from the `src/` and client into a strict `packages/api-types` workspace.
+- Consolidate shared TypeScript interfaces and message contracts into `packages/realtime-contract` as the single source of truth.
 - Extract the root `prisma/` schema and database clients into a `packages/db` workspace so that workers and admin apps can share the ORM without duplication.
 
 ## 3. Rollout Strategy & Risk Mitigation (Blast Radius)

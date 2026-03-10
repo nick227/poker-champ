@@ -11,7 +11,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 import { exportLessonFromReplay } from "../apps/server/src/lessons/exportLessonFromReplay.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -265,3 +265,4 @@ main()
     console.error(err);
     process.exit(1);
   });
+

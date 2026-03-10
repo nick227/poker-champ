@@ -125,7 +125,6 @@ export function validateMinimalSpec(spec: unknown): ValidationError[] {
       if ((a?.sizeBB != null && a?.sizePot != null)) {
         errs.push({ path: `actions[${i}]`, message: "only one of sizeBB or sizePot may be set" });
       }
-      const street = prevStreet ?? (a.street as Street);
       if (prevStreet && STREET_ORDER.indexOf(a.street as Street) < STREET_ORDER.indexOf(prevStreet)) {
         errs.push({ path: `actions[${i}].street`, message: "actions must be sorted by street" });
       }

@@ -26,8 +26,8 @@ describe("hand start stack regression guard", () => {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
       ((handler: TimerHandler) => {
         if (typeof handler === "function") handler();
-        return 0 as ReturnType<typeof setTimeout>;
-      }) as typeof setTimeout,
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
     );
 
     try {

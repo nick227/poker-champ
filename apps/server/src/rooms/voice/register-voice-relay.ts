@@ -1,4 +1,4 @@
-import type { Room } from "@colyseus/core";
+import type { Client } from "@colyseus/core";
 import { VOICE_SIGNAL_TYPE } from "../../voice/contracts/voice-signals.js";
 import { parseVoiceSignalMessage } from "./voice-signal-schema.js";
 import { getClientUserId } from "./voice-client-identity.js";
@@ -17,10 +17,17 @@ import { logger } from "../../lib/logger.js";
  *
  * This MUST stay lightweight for free Railway servers.
  */
-export function registerVoiceRelay(room: Room) {
+type VoiceRelayRoom = {
+  roomId: string;
+  state?: { tableId?: string };
+  clients: Client[];
+  onMessage(type: string | number, callback: (client: Client, raw: unknown) => void): void;
+};
+
+export function registerVoiceRelay(room: VoiceRelayRoom) {
   const limiter = createVoiceRateLimiter();
 
-  room.onMessage(VOICE_SIGNAL_TYPE, (client: any, raw: any) => {
+  room.onMessage(VOICE_SIGNAL_TYPE, (client: Client, raw: unknown) => {
     if (!shouldAllowVoiceRelay()) return;
 
     const size = getMessageByteSize(raw);
@@ -53,14 +60,14 @@ export function registerVoiceRelay(room: Room) {
 
     // Channel policy: default uses roomId as channel, but we keep it flexible.
     // In poker-champ, channelId should be tableId.
-    const roomChannel = (room as any).state?.tableId ?? (room as any).roomId;
+    const roomChannel = room.state?.tableId ?? room.roomId;
     if (msg.channelId !== roomChannel) {
       logger.warn({ roomChannel, msgChannel: msg.channelId }, "VOICE_SIGNAL dropped (wrong channel)");
       return;
     }
 
     // Targeted forward
-    const recipient = room.clients.find((c: any) => getClientUserId(c) === msg.toUserId);
+    const recipient = room.clients.find((c: Client) => getClientUserId(c) === msg.toUserId);
     if (!recipient) return;
 
     recipient.send(VOICE_SIGNAL_TYPE, msg);

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getPrisma, disconnectPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma, disconnectPrisma } from "@poker-champ/db";
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -57,3 +57,4 @@ main()
   .finally(async () => {
     await disconnectPrisma().catch(() => undefined);
   });
+

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertStateInvariants } from "./assertState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 import { PokerState } from "../../state/PokerState.js";
-import { PlayerLifecycleService } from "../dealer/services/PlayerLifecycleService.js";
+import { PlayerLifecycleService } from "../dealer/hand/PlayerLifecycleService.js";
 import { eligibleToAct } from "../rules/BettingRound.js";
 
 describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
@@ -36,7 +36,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerB.needsAction = false; // This is the problem!
     
     // Setup proper state
-    state.seats = ["A", "B"];
+    state.seats.push("A", "B");
     state.playersById.set("A", playerA);
     state.playersById.set("B", playerB);
     
@@ -75,7 +75,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerA.committedCents = 500;
     playerA.needsAction = false;
     
-    state.seats = ["A", "B"];
+    state.seats.push("A", "B");
     state.playersById.set("A", playerA);
     state.playersById.set("B", playerB);
     
@@ -129,7 +129,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerA.committedCents = 500;
     playerA.needsAction = false;
     
-    state.seats = ["A", "B"];
+    state.seats.push("A", "B");
     state.playersById.set("A", playerA);
     state.playersById.set("B", playerB);
     
@@ -149,3 +149,4 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     expect(() => assertStateInvariants(state)).toThrow("STATE_INVARIANT_VIOLATION: active hand has no eligible player marked needsAction");
   });
 });
+

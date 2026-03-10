@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import express from "express";
 import http from "node:http";
 import { nanoid } from "nanoid";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { handHistoryRouter } from "../HandHistoryRouter.js";
 import { createTestUser, createAuthToken, cleanupTestUsers } from "../../__tests__/testUtils.js";
 
@@ -235,3 +235,4 @@ describe("Hand History Payout Integrity", () => {
     expect(handDetail.reason).toBeTruthy();
   });
 });
+

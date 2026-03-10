@@ -4,7 +4,7 @@
  * Requires DATABASE_URL and NODE_ENV !== "test".
  */
 import "dotenv/config";
-import { getPrisma } from "../apps/server/src/db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 
 const limit = parseInt(process.argv[2] ?? "20", 10);
 
@@ -110,3 +110,4 @@ main()
     console.error(e);
     process.exit(1);
   });
+

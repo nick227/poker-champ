@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { HandHistoryService } from "./HandHistoryService.js";
 import { LedgerService } from "./LedgerService.js";
 import { BotStatsService } from "./BotStatsService.js";
@@ -95,8 +95,14 @@ export class PersistenceFacade {
     if (!isLedgerParticipant(params.player)) return params.currentBalance - params.amountCents;
     if (!this.enabled || !this.ledger) return params.currentBalance - params.amountCents;
     try {
-      const { player, ...ledgerParams } = params;
-      return await this.ledger.debitBet(ledgerParams);
+      return await this.ledger.debitBet({
+        userId: params.userId,
+        handId: params.handId,
+        street: params.street,
+        action: params.action,
+        amountCents: params.amountCents,
+        sequenceNum: params.sequenceNum,
+      });
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "debitBet failed");
       throw err;
@@ -117,8 +123,12 @@ export class PersistenceFacade {
     if (!isLedgerParticipant(params.player)) return params.currentBalance + params.amountCents;
     if (!this.enabled || !this.ledger) return params.currentBalance + params.amountCents;
     try {
-      const { player, ...ledgerParams } = params;
-      return await this.ledger.creditRefund(ledgerParams);
+      return await this.ledger.creditRefund({
+        userId: params.userId,
+        handId: params.handId,
+        amountCents: params.amountCents,
+        reason: params.reason,
+      });
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "creditRefund failed");
       throw err;
@@ -139,8 +149,12 @@ export class PersistenceFacade {
     if (!isLedgerParticipant(params.player)) return params.currentBalance + params.amountCents;
     if (!this.enabled || !this.ledger) return params.currentBalance + params.amountCents;
     try {
-      const { player, ...ledgerParams } = params;
-      return await this.ledger.creditPayout(ledgerParams);
+      return await this.ledger.creditPayout({
+        userId: params.userId,
+        handId: params.handId,
+        amountCents: params.amountCents,
+        potIndex: params.potIndex,
+      });
     } catch (err) {
       logger.error({ err, userId: params.userId, handId: params.handId }, "creditPayout failed");
       throw err;
@@ -201,3 +215,4 @@ export class PersistenceFacade {
     });
   }
 }
+

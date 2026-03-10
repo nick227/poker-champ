@@ -54,7 +54,6 @@ type ProjectionState = {
 function initialSeats(spec: MinimalHandSpec): SeatState[] {
   const bbCents = Math.round(spec.blinds.bb * BB_TO_CENTS);
   const sbCents = Math.round(spec.blinds.sb * BB_TO_CENTS);
-  const hasExplicitSB = spec.playersInfo.some((p) => p.position === "SB");
   const seats: SeatState[] = spec.playersInfo.map((p) => {
     const stackBB = spec.stacksBB?.[p.position] ?? spec.stacksBB?.[String(p.seat)] ?? spec.startingStacksBB;
     const stackCents = Math.round(stackBB * BB_TO_CENTS);

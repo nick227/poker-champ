@@ -1,6 +1,6 @@
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { ActionServiceLastAction } from "./services/ActionService.js";
-import type { SessionPlayerStatsTracker } from "./services/SessionPlayerStatsTracker.js";
+import type { ActionServiceLastAction } from "./turn/ActionService.js";
+import type { SessionPlayerStatsTracker } from "./settlement/SessionPlayerStatsTracker.js";
 
 /**
  * Hand-scoped state: one instance per active hand. Created at HAND_START, cleared when transitioning to WAITING.

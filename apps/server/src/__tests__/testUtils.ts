@@ -1,4 +1,4 @@
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { AuthService } from "../engine/auth/AuthService.js";
 import bcrypt from "bcryptjs";
 
@@ -44,3 +44,4 @@ export async function cleanupTestUsers() {
   
   testUsers.length = 0;
 }
+

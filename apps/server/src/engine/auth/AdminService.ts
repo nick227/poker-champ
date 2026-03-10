@@ -1,5 +1,5 @@
 
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import type { User } from "@prisma/client";
 import { UserRole } from "@prisma/client";
 import { matchMaker } from "@colyseus/core";
@@ -289,3 +289,4 @@ export class AdminService {
     );
   }
 }
+

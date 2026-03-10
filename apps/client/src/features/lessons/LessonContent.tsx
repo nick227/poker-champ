@@ -4,11 +4,11 @@ import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { lessonService } from "./lesson.service";
-import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
-import { mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
-import { buildTableSceneModel } from "@/components/domain/table/model/useTableSceneModel";
+import { ActiveTableView } from "@/features/table";
+import { mapSeatsToOpponents } from "@/features/table";
+import { buildTableSceneModel } from "@/features/table";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
-import type { ActionBarOnAction } from "@/components/domain/table/action-bar";
+import type { ActionBarOnAction } from "@/features/table";
 import { isV2ConfiguredStep, useDecisionNodeRuntime } from "@/features/lessons-v2/runtime";
 import { LessonInstructorPanel } from "./LessonInstructorPanel";
 import { LessonQuestionPanel } from "./LessonQuestionPanel";
@@ -630,3 +630,4 @@ export function LessonContent({
     </View>
   );
 }
+

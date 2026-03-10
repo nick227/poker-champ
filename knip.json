@@ -29,15 +29,10 @@
     },
     "packages/realtime-contract": {
       "project": ["src/**/*.ts"]
-    },
-    "packages/api-types": {
-      "project": ["src/**/*.ts"]
     }
   },
-  "ignore": [
-    "apps/client/src/components/domain/table/loading/loadingTips.ts",
-    "apps/client/src/components/domain/table/loading/PokerTipCard.tsx"
-  ],
+  "ignore": [],
+
   "ignoreUnresolved": ["babel-preset-expo"],
   "ignoreBinaries": ["eas", "playwright"],
   "ignoreDependencies": [
@@ -54,9 +49,8 @@
     "pino",
     "poker-odds-calculator",
     "pokersolver",
-    "stripe",
-    "zod",
-    "@colyseus/schema"
+    "stripe"
+
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {

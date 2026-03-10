@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { logger } from "../lib/logger.js";
 import { awardCatalog } from "./awardCatalog.js";
 import type { AwardGrant, BulkGrantResult, GrantCandidate } from "./types.js";
@@ -283,3 +283,4 @@ export class AwardService {
 }
 
 export const awardService = new AwardService();
+

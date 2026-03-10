@@ -1,4 +1,4 @@
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { BotActionContext } from "../botContext.js";
 

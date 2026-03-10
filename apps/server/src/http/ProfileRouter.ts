@@ -2,7 +2,7 @@ import express from "express";
 import multer from "multer";
 import { z } from "zod";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { toPublicUser } from "../engine/auth/PublicUser.js";
 import { avatarStorageFs } from "../engine/avatar/AvatarStorage.js";
 import { logger } from "../lib/logger.js";
@@ -123,3 +123,4 @@ router.delete("/avatar", async (req, res) => {
 });
 
 export const profileRouter = router;
+

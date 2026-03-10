@@ -627,7 +627,7 @@ describe("table snapshot contract emission", () => {
       await dealer.handleAction(toActId!, { action: "FOLD" });
 
       const calls = clientU1.send.mock.calls;
-      const handEndSnapshot = calls.find((c: [string, any]) => c[0] === "TABLE_SNAPSHOT" && c[1]?.reason === "HAND_END")?.[1];
+      const handEndSnapshot = calls.find((c) => c[0] === "TABLE_SNAPSHOT" && (c[1] as any)?.reason === "HAND_END")?.[1] as any;
       expect(handEndSnapshot).toBeDefined();
       expect(handEndSnapshot.hero.playerStats).toEqual({ hands: 1, vpipPct: 0, pfrPct: 0 });
     } finally {
@@ -660,7 +660,9 @@ describe("table snapshot contract emission", () => {
         await dealer.addPlayer("u1", "Hero", 5000);
         await dealer.addPlayer("u2", "Villain", 5000);
         const firstToActId = state.seats[state.toActSeat];
-        const heroId = scenario.heroIsFirstToAct ? firstToActId : state.seats.find((id, i) => id && i !== state.toActSeat);
+        const heroId = scenario.heroIsFirstToAct
+          ? firstToActId
+          : state.seats.find((id, i) => Boolean(id) && i !== state.toActSeat);
         expect(heroId, scenario.name).toBeTruthy();
         const client = makeClient();
         dealer.bindClient(heroId!, client as any);
@@ -678,7 +680,7 @@ describe("table snapshot contract emission", () => {
           if (state.street === "WAITING") break;
         }
         const calls = client.send.mock.calls;
-        const handEndSnapshot = calls.find((c: [string, any]) => c[0] === "TABLE_SNAPSHOT" && c[1]?.reason === "HAND_END")?.[1];
+        const handEndSnapshot = calls.find((c) => c[0] === "TABLE_SNAPSHOT" && (c[1] as any)?.reason === "HAND_END")?.[1] as any;
         expect(handEndSnapshot, scenario.name).toBeDefined();
         expect(handEndSnapshot!.hero.playerStats, scenario.name).toEqual({
           hands: 1,

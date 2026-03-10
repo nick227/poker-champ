@@ -1,4 +1,4 @@
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { logger } from "../../lib/logger.js";
 
 export type SnapshotLogReason =
@@ -119,3 +119,4 @@ export class TableSnapshotLogService {
     }
   }
 }
+

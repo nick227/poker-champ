@@ -1,5 +1,5 @@
 
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
 
 export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
@@ -239,3 +239,4 @@ export class CashierService {
       });
   }
 }
+

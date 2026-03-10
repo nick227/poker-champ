@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/stores/auth.store";
-import { useLobbyStore } from "@/stores/lobby.store";
-import { useMultiTableStore } from "@/stores/multitable.store";
-import { useTableStore } from "@/stores/table.store";
+import { useLobbyStore } from "@/features/lobby/stores/lobby.store";
+import { useMultiTableStore } from "@/features/table/stores/multitable.store";
+import { useTableStore } from "@/features/table/stores/table.store";
 import { useHistoryStore } from "@/stores/history.store";
 import { useProfileStore } from "@/stores/profile.store";
 
@@ -58,3 +58,4 @@ export const storeRegistry = {
     profile: storeByKey.profile.use,
   },
 } as const;
+

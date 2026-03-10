@@ -28,7 +28,7 @@ import { RecoveryService } from "./engine/recovery/RecoveryService.js";
 import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
 import { loadEnv } from "./config/env.js";
 import { isLeaderboardEnabled, isLessonsV1Enabled } from "./config/features.js";
-import { disconnectPrisma } from "./db/prisma.js";
+import { disconnectPrisma } from "@poker-champ/db";
 import { securityHeaders } from "./http/middleware/security.js";
 import { createIpRateLimit } from "./http/middleware/rateLimit.js";
 
@@ -144,7 +144,8 @@ app.get("/health", (_req, res) => {
   res.send("OK");
 });
 
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  void next;
   if (err?.status && Array.isArray(err?.errors)) {
     res.status(err.status).json({
       error: err.message ?? "Request validation failed",
@@ -283,3 +284,4 @@ process.once("unhandledRejection", (reason) => {
   logger.error({ reason }, "Unhandled rejection");
   void shutdown("unhandled_rejection", 1);
 });
+

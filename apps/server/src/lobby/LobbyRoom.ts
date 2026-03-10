@@ -8,10 +8,10 @@ import { LobbyInboundMessageSchema, LobbyOutboundMessageSchema } from "@poker-ch
 import { logger } from "../lib/logger.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import { presenceIndex } from "./PresenceIndex.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
 
-type LobbyState = any;
+type LobbyState = Record<string, never>;
 
 type LobbyAuth = { userId: string; displayName: string } | Record<string, never>;
 
@@ -149,7 +149,7 @@ export class LobbyRoom extends Room<LobbyState> {
       }
 
       const tables = await this.queryTables(true);
-      const target: any = tables.find(t => t.tableId === parsed.data.tableId);
+      const target = tables.find((t) => t.tableId === parsed.data.tableId);
       if (!target) {
         this.sendLobbyMessage(client, "ERROR", { code: "NOT_FOUND", message: "Table not found." });
         return;
@@ -222,7 +222,7 @@ export class LobbyRoom extends Room<LobbyState> {
       const senderName = this.displayNameByUserId.get(userId) ?? `Player-${userId.slice(0, 4)}`;
 
       try {
-        const prisma = getPrisma() as any;
+        const prisma = getPrisma();
         const row = await prisma.lobbyChatMessage.create({
           data: {
             id: nanoid(),
@@ -388,3 +388,4 @@ export class LobbyRoom extends Room<LobbyState> {
     return true;
   }
 }
+

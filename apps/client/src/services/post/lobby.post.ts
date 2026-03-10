@@ -1,5 +1,5 @@
 import { serviceRegistry } from "@/registry/service.registry";
-import type { InstantGamePresetId } from "@/components/domain/lobby/instantGame.presets";
+import type { InstantGamePresetId } from "@/features/lobby";
 
 type CreateTableInput = {
   name?: string;
@@ -57,3 +57,4 @@ export async function postCreateInstantGame(input: {
   if (!res.ok) throw new Error(res.error.message);
   return res.data;
 }
+

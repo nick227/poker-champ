@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PokerRoom } from "./PokerRoom.js";
 import { CashierService } from "../engine/economy/CashierService.js";
-import { ActionOptionsService } from "../engine/dealer/services/ActionOptionsService.js";
+import { ActionOptionsService } from "../engine/dealer/index.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 
 vi.setConfig({ testTimeout: 30000 });
@@ -371,3 +371,4 @@ describe("dealer canonical rules", () => {
     });
   });
 });
+

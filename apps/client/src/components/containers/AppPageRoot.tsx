@@ -6,7 +6,7 @@ import { resolveBackground } from "@/theme/backgrounds";
 import { resolvedToNativeProps } from "@/theme/backgrounds/background.native";
 import { resolvedToBodyStyle } from "@/theme/backgrounds/background.web";
 import { getBackgroundImageUrl } from "@/theme/backgrounds/getBackgroundImageUrl.web";
-import { getFeltImageSource } from "@/components/domain/table/feltImages";
+import { getFeltImageSource } from "@/features/table";
 
 type AppPageRootProps = { children: ReactNode };
 
@@ -36,7 +36,7 @@ export function AppPageRoot({ children }: AppPageRootProps) {
         className="app-page"
         style={(webStyle ?? {}) as ViewStyle}
       >
-        <View className="app-content">{children}</View>
+        <View className="app-content bg-bg/70">{children}</View>
       </View>
     );
   }
@@ -58,3 +58,4 @@ export function AppPageRoot({ children }: AppPageRootProps) {
     </View>
   );
 }
+

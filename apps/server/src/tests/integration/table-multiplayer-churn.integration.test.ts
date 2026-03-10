@@ -83,7 +83,7 @@ async function settleHandToWaiting(
     const toActUserId = String(room.state.seats?.[room.state.toActSeat] ?? "");
     const actorClient = clientsByUserId[toActUserId];
     const actorSnapshot = actorClient?.latestSnapshot;
-    if (actorClient && actorSnapshot?.hand?.handId === room.state.handId && !actorSnapshot.lastHandResult?.handId) {
+    if (actorClient && actorSnapshot && actorSnapshot.hand?.handId === room.state.handId && !actorSnapshot.lastHandResult?.handId) {
       const action = { ...pickLegalAction(actorSnapshot), actionId: `settle-${i}-${Date.now()}` };
       room.onMessageEvents.emit("ACTION", actorClient as any, action);
     }

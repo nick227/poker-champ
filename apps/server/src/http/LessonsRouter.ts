@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { requireLessonAccess } from "./middleware/requireLessonAccess.js";
 import { listLessons, getMastery } from "../lessons/LessonListService.js";
 import { getLesson } from "../lessons/LessonDetailService.js";
@@ -125,3 +125,4 @@ function createLessonsRouter(prisma: ReturnType<typeof getPrisma>) {
 }
 
 export const lessonsRouter = createLessonsRouter(getPrisma());
+

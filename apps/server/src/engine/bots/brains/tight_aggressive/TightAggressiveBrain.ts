@@ -1,4 +1,4 @@
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { logger } from "../../../../lib/logger.js";
 import type { BotActionContext, BotBrain } from "../../BotBrain.js";
 import type { TightAggressiveCompiledConfig } from "./types.js";

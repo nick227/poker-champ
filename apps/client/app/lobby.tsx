@@ -2,23 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
-import { GameListHeader } from "@/components/domain/lobby/GameListHeader";
-import { InstantGamePanels } from "@/components/domain/lobby/InstantGamePanels";
-import { ReplayQuickLinks } from "@/components/domain/lobby/ReplayQuickLinks";
-import { GameTablePanel } from "@/components/domain/lobby/GameTablePanel";
-import { GameTablePanelSkeleton } from "@/components/domain/lobby/GameTablePanelSkeleton";
-import { EmptyState } from "@/components/domain/lobby/EmptyState";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
-import { CreateGameModal } from "@/components/domain/lobby/CreateGameModal";
-import { ChooseTableModal } from "@/components/domain/lobby/ChooseTableModal";
+import { GameListHeader } from "@/features/lobby";
+import { InstantGamePanels } from "@/features/lobby";
+import { ReplayQuickLinks } from "@/features/lobby";
+import { GameTablePanel } from "@/features/lobby";
+import { GameTablePanelSkeleton } from "@/features/lobby";
+import { EmptyState } from "@/features/lobby";
+import { OnlinePlayersSheet } from "@/features/lobby";
+import { CreateGameModal } from "@/features/lobby";
+import { ChooseTableModal } from "@/features/lobby";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { useJoiningTableState } from "@/hooks/useJoiningTableState";
@@ -34,7 +34,7 @@ import {
   buildInstantCreateTableConfig,
   getInstantGamePreset,
   type InstantGamePresetId,
-} from "@/components/domain/lobby/instantGame.presets";
+} from "@/features/lobby";
 
 type SortKey = "name" | "players" | "blinds";
 
@@ -307,3 +307,4 @@ export default function LobbyScreen() {
     </Screen>
   );
 }
+

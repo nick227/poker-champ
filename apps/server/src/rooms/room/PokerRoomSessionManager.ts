@@ -80,10 +80,14 @@ export class PokerRoomSessionManager {
           code: "SESSION_REPLACED",
           message: "Session replaced by a newer connection.",
         });
-      } catch {}
+      } catch (err) {
+        void err;
+      }
       try {
         oldClient.leave(this.options.leaveCodeSessionReplaced);
-      } catch {}
+      } catch (err) {
+        void err;
+      }
     }
 
     this.ctx.logger.info(

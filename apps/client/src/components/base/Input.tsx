@@ -6,7 +6,7 @@ import { PLACEHOLDER_COLOR } from "@/theme/colors";
 export function Input({ label, iconLeft, ...props }: TextInputProps & { label?: string; iconLeft?: string }) {
   const wrapperClass = "ui-row ui-inline-2 ui-p-md min-h-[44px] items-center";
   return (
-    <View className="ui-stack-2">
+    <View className="ui-stack-2 bg-panel rounded-lg">
       {label ? <Text variant="muted">{label}</Text> : null}
       <View className={wrapperClass}>
         {iconLeft ? <Text variant="muted">{iconLeft}</Text> : null}

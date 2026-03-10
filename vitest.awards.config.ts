@@ -4,7 +4,8 @@ import path from "node:path";
 export default defineConfig({
   resolve: {
     alias: {
-      "@poker-champ/api-types": path.resolve(process.cwd(), "packages/api-types/src/index.ts"),
+      "@poker-champ/realtime-contract": path.resolve(process.cwd(), "packages/realtime-contract/src/index.ts"),
+      "@poker-champ/db": path.resolve(process.cwd(), "packages/db/src/index.ts"),
     },
   },
   test: {

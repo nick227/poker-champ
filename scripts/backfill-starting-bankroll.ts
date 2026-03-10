@@ -1,4 +1,4 @@
-import { disconnectPrisma, getPrisma } from "../apps/server/src/db/prisma.js";
+import { disconnectPrisma, getPrisma } from "@poker-champ/db";
 
 const STARTING_BANKROLL_CENTS = 1_000_000;
 
@@ -48,3 +48,4 @@ main()
   .finally(async () => {
     await disconnectPrisma();
   });
+

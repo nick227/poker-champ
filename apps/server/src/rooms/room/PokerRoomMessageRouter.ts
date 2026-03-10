@@ -1,11 +1,12 @@
 import { nanoid } from "nanoid";
+import type { Client } from "@colyseus/core";
 import {
   AddBotPayloadSchema,
   ChatPayloadSchema,
   RemoveBotPayloadSchema,
   TableInboundMessageSchema,
 } from "@poker-champ/realtime-contract";
-import { ActionPayloadSchema } from "@poker-champ/api-types";
+import { ActionPayloadSchema } from "@poker-champ/realtime-contract";
 import { PokerError } from "../../engine/errors.js";
 import { newBotId } from "../../engine/bots/botIds.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../../engine/bots/BotCatalog.js";
@@ -19,10 +20,16 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
     private readonly session: PokerRoomSessionManager,
   ) {}
 
+  private static asErrorLike(err: unknown): { code?: string; message: string } {
+    if (err instanceof PokerError) return { code: err.code, message: err.message };
+    if (err instanceof Error) return { message: err.message };
+    return { message: String(err) };
+  }
+
   registerAll(): void {
     const room = this.ctx.room;
 
-    room.onMessage("ADD_BOT", async (client: any, message: unknown) => {
+    room.onMessage("ADD_BOT", async (client: Client, message: unknown) => {
       const parsed = AddBotPayloadSchema.safeParse(message);
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -49,12 +56,12 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         await this.ctx.dealer.addBot(runtimeBotId, botName, parsed.data.buyInCents, resolved.bot.id);
         room.updateMetadataCountsInternal();
       } catch (err: unknown) {
-        const e = err as { code?: string; message?: string };
-        room.sendTableMessageInternal(client, "ERROR", { code: e?.code ?? "ADD_BOT_FAILED", message: e?.message ?? String(err) });
+        const e = PokerRoomMessageRouter.asErrorLike(err);
+        room.sendTableMessageInternal(client, "ERROR", { code: e.code ?? "ADD_BOT_FAILED", message: e.message });
       }
     });
 
-    room.onMessage("LIST_BOTS", (client: any, message: unknown) => {
+    room.onMessage("LIST_BOTS", (client: Client, message: unknown) => {
       const parsed = TableInboundMessageSchema.safeParse({ type: "LIST_BOTS", payload: message ?? {} });
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -63,7 +70,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       room.sendTableMessageInternal(client, "BOTS_LIST", { bots: listEnabledBotSummaries() });
     });
 
-    room.onMessage("REMOVE_BOT", async (client: any, message: unknown) => {
+    room.onMessage("REMOVE_BOT", async (client: Client, message: unknown) => {
       const parsed = RemoveBotPayloadSchema.safeParse(message);
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -91,15 +98,15 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         await this.ctx.dealer.removeBot(parsed.data.botId);
         room.updateMetadataCountsInternal();
       } catch (err: unknown) {
-        const e = err as { code?: string; message?: string };
+        const e = PokerRoomMessageRouter.asErrorLike(err);
         room.sendTableMessageInternal(client, "ERROR", {
-          code: e?.code ?? "REMOVE_BOT_FAILED",
-          message: e?.message ?? String(err),
+          code: e.code ?? "REMOVE_BOT_FAILED",
+          message: e.message,
         });
       }
     });
 
-    room.onMessage("CHAT", (client: any, message: unknown) => {
+    room.onMessage("CHAT", (client: Client, message: unknown) => {
       if (room.isChatRateLimitedInternal(client.sessionId)) {
         room.sendTableMessageInternal(client, "ERROR", {
           code: "RATE_LIMITED",
@@ -133,10 +140,10 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         text: parsed.data.text,
         createdAtTs: Date.now(),
       };
-      room.clients.forEach((c: any) => room.sendTableMessageInternal(c, "CHAT_MESSAGE", payload));
+      room.clients.forEach((c: Client) => room.sendTableMessageInternal(c, "CHAT_MESSAGE", payload));
     });
 
-    room.onMessage("ACTION", async (client: any, message: unknown) => {
+    room.onMessage("ACTION", async (client: Client, message: unknown) => {
       if (room.isActionRateLimitedInternal(client.sessionId)) {
         room.sendTableMessageInternal(client, "ERROR", {
           code: "RATE_LIMITED",
@@ -228,7 +235,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, action: parsed.data.action, amountCents: parsed.data.amountCents },
           "POKER_ACTION_ACCEPTED",
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         const isBenignDuplicateRetry = (() => {
           if (!(err instanceof PokerError)) return false;
           if (err.code !== "NOT_YOUR_TURN" && err.code !== "HAND_NOT_STARTED") return false;
@@ -260,19 +267,19 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
             tableId: this.ctx.state.tableId,
             sessionId: client.sessionId,
             code: err instanceof PokerError ? err.code : "ACTION_REJECTED",
-            message: err?.message ?? String(err),
+            message: PokerRoomMessageRouter.asErrorLike(err).message,
           },
           "POKER_ACTION_REJECTED",
         );
         if (err instanceof PokerError) {
           room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message, ...(err.meta ?? {}) });
         } else {
-          room.sendTableMessageInternal(client, "ERROR", { code: "ACTION_REJECTED", message: err?.message ?? String(err) });
+          room.sendTableMessageInternal(client, "ERROR", { code: "ACTION_REJECTED", message: PokerRoomMessageRouter.asErrorLike(err).message });
         }
       }
     });
 
-    room.onMessage("SET_SITTING_OUT", async (client: any, message: unknown) => {
+    room.onMessage("SET_SITTING_OUT", async (client: Client, message: unknown) => {
       const parsed = TableInboundMessageSchema.safeParse({ type: "SET_SITTING_OUT", payload: message });
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -291,16 +298,16 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       try {
         await this.ctx.dealer.setPlayerSittingOut(userId, parsed.data.payload.sittingOut);
         room.updateMetadataCountsInternal();
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err instanceof PokerError) {
           room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message, ...(err.meta ?? {}) });
           return;
         }
-        room.sendTableMessageInternal(client, "ERROR", { code: "SIT_OUT_TOGGLE_FAILED", message: err?.message ?? String(err) });
+        room.sendTableMessageInternal(client, "ERROR", { code: "SIT_OUT_TOGGLE_FAILED", message: PokerRoomMessageRouter.asErrorLike(err).message });
       }
     });
 
-    room.onMessage("REJOIN", async (client: any, message: unknown) => {
+    room.onMessage("REJOIN", async (client: Client, message: unknown) => {
       const parsed = TableInboundMessageSchema.safeParse({ type: "REJOIN", payload: message });
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -331,14 +338,14 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       try {
         await this.ctx.dealer.setPlayerSittingOut(userId, false);
         room.updateMetadataCountsInternal();
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.ctx.logger.warn(
           {
             roomId: room.roomId,
             tableId: this.ctx.state.tableId,
             userId,
             code: err instanceof PokerError ? err.code : "REJOIN_FAILED_TEMPORARY",
-            message: err?.message ?? String(err),
+            message: PokerRoomMessageRouter.asErrorLike(err).message,
           },
           "POKER_REJOIN_FAILED",
         );
@@ -346,7 +353,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
     });
 
-    room.onMessage("JOIN_TABLE", async (client: any, message: unknown) => {
+    room.onMessage("JOIN_TABLE", async (client: Client, message: unknown) => {
       const parsed = TableInboundMessageSchema.safeParse({ type: "JOIN_TABLE", payload: message });
       if (!parsed.success) {
         room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
@@ -404,21 +411,21 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         });
         room.addTablePresenceInternal(client, userId, username);
         await this.ctx.dealer.emitSnapshotToUser(userId, "JOIN");
-      } catch (err: any) {
+      } catch (err: unknown) {
         this.ctx.logger.warn(
           {
             roomId: room.roomId,
             tableId: this.ctx.state.tableId,
             userId,
             code: err instanceof PokerError ? err.code : "JOIN_FAILED",
-            message: err?.message ?? String(err),
+            message: PokerRoomMessageRouter.asErrorLike(err).message,
           },
           "POKER_JOIN_TABLE_FAILED",
         );
         if (err instanceof PokerError) {
           room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message });
         } else {
-          room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: err?.message ?? String(err) });
+          room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: PokerRoomMessageRouter.asErrorLike(err).message });
         }
       }
     });

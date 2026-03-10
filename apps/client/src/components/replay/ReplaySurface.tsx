@@ -1,5 +1,5 @@
 import { View, Pressable } from "react-native";
-import { ActiveTableView } from "@/components/domain/table/views/ActiveTableView";
+import { ActiveTableView } from "@/features/table";
 import { ReplayControls } from "@/components/replay/ReplayControls";
 import { Text } from "@/components/base/Text";
 import type { ReplaySurfaceProps } from "./replay.types";
@@ -68,4 +68,5 @@ export function ReplaySurface({
     </View>
   );
 }
+
 

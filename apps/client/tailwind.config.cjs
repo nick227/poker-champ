@@ -170,7 +170,7 @@ module.exports = {
           color: "hsl(var(--btn-accent-text))",
         },
         ".btn-ghost": {
-          backgroundColor: "transparent",
+          backgroundColor: "hsl(var(--c-panel-elevated) / 0.5)",
           borderColor: "transparent",
           color: "hsl(var(--accent-purple))",
         },

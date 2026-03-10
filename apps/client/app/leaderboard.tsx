@@ -2,18 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { ScrollView, View, TouchableOpacity, Text } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Avatar } from "@/components/base/Avatar";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { OnlinePlayersSheet } from "@/features/lobby";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import {
   leaderboardService,
   type LeaderboardCategory,
@@ -264,3 +264,4 @@ export default function LeaderboardScreen() {
     </Screen>
   );
 }
+

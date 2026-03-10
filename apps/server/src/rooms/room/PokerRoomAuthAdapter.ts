@@ -4,7 +4,7 @@ import type { PokerRoomContext, PokerRoomAuthService } from "./types/PokerRoomTy
 export class PokerRoomAuthAdapter implements PokerRoomAuthService {
   constructor(private readonly ctx: PokerRoomContext) {}
 
-  async authenticate(client: Client, options: any, context: { token?: string; headers?: Headers }): Promise<any> {
+  async authenticate(client: Client, options: unknown, context: { token?: string; headers?: Headers }): Promise<unknown> {
     const room = this.ctx.room;
     return room.authenticateInternal(client, options, context);
   }

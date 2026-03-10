@@ -214,11 +214,6 @@ export async function submitStep(
   const grade = gradeStep(spec, step.type, answer);
   const submittedActionKey = actionKeyFromAnswer(step.type, answer);
   const feedback = feedbackFromGrade(grade, submittedActionKey);
-  const conceptLinks = step.concepts.map((c) => ({
-    conceptId: c.conceptId,
-    weight: c.concept ? 1 : 1,
-  }));
-
   const result = await prisma.$transaction(async (tx) => {
     if (existingSubmission) {
       await tx.lessonAttemptStep.update({

@@ -5,14 +5,58 @@ import { createRequire } from 'node:module';
 const prisma = new PrismaClient();
 const require = createRequire(import.meta.url);
 type StripeEvent = { type: string; data: { object: unknown } };
-type StripeCheckoutSession = any;
-type StripePaymentIntent = any;
+type StripeCheckoutSession = {
+  id: string;
+  url?: string | null;
+  customer?: string;
+  metadata?: {
+    userId?: string;
+    membershipType?: string;
+  };
+  amount_total?: number | null;
+};
+type StripePaymentIntent = {
+  id?: string;
+};
+type StripeClient = {
+  customers: {
+    create(args: { email: string; metadata: { userId: string } }): Promise<{ id: string }>;
+  };
+  checkout: {
+    sessions: {
+      create(args: {
+        customer: string;
+        payment_method_types: string[];
+        line_items: Array<{
+          price_data: {
+            currency: string;
+            product_data: { name: string; description: string };
+            unit_amount: number;
+          };
+          quantity: number;
+        }>;
+        mode: "payment";
+        success_url: string;
+        cancel_url: string;
+        metadata: {
+          userId: string;
+          membershipType: string;
+        };
+        allow_promotion_codes: boolean;
+        billing_address_collection: "auto";
+      }): Promise<StripeCheckoutSession>;
+    };
+  };
+};
 
-let stripeClient: any | null = null;
+let stripeClient: StripeClient | null = null;
 function getStripeClient() {
   if (stripeClient) return stripeClient;
   try {
-    const StripeCtor = require('stripe');
+    const StripeCtor = require('stripe') as new (
+      key: string,
+      options: { apiVersion: string },
+    ) => StripeClient;
     stripeClient = new StripeCtor(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2024-11-20.acacia',
     });

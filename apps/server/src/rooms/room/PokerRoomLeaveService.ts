@@ -153,7 +153,9 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
         );
         try {
           reconnected.leave(room.leaveCodeSessionReplaced);
-        } catch {}
+        } catch (err) {
+          void err;
+        }
         return;
       }
 
@@ -161,7 +163,9 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
         room.sendTableMessageInternal(reconnected, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
         try {
           reconnected.leave();
-        } catch {}
+        } catch (err) {
+          void err;
+        }
         return;
       }
 

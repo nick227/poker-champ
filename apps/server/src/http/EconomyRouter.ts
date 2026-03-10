@@ -3,7 +3,7 @@ import { matchMaker } from "@colyseus/core";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
-import { getPrisma } from "../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { CashierService, TABLE_NAME_REQUIRED } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
 
@@ -119,16 +119,17 @@ router.post("/buy-in", async (req, res) => {
       return;
     }
     res.json(result);
-  } catch (err: any) {
-    if (err?.message === "INSUFFICIENT_BANKROLL") {
-      res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === "INSUFFICIENT_BANKROLL") {
+      res.status(400).json({ error: message });
       return;
     }
-    if (err?.message === TABLE_NAME_REQUIRED) {
+    if (message === TABLE_NAME_REQUIRED) {
       res.status(409).json({ error: "Table name metadata is required for buy-in." });
       return;
     }
-    res.status(500).json({ error: err?.message ?? "Buy-in failed" });
+    res.status(500).json({ error: message || "Buy-in failed" });
   }
 });
 
@@ -168,17 +169,19 @@ router.post("/cash-out", async (req, res) => {
       tableMeta,
     });
     res.json(result);
-  } catch (err: any) {
-    if (err?.message === "INSUFFICIENT_TABLE_BALANCE") {
-      res.status(400).json({ error: err.message });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === "INSUFFICIENT_TABLE_BALANCE") {
+      res.status(400).json({ error: message });
       return;
     }
-    if (err?.message === TABLE_NAME_REQUIRED) {
+    if (message === TABLE_NAME_REQUIRED) {
       res.status(409).json({ error: "Table name metadata is required for cash-out." });
       return;
     }
-    res.status(500).json({ error: err?.message ?? "Cash-out failed" });
+    res.status(500).json({ error: message || "Cash-out failed" });
   }
 });
 
 export const economyRouter = router;
+

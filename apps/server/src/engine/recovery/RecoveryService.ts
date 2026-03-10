@@ -1,5 +1,5 @@
 import { matchMaker } from "@colyseus/core";
-import { getPrisma } from "../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../economy/CashierService.js";
 import { logger } from "../../lib/logger.js";
 
@@ -98,3 +98,4 @@ export class RecoveryService {
     // Placeholder for future logic where we cross-reference matchmaker rooms
   }
 }
+

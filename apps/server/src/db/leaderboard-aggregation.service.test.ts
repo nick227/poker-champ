@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import * as prismaDb from "./prisma.js";
+import * as prismaDb from "@poker-champ/db";
 import { LeaderboardAggregationService } from "../engine/persistence/LeaderboardAggregationService.js";
 
 describe("LeaderboardAggregationService", () => {
@@ -46,12 +46,13 @@ describe("LeaderboardAggregationService", () => {
     const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
     const createMany = vi.fn().mockResolvedValue({ count: 0 });
     const tx = { leaderboardSnapshot: { deleteMany, createMany } };
+    type Tx = typeof tx;
 
     const prismaMock = {
       balanceTransaction: { groupBy },
       handPlayer: { findMany: vi.fn().mockResolvedValue([]) },
       user: { findMany: findManyUsers },
-      $transaction: async (fn: (tx: typeof tx) => Promise<void>) => fn(tx),
+      $transaction: async (fn: (txArg: Tx) => Promise<void>) => fn(tx),
     };
 
     vi.spyOn(prismaDb, "getPrisma").mockReturnValue(prismaMock as any);
@@ -116,11 +117,12 @@ describe("LeaderboardAggregationService", () => {
     const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
     const createMany = vi.fn().mockResolvedValue({ count: 3 });
     const tx = { leaderboardSnapshot: { deleteMany, createMany } };
+    type Tx = typeof tx;
     const conflictError = Object.assign(new Error("write conflict"), { code: "P2034" });
     const transaction = vi
       .fn()
       .mockRejectedValueOnce(conflictError)
-      .mockImplementationOnce(async (fn: (tx: typeof tx) => Promise<void>) => fn(tx));
+      .mockImplementationOnce(async (fn: (txArg: Tx) => Promise<void>) => fn(tx));
 
     vi.spyOn(prismaDb, "getPrisma").mockReturnValue({
       balanceTransaction: { groupBy },

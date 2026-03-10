@@ -1,4 +1,4 @@
-import type { FeltImageId } from "@/components/domain/table/feltImages";
+import type { FeltImageId } from "@/features/table";
 
 /** When set, surface uses gradient; otherwise solid color or image. */
 export type FeltGradient = {
@@ -28,3 +28,4 @@ export type ResolvedBackground =
       imageId: BackgroundImageId;
       size: "cover" | "stretch";
     };
+

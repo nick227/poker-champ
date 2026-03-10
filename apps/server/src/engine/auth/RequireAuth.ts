@@ -26,8 +26,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     req.user = user;
     next();
-  } catch (err: any) {
-    if (err?.code === "AUTH_BACKEND_UNAVAILABLE") {
+  } catch (err: unknown) {
+    const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code) : "";
+    if (code === "AUTH_BACKEND_UNAVAILABLE") {
       res.status(503).json({ error: "Auth service unavailable", code: "AUTH_BACKEND_UNAVAILABLE" });
       return;
     }

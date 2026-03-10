@@ -2,18 +2,18 @@ import { useState, useCallback } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { View, Pressable } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/components/domain/lobby/Masthead";
+import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ArticleLayout } from "@/components/domain/blog/ArticleLayout";
-import { OnlinePlayersSheet } from "@/components/domain/lobby/OnlinePlayersSheet";
+import { OnlinePlayersSheet } from "@/features/lobby";
 import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { getArticle } from "@/content/blog/blogManifest";
 import { useProfile } from "@/hooks/useProfile";
 import { useBankroll } from "@/hooks/useBankroll";
 import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/realtime/lobbyRealtimeBridge";
+import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 
 export default function BlogArticleScreen() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { dispatchRealtimeChannelMessage } from "@/registry/realtime-channel.registry";
-import { useTableStore } from "@/stores/table.store";
+import { useTableStore } from "@/features/table/stores/table.store";
 
 function makeSnapshot(seq: number, tableId = "t1"): TableSnapshotPayload {
   return {
@@ -159,3 +159,4 @@ describe("realtime channel registry dispatch", () => {
     expect(onError).toHaveBeenCalledWith("INVALID_REALTIME_MESSAGE");
   });
 });
+

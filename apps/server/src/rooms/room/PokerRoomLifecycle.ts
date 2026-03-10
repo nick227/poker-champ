@@ -4,7 +4,7 @@ import type { PokerRoomContext, PokerRoomLifecycleContract } from "./types/Poker
 export class PokerRoomLifecycle implements PokerRoomLifecycleContract {
   constructor(private readonly ctx: PokerRoomContext) {}
 
-  setup(options?: { cfg?: any }): void {
+  setup(options?: { cfg?: unknown }): void {
     this.ctx.startStallMonitor();
     this.ctx.updateCreateMetadata(options?.cfg);
     this.ctx.registerVoiceRelay();

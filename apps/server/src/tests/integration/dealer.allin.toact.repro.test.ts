@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ActionPayload } from "@poker-champ/api-types";
+import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { Dealer } from "../../engine/Dealer.js";
-import { ActionOptionsService } from "../../engine/dealer/services/ActionOptionsService.js";
+import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
@@ -67,8 +67,8 @@ describe.skip("known bug repro: 6-max all-in toAct invariant", () => {
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
       ((handler: TimerHandler) => {
         if (typeof handler === "function") handler();
-        return 0 as ReturnType<typeof setTimeout>;
-      }) as typeof setTimeout,
+        return 0 as unknown as ReturnType<typeof setTimeout>;
+      }) as unknown as typeof setTimeout,
     );
 
     try {
@@ -137,3 +137,4 @@ describe.skip("known bug repro: 6-max all-in toAct invariant", () => {
     }
   }, 120_000);
 });
+

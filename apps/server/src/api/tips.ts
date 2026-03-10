@@ -22,15 +22,6 @@ export class TipService {
       // Note: Actual payment processing is handled by Stripe Payment Links
       // This is just for tracking and analytics purposes
       
-      const tipRecord = {
-        userId: data.userId,
-        amountCents: data.amountCents,
-        stripePaymentLinkId: data.stripePaymentLinkId,
-        userAgent: data.userAgent,
-        timestamp: data.timestamp,
-        type: 'tip' as const,
-      };
-
       // For now, we'll store this in BalanceTransaction table for analytics
       // In a future iteration, we might create a dedicated Tips table
       const transaction = await prisma.balanceTransaction.create({

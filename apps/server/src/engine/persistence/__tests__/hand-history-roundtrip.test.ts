@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { nanoid } from "nanoid";
-import { getPrisma } from "../../../db/prisma.js";
+import { getPrisma } from "@poker-champ/db";
 import { HandHistoryService } from "../HandHistoryService.js";
 import { createTestUser, cleanupTestUsers } from "../../../__tests__/testUtils.js";
 
@@ -99,3 +99,4 @@ describe("HandHistoryService round-trip", () => {
     expect(playerUserIds).toContain(userId);
   });
 });
+

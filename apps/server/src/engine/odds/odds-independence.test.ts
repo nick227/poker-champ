@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { HandCalculationsCoordinator } from "./HandCalculationsCoordinator.js";
-import { SnapshotService } from "../dealer/services/SnapshotService.js";
+import { SnapshotService } from "../dealer/hand/SnapshotService.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
@@ -50,14 +50,14 @@ describe("Odds Subsystem Independence", () => {
     state.tableId = "t1";
     state.handId = "h1";
     state.street = "FLOP";
-    state.board = ["As", "Kd", "Qh"];
+    state.board.push("As", "Kd", "Qh");
     state.potCents = 1000;
     state.maxSeats = 2;
     state.smallBlindCents = 50;
     state.bigBlindCents = 100;
     state.minBuyInCents = 100;
     state.maxBuyInCents = 100000;
-    state.seats = ["u1", "u2"];
+    state.seats.push("u1", "u2");
     state.toActSeat = 0;
 
     const hero = new PlayerState();
@@ -114,3 +114,4 @@ describe("Odds Subsystem Independence", () => {
     expect(snapshot.hero.calculations?.equityPct).toBeUndefined();
   });
 });
+

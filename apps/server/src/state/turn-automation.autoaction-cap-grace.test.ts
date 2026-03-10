@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { PokerState } from "./PokerState.js";
 import { PlayerState } from "./PlayerState.js";
-import { TurnAutomationService } from "../engine/dealer/services/TurnAutomationService.js";
+import { TurnAutomationService } from "../engine/dealer/index.js";
 import { BotResolver } from "../engine/bots/BotResolver.js";
 
 function buildService(state: PokerState, autoActionsByUserId: Map<string, number>, autoActed: Set<string>) {
@@ -70,4 +70,5 @@ describe("turn automation auto-action cap grace window", () => {
     expect(autoActionsByUserId.get("u1")).toBe(1);
   });
 });
+
 

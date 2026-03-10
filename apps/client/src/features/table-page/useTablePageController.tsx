@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { TableTopNavMenu } from "@/components/domain/table/TableTopNavMenu";
-import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/components/domain/table/table.adapter";
-import type { Opponent, ConnectionStatus } from "@/components/domain/table/views/ActiveTableView";
-import type { TableAction } from "@/components/domain/table/action-bar";
+import { TableTopNavMenu } from "@/features/table";
+import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/features/table";
+import type { Opponent, ConnectionStatus } from "@/features/table";
+import type { TableAction } from "@/features/table";
 import { storeRegistry } from "@/registry/store.registry";
-import type { TableRealtimeRoom } from "@/realtime/useTableRealtime";
+import type { TableRealtimeRoom } from "@/features/table/realtime/useTableRealtime";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { useToastStore } from "@/stores/toast.store";
@@ -16,22 +16,22 @@ import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceS
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
 import { MODAL } from "@/constants/copy";
-import { useResolvedBuyIn } from "@/components/domain/table/hooks/useResolvedBuyIn";
-import { useTableScene } from "@/components/domain/table/hooks/useTableScene";
-import { useActionMessages } from "@/components/domain/table/hooks/useActionMessages";
+import { useResolvedBuyIn } from "@/features/table";
+import { useTableScene } from "@/features/table";
+import { useActionMessages } from "@/features/table";
 import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
-import { useRebuySheet } from "@/components/domain/table/hooks/useRebuySheet";
-import { useAddBot } from "@/components/domain/table/hooks/useAddBot";
-import { useVoiceControllerLifecycle } from "@/components/domain/table/hooks/useVoiceControllerLifecycle";
-import { useVoiceJoinPolicy } from "@/components/domain/table/hooks/useVoiceJoinPolicy";
+import { useRebuySheet } from "@/features/table";
+import { useAddBot } from "@/features/table";
+import { useVoiceControllerLifecycle } from "@/features/table";
+import { useVoiceJoinPolicy } from "@/features/table";
 import { showVoiceErrorToast } from "@/voice/errors";
-import { useOpenTableSync } from "@/components/domain/table/hooks/useOpenTableSync";
-import { useTableConnection } from "@/components/domain/table/hooks/useTableConnection";
-import { usePlayerJoinedSound } from "@/components/domain/table/hooks/usePlayerJoinedSound";
-import { useTablePageStores } from "@/hooks/useTablePageStores";
+import { useOpenTableSync } from "@/features/table";
+import { useTableConnection } from "@/features/table";
+import { usePlayerJoinedSound } from "@/features/table";
+import { useTablePageStores } from "@/features/table/hooks/useTablePageStores";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
-import type { RejoinUiState } from "@/components/domain/table/RejoinCTA";
+import type { RejoinUiState } from "@/features/table";
 import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
@@ -578,3 +578,4 @@ export function useTablePageController({
     },
   };
 }
+
