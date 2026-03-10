@@ -582,6 +582,8 @@ export class Dealer {
 
   /** Set for the duration of a player action so post-action snapshot is sent to this client even if unbound during async build. */
   private pendingActorRef: { userId: string; client: Client } | null = null;
+  private lastWaitingWithoutDeadlineRepairLogAt = 0;
+  private lastWaitingWithoutDeadlineRepairKey = "";
   // Legacy test compatibility: some regression tests introspect queue state via (dealer as any).actionQueue.
   private get actionQueue(): Promise<void> {
     return this.turnManager.getActionQueue();
@@ -679,9 +681,46 @@ export class Dealer {
     }
   }
 
+  private maybeSelfHealWaitingHumanWithoutDeadline(trigger: string): void {
+    if (this.state.roundState !== "WAITING_FOR_ACTION") return;
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    if (this.state.toActSeat < 0) return;
+    if ((this.state.turnDeadlineMs ?? 0) > 0) return;
+
+    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || !eligibleToAct(toActPlayer)) return;
+    if (toActPlayer.kind !== "HUMAN" || !toActPlayer.connected) return;
+
+    const key = `${this.state.handId}|${this.state.street}|${this.state.toActSeat}`;
+    const now = Date.now();
+    if (
+      key !== this.lastWaitingWithoutDeadlineRepairKey ||
+      now - this.lastWaitingWithoutDeadlineRepairLogAt > 5000
+    ) {
+      logger.error(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          toActSeat: this.state.toActSeat,
+          toActUserId,
+          trigger,
+        },
+        "WAITING_WITHOUT_DEADLINE_REPAIRED",
+      );
+      this.lastWaitingWithoutDeadlineRepairKey = key;
+      this.lastWaitingWithoutDeadlineRepairLogAt = now;
+    }
+
+    this.ensureHumanTurnTimerForCurrentActor(`SELF_HEAL:${trigger}`);
+  }
+
   private onWaitingForActionEntered(reason: string): void {
     this.maybeActForBot();
     this.ensureHumanTurnTimerForCurrentActor(`ROUND_STATE_ENTER:${reason}`);
+    this.maybeSelfHealWaitingHumanWithoutDeadline(`ROUND_STATE_ENTER:${reason}`);
     this.logEngineDecisionState(`ROUND_STATE_ENTER:${reason}`);
   }
 
@@ -1349,6 +1388,7 @@ export class Dealer {
     }
 
     this.ensureHumanTurnTimerForCurrentActor("ACTION_RESOLVED_NEXT_ACTOR");
+    this.maybeSelfHealWaitingHumanWithoutDeadline("ACTION_RESOLVED_NEXT_ACTOR");
     this.logEngineDecisionState("ACTION_RESOLVED_NEXT_ACTOR");
     this.logToActDerivationWarning("ACTION_RESOLVED_NEXT_ACTOR");
     this.logEngineDecisionAndRuntimeStep("ACTION_RESOLVED_NEXT_ACTOR");

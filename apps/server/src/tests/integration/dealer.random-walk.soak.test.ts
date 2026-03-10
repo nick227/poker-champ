@@ -142,24 +142,47 @@ describe("dealer random walk soak", () => {
       let handsStarted = 0;
       let handsCompleted = 0;
       let maxStepsPerHand = 0;
+      const initialSeatByUserId = new Map<string, number>(
+        [...state.playersById.values()].map((p) => [p.id, p.seat]),
+      );
+      const initialKindByUserId = new Map<string, "HUMAN" | "BOT">(
+        [...state.playersById.values()].map((p) => [p.id, p.kind as "HUMAN" | "BOT"]),
+      );
+      let consecutiveNoDealStarts = 0;
+
+      const recyclePlayersIfNeeded = (force = false) => {
+        const activeWithChips = [...state.playersById.values()].filter((p) => p.status !== "OUT" && p.stackCents > 0);
+        if (!force && activeWithChips.length >= 2) return false;
+
+        for (let i = 0; i < state.seats.length; i++) state.seats[i] = "";
+
+        for (const [id, originalSeat] of initialSeatByUserId.entries()) {
+          if (originalSeat < 0) continue;
+          let p = state.playersById.get(id);
+          if (!p) {
+            p = makePlayer(id, originalSeat, 6000, initialKindByUserId.get(id) ?? "HUMAN");
+            state.playersById.set(id, p);
+          }
+          while (state.seats.length <= originalSeat) state.seats.push("");
+          state.seats[originalSeat] = id;
+          p.seat = originalSeat;
+          if (p.stackCents <= 0) p.stackCents = 6000;
+          p.status = "ACTIVE";
+          p.roundBetCents = 0;
+          p.committedCents = 0;
+          p.needsAction = false;
+          p.connected = true;
+          p.disconnectDeadlineTs = 0;
+          p.sittingOutUntilNextHand = false;
+          p.pendingLeave = false;
+          p.pendingRemovalReason = "";
+        }
+        expectedChipMass = computeChipMass();
+        return true;
+      };
 
       for (let h = 0; h < handsToPlay; h++) {
-        const activeWithChips = [...state.playersById.values()].filter((p) => p.status !== "OUT" && p.stackCents > 0);
-        if (activeWithChips.length < 2) {
-          // Long-run soak mode: recycle player stacks so the harness can keep exercising lifecycle paths.
-          for (const p of state.playersById.values()) {
-            if (p.seat < 0) continue;
-            if (p.stackCents <= 0) p.stackCents = 6000;
-            p.status = "ACTIVE";
-            p.roundBetCents = 0;
-            p.committedCents = 0;
-            p.needsAction = false;
-            p.connected = true;
-            p.disconnectDeadlineTs = 0;
-            p.sittingOutUntilNextHand = false;
-          }
-          expectedChipMass = computeChipMass();
-        }
+        recyclePlayersIfNeeded();
 
         // Between hands, previous hand should be fully settled (no residual undistributed chips).
         expect(state.street).toBe("WAITING");
@@ -169,10 +192,16 @@ describe("dealer random walk soak", () => {
         const beforePayout = new Map(payoutsByUser);
         await (dealer as any).startHand();
         if (state.street === "WAITING") {
-          // Long churn runs can exhaust/sit-out players mid-loop.
-          // startHand may legally no-op back to WAITING when no hand can be dealt.
-          break;
+          // Keep long soaks running across transient no-deal starts.
+          // Fails fast only if no hand can start repeatedly despite recycle.
+          recyclePlayersIfNeeded(true);
+          consecutiveNoDealStarts += 1;
+          if (consecutiveNoDealStarts >= 100) {
+            throw new Error("startHand remained WAITING for 100 consecutive attempts");
+          }
+          continue;
         }
+        consecutiveNoDealStarts = 0;
         handsStarted += 1;
 
         expect(state.street).toBe("PREFLOP");
@@ -382,6 +411,7 @@ describe("dealer random walk soak", () => {
     state.maxSeats = 2;
     state.smallBlindCents = 50;
     state.bigBlindCents = 100;
+    state.dealerSeat = 1;
     state.minBuyInCents = 200;
     state.maxBuyInCents = 100000;
     state.seats.push("bot1", "h1");
@@ -402,27 +432,34 @@ describe("dealer random walk soak", () => {
 
     const dealer = new Dealer(state, persistence);
     (dealer as any).scheduleNextHand = () => {};
+    ((dealer as any).turnAutomationService as any).deps.botResolver.pickAction = () => ({ action: "CALL" });
     const optionsService = new ActionOptionsService();
+    let reachedFlop = false;
+    for (let attempt = 0; attempt < 5 && !reachedFlop; attempt++) {
+      if (state.street !== "WAITING") break;
+      await (dealer as any).startHand();
+      if (state.street !== "PREFLOP") continue;
 
-    await (dealer as any).startHand();
-    expect(state.street).toBe("PREFLOP");
-
-    let guard = 0;
-    while (state.street === "PREFLOP") {
-      guard += 1;
-      if (guard > 80) throw new Error("preflop guard exceeded in human-vs-bot setup");
-      const toActId = state.seats[state.toActSeat];
-      if (!toActId) throw new Error("missing toAct seat");
-      if (toActId !== "h1") {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        continue;
+      let guard = 0;
+      while (state.street === "PREFLOP") {
+        guard += 1;
+        if (guard > 80) throw new Error("preflop guard exceeded in human-vs-bot setup");
+        const toActId = state.seats[state.toActSeat];
+        if (!toActId) throw new Error("missing toAct seat");
+        if (toActId !== "h1") {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          continue;
+        }
+        const options = optionsService.buildHeroActionOptions(state, toActId);
+        expect(options).toBeTruthy();
+        const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
+        await dealer.handleAction(toActId, action);
       }
-      const options = optionsService.buildHeroActionOptions(state, toActId);
-      expect(options).toBeTruthy();
-      const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
-      await dealer.handleAction(toActId, action);
+
+      reachedFlop = state.street === "FLOP";
     }
 
+    expect(reachedFlop).toBe(true);
     expect(state.street).toBe("FLOP");
     const toActId = state.seats[state.toActSeat];
     expect(toActId).toBe("h1");

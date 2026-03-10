@@ -19,7 +19,7 @@ export function useOpponentCardsLayout(opponent: Opponent) {
 
   const onViewportLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
-      setRowHeight(e.nativeEvent.layout.height);
+      setRowHeight(e.nativeEvent.layout.height as number as 56);
     },
     [],
   );

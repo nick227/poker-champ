@@ -7,6 +7,7 @@ import type { TableAction } from "@/features/table";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/features/table";
 import type { RejoinUiState } from "@/features/table";
+import type { TableAnimationRequest } from "@/features/table/animations/tableAnimation.types";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
@@ -50,6 +51,8 @@ export type TablePageController = {
     botSummaries: BotSummary[];
     rejoinUiState: RejoinUiState;
     rejoinErrorMessage?: string | null;
+    /** Current animation request; overlay consumes and clears via onComplete. */
+    animationRequest: TableAnimationRequest | null;
   };
   uiState: {
     activeTablesDropdownVisible: boolean;
@@ -83,6 +86,8 @@ export type TablePageController = {
     joinTableFromFallback: () => void;
     closeChat: () => void;
     sendChat: (text: string) => void;
+    requestTableAnimation: (request: TableAnimationRequest) => void;
+    clearAnimationRequest: () => void;
   };
 };
 

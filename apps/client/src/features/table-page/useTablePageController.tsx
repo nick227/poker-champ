@@ -33,6 +33,9 @@ import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { RejoinUiState } from "@/features/table";
 import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
+import type { TableAnimationRequest } from "@/features/table/animations/tableAnimation.types";
+import { getTierForPotWin, getTierForAllIn } from "@/features/table/animations/tableAnimationDefinitions";
+import { formatCents } from "@/lib/format";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -126,7 +129,10 @@ export function useTablePageController({
   const [voicePrefReady, setVoicePrefReady] = useState(false);
   const [rejoinUiState, setRejoinUiState] = useState<RejoinUiState>("idle");
   const [rejoinErrorMessage, setRejoinErrorMessage] = useState<string | null>(null);
+  const [animationRequest, setAnimationRequest] = useState<TableAnimationRequest | null>(null);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
+  const lastPotWinHandIdRef = useRef<string | null>(null);
+  const lastAllInKeyRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
 
   const closeTableAndReturn = useCallback(() => {
@@ -183,6 +189,46 @@ export function useTablePageController({
 
   const { actionMessage, handResultMessage } = useActionMessages(tableId, snapshot);
   usePlayerJoinedSound(snapshot);
+
+  const heroName = seatContext?.heroSeat?.name;
+  const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
+
+  useEffect(() => {
+    if (!handResultMessage || !snapshot?.lastHandResult) return;
+    const handId = snapshot.lastHandResult.handId;
+    if (lastPotWinHandIdRef.current === handId) return;
+    lastPotWinHandIdRef.current = handId;
+    const potCents = snapshot.lastHandResult.potCents ?? 0;
+    const tier = getTierForPotWin(potCents, handResultMessage.winningHandDescr);
+    setAnimationRequest({
+      id: "potWin",
+      tier,
+      payload: {
+        headline: isHeroWinner ? "YOU WIN" : `${handResultMessage.winnerName} wins`,
+        amountText: formatCents(handResultMessage.amountCents),
+        potCents,
+      },
+    });
+  }, [handResultMessage, snapshot?.lastHandResult, isHeroWinner]);
+
+  useEffect(() => {
+    const lastAction = snapshot?.lastAction;
+    if (lastAction?.action !== "ALL_IN") return;
+    const key = `${lastAction.handId}:${lastAction.seq}`;
+    if (lastAllInKeyRef.current === key) return;
+    lastAllInKeyRef.current = key;
+    const potCents = snapshot?.hand?.potCents ?? snapshot?.lastHandResult?.potCents ?? 0;
+    const tier = getTierForAllIn(potCents, lastAction.amountCents);
+    setAnimationRequest({
+      id: "allIn",
+      tier,
+      payload: {
+        headline: "ALL IN",
+        amountText: formatCents(lastAction.amountCents),
+        potCents,
+      },
+    });
+  }, [snapshot?.lastAction, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
   const { sceneMode, tableTopBarFlags } = useTableScene({
     authHydrated,
@@ -539,6 +585,7 @@ export function useTablePageController({
       botSummaries: botSummariesForTable,
       rejoinUiState,
       rejoinErrorMessage,
+      animationRequest,
     },
     uiState: {
       activeTablesDropdownVisible,
@@ -575,6 +622,8 @@ export function useTablePageController({
       joinTableFromFallback,
       closeChat: chatOverlay.onClose,
       sendChat: chatOverlay.onSend,
+      requestTableAnimation: setAnimationRequest,
+      clearAnimationRequest: () => setAnimationRequest(null),
     },
   };
 }

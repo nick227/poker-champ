@@ -4,6 +4,7 @@ import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
+import { TableAnimationOverlay } from "@/features/table/animations/TableAnimationOverlay";
 import { MODAL } from "@/constants/copy";
 import type { TablePageController } from "@/types/tableSceneContract";
 
@@ -14,16 +15,13 @@ type TablePageOverlaysProps = {
 };
 
 export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOverlaysProps) {
-  const snapshot = renderModel.snapshot;
+  const { snapshot, animationRequest, chatVisible, chatMessages } = renderModel;
+  const { clearAnimationRequest, closeChat, sendChat } = actions;
 
   return (
     <>
-      <ChatOverlay
-        visible={renderModel.chatVisible}
-        onClose={actions.closeChat}
-        messages={renderModel.chatMessages}
-        onSend={actions.sendChat}
-      />
+      <TableAnimationOverlay request={animationRequest} onComplete={clearAnimationRequest} />
+      <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       {uiState.playerPopup && (
         <PlayerHistoryPopup visible onClose={actions.closePlayerPopup} name={uiState.playerPopup.name} />
       )}

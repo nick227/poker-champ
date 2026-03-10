@@ -9,6 +9,7 @@ function usage() {
 Analyzes:
   - TABLE_STALLED / TABLE_STALLED_RECOVERY_REDRIVE
   - ENGINE_DECISION / ENGINE_RUNTIME_STEP
+  - ENGINE_DECISION_STATE
   - TO_ACT_DERIVATION_MISMATCH
   - ROUND_STATE_TRANSITION
   - LIFECYCLE_PLAN_EXECUTED (HAND_ENDED)
@@ -117,7 +118,21 @@ function parseJsonLine(line) {
       reason: typeof parsed.reason === "string" ? parsed.reason : reasonFromMsg,
       stallReason: typeof parsed.stallReason === "string" ? parsed.stallReason : "",
       toActSeat: parseNumber(parsed.toActSeat),
-      turnDeadlineMs: parseNumber(parsed.turnDeadlineMs),
+      turnDeadlineMs: parseNumber(parsed.turnDeadlineMs) ?? parseNumber(parsed.deadline),
+      roundState: typeof parsed.roundState === "string" ? parsed.roundState : "",
+      actorKind: typeof parsed.actorKind === "string" ? parsed.actorKind : "",
+      actorConnected:
+        typeof parsed.actorConnected === "boolean"
+          ? parsed.actorConnected
+          : typeof parsed.actorConnected === "string"
+            ? parsed.actorConnected.toLowerCase() === "true"
+            : undefined,
+      needsAction:
+        typeof parsed.needsAction === "boolean"
+          ? parsed.needsAction
+          : typeof parsed.needsAction === "string"
+            ? parsed.needsAction.toLowerCase() === "true"
+            : undefined,
       fromRoundState: typeof parsed.fromRoundState === "string" ? parsed.fromRoundState : "",
       toRoundState: typeof parsed.toRoundState === "string" ? parsed.toRoundState : "",
       plan: typeof parsed.plan === "string" ? parsed.plan : "",
@@ -134,6 +149,7 @@ function parseKvLine(line) {
   const knownMessages = [
     "ENGINE_DECISION",
     "ENGINE_RUNTIME_STEP",
+    "ENGINE_DECISION_STATE",
     "TABLE_STALLED",
     "TABLE_STALLED_RECOVERY_REDRIVE",
     "TO_ACT_DERIVATION_MISMATCH",
@@ -170,7 +186,17 @@ function parseKvLine(line) {
     reason: get("reason"),
     stallReason: get("stallReason"),
     toActSeat: parseNumber(get("toActSeat")),
-    turnDeadlineMs: parseNumber(get("turnDeadlineMs")),
+    turnDeadlineMs: parseNumber(get("turnDeadlineMs")) ?? parseNumber(get("deadline")),
+    roundState: get("roundState"),
+    actorKind: get("actorKind"),
+    actorConnected:
+      get("actorConnected") === ""
+        ? undefined
+        : get("actorConnected").toLowerCase() === "true",
+    needsAction:
+      get("needsAction") === ""
+        ? undefined
+        : get("needsAction").toLowerCase() === "true",
     fromRoundState: get("fromRoundState"),
     toRoundState: get("toRoundState"),
     plan: get("plan"),
@@ -206,6 +232,8 @@ function main() {
   const handCompletes = new Set();
   const stallReasonCounts = new Map();
   const actionRejectedReasonCounts = new Map();
+  const lastDecisionStateByHand = new Map();
+  const stalledByHand = new Map();
   const issues = [];
 
   let tableStalled = 0;
@@ -224,6 +252,8 @@ function main() {
   let timeoutWithMissingDeadline = 0;
   let timeoutDoubleFires = 0;
   let deadlineOutsideWaiting = 0;
+  let waitingHumanMissingDeadline = 0;
+  let waitingHumanNoNeedsAction = 0;
 
   const timeoutRuntimeKeys = new Map();
   const acceptedActionKeys = new Set();
@@ -236,6 +266,24 @@ function main() {
     if (e.msg === "TABLE_STALLED") {
       tableStalled += 1;
       if (e.stallReason) increment(stallReasonCounts, e.stallReason);
+      if (e.handId) {
+        const prev = stalledByHand.get(e.handId) ?? {
+          handId: e.handId,
+          tableId: e.tableId,
+          stalls: 0,
+          lastStreet: "",
+          lastToActSeat: undefined,
+          lastStallReason: "",
+          lastTime: undefined,
+        };
+        prev.stalls += 1;
+        prev.tableId = e.tableId || prev.tableId;
+        prev.lastStreet = e.street || prev.lastStreet;
+        prev.lastToActSeat = e.toActSeat ?? prev.lastToActSeat;
+        prev.lastStallReason = e.stallReason || prev.lastStallReason;
+        prev.lastTime = e.time ?? prev.lastTime;
+        stalledByHand.set(e.handId, prev);
+      }
       continue;
     }
     if (e.msg === "TABLE_STALLED_RECOVERY_REDRIVE") {
@@ -344,6 +392,37 @@ function main() {
       }
       continue;
     }
+
+    if (e.msg === "ENGINE_DECISION_STATE") {
+      if (e.handId) {
+        lastDecisionStateByHand.set(e.handId, {
+          tableId: e.tableId,
+          street: e.street,
+          roundState: e.roundState,
+          toActSeat: e.toActSeat,
+          actorKind: e.actorKind,
+          actorConnected: e.actorConnected,
+          needsAction: e.needsAction,
+          turnDeadlineMs: e.turnDeadlineMs,
+          time: e.time,
+        });
+      }
+      const isWaiting = e.roundState === "WAITING_FOR_ACTION";
+      const isConnectedHuman = e.actorKind === "HUMAN" && e.actorConnected === true;
+      if (isWaiting && isConnectedHuman && (e.turnDeadlineMs ?? 0) <= 0) {
+        waitingHumanMissingDeadline += 1;
+        issues.push(
+          `type=WAITING_HUMAN_MISSING_DEADLINE handId=${e.handId} street=${e.street} toActSeat=${e.toActSeat ?? ""} roundState=${e.roundState}`,
+        );
+      }
+      if (isWaiting && isConnectedHuman && e.needsAction === false) {
+        waitingHumanNoNeedsAction += 1;
+        issues.push(
+          `type=WAITING_HUMAN_NEEDS_ACTION_FALSE handId=${e.handId} street=${e.street} toActSeat=${e.toActSeat ?? ""} roundState=${e.roundState}`,
+        );
+      }
+      continue;
+    }
   }
 
   let decisionRuntimePairs = 0;
@@ -419,6 +498,8 @@ function main() {
   console.log(`timeoutWithMissingDeadline=${timeoutWithMissingDeadline}`);
   console.log(`timeoutDoubleFires=${timeoutDoubleFires}`);
   console.log(`deadlineOutsideWaiting=${deadlineOutsideWaiting}`);
+  console.log(`waitingHumanMissingDeadline=${waitingHumanMissingDeadline}`);
+  console.log(`waitingHumanNoNeedsAction=${waitingHumanNoNeedsAction}`);
 
   if (stallReasonCounts.size > 0) {
     console.log("");
@@ -433,6 +514,25 @@ function main() {
     console.log("actionRejectedReasonBreakdown");
     for (const [reason, count] of [...actionRejectedReasonCounts.entries()].sort((a, b) => b[1] - a[1])) {
       console.log(`${reason}=${count}`);
+    }
+  }
+
+  if (stalledByHand.size > 0) {
+    console.log("");
+    console.log("stalledHandSummaries");
+    const summaries = [...stalledByHand.values()].sort((a, b) => b.stalls - a.stalls);
+    const limit = args.maxIssues > 0 ? args.maxIssues : summaries.length;
+    for (const s of summaries.slice(0, limit)) {
+      const d = lastDecisionStateByHand.get(s.handId);
+      if (!d) {
+        console.log(
+          `handId=${s.handId} tableId=${s.tableId} stalls=${s.stalls} stallStreet=${s.lastStreet} toActSeat=${s.lastToActSeat ?? ""} stallReason=${s.lastStallReason || ""} decisionState=missing`,
+        );
+        continue;
+      }
+      console.log(
+        `handId=${s.handId} tableId=${s.tableId} stalls=${s.stalls} stallStreet=${s.lastStreet} toActSeat=${s.lastToActSeat ?? ""} stallReason=${s.lastStallReason || ""} decisionStreet=${d.street} decisionRoundState=${d.roundState} decisionActorKind=${d.actorKind} decisionActorConnected=${d.actorConnected} decisionNeedsAction=${d.needsAction} decisionDeadlineMs=${d.turnDeadlineMs ?? 0}`,
+      );
     }
   }
 
