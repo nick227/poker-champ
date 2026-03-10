@@ -232,6 +232,40 @@ describe("dealer rule decisions", () => {
     expect(state.toActSeat).toBe(bbSeat);
   });
 
+  it("starts a turn timer after preflop check advances to flop with same actor", async () => {
+    const state = new PokerState();
+    state.tableId = "table_turn_timer_flop_regression";
+    state.maxSeats = 2;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.street = "WAITING";
+    state.dealerSeat = 1;
+    state.seats.push("u1", "u2");
+
+    const u1 = makePlayer("u1", 0, 5000);
+    const u2 = makePlayer("u2", 1, 5000);
+    state.playersById.set("u1", u1);
+    state.playersById.set("u2", u2);
+
+    const dealer = new Dealer(state, makePersistence());
+    await (dealer as any).startHand();
+
+    const sbUserId = String(state.seats[state.dealerSeat]);
+    const bbSeat = state.seats.findIndex((id) => id && id !== sbUserId);
+    const bbUserId = String(state.seats[bbSeat]);
+
+    await dealer.handleAction(sbUserId, { action: "CALL" });
+    (dealer as any).clearPendingHumanTurnTimeout();
+    const turnStartBefore = (dealer as any).turnManager.getTurnStartTs();
+    expect(turnStartBefore).toBe(0);
+    await dealer.handleAction(bbUserId, { action: "CHECK" });
+
+    expect(state.street).toBe("FLOP");
+    expect(state.toActSeat).toBe(bbSeat);
+    const turnStartAfter = (dealer as any).turnManager.getTurnStartTs();
+    expect(turnStartAfter).toBeGreaterThan(0);
+  });
+
   it("ignores duplicate actionId within the same hand", async () => {
     const state = new PokerState();
     state.tableId = "table_action_id";

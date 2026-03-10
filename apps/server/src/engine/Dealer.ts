@@ -577,6 +577,52 @@ export class Dealer {
     this.turnManager.scheduleHumanTurnTimeout(userId);
   }
 
+  /**
+   * Ensure an actionable connected human always has a running server-side turn timer.
+   * This is called from the common next-actor resolution path so timer arming cannot
+   * be skipped by a missed automation/redrive step.
+   */
+  private ensureHumanTurnTimerForCurrentActor(trigger: string): void {
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN" || this.state.runoutMode === "STAGED") {
+      this.clearPendingHumanTurnTimeout();
+      return;
+    }
+    if (this.state.toActSeat < 0) {
+      this.clearPendingHumanTurnTimeout();
+      return;
+    }
+
+    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction) {
+      this.clearPendingHumanTurnTimeout();
+      return;
+    }
+
+    if (toActPlayer.kind !== "HUMAN" || !toActPlayer.connected) {
+      this.clearPendingHumanTurnTimeout();
+      return;
+    }
+
+    const beforeTurnStartTs = this.turnManager.getTurnStartTs();
+    this.scheduleHumanTurnTimeout(toActUserId);
+    const afterTurnStartTs = this.turnManager.getTurnStartTs();
+    if (afterTurnStartTs > 0 && afterTurnStartTs !== beforeTurnStartTs) {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          seat: toActPlayer.seat,
+          userId: toActUserId,
+          timeoutMs: TURN_TIMEOUT_TOTAL_MS,
+          trigger,
+        },
+        "TURN_TIMER_STARTED",
+      );
+    }
+  }
+
   async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
     const currentHandIdAtEnqueue = this.state.handId ?? null;
     const queuedAt = Date.now();
@@ -1047,6 +1093,8 @@ export class Dealer {
         this.maybeActForBot();
       }
     }
+
+    this.ensureHumanTurnTimerForCurrentActor("ACTION_RESOLVED_NEXT_ACTOR");
   }
 
   // ---------------------------------------------------------------------------
