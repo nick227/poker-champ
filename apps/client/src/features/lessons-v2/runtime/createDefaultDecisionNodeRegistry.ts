@@ -44,6 +44,13 @@ export function createDefaultDecisionNodeRegistry() {
     },
   }));
 
+  // Content currently references this key widely; runtime should not hard-fail if the
+  // detailed community block is rendered via the lesson panel service fetch instead.
+  registry.registerRevealLayer("community_comparison", async () => ({
+    key: "community_comparison",
+    title: "Community",
+    payload: { delegated: "lesson_utilities_overview" },
+  }));
+
   return registry;
 }
-

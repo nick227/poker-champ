@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { lessonService } from "@/features/lessons/lesson.service";
-import { LESSONS_BUTTON_KEYS, LESSONS_MODULE_META, type LessonsButtonKey } from "./lessons.data";
+import { LESSONS_BUTTON_KEYS, LESSONS_MODULE_META, type LessonsButtonKey } from "./_lessons.data";
 
 export type LessonState = "not_started" | "in_progress" | "completed";
 export type LessonRole = "teaches" | "drills" | "tests";

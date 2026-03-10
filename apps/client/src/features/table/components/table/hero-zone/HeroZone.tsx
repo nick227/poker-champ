@@ -160,7 +160,7 @@ export function HeroZone({
           data-hero-name={userName ?? ""}
         >
           {isDealer ? (
-            <View style={s.dealerSlotStack} pointerEvents="none">
+            <View style={[s.dealerSlotStack, { pointerEvents: "none" }]}>
               <DealerButton size="small" />
             </View>
           ) : null}
@@ -205,7 +205,7 @@ export function HeroZone({
           </View>
         ) : null}
         {isSittingOut ? (
-          <View style={s.sittingOutBadge} pointerEvents="none">
+          <View style={[s.sittingOutBadge, { pointerEvents: "none" }]}>
             <View style={s.sittingOutBadgeInner}>
               <Text variant="label" className="text-white font-medium" allowFontScaling={false}>
                 {TABLE.sittingOut}

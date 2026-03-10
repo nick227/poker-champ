@@ -6,6 +6,8 @@ settings:
 
 overrides:
   expo-font: ~13.0.4
+  '@expo/vector-icons': ~14.0.4
+  react-native-reanimated: ~3.16.1
 
 importers:
 
@@ -193,7 +195,7 @@ importers:
         specifier: ^0.33.9
         version: 0.33.9(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
       react-native-reanimated:
-        specifier: ~3.16.7
+        specifier: ~3.16.1
         version: 3.16.7(@babel/core@7.29.0)(react-native@0.76.9(@babel/core@7.29.0)(@babel/preset-env@7.29.0(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1))(react@18.3.1)
       react-native-safe-area-context:
         specifier: 4.12.0
@@ -3724,7 +3726,7 @@ packages:
       expo: '*'
       expo-constants: ~17.0.8
       expo-linking: ~7.0.5
-      react-native-reanimated: '*'
+      react-native-reanimated: ~3.16.1
       react-native-safe-area-context: '*'
       react-native-screens: '*'
     peerDependenciesMeta:
@@ -5517,7 +5519,7 @@ packages:
     peerDependencies:
       react: '>=18'
       react-native: '*'
-      react-native-reanimated: '>=3.6.2'
+      react-native-reanimated: ~3.16.1
       react-native-safe-area-context: '*'
       react-native-svg: '*'
       tailwindcss: ~3
@@ -9319,14 +9321,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 5.4.21(@types/node@22.19.11)(lightningcss@1.27.0)(terser@5.46.0)
-
-  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@25.2.3)(lightningcss@1.27.0)(terser@5.46.0))':
-    dependencies:
-      '@vitest/spy': 2.1.9
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 5.4.21(@types/node@25.2.3)(lightningcss@1.27.0)(terser@5.46.0)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -14102,7 +14096,7 @@ snapshots:
   vitest@2.1.9(@types/node@25.2.3)(happy-dom@15.11.7)(lightningcss@1.27.0)(terser@5.46.0):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@25.2.3)(lightningcss@1.27.0)(terser@5.46.0))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.11)(lightningcss@1.27.0)(terser@5.46.0))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9

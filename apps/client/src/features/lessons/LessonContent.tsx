@@ -301,6 +301,7 @@ export function LessonContent({
   });
   const {
     state: decisionRuntimeState,
+    error: decisionRuntimeError,
     revealResults,
     submit: submitDecisionRuntime,
     load: loadDecisionRuntime,
@@ -323,9 +324,11 @@ export function LessonContent({
         await session.submitAction(payload);
         return;
       }
-      if (session.submitting || decisionRuntimeState !== "QUESTION") return;
+      if (session.submitting || decisionRuntimeState === "SUBMITTING") return;
       await session.submitAction(payload);
-      await submitDecisionRuntime(payload);
+      if (decisionRuntimeState === "QUESTION") {
+        await submitDecisionRuntime(payload);
+      }
     },
     [step, isMigratedActionStep, session, decisionRuntimeState, submitDecisionRuntime],
   );
@@ -400,6 +403,8 @@ export function LessonContent({
   const showInfoNavigation = step?.type === "INFO_STEP";
   const showQuestionNavigation = answeredQuestionStep;
   const showStepNavigation = showInfoNavigation || showQuestionNavigation;
+  const showDecisionRuntimeError =
+    isMigratedActionStep && decisionRuntimeState === "ERROR" && session.currentFeedback == null;
 
   const tierLabel =
     session.lesson?.tier === "elite" ? "Elite" : session.lesson?.tier === "pro" ? "Pro" : null;
@@ -491,7 +496,7 @@ export function LessonContent({
               step.type === "ACTION_STEP" &&
               (session.currentFeedback != null ||
                 session.submitting ||
-                (isMigratedActionStep && decisionRuntimeState !== "QUESTION"))
+                (isMigratedActionStep && decisionRuntimeState === "SUBMITTING"))
             }
             disabledActionMessage={
               session.submitting ? LESSON_CONTENT_COPY.states.evaluatingDecision : LESSON_CONTENT_COPY.states.actionLocked
@@ -588,6 +593,27 @@ export function LessonContent({
                     evaluating={isMigratedActionStep && (session.submitting || decisionRuntimeState === "SUBMITTING")}
                     revealResults={isMigratedActionStep && decisionRuntimeState === "COMPLETE" ? revealResults : []}
                   />
+
+                  {showDecisionRuntimeError ? (
+                    <View className="mx-4 mt-2 rounded-lg border border-warning/40 bg-warning/10 p-3">
+                      <Text variant="muted" className="text-xs">
+                        {decisionRuntimeError || LESSON_CONTENT_COPY.states.runtimeUnavailable}
+                      </Text>
+                      <View className="mt-2">
+                        <Button
+                          title={getLessonButtonLabel(LESSON_CONTENT_BUTTON_KEYS.RETRY)}
+                          onPress={() => {
+                            resetDecisionRuntime();
+                            void loadDecisionRuntime();
+                          }}
+                          intent="neutral"
+                          size="sm"
+                          className="min-h-[32px] self-start px-3"
+                          textClassName="text-xs"
+                        />
+                      </View>
+                    </View>
+                  ) : null}
 
                   <LessonQuestionPanel
                     step={step}

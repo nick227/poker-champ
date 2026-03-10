@@ -107,8 +107,7 @@ export function ModalSheet({
     <Modal visible={showModal} transparent animationType="none">
       <Pressable className="flex-1 justify-end" onPress={handleClose}>
         <Animated.View
-          style={{ flex: 1, backgroundColor: BACKDROP_OVERLAY, opacity: backdrop }}
-          pointerEvents={showModal ? "auto" : "none"}
+          style={{ flex: 1, backgroundColor: BACKDROP_OVERLAY, opacity: backdrop, pointerEvents: showModal ? "auto" : "none" }}
         />
         <Animated.View
           style={{
@@ -117,8 +116,8 @@ export function ModalSheet({
             right: 0,
             bottom: 0,
             transform: [{ translateY: slide }],
+            pointerEvents: "box-none",
           }}
-          pointerEvents="box-none"
         >
           <Pressable
             style={{

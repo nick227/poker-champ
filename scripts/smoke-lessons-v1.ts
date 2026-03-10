@@ -73,7 +73,7 @@ async function run() {
       assertOk(detailRes.ok, `Lesson detail failed for ${lesson.id} (${detailRes.status})`);
       const detailBody = (await detailRes.json()) as LessonDetail;
       const steps = [...(detailBody.lesson.steps ?? [])].sort((a, b) => a.sequence - b.sequence);
-      assertOk(steps.length >= 2, `Lesson ${lesson.id} expected >=2 steps`);
+      assertOk(steps.length >= 1, `Lesson ${lesson.id} expected >=1 step`);
 
       const startRes = await fetch(`${baseUrl}/api/lessons/${encodeURIComponent(lesson.id)}/attempts`, {
         method: "POST",

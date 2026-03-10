@@ -13,7 +13,9 @@
   ],
   "pnpm": {
     "overrides": {
-      "expo-font": "~13.0.4"
+      "expo-font": "~13.0.4",
+      "@expo/vector-icons": "~14.0.4",
+      "react-native-reanimated": "~3.16.1"
     },
     "peerDependencyRules": {
       "allowedVersions": {
@@ -40,6 +42,7 @@
     "test:client:e2e:stack:ci": "pnpm -C apps/client e2e:stack:ci",
     "test:client:e2e:churn": "pnpm -C apps/client e2e:churn",
     "test:client:e2e:lessons:canonical": "pnpm -C apps/client e2e:lessons:canonical",
+    "test:client:e2e:lessons:canonical:clean": "pnpm -C apps/client e2e:lessons:canonical:clean",
     "test:server:history": "vitest run apps/server/src/http/__tests__/HandHistoryRouter.overview-and-hands.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:coverage:awards": "vitest run --config vitest.awards.config.ts --coverage",

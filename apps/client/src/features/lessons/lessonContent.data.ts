@@ -43,6 +43,7 @@ export const LESSON_CONTENT_COPY = {
     snapshotUnavailable: "Lesson snapshot unavailable.",
     evaluatingDecision: "Evaluating decision...",
     actionLocked: "Waiting...",
+    runtimeUnavailable: "Lesson runtime add-ons failed to load. You can still answer this question.",
   },
 } as const;
 

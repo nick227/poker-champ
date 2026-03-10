@@ -11,7 +11,7 @@ import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { storeRegistry } from "@/registry/store.registry";
 import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
-import { LESSONS_PAGE_COPY } from "./lessons.data";
+import { LESSONS_PAGE_COPY } from "./_lessons.data";
 import {
   DailyChallengesSection,
   LESSONS_SECTION_ORDER,
@@ -19,8 +19,8 @@ import {
   ModulesSection,
   RecentCompletedSection,
   StatusBanners,
-} from "./lessons.components";
-import { useLessonsPageViewModel } from "./useLessonsPageViewModel";
+} from "./_lessons.components";
+import { useLessonsPageViewModel } from "./_useLessonsPageViewModel";
 
 export default function LessonsScreen() {
   const router = useRouter();

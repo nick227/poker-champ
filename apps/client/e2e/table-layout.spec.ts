@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 
 const HEIGHT_TOLERANCE_PX = 2;
 

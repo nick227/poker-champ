@@ -4,6 +4,7 @@ const PORT = process.env.PLAYWRIGHT_WEB_PORT ?? 8081;
 const baseURL = `http://localhost:${PORT}`;
 const apiBaseURL = process.env.PLAYWRIGHT_API_URL ?? process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:2567";
 const wsBaseURL = apiBaseURL.replace(/^http/i, "ws");
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "1" && !process.env.CI;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -22,7 +23,7 @@ export default defineConfig({
     {
       command: "pnpm --dir ../.. exec tsx apps/server/src/index.ts",
       url: `${apiBaseURL}/health`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
       env: {
         ...process.env,
@@ -31,9 +32,9 @@ export default defineConfig({
       },
     },
     {
-      command: `pnpm exec expo start --web --port ${PORT}`,
+      command: `pnpm exec expo start --web --clear --port ${PORT}`,
       url: baseURL,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
       env: {
         ...process.env,

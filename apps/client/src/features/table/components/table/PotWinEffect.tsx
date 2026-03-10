@@ -33,10 +33,9 @@ export function PotWinRing({ radius = TABLE_TILE_RADIUS }: PotWinRingProps = {})
 
   return (
     <>
-      <Animated.View pointerEvents="none" style={[styles.baseRing, { borderRadius: radius }]} />
+      <Animated.View style={[styles.baseRing, { borderRadius: radius, pointerEvents: "none" }]} />
       <Animated.View
-        pointerEvents="none"
-        style={[styles.flashRing, { borderRadius: radius, opacity: flash }]}
+        style={[styles.flashRing, { borderRadius: radius, opacity: flash, pointerEvents: "none" }]}
       />
     </>
   );
