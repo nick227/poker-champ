@@ -242,7 +242,12 @@ Tier is chosen by mapper from context (pot size, hand strength, etc.); definitio
 ```
 table/animations/
   animationTypes.ts
-  animationRegistry.ts
+  animationRegistry/           # Event-grouped registry + tier builders
+    shared.ts                  # def(), buildDefinitionId(), DEFAULT_LAYER_PARAMS
+    potWin.ts                  # buildPotWinTier(tier), POT_WIN_TIERS
+    allIn.ts
+    showdown.ts
+    index.ts                   # TABLE_ANIMATIONS[event], resolveAnimation, validation
   animationMapper.ts
   TableAnimationOverlay.tsx
   layers/
@@ -253,6 +258,8 @@ table/animations/
     TextLayer.tsx
     AssetLayer.tsx      # VIDEO | LOTTIE | SPRITE
 ```
+
+**Registry structure:** Definitions are grouped by event; each event has a tier builder (e.g. `buildPotWinTier(tier)`) and exports an array of tiers 0–4. `TABLE_ANIMATIONS` is `Record<event, Definition[]>`; resolver stays `resolveAnimation(event, tier)` with fallback. Adding a new event = new file + one entry in registry index.
 
 AssetLayer: single playback surface for ASSET layers where possible (swap source by layer); preload/cache by source. **ASSET is a placeholder until Phase 2:** definitions can include ASSET layers with a placeholder or real `source`; when source is empty or not yet implemented, the layer renders nothing and does not crash. Optional `onReady` / `onEnd` props support Phase 2 media sync.
 
@@ -334,7 +341,7 @@ MVP action plan milestones 1–6 are **done**. Post-MVP and Phase 2+ items above
 
 ### Maintainability
 
-- **Single place for definitions:** All defs live in `animationRegistry.ts`; use `def()` and `FX_EVENT.*` so new events/tiers are add-one-entry.
+- **Event-grouped registry:** Definitions live in `animationRegistry/<event>.ts`; each event has a tier builder and exports tiers 0–4. `TABLE_ANIMATIONS` is keyed by event; new event = new file + one entry in `animationRegistry/index.ts`. Use `def()` and `FX_EVENT.*` in builders.
 - **Constants over literals:** Use `animationConstants.ts` and `FX_EVENT` / `FX_CHANNEL` / `FX_ANCHOR` so renames and new values are type-safe and grep-friendly.
 - **Layer renderer isolated:** `renderAnimationLayer.tsx` owns the layer-type switch; new layer types = one new case + one new component in `layers/`.
 - **Validation at load:** `validateDefinitions(TABLE_ANIMATIONS)` runs at import; broken defs fail fast with clear error constants.
@@ -356,6 +363,7 @@ Keeping definitions data-driven, the overlay generic, and the layer switch in on
 
 ## Related docs
 
+- [TABLE_FX_SUMMARY.md](./TABLE_FX_SUMMARY.md) — One-page summary for developers and designers (inventory + future proposals).
 - [TABLE_ANIMATION_SYSTEM.md](../proposals/TABLE_ANIMATION_SYSTEM.md) — Contract, collision, anchors.
 - [TABLE_ANIMATION_DEFINITIONS.md](../proposals/TABLE_ANIMATION_DEFINITIONS.md) — Registry, lookup, validation.
 - [TABLE_ANIMATION_REUSABLE_LAYERS.md](../proposals/TABLE_ANIMATION_REUSABLE_LAYERS.md) — Reusable clips, registry, shared canvas.

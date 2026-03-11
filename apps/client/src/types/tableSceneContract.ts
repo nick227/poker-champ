@@ -7,7 +7,7 @@ import type { TableAction } from "@/features/table";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/features/table";
 import type { RejoinUiState } from "@/features/table";
-import type { TableAnimationRequest } from "@/features/table/animations/tableAnimation.types";
+import type { TableAnimationRequest } from "@/features/table/animations/animationTypes";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;

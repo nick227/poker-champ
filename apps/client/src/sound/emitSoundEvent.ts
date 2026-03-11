@@ -8,6 +8,8 @@ export type SoundEventMeta = {
   tableId?: string;
   handId?: string;
   urgent?: boolean;
+  /** Optional volume override (e.g. tier intensity). Applied when sound layer supports it. */
+  volume?: number;
 };
 
 function canEmit(event: SoundEvent, now: number): boolean {

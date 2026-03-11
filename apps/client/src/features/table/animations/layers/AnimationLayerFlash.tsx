@@ -1,28 +1,34 @@
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet } from "react-native";
+import { Animated, Easing, StyleSheet } from "react-native";
 
-const FLASH_COLOR = "rgba(255, 200, 100, 0.35)";
+const FALLBACK_FLASH_COLOR = "rgba(255, 200, 100, 0.35)";
 
 type Props = {
   durationMs: number;
   delayMs?: number;
+  color?: string;
 };
 
-export function AnimationLayerFlash({ durationMs, delayMs = 0 }: Props) {
+export function AnimationLayerFlash({ durationMs, delayMs = 0, color }: Props) {
   const opacity = useRef(new Animated.Value(0)).current;
+  const bgColor = color ?? FALLBACK_FLASH_COLOR;
 
   useEffect(() => {
+    const riseFraction = 0.25;
+    const fallFraction = 0.75;
     const run = () => {
       Animated.sequence([
         Animated.timing(opacity, {
           toValue: 1,
-          duration: durationMs * 0.35,
+          duration: durationMs * riseFraction,
           useNativeDriver: true,
+          easing: Easing.out(Easing.cubic),
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: durationMs * 0.65,
+          duration: durationMs * fallFraction,
           useNativeDriver: true,
+          easing: Easing.in(Easing.ease),
         }),
       ]).start();
     };
@@ -32,14 +38,12 @@ export function AnimationLayerFlash({ durationMs, delayMs = 0 }: Props) {
 
   return (
     <Animated.View
-      style={[StyleSheet.absoluteFill, styles.flash, { opacity }]}
+      style={[StyleSheet.absoluteFill, styles.flash, { opacity, backgroundColor: bgColor }]}
       pointerEvents="none"
     />
   );
 }
 
 const styles = StyleSheet.create({
-  flash: {
-    backgroundColor: FLASH_COLOR,
-  },
+  flash: {},
 });

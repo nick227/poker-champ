@@ -33,9 +33,9 @@ import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { RejoinUiState } from "@/features/table";
 import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
-import type { TableAnimationRequest } from "@/features/table/animations/tableAnimation.types";
-import { getTierForPotWin, getTierForAllIn } from "@/features/table/animations/tableAnimationDefinitions";
-import { formatCents } from "@/lib/format";
+import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
+import type { TableAnimationRequest } from "@/features/table/animations/animationTypes";
+import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -199,13 +199,17 @@ export function useTablePageController({
     if (lastPotWinHandIdRef.current === handId) return;
     lastPotWinHandIdRef.current = handId;
     const potCents = snapshot.lastHandResult.potCents ?? 0;
-    const tier = getTierForPotWin(potCents, handResultMessage.winningHandDescr);
+    const tier = mapPotWinTier({
+      potCents,
+      winningHandDescr: handResultMessage.winningHandDescr,
+    });
     setAnimationRequest({
-      id: "potWin",
+      version: TABLE_ANIMATION_REQUEST_VERSION,
+      event: "POT_WIN",
       tier,
       payload: {
         headline: isHeroWinner ? "YOU WIN" : `${handResultMessage.winnerName} wins`,
-        amountText: formatCents(handResultMessage.amountCents),
+        amountCents: handResultMessage.amountCents,
         potCents,
       },
     });
@@ -218,13 +222,14 @@ export function useTablePageController({
     if (lastAllInKeyRef.current === key) return;
     lastAllInKeyRef.current = key;
     const potCents = snapshot?.hand?.potCents ?? snapshot?.lastHandResult?.potCents ?? 0;
-    const tier = getTierForAllIn(potCents, lastAction.amountCents);
+    const tier = mapAllInTier({ potCents, amountCents: lastAction.amountCents });
     setAnimationRequest({
-      id: "allIn",
+      version: TABLE_ANIMATION_REQUEST_VERSION,
+      event: "ALL_IN",
       tier,
       payload: {
         headline: "ALL IN",
-        amountText: formatCents(lastAction.amountCents),
+        amountCents: lastAction.amountCents,
         potCents,
       },
     });

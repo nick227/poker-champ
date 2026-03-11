@@ -21,7 +21,8 @@ resolveAnimation(event: TableAnimationEvent, tier: number): TableAnimationDefini
 ```
 
 - Clamp tier to 0–4; look up `(event, tier)`.
-- Fallback to `(event, 0)` if missing.
+- **Tier fallback**: if exact tier is missing, use **closest lower tier** (e.g. tier 4 requested, tier 4 missing → use tier 3). Prevents silent failures.
+- Registry indexed as `Map<Event, Map<Tier, Definition>>` for O(1) lookup.
 
 ---
 
@@ -31,12 +32,23 @@ Render layers in **array order**. No zIndex; no slots. First element = back, las
 
 ---
 
+## Default layer parameters
+
+**DEFAULT_LAYER_PARAMS** centralizes defaults so definitions stay concise:
+
+- `particleCount: 12`, `particleSpread: 50`
+- `rays: 8`, `flashDurationMs: 300`, `burstScale: [0.3, 1.2]`
+
+Layers omit params to use these; override per definition as needed.
+
+---
+
 ## Particle schema (layer type PARTICLES)
 
 When `type: "PARTICLES"`, layer definition may include:
 
-- `particleCount?: number` — default 12
-- `particleSpread?: number` — max distance from center (logical units), default 50
+- `particleCount?: number` — default from DEFAULT_LAYER_PARAMS (12)
+- `particleSpread?: number` — default 50
 
 Other params (velocity, gravity, sprite) can be added later; same schema for all implementations.
 
@@ -47,4 +59,17 @@ Other params (velocity, gravity, sprite) can be added later; same schema for all
 - `textRole: "headline"` → display `payload.headline`.
 - `textRole: "amount"` → display formatted `payload.amountCents` (e.g. `$123.45`).
 
-Overlay reads only from `request.payload`; no game state. Missing payload fields yield empty or fallback text.
+Overlay reads only from `request.payload`; no game state. **amountCents** is primary for amount display (formatted as currency); potCents is optional metadata. Missing payload fields yield empty or fallback text.
+
+---
+
+## Definition validation
+
+**validateDefinitions(TABLE_ANIMATIONS)** runs at module load. Rules:
+
+- No duplicate `(event, tier)`.
+- `layers` array not empty.
+- `durationMs > 0`.
+- Every TEXT layer has `textRole`.
+
+Throws on violation to catch registry mistakes early.
