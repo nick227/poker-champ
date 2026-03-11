@@ -148,14 +148,9 @@ describe("poker room random walk soak", () => {
     let lastProgressAt = Date.now();
     let actionSeq = 0;
     let lastActionSnapshotId = "";
+    let lastHumanActionAttemptAt = 0;
     const handStartAtMsById = new Map<string, number>();
     const handDurationsMs: number[] = [];
-    let pendingHumanAction:
-      | {
-          handId: string;
-          handActionSeq: number;
-        }
-      | null = null;
 
     try {
       while (completedHands < targetHands) {
@@ -226,19 +221,11 @@ describe("poker room random walk soak", () => {
           expect(disbursed, "undisbursed pot while WAITING").toBe(Number(room.state.potCents ?? 0));
         }
 
-        if (
-          pendingHumanAction &&
-          (room.state.handId !== pendingHumanAction.handId ||
-            room.state.handActionSeq !== pendingHumanAction.handActionSeq)
-        ) {
-          pendingHumanAction = null;
-        }
-
+        const humanRetryDue = Date.now() - lastHumanActionAttemptAt > 2_000;
         if (
           snapshotTracksLiveHand &&
           toActUserId === "user_human" &&
-          snap.snapshotId !== lastActionSnapshotId &&
-          !pendingHumanAction
+          (snap.snapshotId !== lastActionSnapshotId || humanRetryDue)
         ) {
           const action = pickAction(snap);
           room.onMessageEvents.emit("ACTION", client as any, {
@@ -246,10 +233,7 @@ describe("poker room random walk soak", () => {
             actionId: `room-soak-${Date.now()}-${actionSeq++}`,
           });
           lastActionSnapshotId = snap.snapshotId;
-          pendingHumanAction = {
-            handId: room.state.handId,
-            handActionSeq: room.state.handActionSeq,
-          };
+          lastHumanActionAttemptAt = Date.now();
           await delay(20);
           lastProgressAt = Date.now();
           continue;

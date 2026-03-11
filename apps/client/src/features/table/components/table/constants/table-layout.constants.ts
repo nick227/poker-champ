@@ -11,7 +11,7 @@ export const BOARD_AREA_HEIGHT_LANDSCAPE = 180;
 
 export const GAME_AREA_HEIGHT = BOARD_AREA_HEIGHT + DEALER_BAR_HEIGHT;
 
-export const ACTION_BAR_HEIGHT = 190;
+export const ACTION_BAR_HEIGHT = 200;
 
 /** Vertical band height for hero section. Shell contract; component layout lives in hero-zone/layout.ts. */
 export const HERO_ZONE_HEIGHT = 124;

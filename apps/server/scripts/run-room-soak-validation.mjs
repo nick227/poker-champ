@@ -82,7 +82,7 @@ function main() {
     ...process.env,
     ROOM_SOAK_HANDS: String(args.hands),
     ROOM_SOAK_PROGRESS_EVERY: String(Math.max(10, Math.floor(args.hands / 10))),
-    LOG_LEVEL: process.env.LOG_LEVEL ?? "warn",
+    LOG_LEVEL: process.env.LOG_LEVEL ?? "info",
     TURN_TIMEOUT_TOTAL_MS: process.env.TURN_TIMEOUT_TOTAL_MS ?? "30000",
     BOT_ACTION_DELAY_MIN_MS: process.env.BOT_ACTION_DELAY_MIN_MS ?? "25",
     BOT_ACTION_DELAY_MAX_MS: process.env.BOT_ACTION_DELAY_MAX_MS ?? "150",

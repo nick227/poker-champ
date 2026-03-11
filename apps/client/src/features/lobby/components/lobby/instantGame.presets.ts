@@ -30,7 +30,7 @@ const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
   },
   HEADS_UP_BOT: {
     id: "HEADS_UP_BOT",
-    title: "Heads-Up Bot Match",
+    title: "Heads-Up Match",
     body: "One-on-one bot battle.",
     cta: "Heads-Up",
     helper: "",
