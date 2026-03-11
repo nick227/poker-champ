@@ -20,7 +20,11 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
 
   return (
     <>
-      <TableAnimationOverlay request={animationRequest} onComplete={clearAnimationRequest} />
+      <TableAnimationOverlay
+        request={animationRequest}
+        onComplete={clearAnimationRequest}
+        anchorBounds={renderModel.anchorBounds}
+      />
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       {uiState.playerPopup && (
         <PlayerHistoryPopup visible onClose={actions.closePlayerPopup} name={uiState.playerPopup.name} />

@@ -1,6 +1,9 @@
 export { AnimationLayerBurst } from "./AnimationLayerBurst";
 export { AnimationLayerFlash } from "./AnimationLayerFlash";
+export { AnimationLayerRadialGlow } from "./AnimationLayerRadialGlow";
 export { AnimationLayerParticles } from "./AnimationLayerParticles";
 export { AnimationLayerRing } from "./AnimationLayerRing";
+export { AnimationLayerStreak } from "./AnimationLayerStreak";
+export { AnimationLayerSeatGlow } from "./AnimationLayerSeatGlow";
 export { TextLayer } from "./TextLayer";
 export { AssetLayer } from "./AssetLayer";

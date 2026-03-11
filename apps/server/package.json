@@ -10,7 +10,11 @@
     "test:round-state-parity": "node scripts/check-round-state-parity.mjs",
     "analyze:game-bugs": "node scripts/analyze-game-bugs-timeouts.mjs",
     "analyze:phase4": "node scripts/analyze-game-bugs-timeouts.mjs --max-issues 100",
+    "analyze:phase4:gate": "node scripts/check-phase4-gate.mjs",
     "analyze:phase4:compare": "node scripts/compare-phase4-captures.mjs",
+    "analyze:phase7:paths": "node scripts/analyze-phase7-paths.mjs",
+    "analyze:phase7:dead-paths": "node scripts/analyze-phase7-dead-path-candidates.mjs",
+    "analyze:phase7:dead-paths:triage": "node scripts/triage-phase7-dead-path-candidates.mjs",
     "lint": "eslint src --config ../../eslint.config.mjs"
   },
   "dependencies": {

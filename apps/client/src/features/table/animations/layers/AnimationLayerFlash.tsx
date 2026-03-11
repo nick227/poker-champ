@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet } from "react-native";
+import { Animated, StyleSheet } from "react-native";
+import { EASING_OPACITY_IN, EASING_OPACITY_OUT } from "../animationEasing";
+import { HOLD_AT_PEAK_FRACTION } from "../animationConstants";
 
 const FALLBACK_FLASH_COLOR = "rgba(255, 200, 100, 0.35)";
+const RISE_FRACTION = 0.22;
+const FALL_FRACTION = 0.72;
 
 type Props = {
   durationMs: number;
@@ -14,26 +18,30 @@ export function AnimationLayerFlash({ durationMs, delayMs = 0, color }: Props) {
   const bgColor = color ?? FALLBACK_FLASH_COLOR;
 
   useEffect(() => {
-    const riseFraction = 0.25;
-    const fallFraction = 0.75;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
     const run = () => {
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: durationMs * riseFraction,
-          useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: durationMs * fallFraction,
-          useNativeDriver: true,
-          easing: Easing.in(Easing.ease),
-        }),
-      ]).start();
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: durationMs * RISE_FRACTION,
+        useNativeDriver: true,
+        easing: EASING_OPACITY_IN,
+      }).start(() => {
+        const holdMs = durationMs * HOLD_AT_PEAK_FRACTION;
+        timeouts.push(
+          setTimeout(() => {
+            Animated.timing(opacity, {
+              toValue: 0,
+              duration: durationMs * FALL_FRACTION,
+              useNativeDriver: true,
+              easing: EASING_OPACITY_OUT,
+            }).start();
+          }, holdMs)
+        );
+      });
     };
-    const t = delayMs > 0 ? setTimeout(run, delayMs) : run();
-    return () => (typeof t === "number" ? clearTimeout(t) : undefined);
+    if (delayMs > 0) timeouts.push(setTimeout(run, delayMs));
+    else run();
+    return () => timeouts.forEach((t) => clearTimeout(t));
   }, [durationMs, delayMs, opacity]);
 
   return (

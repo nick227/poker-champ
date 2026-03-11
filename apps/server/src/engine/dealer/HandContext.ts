@@ -26,18 +26,25 @@ export class HandContext {
   }
 
   /**
-   * Records claim for actionId; returns true if a different user already claimed (caller should log).
+   * Records claim for actionId.
+   * - collision: true when a different user already owns this claim key.
+   * - shouldLog: true only once per claim key to avoid log spam.
    */
-  recordClaimAndWarnIfCollision(claimKey: string, userId: string): boolean {
+  recordClaimAndWarnIfCollision(
+    claimKey: string,
+    userId: string,
+  ): { collision: boolean; shouldLog: boolean } {
     const first = this.actionIdFirstClaimByKey.get(claimKey);
     if (!first) {
       this.actionIdFirstClaimByKey.set(claimKey, userId);
-      return false;
+      return { collision: false, shouldLog: false };
     }
-    if (first === userId) return false;
-    if (this.warnedCrossUserCollisionKeys.has(claimKey)) return false;
+    if (first === userId) return { collision: false, shouldLog: false };
+    if (this.warnedCrossUserCollisionKeys.has(claimKey)) {
+      return { collision: true, shouldLog: false };
+    }
     this.warnedCrossUserCollisionKeys.add(claimKey);
-    return true;
+    return { collision: true, shouldLog: true };
   }
 
   /** Call at HAND_START for dealt-in players. */

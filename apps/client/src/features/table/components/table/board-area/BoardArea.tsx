@@ -4,6 +4,7 @@ import { FeltBackground } from "./FeltBackground";
 import { CommunityBoard } from "./CommunityBoard";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
+import type { Rect } from "@/features/table/animations/animationTypes";
 import { BOARD_AREA_HEIGHT } from "../constants/table-layout.constants";
 import { useTableLayoutHeight } from "../table-layout";
 import { boardAreaStyles } from "./styles";
@@ -11,9 +12,11 @@ import { boardAreaStyles } from "./styles";
 export type BoardAreaProps = {
   cards: UiCard[];
   potCents: number;
+  /** When set, each community card slot (0..4) reports bounds for overlay. */
+  onCardSlotBounds?: (index: number, rect: Rect) => void;
 };
 
-export function BoardArea({ cards, potCents }: BoardAreaProps) {
+export function BoardArea({ cards, potCents, onCardSlotBounds }: BoardAreaProps) {
   const potValue = typeof potCents === "number" ? formatCents(potCents) : "--";
   const layoutHeights = useTableLayoutHeight();
 
@@ -25,7 +28,7 @@ export function BoardArea({ cards, potCents }: BoardAreaProps) {
       style={[boardAreaStyles.root, { height: feltHeight }]}
     >
       <View collapsable={false} style={boardAreaStyles.inner}>
-        <CommunityBoard cards={cards} />
+        <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
 
         <View className="pot-container w-full flex justify-center items-center" style={boardAreaStyles.potContainer}>
           <View className="bg-green-500 rounded-md py-1 px-4">

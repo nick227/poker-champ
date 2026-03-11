@@ -1,13 +1,14 @@
 export { TableAnimationOverlay, ANIMATION_DEBUG } from "./TableAnimationOverlay";
 export {
   resolveAnimation,
+  resolveAnimationWithCompanions,
   TABLE_ANIMATIONS,
   validateDefinitions,
   DEFAULT_LAYER_PARAMS,
   getPreloadSources,
   buildDefinitionId,
 } from "./animationRegistry";
-export type { PreloadSource } from "./animationRegistry";
+export type { PreloadSource, ResolvedCompanions } from "./animationRegistry";
 export { mapPotWinTier, mapAllInTier, BIG_BET_CENTS_THRESHOLD } from "./animationMapper";
 export type { PotWinTierContext, AllInTierContext } from "./animationMapper";
 export type {
@@ -23,6 +24,8 @@ export type {
   AnimationAssetType,
   SoundCue,
   AnimationSettings,
+  Rect,
+  AnchorBounds,
 } from "./animationTypes";
 export { TABLE_ANIMATION_REQUEST_VERSION, FX_EVENT, FX_CHANNEL, FX_ANCHOR } from "./animationTypes";
 export {

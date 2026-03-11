@@ -1,5 +1,7 @@
-import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { memo, useEffect, useRef } from "react";
+import { Animated, StyleSheet, View } from "react-native";
+import type { ParticleShape } from "../animationTypes";
+import { EASING_OPACITY_IN, EASING_OPACITY_OUT, EASING_SCALE } from "../animationEasing";
 
 const FALLBACK_PARTICLE_COLOR = "rgba(255, 180, 80, 0.9)";
 
@@ -11,9 +13,21 @@ const BURST_IN_FRACTION = 0.35;
 const OPACITY_IN_FRACTION = 0.2;
 /** Fraction of duration for fade out. */
 const FADE_OUT_FRACTION = 0.5;
-/** Scale range: slight size variation per particle (sparks/embers feel). */
-const SIZE_FACTOR_MIN = 0.75;
-const SIZE_FACTOR_MAX = 1.25;
+/** Scale range: size variation per particle (bolder sparks). */
+const SIZE_FACTOR_MIN = 0.8;
+const SIZE_FACTOR_MAX = 1.35;
+const PARTICLE_SCALE_FROM = 0.2;
+
+function getShapeStyle(shape: ParticleShape): { width: number; height: number; borderRadius: number; marginLeft: number; marginTop: number } {
+  switch (shape) {
+    case "square":
+      return { width: 8, height: 8, borderRadius: 2, marginLeft: -4, marginTop: -4 };
+    case "line":
+      return { width: 2, height: 12, borderRadius: 1, marginLeft: -1, marginTop: -6 };
+    default:
+      return { width: 10, height: 10, borderRadius: 5, marginLeft: -5, marginTop: -5 };
+  }
+}
 
 type Props = {
   durationMs: number;
@@ -21,27 +35,30 @@ type Props = {
   particleCount?: number;
   particleSpread?: number;
   color?: string;
+  shape?: ParticleShape;
   originOffsetX?: number;
   originOffsetY?: number;
 };
 
-export function AnimationLayerParticles({
+function AnimationLayerParticlesInner({
   durationMs,
   delayMs = 0,
   particleCount = 12,
   particleSpread = 50,
   color,
+  shape = "circle",
   originOffsetX = 0,
   originOffsetY = 0,
 }: Props) {
   const particleColor = color ?? FALLBACK_PARTICLE_COLOR;
+  const shapeStyle = getShapeStyle(shape);
   const particles = useRef(
     Array.from({ length: particleCount }, () => {
       const angle = Math.PI * 2 * Math.random();
       const dist = particleSpread * 0.4 + Math.random() * particleSpread * 0.6;
       return {
         opacity: new Animated.Value(0),
-        scale: new Animated.Value(0.3),
+        scale: new Animated.Value(PARTICLE_SCALE_FROM),
         translateX: new Animated.Value(0),
         translateY: new Animated.Value(0),
         targetX: Math.cos(angle) * dist,
@@ -64,32 +81,32 @@ export function AnimationLayerParticles({
           toValue: p.targetX,
           duration: burstInMs,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: EASING_SCALE,
         }),
         Animated.timing(p.translateY, {
           toValue: p.targetY,
           duration: burstInMs,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: EASING_SCALE,
         }),
         Animated.timing(p.opacity, {
           toValue: 1,
           duration: opacityInMs,
           useNativeDriver: true,
-          easing: Easing.out(Easing.ease),
+          easing: EASING_OPACITY_IN,
         }),
         Animated.timing(p.scale, {
           toValue: p.sizeFactor,
           duration: burstInMs,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: EASING_SCALE,
         }),
       ]).start(() => {
         Animated.timing(p.opacity, {
           toValue: 0,
           duration: fadeOutMs,
           useNativeDriver: true,
-          easing: Easing.in(Easing.ease),
+          easing: EASING_OPACITY_OUT,
         }).start();
       });
     };
@@ -112,8 +129,8 @@ export function AnimationLayerParticles({
 
   const centerStyle = {
     ...styles.center,
-    marginLeft: -4 + originOffsetX,
-    marginTop: -4 + originOffsetY,
+    marginLeft: -5 + originOffsetX,
+    marginTop: -5 + originOffsetY,
   };
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -122,7 +139,8 @@ export function AnimationLayerParticles({
           <Animated.View
             key={i}
             style={[
-              styles.particle,
+              styles.particleBase,
+              shapeStyle,
               { backgroundColor: particleColor },
               {
                 opacity: p.opacity,
@@ -145,15 +163,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: "50%",
     top: "50%",
-    marginLeft: -4,
-    marginTop: -4,
+    marginLeft: -5,
+    marginTop: -5,
   },
-  particle: {
+  particleBase: {
     position: "absolute",
     left: 0,
     top: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   },
 });
+
+export const AnimationLayerParticles = memo(AnimationLayerParticlesInner);

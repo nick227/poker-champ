@@ -83,6 +83,7 @@ import { HandContext } from "./dealer/HandContext.js";
 import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
 import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type StallReason } from "./dealer/decision/index.js";
 import type { EngineQueries } from "./dealer/decision/engineQueries.js";
+import { dealerRuntimeMetrics } from "./dealer/metrics/dealerRuntimeMetrics.js";
 
 export type DealerDiagnosticType =
   | "QUEUE_FULL"
@@ -558,7 +559,7 @@ export class Dealer {
       }
       this.handOrchestrator.resetNextHandSchedule();
       this.state.nextHandAtTs = 0;
-      await this.startHand();
+      await this.requestDrive("START_HAND:FORCE_ADVANCE_TEST");
     });
   }
 
@@ -718,10 +719,7 @@ export class Dealer {
   }
 
   private onWaitingForActionEntered(reason: string): void {
-    this.maybeActForBot();
-    this.ensureHumanTurnTimerForCurrentActor(`ROUND_STATE_ENTER:${reason}`);
-    this.maybeSelfHealWaitingHumanWithoutDeadline(`ROUND_STATE_ENTER:${reason}`);
-    this.logEngineDecisionState(`ROUND_STATE_ENTER:${reason}`);
+    void this.requestDrive(`ROUND_STATE_ENTER:${reason}`);
   }
 
   async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
@@ -772,10 +770,41 @@ export class Dealer {
         const claimKey =
           actionId && currentHandIdAtEnqueue ? buildClaimKey(currentHandIdAtEnqueue, actionId) : null;
         if (sameHand && claimKey) {
-          if (handContext!.recordClaimAndWarnIfCollision(claimKey, userId)) {
+          const claim = handContext!.recordClaimAndWarnIfCollision(claimKey, userId);
+          if (claim.collision) {
+            if (claim.shouldLog) {
+              const firstUserId = handContext!.actionIdFirstClaimByKey.get(claimKey) ?? "";
+              const firstSeat = firstUserId ? (this.state.playersById.get(firstUserId)?.seat ?? null) : null;
+              const secondSeat = this.state.playersById.get(userId)?.seat ?? null;
+              logger.warn(
+                {
+                  type: "ACTION_ID_CROSS_USER_COLLISION",
+                  handId: currentHandIdAtEnqueue,
+                  actionId,
+                  firstUserId,
+                  firstSeat,
+                  secondUserId: userId,
+                  secondSeat,
+                  userId,
+                },
+                "ACTION_ID_CROSS_USER_COLLISION",
+              );
+            }
             logger.warn(
-              { handId: currentHandIdAtEnqueue, actionId, firstUserId: handContext!.actionIdFirstClaimByKey.get(claimKey), userId },
-              "ACTION_ID_CROSS_USER_COLLISION",
+              {
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                userId,
+                actionId,
+                action: msg.action,
+                reason: "ACTION_ID_CROSS_USER_COLLISION",
+              },
+              "ACTION_REJECTED",
+            );
+            this.pendingActorRef = null;
+            throw new PokerError(
+              "INVALID_ACTION",
+              "actionId already claimed by another user in this hand.",
             );
           }
         }
@@ -800,7 +829,12 @@ export class Dealer {
         }
         const handIdBefore = this.state.handId;
         try {
-          await this._handleAction(userId, msg, "PLAYER", actionId);
+          const actionProcessStartedAt = Date.now();
+          try {
+            await this._handleAction(userId, msg, "PLAYER", actionId);
+          } finally {
+            dealerRuntimeMetrics.observeActionProcessMs(Date.now() - actionProcessStartedAt);
+          }
           if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
             handContext.recordProcessed(actionKey);
           }
@@ -936,7 +970,7 @@ export class Dealer {
     return Math.random() <= this.engineDecisionSampleRate;
   }
 
-  private buildEngineDecisionLogPayload(reason: string): {
+  private buildEngineDecisionLogPayload(reason: string, now?: number): {
     decisionTraceId: string;
     tableId: string;
     handId: string;
@@ -949,11 +983,11 @@ export class Dealer {
     reason: string;
     now: number;
   } {
-    const now = Date.now();
-    const decisionState = this.buildDecisionState(now);
+    const evalNow = now ?? Date.now();
+    const decisionState = this.buildDecisionState(evalNow);
     const runtimeQueries = this.buildRuntimeEngineQueries();
-    const step = computeNextStep(decisionState, now, runtimeQueries);
-    const stallReason = getStallReason(decisionState, now, runtimeQueries);
+    const step = computeNextStep(decisionState, evalNow, runtimeQueries);
+    const stallReason = getStallReason(decisionState, evalNow, runtimeQueries);
     const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
 
     return {
@@ -967,7 +1001,7 @@ export class Dealer {
       step,
       stallReason,
       reason,
-      now,
+      now: evalNow,
     };
   }
 
@@ -1055,15 +1089,17 @@ export class Dealer {
     };
   }
 
-  private logEngineDecision(reason: string): void {
+  private logEngineDecision(reason: string, now?: number): void {
     if (!this.shouldLogEngineDecision()) return;
-    logger.info(this.buildEngineDecisionLogPayload(reason), "ENGINE_DECISION");
+    logger.info(this.buildEngineDecisionLogPayload(reason, now), "ENGINE_DECISION");
   }
 
-  private logEngineDecisionAndRuntimeStep(reason: string): void {
+  private logEngineDecisionAndRuntimeStep(reason: string, now?: number): void {
     if (!this.shouldLogEngineDecision()) return;
-    const payload = this.buildEngineDecisionLogPayload(reason);
+    const payload = this.buildEngineDecisionLogPayload(reason, now);
     const runtimeStep = this.deriveRuntimeStep(payload.now);
+    const parityMatch = payload.step === runtimeStep;
+    dealerRuntimeMetrics.observeDecisionParity(parityMatch);
     logger.info(payload, "ENGINE_DECISION");
     logger.info(
       {
@@ -1072,11 +1108,40 @@ export class Dealer {
       },
       "ENGINE_RUNTIME_STEP",
     );
+    logger.info(
+      {
+        tableId: payload.tableId,
+        handId: payload.handId,
+        decisionTraceId: payload.decisionTraceId,
+        reason: payload.reason,
+        decisionStep: payload.step,
+        runtimeStep,
+        match: parityMatch,
+      },
+      "ENGINE_PARITY",
+    );
+    if (!parityMatch) {
+      logger.warn(
+        {
+          tableId: payload.tableId,
+          handId: payload.handId,
+          decisionTraceId: payload.decisionTraceId,
+          reason: payload.reason,
+          decisionStep: payload.step,
+          runtimeStep,
+          street: payload.street,
+          toActSeat: payload.toActSeat,
+          toActUserId: payload.toActUserId,
+          turnDeadlineMs: payload.turnDeadlineMs,
+        },
+        "ENGINE_PARITY_MISMATCH",
+      );
+    }
   }
 
   /** Phase-1 observability: sampled decision trace emission from external monitors. */
-  logEngineDecisionPublic(reason: string): void {
-    this.logEngineDecision(reason);
+  logEngineDecisionPublic(reason: string, now?: number): void {
+    this.logEngineDecision(reason, now);
   }
 
   /** Phase-3 stall authority helper for room-level monitoring. */
@@ -1093,6 +1158,7 @@ export class Dealer {
 
   private async startHand() {
     await this.handOrchestrator.startHand();
+    dealerRuntimeMetrics.recordHandStarted();
     this.logEngineDecisionAndRuntimeStep("START_HAND");
   }
 
@@ -1114,10 +1180,47 @@ export class Dealer {
    * Phase-0 boundary placeholder for unified deterministic table progression.
    * Captures time once at the boundary; later phases will make this authoritative.
    */
-  private requestDrive(reason: string, now?: number): void {
+  private async requestDrive(reason: string, now?: number): Promise<void> {
     const driveNow = now ?? Date.now();
-    void reason;
-    void driveNow;
+    const runDriveChecks = (trigger: string): void => {
+      this.ensureHumanTurnTimerForCurrentActor(trigger);
+      this.maybeSelfHealWaitingHumanWithoutDeadline(trigger);
+      this.logEngineDecisionState(trigger);
+      this.logToActDerivationWarning(trigger);
+      this.logEngineDecisionAndRuntimeStep(trigger, driveNow);
+    };
+    switch (reason) {
+      // Phase 7 Step D (single trigger path): keep equivalent behavior while
+      // routing progression checks through requestDrive boundary.
+      case "ACTION_RESOLVED_NEXT_ACTOR":
+        runDriveChecks("ACTION_RESOLVED_NEXT_ACTOR");
+        return;
+      // Phase 7 Step E: second trigger path routed through requestDrive.
+      default:
+        if (reason.startsWith("START_HAND:")) {
+          await this.startHand();
+          return;
+        }
+        if (reason.startsWith("ADVANCE_STREET_OR_SHOWDOWN:")) {
+          await this.advanceStreetOrShowdown();
+          return;
+        }
+        if (reason.startsWith("FINISH_HAND_LAST_STANDING:")) {
+          await this.finishHandByLastStanding();
+          return;
+        }
+        if (reason.startsWith("MAYBE_ACT_FOR_BOT:")) {
+          this.maybeActForBot();
+          runDriveChecks(reason);
+          return;
+        }
+        if (reason.startsWith("ROUND_STATE_ENTER:")) {
+          this.maybeActForBot();
+          runDriveChecks(reason);
+          return;
+        }
+        return;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1136,6 +1239,7 @@ export class Dealer {
   private async runHandEndedAwards(
     plan: Extract<HandLifecyclePlan, { kind: "HAND_ENDED" }>
   ): Promise<void> {
+    dealerRuntimeMetrics.recordHandCompleted();
     await this.handOrchestrator.runHandEndedAwards(plan);
   }
 
@@ -1146,13 +1250,13 @@ export class Dealer {
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
     if (this.state.street === "WAITING") {
-      if (countNonOutPlayers(this.state) >= 2) await this.startHand();
+      if (countNonOutPlayers(this.state) >= 2) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
       return;
     }
     if (this.state.runoutMode === "STAGED") return;
 
     if (countNotFoldedPlayers(this.state) <= 1) {
-      await this.finishHandByLastStanding();
+      await this.requestDrive("FINISH_HAND_LAST_STANDING:ENSURE_HAND_ADVANCE_LAST_PLAYER");
       return;
     }
 
@@ -1160,18 +1264,18 @@ export class Dealer {
     const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
     if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
       if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown();
+        await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_BETTING_CLOSED");
       } else {
         const nextSeat = findNextToActSeat(this.state, removedSeat);
         if (nextSeat === -1) {
-          await this.advanceStreetOrShowdown();
+          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_NO_NEXT_SEAT");
           return;
         }
         this.state.toActSeat = nextSeat;
-        this.maybeActForBot();
+        this.requestDrive("MAYBE_ACT_FOR_BOT:ENSURE_HAND_ADVANCE:NO_ELIGIBLE_TO_ACT");
       }
     } else {
-      this.maybeActForBot();
+      this.requestDrive("MAYBE_ACT_FOR_BOT:ENSURE_HAND_ADVANCE:TO_ACT_ELIGIBLE");
     }
   }
 
@@ -1267,25 +1371,25 @@ export class Dealer {
       }
 
       if (countNotFoldedPlayers(this.state) <= 1) {
-        await this.finishHandByLastStanding();
+        await this.requestDrive("FINISH_HAND_LAST_STANDING:SIT_OUT_LAST_PLAYER");
         return;
       }
 
       if (this.state.toActSeat === player.seat) {
         if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-          await this.advanceStreetOrShowdown();
+          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_BETTING_CLOSED");
           return;
         }
         const nextSeat = findNextToActSeat(this.state, player.seat);
         if (nextSeat === -1) {
-          await this.advanceStreetOrShowdown();
+          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_NO_NEXT_SEAT");
           return;
         }
         this.state.toActSeat = nextSeat;
       }
 
       await this.sendTableSnapshotToAll("SEAT_CHANGE");
-      this.maybeActForBot();
+      this.requestDrive("MAYBE_ACT_FOR_BOT:SIT_OUT_SEAT_CHANGE");
       return;
     }
 
@@ -1303,7 +1407,7 @@ export class Dealer {
       player.status = "ACTIVE";
       await this.sendTableSnapshotToAll("SEAT_CHANGE");
       if (countNonOutPlayers(this.state) >= 2) {
-        await this.startHand();
+        await this.requestDrive("START_HAND:SIT_IN_WAITING");
       }
       return;
     }
@@ -1340,19 +1444,19 @@ export class Dealer {
         this.logActionResolvedNextActor();
         return;
       case "HAND_FINISHED":
-        await this.finishHandByLastStanding();
+        await this.requestDrive("FINISH_HAND_LAST_STANDING:APPLY_ACTION_RESULT_HAND_FINISHED");
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
       case "STREET_COMPLETE":
-        await this.advanceStreetOrShowdown();
+        await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
       case "TURN_ADVANCED":
         await this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
         maybeAssertBettingState(this.state);
-        this.maybeActForBot();
+        this.requestDrive("MAYBE_ACT_FOR_BOT:APPLY_ACTION_RESULT:TURN_ADVANCED");
         this.logActionResolvedNextActor();
         return;
     }
@@ -1383,15 +1487,11 @@ export class Dealer {
           },
           "TURN_OWNER_INVARIANT_VIOLATION",
         );
-        this.maybeActForBot();
+    void this.requestDrive("MAYBE_ACT_FOR_BOT:TURN_OWNER_INVARIANT_VIOLATION");
       }
     }
 
-    this.ensureHumanTurnTimerForCurrentActor("ACTION_RESOLVED_NEXT_ACTOR");
-    this.maybeSelfHealWaitingHumanWithoutDeadline("ACTION_RESOLVED_NEXT_ACTOR");
-    this.logEngineDecisionState("ACTION_RESOLVED_NEXT_ACTOR");
-    this.logToActDerivationWarning("ACTION_RESOLVED_NEXT_ACTOR");
-    this.logEngineDecisionAndRuntimeStep("ACTION_RESOLVED_NEXT_ACTOR");
+    void this.requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
   }
 
   private logEngineDecisionState(trigger: string): void {
@@ -1477,7 +1577,7 @@ export class Dealer {
    * Delegates to the private maybeActForBot so the encapsulation boundary is clear.
    */
   maybeActForBotPublic(): void {
-    this.maybeActForBot();
+    void this.requestDrive("MAYBE_ACT_FOR_BOT:PUBLIC");
   }
 
   private async applyDisconnectedAutoActionCapForHand() {
@@ -1496,7 +1596,7 @@ export class Dealer {
       const nextSeat = findNextToActSeat(this.state, this.state.toActSeat);
       if (nextSeat === -1) return;
       this.state.toActSeat = nextSeat;
-      this.maybeActForBot();
+      this.requestDrive("MAYBE_ACT_FOR_BOT:DISCONNECTED_AUTO_ACTION_CAP");
     }
   }
 

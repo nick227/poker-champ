@@ -34,8 +34,33 @@ import type { TablePageController } from "@/types/tableSceneContract";
 import type { RejoinUiState } from "@/features/table";
 import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
 import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
-import type { TableAnimationRequest } from "@/features/table/animations/animationTypes";
+import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
+
+function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function anchorBoundsEqual(a: AnchorBounds, b: AnchorBounds): boolean {
+  if (!rectEqual(a.board, b.board)) return false;
+  if (!rectEqual(a.hero, b.hero)) return false;
+  const aSeat = a.seatByIndex ?? {};
+  const bSeat = b.seatByIndex ?? {};
+  const seatKeys = new Set([...Object.keys(aSeat), ...Object.keys(bSeat)]);
+  for (const k of seatKeys) {
+    const i = Number(k);
+    if (!rectEqual(aSeat[i], bSeat[i])) return false;
+  }
+  const aSlots = a.cardSlots ?? [];
+  const bSlots = b.cardSlots ?? [];
+  const len = Math.max(aSlots.length, bSlots.length);
+  for (let i = 0; i < len; i++) {
+    if (!rectEqual(aSlots[i], bSlots[i])) return false;
+  }
+  return true;
+}
 
 const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet" | "raise" | "allIn"> = {
   FOLD: "fold",
@@ -130,6 +155,33 @@ export function useTablePageController({
   const [rejoinUiState, setRejoinUiState] = useState<RejoinUiState>("idle");
   const [rejoinErrorMessage, setRejoinErrorMessage] = useState<string | null>(null);
   const [animationRequest, setAnimationRequest] = useState<TableAnimationRequest | null>(null);
+  const [anchorBounds, setAnchorBounds] = useState<AnchorBounds>({});
+  const anchorPendingRef = useRef<Partial<AnchorBounds>>({});
+  const anchorRafRef = useRef<number | null>(null);
+  const flushAnchorBounds = useCallback(() => {
+    if (anchorRafRef.current != null) return;
+    anchorRafRef.current = requestAnimationFrame(() => {
+      anchorRafRef.current = null;
+      const p = anchorPendingRef.current;
+      anchorPendingRef.current = {};
+      if (Object.keys(p).length === 0) return;
+      setAnchorBounds((prev) => {
+        const next: AnchorBounds = { ...prev };
+        if (p.board != null) next.board = p.board;
+        if (p.hero != null) next.hero = p.hero;
+        if (p.seatByIndex != null) next.seatByIndex = { ...prev.seatByIndex, ...p.seatByIndex };
+        if (p.cardSlots != null) {
+          const arr = [...(prev.cardSlots ?? [])];
+          p.cardSlots.forEach((r, i) => {
+            if (r != null) arr[i] = r;
+          });
+          next.cardSlots = arr.length ? arr : prev.cardSlots;
+        }
+        if (anchorBoundsEqual(prev, next)) return prev;
+        return next;
+      });
+    });
+  }, []);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const lastPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
@@ -629,6 +681,36 @@ export function useTablePageController({
       sendChat: chatOverlay.onSend,
       requestTableAnimation: setAnimationRequest,
       clearAnimationRequest: () => setAnimationRequest(null),
+      reportBoardBounds: useCallback(
+        (rect: Rect) => {
+          anchorPendingRef.current.board = rect;
+          flushAnchorBounds();
+        },
+        [flushAnchorBounds]
+      ),
+      reportHeroBounds: useCallback(
+        (rect: Rect) => {
+          anchorPendingRef.current.hero = rect;
+          flushAnchorBounds();
+        },
+        [flushAnchorBounds]
+      ),
+      reportSeatBounds: useCallback(
+        (seatIndex: number, rect: Rect) => {
+          const cur = anchorPendingRef.current.seatByIndex ?? {};
+          anchorPendingRef.current.seatByIndex = { ...cur, [seatIndex]: rect };
+          flushAnchorBounds();
+        },
+        [flushAnchorBounds]
+      ),
+      reportCardSlotBounds: useCallback(
+        (index: number, rect: Rect) => {
+          const prev = anchorPendingRef.current.cardSlots ?? [];
+          anchorPendingRef.current.cardSlots = Array.from({ length: 5 }, (_, i) => (i === index ? rect : prev[i]));
+          flushAnchorBounds();
+        },
+        [flushAnchorBounds]
+      ),
     },
   };
 }

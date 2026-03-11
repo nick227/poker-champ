@@ -254,6 +254,58 @@ Rollback:
 - Keep rollback for each phase (disable flag + return to prior path).
 - Keep high-signal diagnostics on by sampling during rollout.
 
+## Why Not Phase 7 Yet
+
+Phase 7 (single unified driver) is a high-blast-radius refactor. We should not move to it until Phase 4/5 behavior is repeatedly clean under soak and analyzer gates.
+
+What prolonged testing is accomplishing now:
+
+- Verifies deadline authority is actually stable under churn (`timeoutDoubleFires=0`, `timeoutWithMissingDeadline=0`, `deadlineOutsideWaiting=0`).
+- Proves the specific historical stall class is gone (`waitingHumanMissingDeadline=0`, `waitingHumanNoNeedsAction=0`, `TABLE_STALLED` near zero).
+- Confirms action idempotency under retries/replays before centralizing all progression paths.
+- Establishes a reliable baseline so Phase 7 regressions are obvious and attributable.
+- Reduces incident risk: without this baseline, a Phase 7 regression can be misdiagnosed as "old noise."
+
+In short: prolonged testing is not delay; it is blast-radius reduction and signal calibration before a structural authority flip.
+
+## Immediate Execution Checklist (Current Stage)
+
+- [ ] Run one clean validation soak (`SOAK_HANDS=300`, `LOG_LEVEL=info`, heartbeat on).
+- [ ] Run extended soak (`SOAK_HANDS=1000+`) and archive logs in `var/logs`.
+- [ ] Run both analyzers on each capture:
+  - `pnpm --dir apps/server analyze:game-bugs --file <log>`
+  - `pnpm --dir apps/server analyze:phase4 -- --file <log>`
+- [ ] Confirm gate metrics are clean:
+  - `tableStalled=0`
+  - `timeoutDoubleFires=0`
+  - `timeoutWithMissingDeadline=0`
+  - `deadlineOutsideWaiting=0`
+  - `waitingHumanMissingDeadline=0`
+  - `toActMismatchCount=0`
+- [ ] Freeze Phase 4 logic to bugfix-only.
+- [ ] Complete/lock Phase 5 dedup gates in CI.
+- [ ] Start Phase 7 only after two consecutive clean soak/analyzer runs.
+
+## Phase 7 Safety Sequence (Low-Risk Order)
+
+Apply Phase 7 in this order:
+
+1. Extract pure decision layer (`engineQueries.ts`, `computeNextStep`, `getStallReason`, and `stateProjection.ts` only if runtime state shape requires it).
+2. Emit decision traces in staging/production sampling.
+3. Compare decision outputs against current runtime behavior.
+4. Route one trigger path through `requestDrive`.
+5. Expand trigger coverage incrementally.
+6. Remove legacy ad-hoc progression branches last.
+
+Authority flip rule:
+
+- Do not make `requestDrive` sole progression authority until parity is proven.
+
+Hard parity requirement before authority flip:
+
+- For sampled real hands, `runtimeStep == computeNextStep(state, now)` must hold.
+- If diverged, log as defect and block authority flip until resolved.
+
 ## Expected Outcomes
 
 After Phases 1-3:

@@ -1,6 +1,25 @@
+/**
+ * Animation registry build pipeline.
+ *
+ * Responsibilities:
+ * - define the canonical event→tier definitions
+ * - validate at startup (fail fast in dev/CI)
+ * - build O(1) lookup indexes for runtime
+ * - freeze configs to prevent accidental mutation
+ *
+ * Build pipeline:
+ * base definitions
+ *   → expand companions
+ *   → validate
+ *   → freeze
+ *   → build lookup indexes
+ */
+
+// Imports
 import type {
   TableAnimationDefinition,
   TableAnimationEvent,
+  TableAnimationRequest,
   AnimationLayerDefinition,
 } from "../animationTypes";
 import {
@@ -16,7 +35,10 @@ import { buildDefinitionId, DEFAULT_LAYER_PARAMS, type PreloadSource } from "./s
 import { POT_WIN_TIERS } from "./potWin";
 import { ALL_IN_TIERS } from "./allIn";
 import { SHOWDOWN_TIERS } from "./showdown";
+import { getHeroAuraDefinition, HERO_AURA_ALL_IN } from "./heroAura";
+import { getSeatGlowDefinition, SEAT_GLOW_SHOWDOWN } from "./seatGlow";
 
+// Constants
 /** Event-grouped registry. Tiers 0–4 per event. Resolver uses fallback to closest lower tier. */
 export const TABLE_ANIMATIONS: Record<TableAnimationEvent, TableAnimationDefinition[]> = {
   POT_WIN: POT_WIN_TIERS,
@@ -25,22 +47,29 @@ export const TABLE_ANIMATIONS: Record<TableAnimationEvent, TableAnimationDefinit
 };
 
 export { buildDefinitionId, DEFAULT_LAYER_PARAMS, type PreloadSource };
+export { resolveLayerWithPreset, LAYER_PRESETS, type LayerPresetDefaults } from "./layerPresets";
 
+// Helpers
 function getAllDefinitions(): TableAnimationDefinition[] {
   return (Object.values(TABLE_ANIMATIONS) as TableAnimationDefinition[][]).flat();
 }
 
-const BY_EVENT_TIER = new Map<TableAnimationEvent, Map<number, TableAnimationDefinition>>();
-for (const event of Object.keys(TABLE_ANIMATIONS) as TableAnimationEvent[]) {
-  const tierMap = new Map<number, TableAnimationDefinition>();
-  for (const d of TABLE_ANIMATIONS[event]) tierMap.set(d.tier, d);
-  BY_EVENT_TIER.set(event, tierMap);
+function buildTierIndex(
+  tableAnimations: Record<TableAnimationEvent, TableAnimationDefinition[]>
+): Map<TableAnimationEvent, Map<number, TableAnimationDefinition>> {
+  const out = new Map<TableAnimationEvent, Map<number, TableAnimationDefinition>>();
+  for (const event of Object.keys(tableAnimations) as TableAnimationEvent[]) {
+    const tierMap = new Map<number, TableAnimationDefinition>();
+    for (const d of tableAnimations[event]) tierMap.set(d.tier, d);
+    out.set(event, tierMap);
+  }
+  return out;
 }
 
-function buildPreloadSources(): PreloadSource[] {
+function buildPreloadSources(definitions: TableAnimationDefinition[]): PreloadSource[] {
   const out: PreloadSource[] = [];
   const seen = new Set<string>();
-  for (const d of getAllDefinitions()) {
+  for (const d of definitions) {
     for (const layer of d.layers) {
       if (layer.type !== "ASSET" || !layer.preload || !layer.source?.trim()) continue;
       const key = `${layer.source}:${layer.variant ?? ""}`;
@@ -52,8 +81,26 @@ function buildPreloadSources(): PreloadSource[] {
   return out;
 }
 
-const PRELOAD_SOURCES = buildPreloadSources();
+function freezeDefinitions(defs: TableAnimationDefinition[]): void {
+  Object.freeze(defs);
+  for (const def of defs) {
+    Object.freeze(def.layers);
+    for (const layer of def.layers) Object.freeze(layer);
+    Object.freeze(def);
+  }
+}
 
+// Build step (module init)
+const ALL_DEFINITIONS = getAllDefinitions();
+const BY_EVENT_TIER = buildTierIndex(TABLE_ANIMATIONS);
+const PRELOAD_SOURCES = buildPreloadSources(ALL_DEFINITIONS);
+
+validateDefinitions(ALL_DEFINITIONS);
+validateCompanionDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN]);
+freezeDefinitions(ALL_DEFINITIONS);
+freezeDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN]);
+
+// Public API
 export function getPreloadSources(): PreloadSource[] {
   return PRELOAD_SOURCES;
 }
@@ -71,6 +118,26 @@ export function resolveAnimation(
     if (tierMap.has(t)) return tierMap.get(t);
   }
   return undefined;
+}
+
+export type ResolvedCompanions = {
+  table: TableAnimationDefinition | undefined;
+  hero: TableAnimationDefinition | undefined;
+  seat: TableAnimationDefinition | undefined;
+};
+
+/** Resolve TABLE definition plus optional HERO and SEAT companions from one request. */
+export function resolveAnimationWithCompanions(
+  request: TableAnimationRequest
+): ResolvedCompanions {
+  const table = resolveAnimation(request.event, request.tier);
+  const hero = getHeroAuraDefinition(
+    request.event,
+    request.tier,
+    request.payload
+  );
+  const seat = getSeatGlowDefinition(request.event, request.payload);
+  return { table, hero, seat };
 }
 
 function validateLayer(layer: AnimationLayerDefinition, event: string, tier: number): void {
@@ -102,7 +169,7 @@ export function validateDefinitions(definitions: TableAnimationDefinition[]): vo
       for (const cue of d.sounds) {
         if (!validSounds.has(cue.sound)) {
           if (typeof __DEV__ !== "undefined" && __DEV__) {
-            console.warn(`${FX_DEBUG_PREFIX} ${d.id}: unknown sound key "${cue.sound}" (use SoundEvent from soundEvents.ts)`);
+            throw new Error(`${FX_DEBUG_PREFIX} ${d.id}: invalid sound key "${cue.sound}" (must be in SOUND_EVENT_MAP)`);
           }
         }
       }
@@ -110,4 +177,21 @@ export function validateDefinitions(definitions: TableAnimationDefinition[]): vo
   }
 }
 
-validateDefinitions(getAllDefinitions());
+function validateCompanionDefinitions(definitions: TableAnimationDefinition[]): void {
+  const validSounds = new Set(Object.keys(SOUND_EVENT_MAP));
+  for (const d of definitions) {
+    if (d.layers.length === 0) throw new Error(`Animation ${d.id}: ${ERROR_EMPTY_LAYERS}`);
+    if (d.durationMs <= 0) throw new Error(`Animation ${d.id}: ${ERROR_DURATION_POSITIVE}`);
+    for (const layer of d.layers) validateLayer(layer, d.event, d.tier);
+    if (d.sounds?.length) {
+      for (const cue of d.sounds) {
+        if (!validSounds.has(cue.sound) && typeof __DEV__ !== "undefined" && __DEV__) {
+          throw new Error(`${FX_DEBUG_PREFIX} ${d.id}: invalid sound key "${cue.sound}"`);
+        }
+      }
+    }
+  }
+}
+
+// Dev / debug
+// (validation + freeze already run at module init above)

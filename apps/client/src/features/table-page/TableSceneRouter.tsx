@@ -260,6 +260,10 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
           onPressRebuy={actions.openRebuySheet}
           heroAvatarUrlOverride={heroAvatarUrl ?? profileOrCurrentUserUrl ?? undefined}
           onHeroAvatarPress={pickAndUploadAvatar}
+          onBoardBounds={actions.reportBoardBounds}
+          onHeroBounds={actions.reportHeroBounds}
+          onSeatBounds={actions.reportSeatBounds}
+          onCardSlotBounds={actions.reportCardSlotBounds}
         />
       );
 

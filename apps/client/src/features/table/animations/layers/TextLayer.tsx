@@ -1,23 +1,27 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
+import { EASING_OPACITY_IN, EASING_OPACITY_OUT, EASING_SCALE } from "../animationEasing";
 
 const FALLBACK_SIZE_MAP = {
-  small: 22,
-  medium: 28,
-  large: 36,
-  xlarge: 48,
+  small: 24,
+  medium: 32,
+  large: 42,
+  xlarge: 56,
+  hero: 72,
 } as const;
 
 const FALLBACK_HEADLINE_COLOR = "#fff";
 const FALLBACK_HEADLINE_SHADOW = "rgba(255, 100, 50, 0.9)";
 const FALLBACK_AMOUNT_BG = "rgba(200, 60, 40, 0.85)";
-const AMOUNT_FONT_SIZE_DEFAULT = 24;
-const GLOW_TEXT_SHADOW_RADIUS = 12;
-const GLOW_TEXT_SHADOW_RADIUS_OUTER = 20;
+const AMOUNT_FONT_SIZE_DEFAULT = 26;
+const GLOW_TEXT_SHADOW_RADIUS = 16;
+const GLOW_TEXT_SHADOW_RADIUS_OUTER = 26;
+const GLOW_TEXT_SHADOW_RADIUS_BRIGHT = 8;
 const GLOW_TEXT_SHADOW_OFFSET = { width: 0, height: 1 };
 const TEXT_SHADOW_OFFSET_NONE = { width: 0, height: 0 };
 const AMOUNT_WRAP_PADDING_TOP = 56;
-const HEADLINE_SCALE_FROM = 0.92;
+const HEADLINE_SCALE_FROM = 0.82;
+const AMOUNT_SCALE_FROM = 0.75;
 const AMOUNT_BORDER_WIDTH = 2;
 
 type TextRole = "headline" | "amount";
@@ -33,6 +37,7 @@ type Props = {
   headlineColor?: string;
   glowColor?: string;
   headlineGlowSecondary?: string;
+  headlineGlowBright?: string;
   amountBg?: string;
   amountText?: string;
   amountBorder?: string;
@@ -49,20 +54,21 @@ export function TextLayer({
   headlineColor,
   glowColor,
   headlineGlowSecondary,
+  headlineGlowBright,
   amountBg,
   amountText,
   amountBorder,
   fontSize: fontSizeProp,
 }: Props) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(role === "amount" ? 0.8 : HEADLINE_SCALE_FROM)).current;
+  const scale = useRef(new Animated.Value(role === "amount" ? AMOUNT_SCALE_FROM : HEADLINE_SCALE_FROM)).current;
   const fontSize = fontSizeProp ?? FALLBACK_SIZE_MAP[size] ?? FALLBACK_SIZE_MAP.large;
 
   useEffect(() => {
-    const headlineOpacityIn = 0.18;
-    const headlineScaleIn = 0.3;
-    const amountOpacityIn = 0.25;
-    const amountScaleIn = 0.28;
+    const headlineOpacityIn = 0.14;
+    const headlineScaleIn = 0.22;
+    const amountOpacityIn = 0.2;
+    const amountScaleIn = 0.22;
     const opacityOutFraction = 0.4;
     const run = () => {
       const opacityIn = role === "amount" ? amountOpacityIn : headlineOpacityIn;
@@ -72,20 +78,20 @@ export function TextLayer({
           toValue: 1,
           duration: durationMs * opacityIn,
           useNativeDriver: true,
-          easing: Easing.out(Easing.ease),
+          easing: EASING_OPACITY_IN,
         }),
         Animated.timing(scale, {
           toValue: 1,
           duration: durationMs * scaleIn,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: EASING_SCALE,
         }),
       ]).start(() => {
         Animated.timing(opacity, {
           toValue: 0,
           duration: durationMs * opacityOutFraction,
           useNativeDriver: true,
-          easing: Easing.in(Easing.ease),
+          easing: EASING_OPACITY_OUT,
         }).start();
       });
     };
@@ -95,7 +101,8 @@ export function TextLayer({
 
   const isHeadline = role === "headline";
   const amountFontSize = fontSizeProp ?? AMOUNT_FONT_SIZE_DEFAULT;
-  const useDualToneGlow = isHeadline && glow && headlineGlowSecondary;
+  const useDualToneGlow = isHeadline && glow && (headlineGlowSecondary ?? headlineGlowBright);
+  const useBrightInner = isHeadline && glow && headlineGlowBright;
   const textStyle = isHeadline
     ? [
         styles.headline,
@@ -130,22 +137,24 @@ export function TextLayer({
     >
       {useDualToneGlow ? (
         <View style={styles.headlineStack}>
-          <Text
-            style={[
-              styles.headline,
-              styles.headlineLayer,
-              {
-                fontSize,
-                color: headlineGlowSecondary,
-                textShadowColor: headlineGlowSecondary,
-                textShadowRadius: GLOW_TEXT_SHADOW_RADIUS_OUTER,
-                textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            {text}
-          </Text>
+          {headlineGlowSecondary != null && (
+            <Text
+              style={[
+                styles.headline,
+                styles.headlineLayer,
+                {
+                  fontSize,
+                  color: headlineGlowSecondary,
+                  textShadowColor: headlineGlowSecondary,
+                  textShadowRadius: GLOW_TEXT_SHADOW_RADIUS_OUTER,
+                  textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {text}
+            </Text>
+          )}
           <Text
             style={[
               styles.headline,
@@ -162,6 +171,24 @@ export function TextLayer({
           >
             {text}
           </Text>
+          {useBrightInner && (
+            <Text
+              style={[
+                styles.headline,
+                styles.headlineLayer,
+                {
+                  fontSize,
+                  color: headlineGlowBright,
+                  textShadowColor: headlineGlowBright,
+                  textShadowRadius: GLOW_TEXT_SHADOW_RADIUS_BRIGHT,
+                  textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {text}
+            </Text>
+          )}
           <Text
             style={[
               styles.headline,
@@ -198,8 +225,8 @@ const styles = StyleSheet.create({
     color: FALLBACK_HEADLINE_COLOR,
     textShadowColor: FALLBACK_HEADLINE_SHADOW,
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 4,
-    letterSpacing: 2,
+    textShadowRadius: 5,
+    letterSpacing: 3,
   },
   glow: {
     textShadowRadius: GLOW_TEXT_SHADOW_RADIUS,

@@ -1,5 +1,7 @@
 import { Platform, ScrollView, View, useWindowDimensions } from "react-native";
 import type { Opponent } from "../table.adapter";
+import type { Rect } from "@/features/table/animations/animationTypes";
+import { MeasuredBoundsReporter } from "../board-area";
 import { CONTAINER } from "./layout";
 import { opponentStripStyles as s } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -11,6 +13,8 @@ export type OpponentStripProps = {
   opponents: Opponent[];
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** Report seat rect by index for SEAT-anchored FX. */
+  onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   /** 0-1 when an opponent is to act (for countdown bar); null otherwise */
   activeTurnProgress?: number | null;
 };
@@ -19,6 +23,7 @@ export function OpponentStrip({
   opponents,
   winnerName,
   onPlayerPress,
+  onSeatBounds,
   activeTurnProgress,
 }: OpponentStripProps) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
@@ -40,16 +45,29 @@ export function OpponentStrip({
         overScrollMode="never"
         scrollEventThrottle={16}
       >
-          {opponents.map((opponent) => (
-            <OpponentStripItem
-              key={opponent.id}
-              opponent={opponent}
-              winnerName={winnerName}
-              onPlayerPress={onPlayerPress}
-              activeTurnProgress={activeTurnProgress}
-              cardFacePackId={cardFacePackId}
-            />
-          ))}
+          {opponents.map((opponent) => {
+            const item = (
+              <OpponentStripItem
+                key={opponent.id}
+                opponent={opponent}
+                winnerName={winnerName}
+                onPlayerPress={onPlayerPress}
+                activeTurnProgress={activeTurnProgress}
+                cardFacePackId={cardFacePackId}
+              />
+            );
+            return onSeatBounds ? (
+              <MeasuredBoundsReporter
+                key={opponent.id}
+                onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
+                style={{}}
+              >
+                {item}
+              </MeasuredBoundsReporter>
+            ) : (
+              item
+            );
+          })}
       </ScrollView>
     </View>
   );

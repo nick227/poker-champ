@@ -7,7 +7,11 @@ import type { TableAction } from "@/features/table";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
 import type { HandResultMessage, ConnectionStatus } from "@/features/table";
 import type { RejoinUiState } from "@/features/table";
-import type { TableAnimationRequest } from "@/features/table/animations/animationTypes";
+import type {
+  TableAnimationRequest,
+  AnchorBounds,
+  Rect,
+} from "@/features/table/animations/animationTypes";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
@@ -53,6 +57,11 @@ export type TablePageController = {
     rejoinErrorMessage?: string | null;
     /** Current animation request; overlay consumes and clears via onComplete. */
     animationRequest: TableAnimationRequest | null;
+    /**
+     * Measured bounds for BOARD/SEAT/HERO/CARD anchors; overlay uses for positioned FX.
+     * Must be in overlay coordinate space (e.g. measureLayout(overlayRef), not raw measureInWindow).
+     */
+    anchorBounds?: AnchorBounds;
   };
   uiState: {
     activeTablesDropdownVisible: boolean;
@@ -88,6 +97,14 @@ export type TablePageController = {
     sendChat: (text: string) => void;
     requestTableAnimation: (request: TableAnimationRequest) => void;
     clearAnimationRequest: () => void;
+    /** Report board rect. Enables BOARD-anchored FX. Use overlay coordinate space. */
+    reportBoardBounds: (rect: Rect) => void;
+    /** Report hero zone rect. Enables RING/GLOW anchor: HERO. Use overlay coordinate space. */
+    reportHeroBounds: (rect: Rect) => void;
+    /** Report seat rect by index. Enables RING/GLOW anchor: SEAT (e.g. winnerSeat). Use overlay coordinate space. */
+    reportSeatBounds: (seatIndex: number, rect: Rect) => void;
+    /** Report community card slot rect (0..4). Enables CARD-anchored FX. Use overlay coordinate space. */
+    reportCardSlotBounds: (index: number, rect: Rect) => void;
   };
 };
 

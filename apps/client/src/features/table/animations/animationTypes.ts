@@ -33,22 +33,52 @@ export type AnimationSettings = {
 };
 
 /** Effects can originate from different parts of the table. */
-export type AnimationAnchor = "TABLE_CENTER" | "HERO" | "SEAT";
+export type AnimationAnchor = "TABLE_CENTER" | "HERO" | "SEAT" | "BOARD" | "CARD";
 
 export const FX_ANCHOR: Record<AnimationAnchor, AnimationAnchor> = {
   TABLE_CENTER: "TABLE_CENTER",
   HERO: "HERO",
   SEAT: "SEAT",
+  BOARD: "BOARD",
+  CARD: "CARD",
 };
 
+/** Bounds in overlay coordinates (e.g. from onLayout). Used to position HERO/SEAT effects. */
+export type Rect = { x: number; y: number; width: number; height: number };
+
+export type AnchorBounds = {
+  hero?: Rect;
+  seatByIndex?: Record<number, Rect>;
+  board?: Rect;
+  /** Indices 0..4 for community card slots (flop1, flop2, flop3, turn, river). Undefined = not yet measured. */
+  cardSlots?: (Rect | undefined)[];
+};
+
+/** Which stacking plane the layer renders on. Default FOREGROUND when omitted. */
+export type AnimationPlane = "BACKGROUND" | "FOREGROUND";
+
 /** Visual primitives and asset layer. */
-export type AnimationLayerType = "FLASH" | "BURST" | "PARTICLES" | "RING" | "TEXT" | "ASSET";
+export type AnimationLayerType = "FLASH" | "BURST" | "RADIAL_GLOW" | "PARTICLES" | "RING" | "TEXT" | "STREAK" | "SEAT_GLOW" | "ASSET";
 
 export type AnimationAssetType = "VIDEO" | "LOTTIE" | "SPRITE";
 
+/** Particle shape for confetti/sparks variety. */
+export type ParticleShape = "circle" | "square" | "line";
+
+/** Payload keys used for SEAT anchor index (e.g. winnerSeat, anchorSeat). */
+export type SeatIndexPayloadKey = "winnerSeat" | "anchorSeat";
+
 /** Procedural layer (code-driven). */
 export type ProceduralLayerDefinition = {
-  type: "FLASH" | "BURST" | "PARTICLES" | "RING" | "TEXT";
+  type: "FLASH" | "BURST" | "RADIAL_GLOW" | "PARTICLES" | "RING" | "TEXT" | "STREAK" | "SEAT_GLOW";
+  /** Named preset for visual defaults; merged at resolution (layer overrides preset). */
+  preset?: string;
+  /** Where to draw; default from definition.anchor. */
+  anchor?: AnimationAnchor;
+  /** For SEAT anchor: payload key for seat index (e.g. "winnerSeat"). */
+  seatIndexFromPayload?: SeatIndexPayloadKey;
+  /** Default FOREGROUND. Atmosphere layers use BACKGROUND (softer, behind table). */
+  plane?: AnimationPlane;
   delayMs?: number;
   durationMs?: number;
   scale?: [number, number];
@@ -56,17 +86,29 @@ export type ProceduralLayerDefinition = {
   rays?: number;
   particleCount?: number;
   particleSpread?: number;
-  /** PARTICLES only: offset of origin from center (e.g. from headline). */
+  /** PARTICLES: shape for confetti/sparks. */
+  particleShape?: ParticleShape;
+  /** PARTICLES only: offset of origin from center (e.g. from headline or amount). */
   originOffsetX?: number;
   originOffsetY?: number;
   textRole?: "headline" | "amount";
-  textSize?: "small" | "medium" | "large" | "xlarge";
+  textSize?: "small" | "medium" | "large" | "xlarge" | "hero";
   textGlow?: boolean;
+  /** STREAK only: number of diagonal lines. */
+  streakCount?: number;
+  /** STREAK only: angle in degrees. */
+  streakAngleDeg?: number;
 };
 
 /** External media layer (video, Lottie, sprite). durationMs undefined = use asset intrinsic duration. */
 export type AssetLayerDefinition = {
   type: "ASSET";
+  /** Named preset for visual defaults; merged at resolution (layer overrides preset). */
+  preset?: string;
+  /** Where to draw; default from definition.anchor. */
+  anchor?: AnimationAnchor;
+  /** Default FOREGROUND. Background ambience (e.g. gold sweep) uses BACKGROUND. */
+  plane?: AnimationPlane;
   assetType: AnimationAssetType;
   source: string;
   variant?: string;

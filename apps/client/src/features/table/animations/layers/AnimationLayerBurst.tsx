@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
+import { EASING_OPACITY_IN, EASING_OPACITY_OUT, EASING_SCALE } from "../animationEasing";
 
 const FALLBACK_RAY_COLOR = "rgba(255, 100, 50, 0.5)";
-const RAY_WIDTH = 2;
+const RAY_WIDTH = 3;
+const RAY_SCALE_X = 75;
 const DEFAULT_SCALE_RANGE: [number, number] = [0.3, 1.2];
 
 type Props = {
@@ -26,8 +28,8 @@ export function AnimationLayerBurst({
   const rayColor = color ?? FALLBACK_RAY_COLOR;
 
   useEffect(() => {
-    const opacityInFraction = 0.2;
-    const scaleInFraction = 0.45;
+    const opacityInFraction = 0.18;
+    const scaleInFraction = 0.38;
     const opacityOutFraction = 0.5;
     const start = () => {
       Animated.parallel([
@@ -35,20 +37,20 @@ export function AnimationLayerBurst({
           toValue: 1,
           duration: durationMs * opacityInFraction,
           useNativeDriver: true,
-          easing: Easing.out(Easing.ease),
+          easing: EASING_OPACITY_IN,
         }),
         Animated.timing(scale, {
           toValue: scaleTo,
           duration: durationMs * scaleInFraction,
           useNativeDriver: true,
-          easing: Easing.out(Easing.cubic),
+          easing: EASING_SCALE,
         }),
       ]).start(() => {
         Animated.timing(opacity, {
           toValue: 0,
           duration: durationMs * opacityOutFraction,
           useNativeDriver: true,
-          easing: Easing.in(Easing.ease),
+          easing: EASING_OPACITY_OUT,
         }).start();
       });
     };
@@ -80,7 +82,7 @@ export function AnimationLayerBurst({
                   transform: [
                     { translateX: -RAY_WIDTH / 2 },
                     { rotate: `${angle}rad` },
-                    { scaleX: 60 },
+                    { scaleX: RAY_SCALE_X },
                   ],
                 },
               ]}

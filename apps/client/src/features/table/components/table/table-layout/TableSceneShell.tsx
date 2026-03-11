@@ -4,6 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { Platform, View, ScrollView, type ViewStyle } from "react-native";
+import type { Rect } from "@/features/table/animations/animationTypes";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { TableGameTopBar } from "../table-game-top-bar";
@@ -27,6 +28,8 @@ export type TableSceneShellProps = {
   opponentStripEmptyState?: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** Report seat rect by index for SEAT-anchored FX. */
+  onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   /** 0–1 when an opponent is to act (for countdown bar); null otherwise */
   activeTurnProgress?: number | null;
   dealerBar: ReactNode;
@@ -54,6 +57,7 @@ export function TableSceneShell({
   opponentStripEmptyState,
   winnerName,
   onPlayerPress,
+  onSeatBounds,
   activeTurnProgress,
   dealerBar,
   board,
@@ -137,6 +141,7 @@ export function TableSceneShell({
                     opponents={opponents}
                     winnerName={winnerName}
                     onPlayerPress={onPlayerPress}
+                    onSeatBounds={onSeatBounds}
                     activeTurnProgress={activeTurnProgress}
                   />
                 )}

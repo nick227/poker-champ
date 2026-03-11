@@ -43,7 +43,8 @@ apps/client/src/features/table/animations/
   animationConstants.ts  # Default headlines, durations, validation messages, text roles
   animationTheme.ts      # Single default palette + timing + text scale
   animationRegistry/     # Event-grouped registry + tier builders
-    shared.ts            # def(), buildDefinitionId(), DEFAULT_LAYER_PARAMS
+    shared.ts            # def(), defFromPreset(), buildDefinitionId(), DEFAULT_LAYER_PARAMS
+    presets.ts           # PRESETS (TIER_0..4, ALL_IN_TIER_4, POT_TIER_0..4), getPresetLayers()
     potWin.ts            # buildPotWinTier(tier), POT_WIN_TIERS
     allIn.ts             # buildAllInTier(tier), ALL_IN_TIERS
     showdown.ts          # buildShowdownTier(tier), SHOWDOWN_TIERS
@@ -64,9 +65,10 @@ apps/client/src/features/table/animations/
 
 **Public API:** `table/animations/index.ts` exports overlay, resolver, mapper, types, constants, `renderAnimationLayer`, `getPreloadSources`, `buildDefinitionId`.
 
-### Definitions
+### Definitions and presets
 
 - **15 definitions** (3 events × 5 tiers). All use channel TABLE, anchor TABLE_CENTER.
+- **Presets:** Tier builders reference reusable presets (TIER_0..TIER_4, ALL_IN_TIER_4, POT_TIER_0..POT_TIER_4). `defFromPreset` expands preset → layers at build time; runtime unchanged. See `animationRegistry/presets.ts` and TABLE_FX_PRESETS.md.
 - **IDs:** `POT_WIN_TIER_0` … `SHOWDOWN_TIER_4` (from `buildDefinitionId(event, tier)`).
 - **Sound:** POT_WIN tier 1+ uses `table.potWin` cue; others optional per def.
 - **Validation** at import: unique (event, tier), non-empty layers, durationMs > 0, TEXT role, ASSET source.
@@ -76,10 +78,25 @@ apps/client/src/features/table/animations/
 - **Single default theme** in `animationTheme.ts`: palette (flash, burst, ring, particle, headline, headlineGlow, amountBg, amountText), timing (flashDurationMs, burstScale, ringScale), textScale (small → xlarge).
 - **No per-event or per-tier overrides yet.** `getAnimationTheme(event)` returns the default.
 
+### Motion & polish
+
+- **Shared easing** in `animationEasing.ts`: `EASING_OPACITY_IN` / `EASING_OPACITY_OUT` (cubic), `EASING_SCALE` (out cubic), `EASING_OPACITY_IN_SOFT` (ambient layers). All layers use these so motion feels consistent.
+- **Hold at peak:** `HOLD_AT_PEAK_FRACTION` (6% of duration) — Flash and Ring hold full opacity briefly before fading so the hit reads; then fade-out uses the shared out curve for a soft tail.
+
 ### Settings & Debug
 
-- **AnimationSettings:** `enabled` (kill switch), `reducedMotion`.
+- **AnimationSettings:** `enabled` (kill switch), `reducedMotion` (cap tier to 1, skip PARTICLES/STREAK layers).
 - **ANIMATION_DEBUG:** when true, logs instance id (e.g. `fx#104`) and definition id for collision tracing.
+
+### Trigger matrix
+
+| Event   | Trigger (current)                    | Payload used              | Companions / notes                          |
+|---------|--------------------------------------|---------------------------|---------------------------------------------|
+| POT_WIN | Hand result (useTablePageController) | headline, amountCents, potCents | —                                       |
+| ALL_IN  | lastAction === ALL_IN                | headline, amountCents, potCents | HERO when `payload.isHero` and tier ≥ 3 |
+| SHOWDOWN| Not triggered (no effect in controller) | —                    | SEAT when `payload.anchorSeat` set          |
+
+**Companions:** Hero aura runs on HERO channel when ALL_IN request has `payload.isHero === true`. Seat glow runs on SEAT channel when SHOWDOWN request has `payload.anchorSeat`. Both require the host to pass `anchorBounds` for positioned rendering.
 
 ---
 

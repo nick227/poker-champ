@@ -10,6 +10,7 @@ import {
   noFurtherBettingPossible,
 } from "../../rules/BettingRound.js";
 import { TURN_TIMEOUT_TOTAL_MS } from "../timing.js";
+import { dealerRuntimeMetrics } from "../metrics/dealerRuntimeMetrics.js";
 
 type QueuedTurnToken = {
   handId: string;
@@ -451,6 +452,7 @@ class TurnTimeoutScheduler {
 
         // Idempotency token consumption: clear deadline before applying timeout action.
         this.deps.state.turnDeadlineMs = 0;
+        dealerRuntimeMetrics.recordTurnTimeoutFired();
         await this.deps.setPlayerSittingOutInternal(userId, true);
         this.clearPendingTimeoutIfCurrent(key);
       });

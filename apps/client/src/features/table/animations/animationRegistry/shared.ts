@@ -1,8 +1,10 @@
 import type {
   TableAnimationDefinition,
   TableAnimationEvent,
+  AnimationLayerDefinition,
 } from "../animationTypes";
 import { FX_ANCHOR, FX_CHANNEL } from "../animationTypes";
+import { getPresetLayers, type PresetName } from "./presets";
 
 export type PreloadSource = { source: string; variant?: string };
 
@@ -33,4 +35,16 @@ export function def(
     layers,
     sounds,
   };
+}
+
+/** Build a definition from a preset (and optional appendLayers). Expansion at build time; runtime unchanged. */
+export function defFromPreset(
+  event: TableAnimationEvent,
+  tier: number,
+  presetName: PresetName,
+  durationMs: number,
+  options?: { sounds?: TableAnimationDefinition["sounds"]; appendLayers?: AnimationLayerDefinition[] }
+): TableAnimationDefinition {
+  const layers = getPresetLayers(presetName, options?.appendLayers);
+  return def(event, tier, durationMs, layers, options?.sounds);
 }

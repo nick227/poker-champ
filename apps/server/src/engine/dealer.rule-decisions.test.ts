@@ -297,7 +297,7 @@ describe("dealer rule decisions", () => {
     expect(persistence.recordAction.mock.calls.length).toBe(recordActionCallsAfterFirst);
   });
 
-  it("does not dedupe different users sharing the same actionId in the same hand", async () => {
+  it("rejects different users sharing the same actionId in the same hand", async () => {
     const state = new PokerState();
     state.tableId = "table_action_id_user_scope";
     state.street = "PREFLOP";
@@ -324,10 +324,10 @@ describe("dealer rule decisions", () => {
 
     await dealer.handleAction("u1", { action: "CHECK" }, sharedActionId);
     const recordActionCallsAfterFirst = persistence.recordAction.mock.calls.length;
-
-    await dealer.handleAction("u2", { action: "CHECK" }, sharedActionId);
-
-    expect(persistence.recordAction.mock.calls.length).toBe(recordActionCallsAfterFirst + 1);
+    await expect(dealer.handleAction("u2", { action: "CHECK" }, sharedActionId)).rejects.toMatchObject({
+      code: "INVALID_ACTION",
+    });
+    expect(persistence.recordAction.mock.calls.length).toBe(recordActionCallsAfterFirst);
   });
 
   it("warns once when the same hand actionId is claimed by a different user", async () => {
@@ -356,7 +356,9 @@ describe("dealer rule decisions", () => {
     const sharedActionId = "shared-collision-id";
 
     await dealer.handleAction("u1", { action: "CHECK" }, sharedActionId);
-    await dealer.handleAction("u2", { action: "CHECK" }, sharedActionId);
+    await expect(dealer.handleAction("u2", { action: "CHECK" }, sharedActionId)).rejects.toMatchObject({
+      code: "INVALID_ACTION",
+    });
     await expect(dealer.handleAction("u3", { action: "BET", amountCents: 0 }, sharedActionId)).rejects.toMatchObject({
       code: "INVALID_ACTION",
     });

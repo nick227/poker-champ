@@ -22,6 +22,8 @@ export type AnimationThemePalette = {
   haloColor?: string;
   /** Optional; outer glow for headline when glow=true (fire depth). */
   headlineGlowSecondary?: string;
+  /** Optional; bright inner glow (white/yellow core) for multi-tone fire. */
+  headlineGlowBright?: string;
   /** Optional; border color for amount pill (pot chip look). */
   amountBorder?: string;
 };
@@ -37,6 +39,8 @@ export type AnimationThemeTextScale = {
   medium: number;
   large: number;
   xlarge: number;
+  /** Viewport-dominant headline; fixed 72px until layout-driven scale exists. */
+  hero: number;
 };
 
 export type AnimationTheme = {
@@ -47,72 +51,75 @@ export type AnimationTheme = {
 };
 
 const DEFAULT_PALETTE: AnimationThemePalette = {
-  flash: "rgba(255, 200, 100, 0.35)",
-  burst: "rgba(255, 100, 50, 0.5)",
-  ring: "rgba(255, 215, 0, 0.9)",
-  particle: "rgba(255, 180, 80, 0.9)",
+  flash: "rgba(255, 200, 100, 0.4)",
+  burst: "rgba(255, 100, 50, 0.6)",
+  ring: "rgba(255, 215, 0, 0.95)",
+  particle: "rgba(255, 180, 80, 0.95)",
   headline: "#fff",
-  headlineGlow: "rgba(255, 100, 50, 0.9)",
-  amountBg: "rgba(200, 60, 40, 0.85)",
+  headlineGlow: "rgba(255, 100, 50, 0.95)",
+  amountBg: "rgba(200, 60, 40, 0.9)",
   amountText: "#fff",
-  streakColor: "rgba(255, 120, 60, 0.6)",
-  haloColor: "rgba(255, 200, 100, 0.5)",
+  streakColor: "rgba(255, 120, 60, 0.65)",
+  haloColor: "rgba(255, 200, 100, 0.55)",
 };
 
 /** Per-event palette overrides. Merged over default; only override keys that change. */
 const EVENT_PALETTE_OVERRIDES: Partial<Record<TableAnimationEvent, Partial<AnimationThemePalette>>> = {
   POT_WIN: {
-    flash: "rgba(255, 210, 130, 0.32)",
-    burst: "rgba(255, 180, 60, 0.45)",
-    ring: "rgba(255, 200, 80, 0.88)",
-    particle: "rgba(255, 190, 100, 0.88)",
+    flash: "rgba(255, 210, 130, 0.38)",
+    burst: "rgba(255, 180, 60, 0.55)",
+    ring: "rgba(255, 200, 80, 0.92)",
+    particle: "rgba(255, 190, 100, 0.92)",
     headline: "#fff",
-    headlineGlow: "rgba(255, 160, 60, 0.75)",
-    amountBg: "rgba(180, 90, 40, 0.88)",
+    headlineGlow: "rgba(255, 160, 60, 0.85)",
+    headlineGlowBright: "rgba(255, 240, 200, 0.95)",
+    amountBg: "rgba(180, 90, 40, 0.92)",
     amountText: "#fff",
-    amountBorder: "rgba(200, 120, 50, 0.9)",
-    streakColor: "rgba(255, 180, 80, 0.5)",
-    haloColor: "rgba(255, 200, 120, 0.45)",
+    amountBorder: "rgba(200, 120, 50, 0.95)",
+    streakColor: "rgba(255, 180, 80, 0.58)",
+    haloColor: "rgba(255, 200, 120, 0.52)",
   },
   ALL_IN: {
-    flash: "rgba(255, 80, 60, 0.38)",
-    burst: "rgba(255, 70, 40, 0.55)",
-    ring: "rgba(255, 90, 50, 0.9)",
-    particle: "rgba(255, 100, 60, 0.9)",
+    flash: "rgba(255, 80, 60, 0.45)",
+    burst: "rgba(255, 70, 40, 0.65)",
+    ring: "rgba(255, 90, 50, 0.95)",
+    particle: "rgba(255, 100, 60, 0.95)",
     headline: "#fff",
-    headlineGlow: "rgba(255, 80, 50, 0.9)",
-    headlineGlowSecondary: "rgba(180, 30, 20, 0.85)",
-    amountBg: "rgba(160, 40, 35, 0.9)",
+    headlineGlow: "rgba(255, 80, 50, 0.95)",
+    headlineGlowSecondary: "rgba(180, 30, 20, 0.9)",
+    headlineGlowBright: "rgba(255, 200, 180, 0.9)",
+    amountBg: "rgba(160, 40, 35, 0.94)",
     amountText: "#fff",
-    amountBorder: "rgba(255, 90, 60, 0.9)",
-    streakColor: "rgba(255, 60, 40, 0.65)",
-    haloColor: "rgba(255, 100, 60, 0.55)",
+    amountBorder: "rgba(255, 90, 60, 0.95)",
+    streakColor: "rgba(255, 60, 40, 0.72)",
+    haloColor: "rgba(255, 100, 60, 0.62)",
   },
   SHOWDOWN: {
-    flash: "rgba(180, 160, 255, 0.28)",
-    burst: "rgba(140, 120, 220, 0.45)",
-    ring: "rgba(160, 140, 255, 0.85)",
-    particle: "rgba(170, 150, 255, 0.82)",
+    flash: "rgba(180, 160, 255, 0.35)",
+    burst: "rgba(140, 120, 220, 0.55)",
+    ring: "rgba(160, 140, 255, 0.9)",
+    particle: "rgba(170, 150, 255, 0.88)",
     headline: "#fff",
-    headlineGlow: "rgba(160, 140, 255, 0.7)",
-    amountBg: "rgba(60, 50, 100, 0.88)",
+    headlineGlow: "rgba(160, 140, 255, 0.8)",
+    amountBg: "rgba(60, 50, 100, 0.92)",
     amountText: "#fff",
-    streakColor: "rgba(140, 120, 220, 0.5)",
-    haloColor: "rgba(160, 140, 255, 0.45)",
+    streakColor: "rgba(140, 120, 220, 0.58)",
+    haloColor: "rgba(160, 140, 255, 0.52)",
   },
 };
 
 const DEFAULT_TIMING: AnimationThemeTiming = {
-  flashDurationMs: 300,
-  burstScale: [0.3, 1.2],
-  ringScale: [0.8, 1.1],
+  flashDurationMs: 350,
+  burstScale: [0.2, 1.35],
+  ringScale: [0.65, 1.2],
 };
 
 const DEFAULT_TEXT_SCALE: AnimationThemeTextScale = {
-  small: 22,
-  medium: 28,
-  large: 36,
-  xlarge: 48,
+  small: 24,
+  medium: 32,
+  large: 42,
+  xlarge: 56,
+  hero: 72,
 };
 
 export const defaultAnimationTheme: AnimationTheme = {

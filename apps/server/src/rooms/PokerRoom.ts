@@ -34,6 +34,7 @@ import { listEnabledBotSummaries } from "../engine/bots/BotCatalog.js";
 import { getPrisma } from "@poker-champ/db";
 import { awardService } from "../awards/index.js";
 import { PokerRoomController } from "./room/PokerRoomController.js";
+import { dealerRuntimeMetrics } from "../engine/dealer/metrics/dealerRuntimeMetrics.js";
 import type {
   PokerRoomFacade,
   JoinOptions,
@@ -129,6 +130,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   private lastStallLogAtMs = 0;
   private lastStallRedriveLogAtMs = 0;
+  private lastRuntimeMetricsLogAtMs = 0;
   /**
    * Per-key join locks to prevent race conditions when multiple clients
    * try to join simultaneously for the same user. Key format: "tableId:userId"
@@ -388,6 +390,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     const STALL_CHECK_MS = 10_000;
     const STALL_THRESHOLD_MS = 15_000;
     const STALL_LOG_MIN_INTERVAL_MS = 5_000;
+    const METRICS_LOG_INTERVAL_MS = 60_000;
     const decisionStallDetectionEnabled = isDecisionStallDetectionEnabled();
     this.stallCheckInterval = setInterval(() => {
       const connectedHumanCount = this.computeConnectedHumanCount();
@@ -395,6 +398,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       this.dealer.logEngineDecisionPublic("STALL_MONITOR_TICK");
 
       const queueDepth = this.dealer.getQueueDepth();
+      dealerRuntimeMetrics.observeQueueDepth(queueDepth);
       const now = Date.now();
       if (decisionStallDetectionEnabled) {
         const stallReason = this.dealer.getStallReasonPublic(now);
@@ -415,6 +419,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
               "TABLE_STALLED",
             );
             this.lastStallLogAtMs = now;
+            dealerRuntimeMetrics.recordTableStalled();
           }
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
@@ -428,6 +433,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;
+              dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
             }
             this.dealer.maybeActForBotPublic();
           }
@@ -468,6 +474,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
               "TABLE_STALLED",
             );
             this.lastStallLogAtMs = now;
+            dealerRuntimeMetrics.recordTableStalled();
           }
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
@@ -476,6 +483,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;
+              dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
             }
             this.dealer.maybeActForBotPublic();
           }
@@ -487,6 +495,17 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, queueDepth },
           "QUEUE_DEPTH_HIGH",
         );
+      }
+      if (this.lastRuntimeMetricsLogAtMs + METRICS_LOG_INTERVAL_MS < now) {
+        logger.info(
+          {
+            roomId: this.roomId,
+            tableId: this.state.tableId,
+            ...dealerRuntimeMetrics.snapshot(),
+          },
+          "DEALER_RUNTIME_METRICS",
+        );
+        this.lastRuntimeMetricsLogAtMs = now;
       }
     }, STALL_CHECK_MS);
   }

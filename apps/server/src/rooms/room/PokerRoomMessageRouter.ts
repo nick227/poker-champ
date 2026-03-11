@@ -11,6 +11,7 @@ import { PokerError } from "../../engine/errors.js";
 import { newBotId } from "../../engine/bots/botIds.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../../engine/bots/BotCatalog.js";
 import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionService.js";
+import { dealerRuntimeMetrics } from "../../engine/dealer/metrics/dealerRuntimeMetrics.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomMessageRouterContract } from "./types/PokerRoomTypes.js";
 
@@ -193,6 +194,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       const userId = this.session.getUserIdForSession(client.sessionId);
       try {
         if (!userId) {
+          dealerRuntimeMetrics.recordActionRejected("SESSION_NOT_BOUND");
           this.ctx.logger.warn(
             { roomId: room.roomId, tableId: this.ctx.state.tableId, sessionId: client.sessionId },
             "ACTION_REJECTED reason=SESSION_NOT_BOUND",
@@ -203,6 +205,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         const expectedEpoch = this.session.getBindingEpochForUser(userId);
         const sessionEpoch = this.session.getBindingEpochForSession(client.sessionId);
         if (sessionEpoch !== expectedEpoch) {
+          dealerRuntimeMetrics.recordActionRejected("STALE_SESSION");
           this.ctx.logger.warn(
             { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, sessionId: client.sessionId, expectedEpoch, sessionEpoch },
             "ACTION_REJECTED reason=STALE_SESSION",
@@ -210,6 +213,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           return;
         }
         if (!this.session.isActiveBoundClient(userId, client)) {
+          dealerRuntimeMetrics.recordActionRejected("INACTIVE_BOUND_CLIENT");
           this.ctx.logger.warn(
             { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, sessionId: client.sessionId },
             "ACTION_REJECTED reason=INACTIVE_BOUND_CLIENT",
@@ -220,6 +224,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         room.touchActivityInternal();
         const currentHandId = this.ctx.state.handId;
         if (normalized.handId && normalized.handId !== currentHandId) {
+          dealerRuntimeMetrics.recordActionRejected("HAND_ID_MISMATCH");
           this.ctx.logger.warn(
             {
               roomId: room.roomId,
@@ -290,6 +295,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           },
           "POKER_ACTION_REJECTED",
         );
+        dealerRuntimeMetrics.recordActionRejected(err instanceof PokerError ? err.code : "ACTION_REJECTED");
         if (err instanceof PokerError) {
           room.sendTableMessageInternal(client, "ERROR", { code: err.code, message: err.message, ...(err.meta ?? {}) });
         } else {

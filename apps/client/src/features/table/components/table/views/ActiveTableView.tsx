@@ -15,6 +15,8 @@ import { Text } from "@/components/base/Text";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
+import type { Rect } from "@/features/table/animations/animationTypes";
+import { MeasuredBoundsReporter } from "../board-area";
 import { TableSceneShell } from "../table-layout";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
@@ -51,6 +53,14 @@ export type ActiveTableViewProps = {
   tableMode?: "live" | "replay";
   forceDisableActions?: boolean;
   disabledActionMessage?: string;
+  /** Report board rect for overlay BOARD-anchored FX (overlay coordinate space). */
+  onBoardBounds?: (rect: Rect) => void;
+  /** Report hero zone rect for HERO-anchored FX. */
+  onHeroBounds?: (rect: Rect) => void;
+  /** Report seat rect by index for SEAT-anchored FX (e.g. winnerSeat). */
+  onSeatBounds?: (seatIndex: number, rect: Rect) => void;
+  /** Report community card slot rect (0..4) for CARD-anchored FX. */
+  onCardSlotBounds?: (index: number, rect: Rect) => void;
 };
 
 export function ActiveTableView({
@@ -79,6 +89,10 @@ export function ActiveTableView({
   tableMode = "live",
   forceDisableActions = false,
   disabledActionMessage = "Waiting for lesson result...",
+  onBoardBounds,
+  onHeroBounds,
+  onSeatBounds,
+  onCardSlotBounds,
 }: ActiveTableViewProps) {
   const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
@@ -94,6 +108,9 @@ export function ActiveTableView({
     opponents,
     opponentStripEmptyState,
     onPlayerPress,
+    onBoardBounds,
+    onCardSlotBounds,
+    onSeatBounds,
   });
   const {
     handSummary,
@@ -283,31 +300,35 @@ export function ActiveTableView({
         />
       }
       board={board}
+      onSeatBounds={onSeatBounds}
       hero={
         isReplayMode
           ? null
-          : (
-        <HeroZone
-          cards={heroCards}
-          stackCents={heroStackCents}
-          canAct={canAct}
-          heroStatus={heroStatus}
-          equity={heroCalculations?.equityPct}
-          potOdds={heroCalculations?.potOddsPct}
-          outs={heroCalculations?.outs}
-          playerStats={heroPlayerStats}
-          showStats={snapshot.table?.showStats ?? false}
-          isWinner={isHeroWinner}
-          isDealer={isHeroDealer}
-          isActiveTurn={isHeroToAct}
-          turnCountdownSeconds={turnCountdownSeconds ?? undefined}
-          userName={heroName}
-          avatarUrl={heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined}
-          potCents={potCents}
-          onAvatarPress={onHeroAvatarPress}
-          onToggleSittingOut={onToggleSittingOut}
-        />
-          )
+          : (() => {
+              const heroNode = (
+                <HeroZone
+                  cards={heroCards}
+                  stackCents={heroStackCents}
+                  canAct={canAct}
+                  heroStatus={heroStatus}
+                  equity={heroCalculations?.equityPct}
+                  potOdds={heroCalculations?.potOddsPct}
+                  outs={heroCalculations?.outs}
+                  playerStats={heroPlayerStats}
+                  showStats={snapshot.table?.showStats ?? false}
+                  isWinner={isHeroWinner}
+                  isDealer={isHeroDealer}
+                  isActiveTurn={isHeroToAct}
+                  turnCountdownSeconds={turnCountdownSeconds ?? undefined}
+                  userName={heroName}
+                  avatarUrl={heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined}
+                  potCents={potCents}
+                  onAvatarPress={onHeroAvatarPress}
+                  onToggleSittingOut={onToggleSittingOut}
+                />
+              );
+              return onHeroBounds ? <MeasuredBoundsReporter onBounds={onHeroBounds}>{heroNode}</MeasuredBoundsReporter> : heroNode;
+            })()
       }
       bottom={bottom}
       hideBottomSection={isReplayMode}

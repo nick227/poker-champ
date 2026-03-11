@@ -5,6 +5,8 @@ import type { Opponent } from "../opponent-strip";
 import { useTableSceneModel, type TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
+import type { Rect } from "@/features/table/animations/animationTypes";
+import { BoardBoundsReporter } from "../board-area";
 
 type TableShellBaseProps = Pick<
   TableSceneShellProps,
@@ -19,6 +21,7 @@ type TableShellBaseProps = Pick<
   | "opponentStripEmptyState"
   | "winnerName"
   | "onPlayerPress"
+  | "onSeatBounds"
 >;
 
 type UseTableViewShellFrameParams = {
@@ -31,6 +34,12 @@ type UseTableViewShellFrameParams = {
   opponents: Opponent[];
   opponentStripEmptyState?: ReactNode;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** When set, board is wrapped and measured; rect reported for overlay (overlay coordinate space). */
+  onBoardBounds?: (rect: Rect) => void;
+  /** When set, each community card slot (0..4) reports bounds for CARD-anchored FX. */
+  onCardSlotBounds?: (index: number, rect: Rect) => void;
+  /** When set, passed to shell for SEAT-anchored FX (reportSeatBounds). */
+  onSeatBounds?: (seatIndex: number, rect: Rect) => void;
 };
 
 export function useTableViewShellFrame({
@@ -43,6 +52,9 @@ export function useTableViewShellFrame({
   opponents,
   opponentStripEmptyState,
   onPlayerPress,
+  onBoardBounds,
+  onCardSlotBounds,
+  onSeatBounds,
 }: UseTableViewShellFrameParams) {
   const resolvedModel = useTableSceneModel(snapshot, handResultMessage ?? null, connectionStatus);
   const model = sceneModel ?? resolvedModel;
@@ -59,12 +71,19 @@ export function useTableViewShellFrame({
     opponentStripEmptyState,
     winnerName: handResultMessage?.winnerName,
     onPlayerPress,
+    onSeatBounds,
   };
-  const board = (
+  const boardContent = (
     <BoardArea
       cards={model.communityCards}
       potCents={model.potCents}
+      onCardSlotBounds={onCardSlotBounds}
     />
+  );
+  const board = onBoardBounds ? (
+    <BoardBoundsReporter onBoardBounds={onBoardBounds}>{boardContent}</BoardBoundsReporter>
+  ) : (
+    boardContent
   );
 
   return { model, shellBaseProps, board };

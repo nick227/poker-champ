@@ -33,12 +33,15 @@ Closing the gap to the ALL IN concept image. Phased plan and what we ship in thi
 
 ---
 
-## Phase 2 (backlog)
+## Phase 2 — Implemented
 
-- **Hero aura / trails:** HERO anchor resolution + RING/PARTICLES at hero; directional streaks (new layer or FLASH variant).  
-- **Seat glow:** SEAT anchor resolution + glow border per seat.  
-- **Background streaks/particles:** New layer or FLASH variant (directional).  
-- **Slider flame trail:** UI control animation, outside FX overlay.
+See **TABLE_FX_PHASE2_PLAN.md** for full task list. Summary:
+
+- **Anchor API:** `AnchorBounds` (hero, seatByIndex); overlay `anchorBounds` prop; position HERO/SEAT layers at rect when provided.
+- **Hero aura:** Companion def `HERO_AURA_ALL_IN` (RING + PARTICLES); resolved when `payload.isHero` and ALL_IN tier ≥ 3; runs on HERO channel.
+- **Seat glow:** Companion def `SEAT_GLOW_SHOWDOWN` (SEAT_GLOW layer); resolved when `payload.anchorSeat != null` for SHOWDOWN; runs on SEAT channel.
+- **Background streaks:** STREAK layer (diagonal lines, opacity in/out); added to ALL_IN tier 4.
+- **Slider flame trail:** Out of scope (UI control); documented in Phase 2 plan only.
 
 ---
 

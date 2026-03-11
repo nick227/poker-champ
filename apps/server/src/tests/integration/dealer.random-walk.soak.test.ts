@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ActionPayload } from "@poker-champ/realtime-contract";
+import { appendFileSync } from "node:fs";
 import { Dealer } from "../../engine/Dealer.js";
 import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerError } from "../../engine/errors.js";
@@ -9,6 +10,8 @@ import { PlayerState } from "../../state/PlayerState.js";
 
 const isNightlySoak = process.env.SOAK_PROFILE === "nightly";
 const configuredHands = Number(process.env.SOAK_HANDS ?? "");
+const configuredProgressEvery = Number(process.env.SOAK_PROGRESS_EVERY ?? "");
+const soakHeartbeatFile = (process.env.SOAK_HEARTBEAT_FILE ?? "").trim();
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -23,6 +26,49 @@ function mulberry32(seed: number): () => number {
 function randomIntInclusive(rng: () => number, min: number, max: number): number {
   if (max <= min) return min;
   return Math.floor(rng() * (max - min + 1)) + min;
+}
+
+async function waitUntil(
+  condition: () => boolean,
+  timeoutMs: number,
+  label: string,
+): Promise<void> {
+  const started = Date.now();
+  while (!condition()) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error(`Timed out waiting for: ${label}`);
+    }
+    await Promise.resolve();
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  const started = Date.now();
+  let settled = false;
+  let result: T | undefined;
+  let failure: unknown;
+
+  void promise
+    .then((value) => {
+      settled = true;
+      result = value;
+    })
+    .catch((err) => {
+      settled = true;
+      failure = err;
+    });
+
+  while (!settled) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error(`Timed out waiting for: ${label}`);
+    }
+    await Promise.resolve();
+  }
+
+  if (failure) {
+    throw failure;
+  }
+  return result as T;
 }
 
 function makePlayer(id: string, seat: number, stackCents: number, kind: "HUMAN" | "BOT" = "HUMAN"): PlayerState {
@@ -47,23 +93,33 @@ function pickRandomLegalAction(
   options: ReturnType<ActionOptionsService["buildHeroActionOptions"]>,
 ): ActionPayload {
   if (!options) return { action: "FOLD" };
-  const legal: ActionPayload[] = [];
-  if (options.canFold) legal.push({ action: "FOLD" });
-  if (options.canCheck) legal.push({ action: "CHECK" });
-  if (options.canCall) legal.push({ action: "CALL" });
+  const legal: Array<{ payload: ActionPayload; weight: number }> = [];
+  if (options.canFold) legal.push({ payload: { action: "FOLD" }, weight: 1 });
+  if (options.canCheck) legal.push({ payload: { action: "CHECK" }, weight: 2 });
+  if (options.canCall) legal.push({ payload: { action: "CALL" }, weight: 3 });
   if (options.canBet) {
     const min = options.minRaiseTo ?? options.maxRaiseTo ?? 1;
     const max = options.maxRaiseTo ?? min;
-    legal.push({ action: "BET", amountCents: randomIntInclusive(rng, min, max) });
+    const minOrAllIn = rng() < 0.6 ? min : randomIntInclusive(rng, min, max);
+    legal.push({ payload: { action: "BET", amountCents: minOrAllIn }, weight: 2 });
   }
   if (options.canRaise) {
     const min = options.minRaiseTo ?? options.maxRaiseTo ?? 1;
     const max = options.maxRaiseTo ?? min;
-    legal.push({ action: "RAISE", amountCents: randomIntInclusive(rng, min, max) });
+    const minOrLarge = rng() < 0.65
+      ? min
+      : randomIntInclusive(rng, Math.min(max, min + Math.floor((max - min) * 0.7)), max);
+    legal.push({ payload: { action: "RAISE", amountCents: minOrLarge }, weight: 3 });
   }
-  if (options.canAllIn) legal.push({ action: "ALL_IN" });
+  if (options.canAllIn) legal.push({ payload: { action: "ALL_IN" }, weight: 4 });
   if (legal.length === 0) return { action: "FOLD" };
-  return legal[randomIntInclusive(rng, 0, legal.length - 1)]!;
+  const totalWeight = legal.reduce((sum, item) => sum + item.weight, 0);
+  let pick = rng() * totalWeight;
+  for (const item of legal) {
+    pick -= item.weight;
+    if (pick <= 0) return item.payload;
+  }
+  return legal[legal.length - 1]!.payload;
 }
 
 describe("dealer random walk soak", () => {
@@ -139,6 +195,19 @@ describe("dealer random walk soak", () => {
       const handsToPlay = Number.isFinite(configuredHands) && configuredHands > 0
         ? Math.floor(configuredHands)
         : (isNightlySoak ? 100 : 5);
+      const progressEvery = Number.isFinite(configuredProgressEvery) && configuredProgressEvery > 0
+        ? Math.floor(configuredProgressEvery)
+        : 25;
+      const soakStartedAtMs = Date.now();
+      const writeHeartbeat = (kind: "progress" | "done", payload: Record<string, unknown>) => {
+        if (!soakHeartbeatFile) return;
+        const event = {
+          ts: new Date().toISOString(),
+          kind,
+          ...payload,
+        };
+        appendFileSync(soakHeartbeatFile, `${JSON.stringify(event)}\n`, "utf8");
+      };
       let handsStarted = 0;
       let handsCompleted = 0;
       let maxStepsPerHand = 0;
@@ -190,7 +259,13 @@ describe("dealer random walk soak", () => {
 
         const beforeContrib = new Map(contributionsByUser);
         const beforePayout = new Map(payoutsByUser);
-        await (dealer as any).startHand();
+        const startHandPromise = (dealer as any).startHand();
+        await waitUntil(
+          () => state.handId.length > 0 || state.street !== "WAITING",
+          5_000,
+          "start hand progression from WAITING",
+        );
+        await withTimeout(startHandPromise, 10_000, `startHand completion hand=${h + 1}`);
         if (state.street === "WAITING") {
           // Keep long soaks running across transient no-deal starts.
           // Fails fast only if no hand can start repeatedly despite recycle.
@@ -203,27 +278,89 @@ describe("dealer random walk soak", () => {
         }
         consecutiveNoDealStarts = 0;
         handsStarted += 1;
+        if ((handsStarted % progressEvery) === 0) {
+          const elapsedSec = Math.max(1, Math.floor((Date.now() - soakStartedAtMs) / 1000));
+          const handsPerSec = handsStarted / elapsedSec;
+          const remainingHands = Math.max(0, handsToPlay - handsStarted);
+          const etaSec = handsPerSec > 0 ? Math.floor(remainingHands / handsPerSec) : -1;
+          // stderr heartbeat for local terminal visibility.
+          console.error(
+            `[SOAK_PROGRESS] started=${handsStarted}/${handsToPlay} completed=${handsCompleted} hps=${handsPerSec.toFixed(2)} etaSec=${etaSec}`,
+          );
+          writeHeartbeat("progress", {
+            started: handsStarted,
+            target: handsToPlay,
+            completed: handsCompleted,
+            hps: Number(handsPerSec.toFixed(4)),
+            etaSec,
+            handId: state.handId,
+            street: state.street,
+          });
+        }
 
         expect(state.street).toBe("PREFLOP");
         expect(state.board.length).toBe(0);
 
         const trace: string[] = [`hand=${h + 1}`, `handId=${state.handId}`];
         let guard = 0;
+        let stableStallKey = "";
+        let stableStallCount = 0;
         while (state.street !== "WAITING") {
           guard += 1;
           if (guard >= 800) {
             throw new Error(`Infinite loop detected: ${trace.join("|")}`);
           }
 
+          // Core money safety invariants: no negative chip state.
+          expect(state.potCents, `negative pot ${trace.join("|")}`).toBeGreaterThanOrEqual(0);
+          for (const player of state.playersById.values()) {
+            expect(player.stackCents, `negative stack ${player.id} ${trace.join("|")}`).toBeGreaterThanOrEqual(0);
+            expect(player.roundBetCents, `negative roundBet ${player.id} ${trace.join("|")}`).toBeGreaterThanOrEqual(0);
+          }
+
+          // Deadlock and queue-safety checks while hand is active.
+          // Stall reasons may appear briefly while lifecycle work is in-flight; only fail on persistent stable stalls.
+          const queueDepth = dealer.getQueueDepth();
+          const stallReason = dealer.getStallReasonPublic(Date.now());
+          expect(queueDepth, `queue depth spike ${trace.join("|")}`).toBeLessThan(5);
+          if (stallReason && queueDepth === 0) {
+            const stallKey = `${state.handId}:${state.street}:${state.handActionSeq}:${stallReason}`;
+            if (stallKey === stableStallKey) {
+              stableStallCount += 1;
+            } else {
+              stableStallKey = stallKey;
+              stableStallCount = 1;
+            }
+            expect(
+              stableStallCount,
+              `persistent stall detected ${stallReason} x${stableStallCount} ${trace.join("|")}`,
+            ).toBeLessThan(4);
+          } else {
+            stableStallKey = "";
+            stableStallCount = 0;
+          }
+
           // Random driver tick to simulate recovery/heartbeat evaluations between actions.
           if (rng() < 0.15) {
             trace.push("tick");
-            await (dealer as any).requestDrive?.("random_walk_tick");
+            await withTimeout(
+              Promise.resolve((dealer as any).requestDrive?.("random_walk_tick")),
+              2_000,
+              `requestDrive random_walk_tick ${trace.join("|")}`,
+            );
           }
           if (rng() < 0.05) {
             trace.push("double_tick");
-            await (dealer as any).requestDrive?.("double_tick_1");
-            await (dealer as any).requestDrive?.("double_tick_2");
+            await withTimeout(
+              Promise.resolve((dealer as any).requestDrive?.("double_tick_1")),
+              2_000,
+              `requestDrive double_tick_1 ${trace.join("|")}`,
+            );
+            await withTimeout(
+              Promise.resolve((dealer as any).requestDrive?.("double_tick_2")),
+              2_000,
+              `requestDrive double_tick_2 ${trace.join("|")}`,
+            );
           }
 
           // Random disconnect/reconnect churn to surface timeout/race edge cases.
@@ -231,7 +368,11 @@ describe("dealer random walk soak", () => {
             const players = [...state.playersById.values()].filter((p) => p.status !== "OUT");
             if (players.length > 0) {
               const p = players[randomIntInclusive(rng, 0, players.length - 1)]!;
-              await dealer.markDisconnectedSerialized(p.id, Date.now() + 30_000);
+              await withTimeout(
+                dealer.markDisconnectedSerialized(p.id, Date.now() + 30_000),
+                5_000,
+                `markDisconnectedSerialized ${p.id} ${trace.join("|")}`,
+              );
               trace.push(`disconnect:${p.id}`);
             }
           }
@@ -239,7 +380,11 @@ describe("dealer random walk soak", () => {
             const players = [...state.playersById.values()].filter((p) => p.status !== "OUT");
             if (players.length > 0) {
               const p = players[randomIntInclusive(rng, 0, players.length - 1)]!;
-              await dealer.markReconnectedSerialized(p.id);
+              await withTimeout(
+                dealer.markReconnectedSerialized(p.id),
+                5_000,
+                `markReconnectedSerialized ${p.id} ${trace.join("|")}`,
+              );
               trace.push(`reconnect:${p.id}`);
             }
           }
@@ -258,6 +403,9 @@ describe("dealer random walk soak", () => {
             expect(toActId, `missing actor id ${trace.join("|")}`).toBeTruthy();
             expect(toActPlayer, `missing actor player ${trace.join("|")}`).toBeTruthy();
             expect(toActPlayer?.needsAction, `actor without needsAction ${trace.join("|")}`).toBe(true);
+            expect(toActPlayer?.status, `actor not ACTIVE ${trace.join("|")}`).toBe("ACTIVE");
+            expect(toActPlayer?.status === "FOLDED" || toActPlayer?.status === "ALL_IN", `actor folded/all-in ${trace.join("|")}`)
+              .toBe(false);
             if (toActPlayer?.kind === "HUMAN" && toActPlayer.connected) {
               expect(state.turnDeadlineMs, `missing human turn deadline ${trace.join("|")}`).toBeGreaterThan(0);
             }
@@ -277,7 +425,11 @@ describe("dealer random walk soak", () => {
           const options = optionsService.buildHeroActionOptions(state, toActId);
           if (!options) {
             trace.push(`no_options:${toActId}`);
-            await (dealer as any).requestDrive?.("no_options_tick");
+            await withTimeout(
+              Promise.resolve((dealer as any).requestDrive?.("no_options_tick")),
+              2_000,
+              `requestDrive no_options_tick ${trace.join("|")}`,
+            );
             continue;
           }
           const action = pickRandomLegalAction(rng, options);
@@ -289,11 +441,22 @@ describe("dealer random walk soak", () => {
             handActionSeq: state.handActionSeq,
           };
           try {
-            await dealer.handleAction(toActId, action);
+            if ((action.action === "RAISE" || action.action === "BET") && action.amountCents != null) {
+              const minRaiseTo = options.minRaiseTo ?? 0;
+              expect(action.amountCents, `raise/bet below min ${trace.join("|")}`).toBeGreaterThanOrEqual(minRaiseTo);
+            }
+            await withTimeout(
+              dealer.handleAction(toActId, action),
+              10_000,
+              `handleAction ${toActId}:${action.action} ${trace.join("|")}`,
+            );
           } catch (err) {
             if (
               err instanceof PokerError &&
-              (err.code === "NOT_YOUR_TURN" || err.code === "NOT_ELIGIBLE" || err.code === "HAND_NOT_STARTED")
+              (err.code === "NOT_YOUR_TURN" ||
+                err.code === "NOT_ELIGIBLE" ||
+                err.code === "HAND_NOT_STARTED" ||
+                err.code === "BAD_STATE")
             ) {
               trace.push(`stale_reject:${err.code}`);
               continue;
@@ -334,6 +497,16 @@ describe("dealer random walk soak", () => {
 
       expect(handsCompleted).toBe(handsStarted);
       console.log("maxStepsPerHand", maxStepsPerHand);
+      const totalElapsedSec = Math.max(1, Math.floor((Date.now() - soakStartedAtMs) / 1000));
+      console.error(
+        `[SOAK_DONE] started=${handsStarted} completed=${handsCompleted} totalSec=${totalElapsedSec} avgHandsPerSec=${(handsCompleted / totalElapsedSec).toFixed(2)}`,
+      );
+      writeHeartbeat("done", {
+        started: handsStarted,
+        completed: handsCompleted,
+        totalSec: totalElapsedSec,
+        avgHandsPerSec: Number((handsCompleted / totalElapsedSec).toFixed(4)),
+      });
 
       for (let i = 1; i < snapshots.length; i++) {
         expect(snapshots[i]!).toBeGreaterThan(snapshots[i - 1]!);

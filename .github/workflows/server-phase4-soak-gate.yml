@@ -1,0 +1,70 @@
+name: Server Phase4 Soak Gate
+
+on:
+  pull_request:
+    paths:
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/tests/**"
+      - "apps/server/scripts/**"
+      - "apps/server/package.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/server-phase4-soak-gate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/server/src/engine/**"
+      - "apps/server/src/rooms/**"
+      - "apps/server/src/tests/**"
+      - "apps/server/scripts/**"
+      - "apps/server/package.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/server-phase4-soak-gate.yml"
+  workflow_dispatch:
+
+jobs:
+  phase4-soak-gate:
+    runs-on: ubuntu-latest
+    env:
+      SOAK_HANDS: "300"
+      SOAK_PROGRESS_EVERY: "25"
+      LOG_LEVEL: "info"
+      PHASE4_MIN_HAND_COMPLETION_RATE: "0.98"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run soak capture
+        shell: bash
+        run: |
+          mkdir -p var/logs
+          export SOAK_HEARTBEAT_FILE="$PWD/var/logs/phase4_ci_heartbeat.jsonl"
+          timeout 25m pnpm test:server:soak -- -t "plays many hands without deadlock and preserves per-hand payout conservation" > "$PWD/var/logs/phase4_ci.log" 2>&1
+
+      - name: Analyze game bugs
+        run: pnpm --dir apps/server analyze:game-bugs --file "$PWD/var/logs/phase4_ci.log"
+
+      - name: Analyze phase4
+        run: pnpm --dir apps/server analyze:phase4 -- --file "$PWD/var/logs/phase4_ci.log"
+
+      - name: Enforce phase4 gate
+        run: pnpm --dir apps/server analyze:phase4:gate -- --file "$PWD/var/logs/phase4_ci.log" --min-hand-completion-rate "$PHASE4_MIN_HAND_COMPLETION_RATE"
+
+      - name: Upload soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-soak-artifacts
+          path: |
+            var/logs/phase4_ci.log
+            var/logs/phase4_ci_heartbeat.jsonl
+

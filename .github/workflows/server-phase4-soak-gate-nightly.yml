@@ -1,0 +1,51 @@
+name: Server Phase4 Soak Gate Nightly
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  phase4-soak-gate-nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOAK_HANDS: "1000"
+      SOAK_PROGRESS_EVERY: "50"
+      LOG_LEVEL: "info"
+      PHASE4_MIN_HAND_COMPLETION_RATE: "0.98"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run soak capture (nightly)
+        shell: bash
+        run: |
+          mkdir -p var/logs
+          export SOAK_HEARTBEAT_FILE="$PWD/var/logs/phase4_ci_nightly_heartbeat.jsonl"
+          timeout 85m pnpm test:server:soak -- -t "plays many hands without deadlock and preserves per-hand payout conservation" > "$PWD/var/logs/phase4_ci_nightly.log" 2>&1
+
+      - name: Analyze game bugs (nightly)
+        run: pnpm --dir apps/server analyze:game-bugs --file "$PWD/var/logs/phase4_ci_nightly.log"
+
+      - name: Analyze phase4 (nightly)
+        run: pnpm --dir apps/server analyze:phase4 -- --file "$PWD/var/logs/phase4_ci_nightly.log"
+
+      - name: Enforce phase4 gate (nightly)
+        run: pnpm --dir apps/server analyze:phase4:gate -- --file "$PWD/var/logs/phase4_ci_nightly.log" --min-hand-completion-rate "$PHASE4_MIN_HAND_COMPLETION_RATE"
+
+      - name: Upload nightly soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-soak-nightly-artifacts
+          path: |
+            var/logs/phase4_ci_nightly.log
+            var/logs/phase4_ci_nightly_heartbeat.jsonl
+
