@@ -788,9 +788,64 @@ async function setupHumanVsBotRoom() {
         expect(stalledCalls.length).toBe(0);
         expect(redriveCalls.length).toBe(0);
       } finally {
-        try {
-          await room.onLeave(clientA as any, 4000);
-        } catch {}
+        // no-op: this test intentionally disconnects the client via onLeave(1006)
+      }
+    },
+    35_000,
+  );
+
+  it(
+    "does not stall when human disconnects during their turn",
+    async () => {
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        return { action: "FOLD" };
+      });
+
+      const warnSpy = vi.spyOn(logger, "warn");
+      const { room, clientA } = await setupHumanVsBotRoomWithTimeouts();
+      try {
+        const startHandId = clientA.latestSnapshot?.hand?.handId;
+        expect(startHandId).toBeTruthy();
+
+        await waitFor(
+          () => {
+            const snap = clientA.latestSnapshot;
+            const hand = snap?.hand;
+            if (!snap || !hand || hand.handId !== startHandId) return false;
+            const toActUserId = snap.seats.find((s) => s.seat === hand.toActSeat)?.userId;
+            return toActUserId === "user_a";
+          },
+          12_000,
+          "human toAct before disconnect",
+        );
+
+        const handIdBeforeDisconnect = room.state.handId;
+        const handSeqBeforeDisconnect = room.state.handActionSeq;
+        if (typeof room.dealer.markDisconnectedSerialized === "function") {
+          await room.dealer.markDisconnectedSerialized("user_a", Date.now() - 1);
+        } else {
+          room.dealer.markDisconnected("user_a", Date.now() - 1);
+        }
+
+        await waitFor(
+          () =>
+            room.state.handId !== handIdBeforeDisconnect ||
+            room.state.handActionSeq > handSeqBeforeDisconnect,
+          6_000,
+          "disconnected human progression observed",
+        );
+
+        // Wait past the stall threshold window after AUTO progression.
+        await delay(11_000);
+
+        const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
+        const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+        expect(stalledCalls.length).toBe(0);
+        expect(redriveCalls.length).toBe(0);
+      } finally {
+        room.onDispose();
       }
     },
     35_000,

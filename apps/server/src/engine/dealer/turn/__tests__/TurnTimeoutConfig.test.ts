@@ -12,8 +12,8 @@ describe("Turn timeout config", () => {
     vi.stubEnv("TURN_TIMEOUT_TOTAL_MS", "50");
     vi.resetModules();
 
-    const { PokerState } = await import("../../../../../state/PokerState.js");
-    const { PlayerState } = await import("../../../../../state/PlayerState.js");
+    const { PokerState } = await import("../../../../state/PokerState.js");
+    const { PlayerState } = await import("../../../../state/PlayerState.js");
     const { TurnManager } = await import("../TurnManager.js");
     const { TURN_TIMEOUT_TOTAL_MS } = await import("../../timing.js");
 

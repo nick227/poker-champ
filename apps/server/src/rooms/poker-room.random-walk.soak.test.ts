@@ -65,6 +65,25 @@ function computeChipMass(room: any): number {
   return stacks + Number(room.state.potCents ?? 0) - disbursed;
 }
 
+function recycleStacksIfNeeded(room: any): boolean {
+  const street = String(room?.state?.street ?? "");
+  if (street !== "WAITING") return false;
+
+  const players = [...room.state.playersById.values()];
+  const playable = players.filter((p: any) => Number(p.stackCents ?? 0) > 0 && p.status !== "OUT");
+  if (playable.length >= 2) return false;
+
+  for (const p of players as any[]) {
+    p.stackCents = 5000;
+    p.status = "ACTIVE";
+    p.sittingOut = false;
+    p.needsAction = false;
+    p.roundBetCents = 0;
+    p.committedCents = 0;
+  }
+  return true;
+}
+
 const configuredHands = Number(process.env.ROOM_SOAK_HANDS ?? "");
 const configuredProgressEvery = Number(process.env.ROOM_SOAK_PROGRESS_EVERY ?? "");
 const soakTimeoutMs = (() => {
@@ -140,6 +159,10 @@ describe("poker room random walk soak", () => {
 
     try {
       while (completedHands < targetHands) {
+        if (recycleStacksIfNeeded(room)) {
+          await room.dealer.forceAdvanceToNextHandForTest();
+        }
+
         const snap = client.latestSnapshot;
         const hand = snap?.hand;
         if (!snap || !hand || !hand.handId) {

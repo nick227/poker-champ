@@ -96,13 +96,19 @@ describe("Odds Subsystem Independence", () => {
           ["u1", ["Ah", "Ad"]],
           ["u2", ["Ks", "Kh"]],
         ]),
-      getHeroActionOptions: () => ({ 
-        canFold: true, canCheck: false, canCall: true, canBet: false, canRaise: false, canAllIn: false,
+      getHeroActionOptions: (_userId: string) => ({
+        canFold: true,
+        canCheck: false,
+        canCall: true,
+        canBet: false,
+        canRaise: false,
+        canAllIn: false,
         primaryWagerAction: "NONE",
-        callAmount: 250 
-      } as any),
+        callAmount: 250,
+      }),
       getLastAction: () => undefined,
       getLastHandResult: () => undefined,
+      getTurnTimeoutTotalMs: () => 20 * 60_000,
     });
     await snapshotService.emitToUser("u1", "ACTION_ACCEPTED");
     const snapshot = client.send.mock.calls.at(-1)?.[1];

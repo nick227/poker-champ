@@ -90,9 +90,9 @@ export const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
   POT_TIER_3: [
     // Atmosphere (BACKGROUND plane): soft glow behind table. Overlay routes by plane when two-plane stack exists.
     { type: "RADIAL_GLOW", plane: "BACKGROUND", durationMs: 1800, opacity: [0.06, 0.14], delayMs: 0 },
+    { type: "FLASH", plane: "BACKGROUND", durationMs: 400, delayMs: CHOREO_FLASH_MS },
     { type: "BURST", durationMs: 500, rays: 12, delayMs: CHOREO_BURST_MS },
     { type: "PARTICLES", durationMs: 600, particleCount: 14, particleSpread: 55, particleShape: "square", delayMs: CHOREO_PARTICLES_MS },
-    { type: "FLASH", durationMs: 400, delayMs: CHOREO_FLASH_MS },
     { type: "RING", durationMs: 700, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "xlarge", durationMs: 1100, delayMs: CHOREO_HEADLINE_MS },
     { type: "TEXT", textRole: "amount", textSize: "large", durationMs: 900, delayMs: CHOREO_AMOUNT_MS },
@@ -100,10 +100,10 @@ export const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
   POT_TIER_4: [
     // Atmosphere (BACKGROUND plane): preset supplies duration/opacity; layer supplies plane.
     { type: "RADIAL_GLOW", preset: "ambientGold", plane: "BACKGROUND" },
+    { type: "FLASH", plane: "BACKGROUND", durationMs: 500, delayMs: IMPACT_CHOREO_FLASH_MS },
     { type: "BURST", preset: "winBurst" },
     { type: "RADIAL_GLOW", durationMs: 550, delayMs: IMPACT_CHOREO_RADIAL_GLOW_MS },
     { type: "PARTICLES", durationMs: 800, particleCount: 20, particleSpread: 70, particleShape: "square", delayMs: IMPACT_CHOREO_PARTICLES_MS },
-    { type: "FLASH", durationMs: 500, delayMs: IMPACT_CHOREO_FLASH_MS },
     { type: "RING", durationMs: 800, delayMs: IMPACT_CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", preset: "headlineWin" },
     { type: "TEXT", textRole: "amount", textSize: "large", durationMs: 1000, delayMs: IMPACT_CHOREO_AMOUNT_MS },
