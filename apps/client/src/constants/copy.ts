@@ -38,7 +38,7 @@ export const TABLE = {
   nextDeal: "Next deal:",
   reconnecting: "Reconnecting…",
   tableGone: "Table no longer exists",
-  waitingForHand: "Waiting for next hand…",
+  waitingForHand: "",
   waitingForHandStatus: "Status: ",
   waitingForYourTurn: "Waiting for your turn",
   youFolded: "You folded this hand",

@@ -122,6 +122,7 @@ export default function LoginScreen() {
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
+              onSubmitEditing={onSubmit}
             />
             {!isLogin && (
               <Input
@@ -129,21 +130,24 @@ export default function LoginScreen() {
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
+                onSubmitEditing={onSubmit}
               />
             )}
             <PasswordInput
               label="Password"
               value={password}
               onChangeText={setPassword}
+              onSubmit={onSubmit}
             />
             {!isLogin && (
               <PasswordInput
                 label="Confirm password"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                onSubmit={onSubmit}
               />
             )}
-            {error ? <Text variant="danger" className="mt-1">{error}</Text> : null}
+            <Text variant="danger" className="my-4">{error}</Text>
             <Button
               className="w-full"
               title={ctaLabel}

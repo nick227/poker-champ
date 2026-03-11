@@ -254,6 +254,8 @@ function main() {
   let deadlineOutsideWaiting = 0;
   let waitingHumanMissingDeadline = 0;
   let waitingHumanNoNeedsAction = 0;
+  let tableStalledMissingReason = 0;
+  let tableStalledMissingReasonConnectedHuman = 0;
 
   const timeoutRuntimeKeys = new Map();
   const acceptedActionKeys = new Set();
@@ -266,6 +268,31 @@ function main() {
     if (e.msg === "TABLE_STALLED") {
       tableStalled += 1;
       if (e.stallReason) increment(stallReasonCounts, e.stallReason);
+      if (!e.stallReason) {
+        const hasContext =
+          Boolean(e.handId) ||
+          Boolean(e.tableId) ||
+          Boolean(e.street) ||
+          Number.isFinite(e.toActSeat);
+        if (!hasContext) continue;
+        tableStalledMissingReason += 1;
+        const lastDecision = e.handId ? lastDecisionStateByHand.get(e.handId) : undefined;
+        const connectedHumanToAct =
+          !!lastDecision &&
+          lastDecision.roundState === "WAITING_FOR_ACTION" &&
+          lastDecision.actorKind === "HUMAN" &&
+          lastDecision.actorConnected === true;
+        if (connectedHumanToAct) {
+          tableStalledMissingReasonConnectedHuman += 1;
+          issues.push(
+            `type=TABLE_STALLED_MISSING_REASON_CONNECTED_HUMAN handId=${e.handId} tableId=${e.tableId} street=${e.street} toActSeat=${e.toActSeat ?? ""}`,
+          );
+        } else {
+          issues.push(
+            `type=TABLE_STALLED_MISSING_REASON handId=${e.handId} tableId=${e.tableId} street=${e.street} toActSeat=${e.toActSeat ?? ""}`,
+          );
+        }
+      }
       if (e.handId) {
         const prev = stalledByHand.get(e.handId) ?? {
           handId: e.handId,
@@ -500,6 +527,8 @@ function main() {
   console.log(`deadlineOutsideWaiting=${deadlineOutsideWaiting}`);
   console.log(`waitingHumanMissingDeadline=${waitingHumanMissingDeadline}`);
   console.log(`waitingHumanNoNeedsAction=${waitingHumanNoNeedsAction}`);
+  console.log(`tableStalledMissingReason=${tableStalledMissingReason}`);
+  console.log(`tableStalledMissingReasonConnectedHuman=${tableStalledMissingReasonConnectedHuman}`);
 
   if (stallReasonCounts.size > 0) {
     console.log("");

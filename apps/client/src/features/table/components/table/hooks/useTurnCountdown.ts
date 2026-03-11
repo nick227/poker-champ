@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
-const TURN_TIMEOUT_BASE_MS = 19 * 60_000;
-export const TURN_TIMEOUT_TOTAL_MS = 20 * 60_000;
+/** Fallback only when server does not send turnTimeoutTotalMs (e.g. old server). */
+const FALLBACK_TURN_TIMEOUT_MS = 20 * 60_000;
 
-export function useTurnProgress(isToAct: boolean, enabled: boolean = true): number | null {
+/** Countdown is shown for the last this many ms so user gets at least 10s warning. */
+export const MIN_COUNTDOWN_WARNING_MS = 10_000;
+
+export function useTurnProgress(
+  isToAct: boolean,
+  enabled: boolean = true,
+  turnTimeoutTotalMs?: number,
+): number | null {
+  const totalMs = turnTimeoutTotalMs ?? FALLBACK_TURN_TIMEOUT_MS;
   const [progress, setProgress] = useState<number | null>(null);
   const startAtMsRef = useRef<number | null>(null);
   const timerIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -33,14 +41,14 @@ export function useTurnProgress(isToAct: boolean, enabled: boolean = true): numb
       if (startedAt == null) return;
 
       const elapsed = Date.now() - startedAt;
-      const remainingMs = TURN_TIMEOUT_TOTAL_MS - elapsed;
+      const remainingMs = totalMs - elapsed;
 
       if (remainingMs <= 0) {
         setProgress(null);
         return;
       }
 
-      setProgress(remainingMs / TURN_TIMEOUT_TOTAL_MS);
+      setProgress(remainingMs / totalMs);
     }, 100);
 
     return () => {
@@ -49,16 +57,22 @@ export function useTurnProgress(isToAct: boolean, enabled: boolean = true): numb
         timerIdRef.current = null;
       }
     };
-  }, [isToAct, enabled]);
+  }, [isToAct, enabled, totalMs]);
 
   return progress;
 }
 
-export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): number | null {
+export function useTurnCountdown(
+  isMyTurn: boolean,
+  enabled: boolean = true,
+  turnDeadlineMs?: number,
+  turnTimeoutTotalMs?: number,
+): number | null {
+  const totalMs = turnTimeoutTotalMs ?? FALLBACK_TURN_TIMEOUT_MS;
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
-  const startAtMsRef = useRef<number | null>(null);
   const timerIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownStartedRef = useRef<boolean>(false);
+  const startAtMsRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled || !isMyTurn) {
@@ -72,7 +86,6 @@ export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): nu
       return;
     }
 
-    // New turn window: start local clock once when we first become to-act.
     if (startAtMsRef.current == null) {
       startAtMsRef.current = Date.now();
     }
@@ -82,23 +95,19 @@ export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): nu
     }
 
     timerIdRef.current = setInterval(() => {
-      const startedAt = startAtMsRef.current;
-      if (startedAt == null) return;
+      const now = Date.now();
+      const remainingMs =
+        turnDeadlineMs != null && turnDeadlineMs > 0
+          ? turnDeadlineMs - now
+          : totalMs - (now - (startAtMsRef.current ?? now));
 
-      const elapsed = Date.now() - startedAt;
-
-      if (elapsed < TURN_TIMEOUT_BASE_MS) {
-        // Still in the free-thinking window; no countdown.
-        if (remainingSeconds !== null) {
-          setRemainingSeconds(null);
-        }
+      if (remainingMs <= 0) {
+        setRemainingSeconds(null);
         countdownStartedRef.current = false;
         return;
       }
 
-      const remainingMs = TURN_TIMEOUT_TOTAL_MS - elapsed;
-      if (remainingMs <= 0) {
-        // Timeout window has effectively expired; hide the countdown.
+      if (remainingMs > MIN_COUNTDOWN_WARNING_MS) {
         setRemainingSeconds(null);
         countdownStartedRef.current = false;
         return;
@@ -119,8 +128,7 @@ export function useTurnCountdown(isMyTurn: boolean, enabled: boolean = true): nu
         timerIdRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMyTurn, enabled]);
+  }, [isMyTurn, enabled, turnDeadlineMs, totalMs]);
 
   return remainingSeconds;
 }

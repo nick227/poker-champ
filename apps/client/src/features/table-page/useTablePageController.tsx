@@ -246,7 +246,7 @@ export function useTablePageController({
   const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
 
   useEffect(() => {
-    if (!handResultMessage || !snapshot?.lastHandResult) return;
+    if (!handResultMessage || !snapshot?.lastHandResult || !isHeroWinner) return;
     const handId = snapshot.lastHandResult.handId;
     if (lastPotWinHandIdRef.current === handId) return;
     lastPotWinHandIdRef.current = handId;
@@ -260,9 +260,10 @@ export function useTablePageController({
       event: "POT_WIN",
       tier,
       payload: {
-        headline: isHeroWinner ? "YOU WIN" : `${handResultMessage.winnerName} wins`,
+        headline: "YOU WIN",
         amountCents: handResultMessage.amountCents,
         potCents,
+        isHero: true,
       },
     });
   }, [handResultMessage, snapshot?.lastHandResult, isHeroWinner]);
@@ -270,6 +271,7 @@ export function useTablePageController({
   useEffect(() => {
     const lastAction = snapshot?.lastAction;
     if (lastAction?.action !== "ALL_IN") return;
+    if (lastAction.actorUserId !== snapshot?.hero?.userId) return;
     const key = `${lastAction.handId}:${lastAction.seq}`;
     if (lastAllInKeyRef.current === key) return;
     lastAllInKeyRef.current = key;
@@ -283,9 +285,10 @@ export function useTablePageController({
         headline: "ALL IN",
         amountCents: lastAction.amountCents,
         potCents,
+        isHero: true,
       },
     });
-  }, [snapshot?.lastAction, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
+  }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
   const { sceneMode, tableTopBarFlags } = useTableScene({
     authHydrated,
@@ -480,9 +483,23 @@ export function useTablePageController({
         emitSoundEvent(soundEvent);
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
+        if (__DEV__) {
+          console.warn("TABLE_ACTION_DISPATCH_BLOCKED_DIAG", {
+            tableId,
+            action,
+            amountCents: payload.amount ?? null,
+            snapshotId: snapshot?.snapshotId ?? null,
+            handId: snapshot?.hand?.handId ?? null,
+            street: snapshot?.hand?.street ?? null,
+            toActSeat: snapshot?.hand?.toActSeat ?? null,
+            heroSeat: snapshot?.hero?.seat ?? null,
+            connectionStatus,
+            hasHeroActionOptions: !!snapshot?.hero?.actionOptions,
+          });
+        }
       }
     },
-    [tableId, dispatchTableAction],
+    [tableId, dispatchTableAction, snapshot, connectionStatus],
   );
 
   const toggleHeroSittingOut = useCallback(() => {

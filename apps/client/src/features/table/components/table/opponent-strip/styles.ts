@@ -1,8 +1,23 @@
-import { StyleSheet } from "react-native";
-import { CONTAINER, ROW, AVATAR, TEXT, CARDS } from "./layout";
+import { StyleSheet, type ViewStyle } from "react-native";
+import { CONTAINER, ROW, CARDS } from "./layout";
 import { BASE_CARD_WIDTH, BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 import { TABLE_TILE_RADIUS } from "../tokens/radii.tokens";
-import { STACK_TEXT_COLOR } from "../tokens/colors.tokens";
+
+/** Shared width/flex for one tile slot (row item or seat bounds wrapper). */
+export const tileSlotFlex: ViewStyle = {
+  width: `${100 / ROW.ITEMS_PER_ROW}%`,
+  flexBasis: `${100 / ROW.ITEMS_PER_ROW}%`,
+  flexGrow: 0,
+  flexShrink: 0,
+};
+
+/** Use when item is inside a slot wrapper (e.g. MeasuredBoundsReporter) so it fills the slot. */
+export const tileSlotFill: ViewStyle = {
+  width: "100%",
+  flexBasis: "100%",
+  flexGrow: 1,
+  flexShrink: 0,
+};
 
 export const opponentStripStyles = StyleSheet.create({
   strip: {
@@ -18,9 +33,17 @@ export const opponentStripStyles = StyleSheet.create({
     alignItems: "stretch",
   },
   rowPressable: {
+    ...tileSlotFlex,
     position: "relative",
     borderRadius: TABLE_TILE_RADIUS,
-    width: `${100 / ROW.ITEMS_PER_ROW}%`,
+    paddingHorizontal: ROW.GAP / 2,
+    marginBottom: ROW.GAP,
+  },
+  /** Outer wrapper when item is inside a slot (reporter); keeps padding/margin, fills slot. */
+  rowPressableFillSlot: {
+    ...tileSlotFill,
+    position: "relative",
+    borderRadius: TABLE_TILE_RADIUS,
     paddingHorizontal: ROW.GAP / 2,
     marginBottom: ROW.GAP,
   },
@@ -31,19 +54,29 @@ export const opponentStripStyles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     padding: ROW.ITEM_PADDING,
+    position: "relative",
   },
-  contentRow: {
+  /** Dealer button: upper-right of opponent tile (m-2 = 8px). */
+  dealerSlotTile: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 3,
+    elevation: 3,
+  },
+  /** Wrapper for PlayerPanel + cards column; stacks cards under text so cards never cover any text. */
+  opponentItemWrapper: {
     flexDirection: "column",
     alignItems: "stretch",
     flex: 1,
-    gap: 8,
-    minHeight: 0,
-  },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 8,
+    minWidth: 0,
+    gap: 4,
+    zIndex: 0,
+    elevation: 0,
   },
   rowShellActive: {
     boxShadow: [
@@ -56,69 +89,19 @@ export const opponentStripStyles = StyleSheet.create({
     ] as const,
     elevation: 6,
   },
-  avatarCol: {
-    width: AVATAR.SIZE + 4,
-    minWidth: AVATAR.SIZE + 4,
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
-  },
-  metaCol: {
-    flex: 1,
+  /** Cards row: snug under text, no dealer here. */
+  cardsColumn: {
+    height: CARDS.CELL_MIN_HEIGHT,
     minWidth: 0,
-    minHeight: 0,
-    justifyContent: "space-between",
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 4,
-    minHeight: TEXT.NAME_FONT_SIZE + 4,
-  },
-  nameText: {
-    flex: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    textAlign: "left",
-    fontSize: TEXT.NAME_FONT_SIZE,
-    lineHeight: TEXT.NAME_FONT_SIZE + 2,
-  },
-  stackRow: {
-    justifyContent: "center",
-    minHeight: TEXT.STACK_FONT_SIZE + 4,
-    paddingRight: 4,
-  },
-  stackText: {
-    fontSize: TEXT.STACK_FONT_SIZE,
-    lineHeight: TEXT.STACK_FONT_SIZE + 2,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
-    color: STACK_TEXT_COLOR,
-    textAlign: "left",
+    alignSelf: "flex-end",
+    marginTop: 2,
+    zIndex: 2,
+    elevation: 2,
   },
   cardsDock: {
     height: CARDS.CELL_MIN_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 2,
-    elevation: 2,
-  },
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: TEXT.STATUS_FONT_SIZE + 8,
-  },
-  dealerDock: {
-    minHeight: TEXT.STATUS_FONT_SIZE + 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionText: {
-    fontSize: TEXT.STATUS_FONT_SIZE,
-    lineHeight: TEXT.STATUS_FONT_SIZE + 2,
-    minHeight: TEXT.STATUS_FONT_SIZE + 2,
-    textAlign: "left",
   },
   cardsViewport: {
     flex: 1,
@@ -157,24 +140,14 @@ export const opponentStripStyles = StyleSheet.create({
     flex: 1,
     alignSelf: "stretch",
   },
-  avatar: {
-    width: AVATAR.SIZE,
-    height: AVATAR.SIZE,
-    borderRadius: AVATAR.SIZE / 2,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarImage: {
-    width: AVATAR.SIZE,
-    height: AVATAR.SIZE,
-  },
   turnBarTrack: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     height: 4,
+    zIndex: 1,
+    elevation: 1,
     backgroundColor: "rgba(0,0,0,0.2)",
   },
   turnBarFill: {

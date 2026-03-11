@@ -1,6 +1,13 @@
-import { View } from "react-native";
+import { useCallback, useRef } from "react";
+import { Pressable, View } from "react-native";
+import { Text } from "@/components/base/Text";
 import { Input } from "@/components/base/Input";
+import { formatInputFromCents, parseInputToCents } from "./actionBar.logic";
 import { actionBarStyles } from "./styles";
+
+const ONE_DOLLAR_CENTS = 100;
+const HOLD_INITIAL_MS = 400;
+const HOLD_REPEAT_MS = 500;
 
 type WagerInputProps = {
   visible: boolean;
@@ -12,6 +19,36 @@ type WagerInputProps = {
   onSubmitEditing: () => number;
 };
 
+function useStepRepeat(onStepRef: React.MutableRefObject<(delta: number) => void>) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clear = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const start = useCallback(
+    (delta: number) => {
+      clear();
+      onStepRef.current(delta);
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null;
+        intervalRef.current = setInterval(() => onStepRef.current(delta), HOLD_REPEAT_MS);
+      }, HOLD_INITIAL_MS);
+    },
+    [clear, onStepRef],
+  );
+
+  return { start, clear };
+}
+
 export function WagerInput({
   visible,
   display,
@@ -21,6 +58,27 @@ export function WagerInput({
   onBlur,
   onSubmitEditing,
 }: WagerInputProps) {
+  const step = useCallback(
+    (delta: number) => {
+      const cents = parseInputToCents(display);
+      const next = Math.max(0, cents + delta);
+      onChangeText(formatInputFromCents(next));
+    },
+    [display, onChangeText],
+  );
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const { start: startRepeat, clear } = useStepRepeat(stepRef);
+
+  const onMinusPressIn = useCallback(() => {
+    if (!editable) return;
+    startRepeat(-ONE_DOLLAR_CENTS);
+  }, [editable, startRepeat]);
+  const onPlusPressIn = useCallback(() => {
+    if (!editable) return;
+    startRepeat(ONE_DOLLAR_CENTS);
+  }, [editable, startRepeat]);
+
   return (
     <View
       collapsable={false}
@@ -32,23 +90,56 @@ export function WagerInput({
         },
       ]}
     >
-      <Input
-        iconLeft="$"
-        value={display}
-        onChangeText={onChangeText}
-        onBlur={onBlur}
-        onSubmitEditing={onSubmitEditing}
-        keyboardType="decimal-pad"
-        returnKeyType="done"
-        placeholder={placeholder}
-        selectTextOnFocus
-        editable={editable}
-        allowFontScaling={false}
-        maxLength={10}
-        style={{ maxWidth: 144 }}
-        accessibilityLabel="Bet amount input"
-        accessibilityState={{ disabled: !editable }}
-      />
+      <View style={[actionBarStyles.wagerRow, actionBarStyles.wagerPill]} className="ui-row items-center bg-panel">
+        <View style={actionBarStyles.wagerInputWrap}>
+          <Input
+            bare
+            iconLeft="$"
+            value={display}
+            onChangeText={onChangeText}
+            onBlur={onBlur}
+            onSubmitEditing={onSubmitEditing}
+            keyboardType="decimal-pad"
+            returnKeyType="done"
+            placeholder={placeholder}
+            selectTextOnFocus
+            editable={editable}
+            allowFontScaling={false}
+            maxLength={10}
+            style={{ maxWidth: 144 }}
+            accessibilityLabel="Bet amount input"
+            accessibilityState={{ disabled: !editable }}
+          />
+        </View>
+        <Pressable
+          onPressIn={onMinusPressIn}
+          onPressOut={clear}
+          disabled={!editable}
+          style={actionBarStyles.stepperBtn}
+          className="select-none"
+          onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
+          accessibilityLabel="Decrease bet by one dollar"
+          accessibilityState={{ disabled: !editable }}
+        >
+          <Text variant="body" allowFontScaling={false}>
+            −
+          </Text>
+        </Pressable>
+        <Pressable
+          onPressIn={onPlusPressIn}
+          onPressOut={clear}
+          disabled={!editable}
+          style={actionBarStyles.stepperBtn}
+          className="select-none"
+          onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
+          accessibilityLabel="Increase bet by one dollar"
+          accessibilityState={{ disabled: !editable }}
+        >
+          <Text variant="body" allowFontScaling={false}>
+            +
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

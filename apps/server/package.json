@@ -11,10 +11,17 @@
     "analyze:game-bugs": "node scripts/analyze-game-bugs-timeouts.mjs",
     "analyze:phase4": "node scripts/analyze-game-bugs-timeouts.mjs --max-issues 100",
     "analyze:phase4:gate": "node scripts/check-phase4-gate.mjs",
+    "analyze:phase7:ready": "node scripts/check-phase7-ready.mjs",
     "analyze:phase4:compare": "node scripts/compare-phase4-captures.mjs",
+    "analyze:canary": "node scripts/run-canary-validation.mjs",
     "analyze:phase7:paths": "node scripts/analyze-phase7-paths.mjs",
     "analyze:phase7:dead-paths": "node scripts/analyze-phase7-dead-path-candidates.mjs",
     "analyze:phase7:dead-paths:triage": "node scripts/triage-phase7-dead-path-candidates.mjs",
+    "phase7:validate": "node scripts/run-phase7-validation.mjs --runs 2 --hands 300 --sample-rate 0.25 --dead-path-baseline 9 --min-hand-completion-rate 0.98 --prefix phase7_validation",
+    "phase7:validate:quick": "node scripts/run-phase7-validation.mjs --runs 1 --hands 75 --sample-rate 0.25 --dead-path-baseline 9 --min-hand-completion-rate 0.95 --prefix phase7_validation_quick",
+    "phase7:validate:full": "node scripts/run-phase7-validation.mjs --runs 2 --hands 400 --sample-rate 0.35 --dead-path-baseline 9 --min-hand-completion-rate 0.98 --prefix phase7_validation_full",
+    "room-soak:validate": "node scripts/run-room-soak-validation.mjs --runs 1 --hands 30 --min-hand-completion-rate 0.95 --prefix room_soak_validation",
+    "room-soak:validate:quick": "node scripts/run-room-soak-validation.mjs --runs 1 --hands 10 --min-hand-completion-rate 0.90 --prefix room_soak_validation_quick",
     "lint": "eslint src --config ../../eslint.config.mjs"
   },
   "dependencies": {

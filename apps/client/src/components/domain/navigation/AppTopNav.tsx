@@ -56,7 +56,7 @@ export function AppTopNav({
               borderRadius: TOP_NAV_AVATAR_SIZE / 2,
             }}
           />
-          <Pressable onPress={() => router.push(settingsTargetPath)} className="flex-1 min-h-[44px] justify-center">
+          <Pressable onPress={() => router.push(settingsTargetPath)} className="flex-1 min-h-[44px] justify-center px-2 min-w-[125px]">
             <Text numberOfLines={1} variant="body">
               {username}
             </Text>

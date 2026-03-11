@@ -1,9 +1,25 @@
+import { memo } from "react";
 import { Pressable, View } from "react-native";
-import { Text } from "@/components/base/Text";
-import { AvatarImage } from "@/components/base/AvatarImage";
 import { DealerButton } from "../DealerButton";
 import { PotWinRing } from "../PotWinEffect";
+import { PlayerPanel } from "../player-panel";
 import { opponentStripStyles as s, PRESSABLE_ANDROID_RIPPLE, PRESSABLE_HIT_SLOP } from "../opponent-strip/styles";
+
+/** Isolated so progress tick (every 100ms) only re-renders the bar, not the whole tile. */
+const TurnBar = memo(function TurnBar({
+  show,
+  progress,
+}: {
+  show: boolean;
+  progress: number | null | undefined;
+}) {
+  if (!show || progress == null) return null;
+  return (
+    <View style={s.turnBarTrack} pointerEvents="none">
+      <View style={[s.turnBarFill, { width: `${progress * 100}%` }]} />
+    </View>
+  );
+});
 
 export type OpponentStripItemViewModel = {
   opponentId: string;
@@ -27,11 +43,14 @@ export type OpponentStripItemViewModel = {
 export type OpponentStripItemViewProps = {
   model: OpponentStripItemViewModel;
   onPress: (() => void) | undefined;
+  /** When true, outer wrapper fills slot (use rowPressableFillSlot). */
+  fillSlot?: boolean;
 };
 
 export function OpponentStripItemView({
   model,
   onPress,
+  fillSlot = false,
 }: OpponentStripItemViewProps) {
   const {
     opponentId,
@@ -61,59 +80,32 @@ export function OpponentStripItemView({
       data-opponent-name={opponentName}
       data-stack-cents={String(stackCents)}
     >
-      <View className="content-row" style={s.contentRow}>
-        <View style={s.topRow}>
-          <View className="opponent-avatar" style={s.avatarCol}>
-            <AvatarImage
-              avatarUrl={avatarUrl}
-              initial={initial}
-              style={s.avatar}
-              imageStyle={s.avatarImage}
-              className="bg-panel-elevated border border-border"
-            />
-          </View>
-          <View className="opponent-meta" style={s.metaCol}>
-            <View className="ui-row" style={s.nameRow}>
-              <Text
-                variant="label"
-                className="font-semibold"
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                allowFontScaling={false}
-                style={s.nameText}
-              >
-                {nameDisplay}
-              </Text>
-            </View>
-            <View style={s.stackRow}>
-              <Text numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false} style={s.stackText}>
-                {stackFormatted}
-              </Text>
-            </View>
-          </View>
-        </View>
-        <View style={s.cardsDock}>{cardsSlot}</View>
-        <View style={s.footerRow}>
-          <Text
-            variant="muted"
-            numberOfLines={2}
-            ellipsizeMode="tail"
-            className={actionTextClassName}
-            allowFontScaling={false}
-            style={s.actionText}
-          >
-            {actionText}
-          </Text>
-          <View style={s.dealerDock}>
-            {isDealer ? <DealerButton size="small" /> : null}
-          </View>
-        </View>
-      </View>
-      {showTurnBar && activeTurnProgress != null ? (
-        <View style={s.turnBarTrack}>
-          <View style={[s.turnBarFill, { width: `${activeTurnProgress * 100}%` }]} />
+      {isDealer ? (
+        <View style={[s.dealerSlotTile, { pointerEvents: "none" }]}>
+          <DealerButton size="small" />
         </View>
       ) : null}
+      <View style={s.opponentItemWrapper} collapsable={false}>
+        <PlayerPanel
+          initial={initial}
+          playerName={nameDisplay}
+          stackCents={stackCents}
+          avatarUrl={avatarUrl}
+          isDealer={false}
+          bottomText={actionText}
+          bottomTextClassName={actionTextClassName}
+          inactive={inactive}
+          bottomAlign="left"
+          nameTopMargin={8}
+          style={{ flex: 1 }}
+          dataStackCents={String(stackCents)}
+          dataPlayerName={opponentName}
+        />
+        <View style={s.cardsColumn} collapsable={false}>
+          <View style={s.cardsDock}>{cardsSlot}</View>
+        </View>
+      </View>
+      <TurnBar show={showTurnBar} progress={activeTurnProgress} />
     </View>
   );
 
@@ -124,6 +116,7 @@ export function OpponentStripItemView({
     </>
   );
 
+  const outerStyle = fillSlot ? s.rowPressableFillSlot : s.rowPressable;
   if (onPress) {
     return (
       <Pressable
@@ -131,12 +124,12 @@ export function OpponentStripItemView({
         hitSlop={PRESSABLE_HIT_SLOP}
         android_ripple={PRESSABLE_ANDROID_RIPPLE}
         className="ui-touch"
-        style={s.rowPressable}
+        style={outerStyle}
       >
         {content}
       </Pressable>
     );
   }
 
-  return <View style={s.rowPressable}>{content}</View>;
+  return <View style={outerStyle}>{content}</View>;
 }

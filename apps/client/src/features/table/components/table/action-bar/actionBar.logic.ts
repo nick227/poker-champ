@@ -202,7 +202,7 @@ export function getActionContext(params: {
     CHECK: canActFromServer && !blocked && capabilities.canCheck,
     CALL: canActFromServer && !blocked && capabilities.canCall,
     ALL_IN: canActFromServer && !blocked && capabilities.canAllIn,
-    WAGER: canActFromServer && !blocked && capabilities.canWager,
+    WAGER: canActFromServer && !blocked && capabilities.canWager && !!wager,
   };
 
   return {

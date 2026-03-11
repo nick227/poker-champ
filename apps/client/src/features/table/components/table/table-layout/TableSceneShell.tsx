@@ -148,9 +148,6 @@ export function TableSceneShell({
               </View>
 
               <View className="game-area-container" collapsable={false}>
-                  <View collapsable={false} style={layoutStyles.dealerBar}>
-                    {dealerBar}
-                  </View>
                   <View
                     collapsable={false}
                     style={[layoutStyles.feltArea, feltAreaStyle]}
@@ -185,6 +182,10 @@ export function TableSceneShell({
                   {bottom}
                 </Surface>
               ) : null}
+              
+                  <View collapsable={false} style={layoutStyles.dealerBar}>
+                    {dealerBar}
+                  </View>
             </>
           </ScrollView>
         )}

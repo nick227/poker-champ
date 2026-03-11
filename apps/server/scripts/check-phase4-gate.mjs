@@ -64,6 +64,8 @@ function main() {
   const metrics = parseMetrics(stdout);
   const failIfGtZero = [
     "tableStalled",
+    "tableStalledMissingReason",
+    "tableStalledMissingReasonConnectedHuman",
     "stallRecoveryRedrive",
     "timeoutDoubleFires",
     "timeoutWithMissingDeadline",

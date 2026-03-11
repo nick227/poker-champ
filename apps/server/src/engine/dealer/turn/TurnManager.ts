@@ -408,7 +408,23 @@ class TurnTimeoutScheduler {
     if (!token || !token.handId) return;
 
     const key = `${token.handId}:${token.street}:${token.handActionSeq}:${token.toActSeat}:${token.toActUserId}`;
-    if (this.pendingHumanTurnTimeoutKey === key) return;
+    if (this.pendingHumanTurnTimeoutKey === key) {
+      const deadlinePresent = (this.deps.state.turnDeadlineMs ?? 0) > 0;
+      const timeoutPresent = this.pendingHumanTurnTimeoutId != null;
+      if (deadlinePresent && timeoutPresent) return;
+      logger.warn(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId,
+          street: this.deps.state.street,
+          toActSeat: this.deps.state.toActSeat,
+          userId,
+          hasDeadline: deadlinePresent,
+          hasTimeoutHandle: timeoutPresent,
+        },
+        "TURN_TIMER_REARM_SAME_KEY",
+      );
+    }
 
     if (this.pendingHumanTurnTimeoutId != null) {
       clearTimeout(this.pendingHumanTurnTimeoutId);

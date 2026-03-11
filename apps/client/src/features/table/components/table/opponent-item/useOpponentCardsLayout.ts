@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 import type { Opponent } from "../table.adapter";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { CARDS } from "../opponent-strip/layout";
 import { BASE_CARD_WIDTH, BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 
@@ -10,16 +11,19 @@ const ROTATED_WIDTH_PER_UNIT =
 const ROTATED_HEIGHT_PER_UNIT =
   BASE_CARD_WIDTH * Math.sin(ANGLE_RAD) + BASE_CARD_HEIGHT * Math.cos(ANGLE_RAD);
 
+const MOBILE_CARD_SCALE = 0.9;
+
 export function useOpponentCardsLayout(opponent: Opponent) {
+  const isMobile = useIsMobile();
   const { cards } = opponent;
   const cardsVisible = Boolean(cards?.visible);
   const isRevealed = Boolean(cards?.visible && !cards?.faceDown);
   const revealProgress = useRef(new Animated.Value(isRevealed ? 1 : 0)).current;
-  const [rowHeight, setRowHeight] = useState(CARDS.CELL_MIN_HEIGHT);
+  const [rowHeight, setRowHeight] = useState<number>(CARDS.CELL_MIN_HEIGHT);
 
   const onViewportLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
-      setRowHeight(e.nativeEvent.layout.height as number as 56);
+      setRowHeight(e.nativeEvent.layout.height);
     },
     [],
   );
@@ -37,7 +41,8 @@ export function useOpponentCardsLayout(opponent: Opponent) {
     outputRange: [0, -6],
   });
 
-  const scale = Math.min(1, (rowHeight * 0.9) / ROTATED_HEIGHT_PER_UNIT);
+  const baseScale = Math.min(1, (rowHeight * 0.9) / ROTATED_HEIGHT_PER_UNIT);
+  const scale = isMobile ? baseScale * MOBILE_CARD_SCALE : baseScale;
   const slotWidth = scale * ROTATED_WIDTH_PER_UNIT;
   const slotHeight = scale * ROTATED_HEIGHT_PER_UNIT;
   const pairWidth = Math.max(0, 2 * slotWidth - CARDS.PAIR_OVERLAP);

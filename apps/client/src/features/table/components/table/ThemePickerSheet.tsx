@@ -12,6 +12,7 @@ import {
 } from "@/assets/cards/packManifest";
 import { CARD_FACE_PACKS, type CardBackPackId, type CardFacePackId } from "@/assets/cards/packs";
 import { THEME_PACK_CONFIG } from "@/config/themePackConfig";
+import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import { BuiltinCardFace } from "./BuiltinCardFace";
 import { CardBackPattern } from "./CardBackPatterns";
 import { getCardBackSource, keyToRankSuit } from "./cardFaceAssets";
@@ -30,6 +31,11 @@ const FELT_COLOR_PRESETS: ReadonlyArray<FeltPresetColor> = [
 ];
 
 const FELT_PRESETS: ReadonlyArray<FeltPreset> = [...FELT_COLOR_PRESETS, ...FELT_IMAGE_PRESETS];
+
+const withTapSound = (fn: () => void) => () => {
+  emitSoundEvent("ui.tap");
+  fn();
+};
 
 export type ThemePickerSheetProps = {
   visible: boolean;
@@ -158,7 +164,11 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
                     ? { background: `linear-gradient(180deg, hsl(${pack.colors[0]}), hsl(${pack.colors[1]}))` }
                     : { backgroundColor: `hsl(${pack.colors[0]})` };
             return (
-              <Pressable key={pack.id} onPress={() => applyThemePack(pack.id)} className="ui-col items-center flex-1 min-w-[30%]">
+              <Pressable
+                key={pack.id}
+                onPress={withTapSound(() => applyThemePack(pack.id))}
+                className="ui-col items-center flex-1 min-w-[30%]"
+              >
                 <View className="w-full h-16 rounded-md border border-border-subtle overflow-hidden relative">
                   {feltImgSource ? (
                     <Image source={feltImgSource} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
@@ -184,7 +194,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
         <View className="ui-row gap-3 mb-6 flex-wrap">
           <Pressable
             key="none"
-            onPress={onAppBackgroundClearPress}
+            onPress={withTapSound(onAppBackgroundClearPress)}
             className="ui-col items-center"
           >
             <View
@@ -198,7 +208,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={p.value}
-                onPress={() => onAppBackgroundColorPress(p.value)}
+                onPress={withTapSound(() => onAppBackgroundColorPress(p.value))}
                 className="ui-col items-center"
               >
                 <View
@@ -215,7 +225,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={p.imageId}
-                onPress={() => onAppBackgroundImagePress(p.imageId)}
+                onPress={withTapSound(() => onAppBackgroundImagePress(p.imageId))}
                 className="ui-col items-center"
               >
                 <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>
@@ -235,7 +245,11 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
 
         <Text variant="label" className="mb-3">Felt Color</Text>
         <View className="ui-row gap-3 mb-8 flex-wrap">
-          <Pressable key="felt-none" onPress={clearFeltBackground} className="ui-col items-center">
+          <Pressable
+            key="felt-none"
+            onPress={withTapSound(clearFeltBackground)}
+            className="ui-col items-center"
+          >
             <View
               className={`w-12 h-12 rounded-full border-2 ${isFeltBackgroundNone ? "border-gold" : "border-transparent"}`}
               style={{ backgroundColor: "hsl(0 0% 12%)" }}
@@ -250,7 +264,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
               return (
                 <Pressable
                   key={key}
-                  onPress={() => setFeltBackgroundColor(p.value)}
+                  onPress={withTapSound(() => setFeltBackgroundColor(p.value))}
                   className="ui-col items-center"
                 >
                   <View
@@ -265,7 +279,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={key}
-                onPress={() => setFeltBackgroundImageId(p.imageId)}
+                onPress={withTapSound(() => setFeltBackgroundImageId(p.imageId))}
                 className="ui-col items-center"
               >
                 <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>
@@ -291,7 +305,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={pack.id}
-                onPress={() => setCardFacePackId(packId)}
+                onPress={withTapSound(() => setCardFacePackId(packId))}
                 className="ui-col items-center flex-1 min-w-[46%]"
               >
                 <View className={`w-full rounded-md ${isSelected ? "border-2 border-gold" : "border border-border-subtle"} overflow-hidden`}>
@@ -310,10 +324,10 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
             return (
               <Pressable
                 key={pattern.id}
-                onPress={() => {
+                onPress={withTapSound(() => {
                   setCardBackPackId(null);
                   setCardBackPattern(pattern.id);
-                }}
+                })}
                 className="ui-col items-center flex-1 min-w-[18%]"
               >
                 <View className={`border-2 ${isSelected ? "border-gold" : "border-transparent"}`}>
@@ -339,7 +353,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
               return (
                 <Pressable
                   key={backPack.id}
-                  onPress={() => setCardBackPackId(id)}
+                  onPress={withTapSound(() => setCardBackPackId(id))}
                   className="ui-col items-center min-w-[18%]"
                 >
                   <View className={`border-2 rounded-card overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>

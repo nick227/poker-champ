@@ -6,6 +6,9 @@ import { Icon } from "@/components/base/Icons";
 import { formatCents } from "@/lib/format";
 import { Surface } from "@/components/containers/Surface";
 import { tableGameTopBarStyles } from "./styles";
+import { APP_NAME } from "@/constants/copy";
+
+const LOGO_MARK = "♠";
 
 export type TableGameTopBarProps = {
   tableName: string;
@@ -46,7 +49,8 @@ export function TableGameTopBar({
             onPress={onLogoPress}
           />
         </View>
-        <View className="flex-1">
+        <Text variant="h2">{APP_NAME}</Text>
+        <View className="flex-1 items-center justify-center">
           <Text
             variant="body"
             numberOfLines={1}

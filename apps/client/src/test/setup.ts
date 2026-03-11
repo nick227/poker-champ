@@ -1,5 +1,8 @@
 import { vi } from "vitest";
 
+// Define __DEV__ for test environment
+(globalThis as any).__DEV__ = false;
+
 const STUB_ASSET = 0;
 const SOUND_KEYS_LIST = [
   "tap", "modalOpen", "modalClose", "cardDeal", "cardFlip", "chipStack", "chipBet",

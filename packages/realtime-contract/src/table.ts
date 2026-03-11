@@ -212,6 +212,10 @@ export const TableSnapshotPayloadSchema = z.object({
     minRaiseCents: z.number().int().nonnegative(),
     potCents: z.number().int().nonnegative(),
     board: z.array(z.string().min(2).max(2)).max(5),
+    /** Server wall-clock ms when turn timeout fires; client uses for countdown. */
+    turnDeadlineMs: z.number().int().positive().optional(),
+    /** Server turn timeout duration (ms). Single source of truth for client. */
+    turnTimeoutTotalMs: z.number().int().positive().optional(),
   }).optional(), // street WAITING / hand undefined means no active hand
 
   seats: z.array(TableSeatSnapshotSchema).min(2).max(10),

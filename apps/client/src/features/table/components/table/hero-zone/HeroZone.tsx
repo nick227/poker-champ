@@ -1,10 +1,8 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { AvatarImage } from "@/components/base/AvatarImage";
 import { PlayingCard } from "../PlayingCard";
 import { CalculationsStrip } from "../CalculationsStrip";
-import { DealerButton } from "../DealerButton";
-import { formatCents } from "@/lib/format";
+import { PlayerPanel } from "../player-panel";
 import { TABLE } from "@/constants/copy";
 import type { HeroStatus, UiCard } from "../table.adapter";
 import { assertNever } from "../table.adapter";
@@ -152,35 +150,18 @@ export function HeroZone({
           </View>
         </View>
 
-        <View
-          className="ui-row rounded-sm border border-border-subtle bg-panel/80 p-4"
-          style={s.stackCol}
-          data-testid="hero-stack"
-          data-stack-cents={String(stackCents)}
-          data-hero-name={userName ?? ""}
-        >
-          {isDealer ? (
-            <View style={[s.dealerSlotStack, { pointerEvents: "none" }]}>
-              <DealerButton size="small" />
-            </View>
-          ) : null}
-            <View style={s.heroIdentityRow}>
-              <AvatarImage
-                avatarUrl={avatarUrl}
-                initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
-                onPress={onAvatarPress}
-                style={s.heroAvatar}
-                imageStyle={s.heroAvatarImage}
-                className="bg-panel-elevated border border-border"
-              />
-              <View className="flex-col">
-              {userName ? (
-                <Text variant="label" numberOfLines={1} className="text-center flex-1" allowFontScaling={false}>{userName}</Text>
-              ) : null}
-            <Text variant="h2" className="text-2xl font-semibold" allowFontScaling={false}>{formatCents(stackCents)}</Text>
-            </View>
-              </View>
-        </View>
+        <PlayerPanel
+          initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
+          playerName={userName ?? ""}
+          stackCents={stackCents}
+          avatarUrl={avatarUrl}
+          isDealer={isDealer}
+          bottomText={statusLabel ?? undefined}
+          onAvatarPress={onAvatarPress}
+          testID="hero-stack"
+          dataStackCents={String(stackCents)}
+          dataPlayerName={userName ?? ""}
+        />
 
         {showStats ? (
           <View style={s.calcCol}>
@@ -202,15 +183,6 @@ export function HeroZone({
             <Text variant="label" className="text-warning text-xl" allowFontScaling={false}>
               {turnCountdownSeconds}s to act
             </Text>
-          </View>
-        ) : null}
-        {isSittingOut ? (
-          <View style={[s.sittingOutBadge, { pointerEvents: "none" }]}>
-            <View style={s.sittingOutBadgeInner}>
-              <Text variant="label" className="text-white font-medium" allowFontScaling={false}>
-                {TABLE.sittingOut}
-              </Text>
-            </View>
           </View>
         ) : null}
 

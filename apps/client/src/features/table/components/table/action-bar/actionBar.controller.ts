@@ -80,13 +80,14 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
     (minCents) => initialWagerState(minCents),
   );
 
+  const wagerMinCents = wager?.bounds.min ?? null;
   useEffect(() => {
-    if (!wager) {
+    if (wagerMinCents === null) {
       dispatch({ type: "RESET_TO_MIN", min: 0 });
       return;
     }
-    dispatch({ type: "RESET_TO_MIN", min: wager.bounds.min });
-  }, [wager]);
+    dispatch({ type: "RESET_TO_MIN", min: wagerMinCents });
+  }, [wagerMinCents]);
 
   const wagerCalculations = useWagerCalculations(wager, potCents);
   const { display } = wagerState;

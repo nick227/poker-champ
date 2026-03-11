@@ -172,6 +172,8 @@ export class SnapshotService {
     emitHook?: SnapshotEmitHook;
     /** Optional: fetch avatar for snapshot seat/hero. When provided, seats and hero include avatarUrl/avatarVersion. */
     getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
+    /** Turn timeout duration (ms) so client can stay in sync. */
+    getTurnTimeoutTotalMs: () => number;
   }) {}
 
   // ============================================================================
@@ -489,6 +491,8 @@ export class SnapshotService {
           minRaiseCents: state.minRaiseCents,
           potCents: state.potCents,
           board: [...state.board],
+          ...(state.turnDeadlineMs > 0 ? { turnDeadlineMs: state.turnDeadlineMs } : {}),
+          turnTimeoutTotalMs: this.deps.getTurnTimeoutTotalMs(),
         };
 
     return {

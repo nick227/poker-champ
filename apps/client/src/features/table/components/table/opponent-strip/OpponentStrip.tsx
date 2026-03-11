@@ -3,7 +3,7 @@ import type { Opponent } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { MeasuredBoundsReporter } from "../board-area";
 import { CONTAINER } from "./layout";
-import { opponentStripStyles as s } from "./styles";
+import { opponentStripStyles as s, tileSlotFlex } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { OpponentStripItem } from "../opponent-item";
 
@@ -45,29 +45,30 @@ export function OpponentStrip({
         overScrollMode="never"
         scrollEventThrottle={16}
       >
-          {opponents.map((opponent) => {
-            const item = (
-              <OpponentStripItem
-                key={opponent.id}
-                opponent={opponent}
-                winnerName={winnerName}
-                onPlayerPress={onPlayerPress}
-                activeTurnProgress={activeTurnProgress}
-                cardFacePackId={cardFacePackId}
-              />
-            );
-            return onSeatBounds ? (
-              <MeasuredBoundsReporter
-                key={opponent.id}
-                onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
-                style={{}}
-              >
-                {item}
-              </MeasuredBoundsReporter>
-            ) : (
-              item
-            );
-          })}
+        {opponents.map((opponent) => {
+          const item = (
+            <OpponentStripItem
+              key={opponent.id}
+              opponent={opponent}
+              winnerName={winnerName}
+              onPlayerPress={onPlayerPress}
+              activeTurnProgress={activeTurnProgress}
+              cardFacePackId={cardFacePackId}
+              fillSlot={!!onSeatBounds}
+            />
+          );
+          return onSeatBounds ? (
+            <MeasuredBoundsReporter
+              key={opponent.id}
+              onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
+              style={tileSlotFlex}
+            >
+              {item}
+            </MeasuredBoundsReporter>
+          ) : (
+            item
+          );
+        })}
       </ScrollView>
     </View>
   );

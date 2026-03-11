@@ -5,6 +5,7 @@ import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService
 import { TableSnapshotLogService } from "../engine/persistence/TableSnapshotLogService.js";
 import { RandomBotBrain } from "../engine/bots/BotBrain.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { logger } from "../lib/logger.js";
 
 vi.mock("@poker-champ/db", () => {
   const mockTx = {
@@ -179,6 +180,48 @@ async function setupHumanVsBotRoom() {
     return { room, clientA };
   }
 
+  async function setupHumanVsBotRoomWithTimeouts() {
+    (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
+    (CashierService as any).processCashGameCashOut = async () => ({ success: true });
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = async () => {};
+    room.roomId = "room_broadcast_bot_timeout_guard_test";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_broadcast_bot_timeout_guard_test",
+        name: "Broadcast Bot Timeout Guard Test",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    room.state.dealerSeat = 0;
+
+    const clientA = makeClient("sess_human_timeout_guard");
+    await room.onJoin(clientA as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
+    room.onMessageEvents.emit("ADD_BOT", clientA as any, { name: "Bot", buyInCents: 5000, botId: "chaos_carl" });
+    await flushAsync();
+    await waitFor(
+      () => getSnapshots(clientA).some((snap) => snap.seats.some((s) => s.isBot)),
+      5000,
+      "bot seated",
+    );
+    await waitFor(
+      () => getSnapshots(clientA).some((snap) => Boolean(snap.hand?.handId)),
+      5000,
+      "active hand human vs bot with timeouts",
+    );
+
+    return { room, clientA };
+  }
+
+
   it("rejects out-of-turn action with NOT_YOUR_TURN", async () => {
     const { room, clientA, clientB } = await setupTwoPlayerRoom();
     try {
@@ -194,6 +237,44 @@ async function setupHumanVsBotRoom() {
       const errorCodes = ((wrongClient.sentByType.ERROR ?? []) as any[]).map((e) => e?.code);
       expect(errorCodes).toContain("NOT_YOUR_TURN");
     } finally {
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
+  it("does not emit TABLE_STALLED when connected human is toAct even if needsAction drifted false", async () => {
+    const decisionStallEnv = process.env.FEATURE_DECISION_STALL_DETECTION;
+    process.env.FEATURE_DECISION_STALL_DETECTION = "false";
+    const warnSpy = vi.spyOn(logger, "warn");
+    const { room, clientA, clientB } = await setupTwoPlayerRoom();
+    try {
+      const snap = clientA.latestSnapshot!;
+      const toActSeat = snap.hand!.toActSeat;
+      const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+      expect(toActUserId).toBeTruthy();
+      const toActPlayer = room.state.playersById.get(toActUserId!);
+      expect(toActPlayer).toBeTruthy();
+      toActPlayer!.needsAction = false;
+
+      if (room.stallCheckInterval) {
+        clearInterval(room.stallCheckInterval);
+        room.stallCheckInterval = null;
+      }
+      room.lastSnapshotAt = Date.now() - 30_000;
+      room.startStallMonitorInternal();
+
+      await delay(10_500);
+
+      const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
+      const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+      expect(stalledCalls.length).toBe(0);
+      expect(redriveCalls.length).toBe(0);
+    } finally {
+      process.env.FEATURE_DECISION_STALL_DETECTION = decisionStallEnv;
       try {
         await room.onLeave(clientA as any, 4000);
       } catch {}
@@ -582,6 +663,138 @@ async function setupHumanVsBotRoom() {
       } catch {}
     }
   });
+
+  it("keeps river human turn actionable in human-vs-bot flow", async () => {
+    vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+      if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+      if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+      return { action: "FOLD" };
+    });
+
+    const warnSpy = vi.spyOn(logger, "warn");
+    const { room, clientA } = await setupHumanVsBotRoom();
+    try {
+      const startHandId = clientA.latestSnapshot?.hand?.handId;
+      expect(startHandId).toBeTruthy();
+      let guard = 0;
+      while (guard < 30) {
+        guard += 1;
+        const snap = clientA.latestSnapshot;
+        const hand = snap?.hand;
+        if (!snap || !hand) {
+          await delay(50);
+          continue;
+        }
+        if (hand.handId !== startHandId) break;
+        const toActSeat = hand.toActSeat;
+        const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+        const heroOpts = snap.hero.actionOptions;
+        const heroCanAct = Boolean(
+          heroOpts &&
+            (heroOpts.canFold ||
+              heroOpts.canCheck ||
+              heroOpts.canCall ||
+              heroOpts.canAllIn ||
+              heroOpts.canBet ||
+              heroOpts.canRaise),
+        );
+        if (hand.street === "RIVER" && toActUserId === "user_a") {
+          expect(heroCanAct).toBe(true);
+          return;
+        }
+        if (toActUserId === "user_a" && heroCanAct) {
+          const beforeSnapshotId = snap.snapshotId;
+          const action = heroOpts?.canCheck ? ({ action: "CHECK" as const }) : pickLegalAction(snap);
+          room.onMessageEvents.emit("ACTION", clientA as any, { ...action, actionId: `river-actionable-${Date.now()}-${guard}` });
+          await waitFor(
+            () =>
+              Boolean(clientA.latestSnapshot?.snapshotId) &&
+              clientA.latestSnapshot!.snapshotId !== beforeSnapshotId,
+            4000,
+            "snapshot advance after human action",
+          );
+          continue;
+        }
+        await delay(50);
+      }
+
+      throw new Error("Did not reach actionable river human turn before hand ended");
+    } finally {
+      const stalledLogs = warnSpy.mock.calls.filter(([arg1, arg2]) => {
+        const msg = typeof arg2 === "string" ? arg2 : "";
+        const payload = arg1 as Record<string, unknown> | undefined;
+        return msg === "TABLE_STALLED" || payload?.msg === "TABLE_STALLED";
+      });
+      expect(stalledLogs.length).toBe(0);
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+    }
+  });
+
+  it(
+    "does not stall when flop enters with human toAct and no immediate action",
+    async () => {
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        return { action: "FOLD" };
+      });
+
+      const warnSpy = vi.spyOn(logger, "warn");
+      const { room, clientA } = await setupHumanVsBotRoomWithTimeouts();
+      try {
+        const startHandId = clientA.latestSnapshot?.hand?.handId;
+        expect(startHandId).toBeTruthy();
+        let reachedFlopHumanToAct = false;
+
+        for (let guard = 0; guard < 40; guard += 1) {
+          const snap = clientA.latestSnapshot;
+          const hand = snap?.hand;
+          if (!snap || !hand || hand.handId !== startHandId) {
+            await delay(50);
+            continue;
+          }
+          const toActSeat = hand.toActSeat;
+          const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+          if (hand.street === "FLOP" && toActUserId === "user_a") {
+            reachedFlopHumanToAct = true;
+            break;
+          }
+          if (toActUserId === "user_a") {
+            const opts = snap.hero.actionOptions;
+            if (opts && (opts.canCheck || opts.canCall || opts.canFold || opts.canAllIn)) {
+              const action = opts.canCheck ? ({ action: "CHECK" as const }) : pickLegalAction(snap);
+              room.onMessageEvents.emit("ACTION", clientA as any, {
+                ...action,
+                actionId: `flop-human-deadline-${Date.now()}-${guard}`,
+              });
+              await delay(100);
+              continue;
+            }
+          }
+          await delay(50);
+        }
+
+        expect(reachedFlopHumanToAct).toBe(true);
+        expect(room.state.street).toBe("FLOP");
+        expect(room.state.turnDeadlineMs).toBeGreaterThan(Date.now());
+
+        // Intentionally do not act; this historically produced TABLE_STALLED when deadline was not armed.
+        await delay(16_000);
+
+        const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
+        const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+        expect(stalledCalls.length).toBe(0);
+        expect(redriveCalls.length).toBe(0);
+      } finally {
+        try {
+          await room.onLeave(clientA as any, 4000);
+        } catch {}
+      }
+    },
+    35_000,
+  );
 
   it("emits winner-visible HAND_END snapshot when human folds to bot", async () => {
     const { room, clientA } = await setupHumanVsBotRoom();

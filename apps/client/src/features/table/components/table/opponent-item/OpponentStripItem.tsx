@@ -15,6 +15,8 @@ export type OpponentStripItemProps = {
   /** 0-1 when an opponent is to act (for countdown bar); null otherwise */
   activeTurnProgress?: number | null;
   cardFacePackId: CardFacePackId;
+  /** When true, item fills its slot (e.g. inside MeasuredBoundsReporter); avoids double 50% = 25%. */
+  fillSlot?: boolean;
 };
 
 function renderCards(opponent: Opponent, packId: CardFacePackId): { left: ReactNode; right: ReactNode } {
@@ -42,6 +44,7 @@ export function OpponentStripItem({
   onPlayerPress,
   activeTurnProgress,
   cardFacePackId,
+  fillSlot = false,
 }: OpponentStripItemProps) {
   const { inactive, actionText, isWinner, showTurnBar } = useOpponentStripItem(
     opponent,
@@ -91,6 +94,7 @@ export function OpponentStripItem({
     <OpponentStripItemView
       model={viewModel}
       onPress={onPlayerPress ? () => onPlayerPress(opponent) : undefined}
+      fillSlot={fillSlot}
     />
   );
 }

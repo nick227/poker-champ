@@ -47,8 +47,8 @@ function isMethodDefinition(line, methodName) {
   return new RegExp(`\\b(private|public|protected)\\s+(async\\s+)?${methodName}\\s*\\(`).test(line);
 }
 
-function findMethodRange(lines, methodSignaturePrefix) {
-  const startIndex = lines.findIndex((line) => line.includes(methodSignaturePrefix));
+function findMethodRange(lines, methodMatcher) {
+  const startIndex = lines.findIndex((line) => methodMatcher.test(line));
   if (startIndex < 0) return null;
   let braceDepth = 0;
   let seenOpen = false;
@@ -85,7 +85,8 @@ function main() {
   const text = fs.readFileSync(dealerPath, "utf8");
   const lines = text.split(/\r?\n/);
 
-  const requestDriveRange = findMethodRange(lines, "private requestDrive(");
+  const requestDriveRangeMatcher = /\bprivate\s+(async\s+)?requestDrive\s*\(/;
+  const resolvedRequestDriveRange = findMethodRange(lines, requestDriveRangeMatcher);
   const candidates = [];
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -94,7 +95,7 @@ function main() {
     for (const methodName of TARGET_METHODS) {
       if (!line.includes(`${methodName}(`)) continue;
       if (isMethodDefinition(line, methodName)) continue;
-      if (inRange(lineNo, requestDriveRange)) continue;
+      if (inRange(lineNo, resolvedRequestDriveRange)) continue;
       if (line.includes("requestDrive(")) continue;
       if (line.includes("runDriveChecks(")) continue;
       candidates.push({

@@ -25,4 +25,23 @@ export const actionBarStyles = StyleSheet.create({
     height: BUTTONS.BET_INPUT_ROW_HEIGHT,
     width: "100%",
   },
+  wagerRow: {
+    flex: 1,
+    width: "100%",
+  },
+  wagerPill: {
+    paddingHorizontal: CONTAINER.PADDING_HORIZONTAL,
+    borderRadius: 22,
+  },
+  wagerInputWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  stepperBtn: {
+    minWidth: 40,
+    height: BUTTONS.BET_INPUT_ROW_HEIGHT,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
 });

@@ -10,12 +10,12 @@
 
 export const CONTAINER = Object.freeze({
   /** Vertical margin around board + pot block. */
-  VERTICAL_MARGIN: 16,
+  VERTICAL_MARGIN: 4,
 } as const);
 
 export const BOARD = Object.freeze({
   /** Spacing between community cards row and pot. */
-  POT_MARGIN_TOP: 16,
+  POT_MARGIN_TOP: 12,
 } as const);
 
 export const CARDS = Object.freeze({

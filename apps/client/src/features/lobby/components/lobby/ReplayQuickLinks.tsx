@@ -38,7 +38,7 @@ export function ReplayQuickLinks({
             Site leaderboard
           </Text>
           <Text variant="muted" className="mt-1 text-xs">
-            Is your name among the best?
+            ARe you up there?
           </Text>
           <View className="mt-3">
             <Button
@@ -60,7 +60,7 @@ export function ReplayQuickLinks({
               Poker School
             </Text>
             <Text variant="muted" className="mt-1 text-xs">
-              Guided hands with feedback and quizzes.
+              Strategic poker coaching.
             </Text>
             <View className="mt-3">
               <Button

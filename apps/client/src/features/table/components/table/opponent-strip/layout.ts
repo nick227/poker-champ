@@ -19,7 +19,7 @@ export const CONTAINER = Object.freeze({
   MARGIN_TOP: 0,
   MARGIN_BOTTOM: 0,
   HORIZONTAL_PADDING: 10,
-  VERTICAL_PADDING: 6,
+  VERTICAL_PADDING: 2,
 } as const);
 
 export const ROW = Object.freeze({
@@ -27,7 +27,7 @@ export const ROW = Object.freeze({
   PADDING: 8,
   ITEM_MIN_HEIGHT: 120,
   /** Number of opponent tiles per row in the strip (width = 100% / ITEMS_PER_ROW). */
-  ITEMS_PER_ROW: 4,
+  ITEMS_PER_ROW: 2,
   /** Uniform padding inside each opponent item (x and y). */
   ITEM_PADDING: 8,
   /** Width of the dock to the right of cards/action for the dealer button (space always reserved). */
@@ -48,7 +48,7 @@ export const CARDS = Object.freeze({
   GAP: 0,
   CELL_MIN_WIDTH: 98,
   /** Fixed height of the cards row; card scale is derived from this. */
-  CELL_MIN_HEIGHT: 56,
+  CELL_MIN_HEIGHT: 0,
   /** Rotation in degrees: left card negative, right card positive (fan out). */
   FAN_ANGLE_DEG: 15,
   /** Overlap between the two cards (positive = overlap by this much). */

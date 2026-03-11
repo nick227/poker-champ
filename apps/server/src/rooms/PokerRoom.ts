@@ -212,6 +212,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         roomId: this.roomId,
         reconnectTimeoutMs: this.RECONNECT_TIMEOUT_MS,
         persistentSeatsEnabled: this.persistentSeatsEnabled,
+        decisionStallDetectionEnabled: isDecisionStallDetectionEnabled(),
       },
       "POKER_ROOM_TIMEOUT_CONFIG",
     );
@@ -403,6 +404,30 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       if (decisionStallDetectionEnabled) {
         const stallReason = this.dealer.getStallReasonPublic(now);
         if (stallReason) {
+          const snapshotSilenceMs = this.lastSnapshotAt > 0 ? now - this.lastSnapshotAt : Number.POSITIVE_INFINITY;
+          // BOT_OVERDUE can be transient while lifecycle/snapshot work is still settling.
+          // Avoid false positives until silence exceeds the same stall threshold used by legacy mode.
+          if (stallReason === "BOT_OVERDUE" && snapshotSilenceMs < STALL_THRESHOLD_MS) {
+            this.dealer.logTurnStalledIfNeeded();
+            if (queueDepth >= 2) {
+              logger.warn(
+                { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, queueDepth },
+                "QUEUE_DEPTH_HIGH",
+              );
+            }
+            if (this.lastRuntimeMetricsLogAtMs + METRICS_LOG_INTERVAL_MS < now) {
+              logger.info(
+                {
+                  roomId: this.roomId,
+                  tableId: this.state.tableId,
+                  ...dealerRuntimeMetrics.snapshot(),
+                },
+                "DEALER_RUNTIME_METRICS",
+              );
+              this.lastRuntimeMetricsLogAtMs = now;
+            }
+            return;
+          }
           if (this.lastStallLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
             logger.warn(
               {
@@ -446,11 +471,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           this.state.street !== "WAITING" &&
           this.state.street !== "SHOWDOWN" &&
           this.state.runoutMode !== "STAGED" &&
+          this.state.toActSeat >= 0 &&
           !!toActPlayer &&
           toActPlayer.kind === "HUMAN" &&
           toActPlayer.connected &&
-          toActPlayer.status === "ACTIVE" &&
-          toActPlayer.needsAction;
+          toActPlayer.status === "ACTIVE";
 
         if (
           !waitingOnConnectedHumanTurn &&

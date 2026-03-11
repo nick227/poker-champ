@@ -254,6 +254,34 @@ Rollback:
 - Keep rollback for each phase (disable flag + return to prior path).
 - Keep high-signal diagnostics on by sampling during rollout.
 
+## CI Readiness Gate
+
+Phase 7 extraction is now protected by CI readiness gates in soak workflows.
+
+Required checks:
+
+- `analyze:phase4:gate` must pass.
+- `analyze:phase7:ready` must pass.
+
+`analyze:phase7:ready` enforces:
+
+- No stall/timeout invariant regressions.
+- `decisionRuntimeMismatches == 0`.
+- Parity evidence exists (`decisionRuntimePairs >= 1`).
+- Dead-path candidate count does not exceed configured baseline (`PHASE7_DEAD_PATH_BASELINE`).
+
+Workflow baseline:
+
+- `PHASE7_DEAD_PATH_BASELINE=16`
+
+How to update baseline safely:
+
+1. Land intentional dead-path cleanup changes.
+2. Run two clean soak+parity cycles.
+3. Re-run `analyze:phase7:dead-paths` and record new `CandidateCount`.
+4. Update `PHASE7_DEAD_PATH_BASELINE` in CI workflows to the new count in the same PR.
+5. Do not increase baseline without corresponding reviewed cleanup/context.
+
 ## Why Not Phase 7 Yet
 
 Phase 7 (single unified driver) is a high-blast-radius refactor. We should not move to it until Phase 4/5 behavior is repeatedly clean under soak and analyzer gates.

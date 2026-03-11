@@ -74,6 +74,45 @@ export function buildTableSceneModel(
     connectionStatus,
   });
 
+  if (__DEV__ && isMyTurn && heroActionOptions) {
+    const anyHeroOption =
+      !!heroActionOptions.canFold ||
+      !!heroActionOptions.canCheck ||
+      !!heroActionOptions.canCall ||
+      !!heroActionOptions.canAllIn ||
+      !!heroActionOptions.canBet ||
+      !!heroActionOptions.canRaise;
+    const anyUiAction =
+      actionContext.allowedActions.FOLD ||
+      actionContext.allowedActions.CHECK ||
+      actionContext.allowedActions.CALL ||
+      actionContext.allowedActions.ALL_IN ||
+      actionContext.allowedActions.WAGER;
+    if (!anyHeroOption || !anyUiAction) {
+      console.warn("HUMAN_TO_ACT_ACTIONABILITY_DIAG", {
+        tableId: snapshot.table.tableId,
+        handId: snapshot.hand?.handId,
+        snapshotId: snapshot.snapshotId,
+        street: snapshot.hand?.street,
+        toActSeat: snapshot.hand?.toActSeat,
+        heroSeat,
+        isMyTurn,
+        connectionStatus,
+        heroActionOptions: {
+          canFold: !!heroActionOptions.canFold,
+          canCheck: !!heroActionOptions.canCheck,
+          canCall: !!heroActionOptions.canCall,
+          canAllIn: !!heroActionOptions.canAllIn,
+          canBet: !!heroActionOptions.canBet,
+          canRaise: !!heroActionOptions.canRaise,
+          callAmount: heroActionOptions.callAmount ?? null,
+          primaryWagerAction: heroActionOptions.primaryWagerAction ?? null,
+        },
+        allowedActions: actionContext.allowedActions,
+      });
+    }
+  }
+
   return {
     handSummary,
     actionContext,

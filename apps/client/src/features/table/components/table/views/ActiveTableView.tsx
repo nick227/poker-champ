@@ -131,9 +131,16 @@ export function ActiveTableView({
     isHeroDealer,
   } = model;
 
-  const turnCountdownSeconds = useTurnCountdown(isHeroToAct, tableMode === "live");
+  const turnDeadlineMs = snapshot.hand?.turnDeadlineMs;
+  const turnTimeoutTotalMs = snapshot.hand?.turnTimeoutTotalMs;
+  const turnCountdownSeconds = useTurnCountdown(
+    isHeroToAct,
+    tableMode === "live",
+    turnDeadlineMs,
+    turnTimeoutTotalMs,
+  );
   const hasOpponentToAct = opponents.some((o) => o.isActive);
-  const activeTurnProgress = useTurnProgress(hasOpponentToAct, tableMode === "live");
+  const activeTurnProgress = useTurnProgress(hasOpponentToAct, tableMode === "live", turnTimeoutTotalMs);
 
   useEffect(() => {
     const handId = snapshot.hand?.handId ?? null;

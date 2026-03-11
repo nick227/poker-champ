@@ -290,7 +290,9 @@ export class Dealer {
       buildDiagnosticContext: (context) => this.buildDiagnosticContext(context),
       handleInternalAction: (userId, payload) => this._handleAction(userId, payload, "AUTO"),
       setPlayerSittingOutInternal: (userId, sittingOut) => this.setPlayerSittingOutInternal(userId, sittingOut),
-      onAutoActionDiscarded: () => this.maybeActForBot(),
+      onAutoActionDiscarded: () => {
+        void this.requestDrive("MAYBE_ACT_FOR_BOT:AUTO_ACTION_DISCARDED");
+      },
     });
     // Hand-scoped getters: return currentHand's maps when a hand is active, else empty. Write paths (e.g. deal
     // in HandLifecycleService) only run when currentHand was just set (startHand) or during an active hand.
@@ -401,6 +403,7 @@ export class Dealer {
       getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
       emitHook: options?.onTableSnapshotEmitted,
       getAvatarByUserId: options?.getAvatarByUserId,
+      getTurnTimeoutTotalMs: () => TURN_TIMEOUT_TOTAL_MS,
     });
     this.actionService = new ActionService({
       state: this.state,
@@ -626,18 +629,31 @@ export class Dealer {
     if (!toActPlayer.needsAction) {
       const actionableRound =
         !bettingRoundComplete(this.state) &&
-        !noFurtherBettingPossible(this.state) &&
-        this.state.runoutMode !== "STAGED";
+        !noFurtherBettingPossible(this.state);
       if (
         actionableRound &&
         this.state.roundState === "WAITING_FOR_ACTION" &&
         toActPlayer.kind === "HUMAN" &&
-        toActPlayer.connected &&
-        process.env.NODE_ENV !== "production"
+        toActPlayer.connected
       ) {
-        throw new PokerError(
-          "BAD_STATE",
-          `WAITING actor does not require action: hand=${this.state.handId} seat=${this.state.toActSeat} street=${this.state.street}`,
+        const failFast = process.env.POKER_FAIL_FAST_INVARIANTS === "1";
+        if (failFast) {
+          throw new PokerError(
+            "BAD_STATE",
+            `WAITING actor does not require action: hand=${this.state.handId} seat=${this.state.toActSeat} street=${this.state.street}`,
+          );
+        }
+        logger.error(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+            userId: toActUserId,
+            trigger,
+          },
+          "WAITING_ACTOR_NEEDS_ACTION_INVALID_REPAIRED",
         );
       }
       if (!actionableRound) {
@@ -1189,37 +1205,50 @@ export class Dealer {
       this.logToActDerivationWarning(trigger);
       this.logEngineDecisionAndRuntimeStep(trigger, driveNow);
     };
-    switch (reason) {
-      // Phase 7 Step D (single trigger path): keep equivalent behavior while
-      // routing progression checks through requestDrive boundary.
-      case "ACTION_RESOLVED_NEXT_ACTOR":
-        runDriveChecks("ACTION_RESOLVED_NEXT_ACTOR");
-        return;
-      // Phase 7 Step E: second trigger path routed through requestDrive.
-      default:
-        if (reason.startsWith("START_HAND:")) {
-          await this.startHand();
+    try {
+      switch (reason) {
+        // Phase 7 Step D (single trigger path): keep equivalent behavior while
+        // routing progression checks through requestDrive boundary.
+        case "ACTION_RESOLVED_NEXT_ACTOR":
+          runDriveChecks("ACTION_RESOLVED_NEXT_ACTOR");
           return;
-        }
-        if (reason.startsWith("ADVANCE_STREET_OR_SHOWDOWN:")) {
-          await this.advanceStreetOrShowdown();
+        // Phase 7 Step E: second trigger path routed through requestDrive.
+        default:
+          if (reason.startsWith("START_HAND:")) {
+            await this.startHand();
+            return;
+          }
+          if (reason.startsWith("ADVANCE_STREET_OR_SHOWDOWN:")) {
+            await this.advanceStreetOrShowdown();
+            return;
+          }
+          if (reason.startsWith("FINISH_HAND_LAST_STANDING:")) {
+            await this.finishHandByLastStanding();
+            return;
+          }
+          if (reason.startsWith("MAYBE_ACT_FOR_BOT:")) {
+            this.maybeActForBot();
+            runDriveChecks(reason);
+            return;
+          }
+          if (reason.startsWith("ROUND_STATE_ENTER:")) {
+            this.maybeActForBot();
+            runDriveChecks(reason);
+            return;
+          }
           return;
-        }
-        if (reason.startsWith("FINISH_HAND_LAST_STANDING:")) {
-          await this.finishHandByLastStanding();
-          return;
-        }
-        if (reason.startsWith("MAYBE_ACT_FOR_BOT:")) {
-          this.maybeActForBot();
-          runDriveChecks(reason);
-          return;
-        }
-        if (reason.startsWith("ROUND_STATE_ENTER:")) {
-          this.maybeActForBot();
-          runDriveChecks(reason);
-          return;
-        }
-        return;
+      }
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          reason,
+        },
+        "REQUEST_DRIVE_FAILED",
+      );
     }
   }
 
@@ -1670,6 +1699,8 @@ export class Dealer {
   // Internal snapshot emission (public API available for single-user emits)
 
   private async sendTableSnapshotToAll(reason: SnapshotReason, actionId?: string): Promise<void> {
+    // Arm human turn timer before building snapshot so client receives turnDeadlineMs and can show countdown.
+    this.ensureHumanTurnTimerForCurrentActor(`SNAPSHOT:${reason}`);
     const ensureRecipient = this.pendingActorRef
       ? { userId: this.pendingActorRef.userId, client: this.pendingActorRef.client }
       : undefined;

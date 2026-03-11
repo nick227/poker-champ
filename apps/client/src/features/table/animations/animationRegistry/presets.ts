@@ -75,14 +75,14 @@ export const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "TEXT", textRole: "amount", durationMs: 600, delayMs: CHOREO_AMOUNT_MS },
   ],
   POT_TIER_1: [
-    { type: "FLASH", durationMs: 300, delayMs: CHOREO_FLASH_MS },
+    { type: "FLASH", plane: "BACKGROUND", durationMs: 300, delayMs: CHOREO_FLASH_MS },
     { type: "RING", durationMs: 500, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "medium", durationMs: 900, delayMs: CHOREO_HEADLINE_MS },
     { type: "TEXT", textRole: "amount", durationMs: 700, delayMs: CHOREO_AMOUNT_MS },
   ],
   POT_TIER_2: [
     { type: "BURST", preset: "burst", delayMs: CHOREO_BURST_MS },
-    { type: "FLASH", durationMs: 350, delayMs: CHOREO_FLASH_MS },
+    { type: "FLASH", plane: "BACKGROUND", durationMs: 350, delayMs: CHOREO_FLASH_MS },
     { type: "RING", durationMs: 600, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "large", durationMs: 1000, delayMs: CHOREO_HEADLINE_MS },
     { type: "TEXT", textRole: "amount", textSize: "medium", durationMs: 800, delayMs: CHOREO_AMOUNT_MS },

@@ -27,8 +27,3 @@ export const DEALER_BUTTON = Object.freeze({
 export const TEXT = Object.freeze({
   HEADER_MIN_HEIGHT: 16,
 } as const);
-
-export const STACK = Object.freeze({
-  GAP: 4,
-  DEALER_SLOT_OFFSET: 8,
-} as const);

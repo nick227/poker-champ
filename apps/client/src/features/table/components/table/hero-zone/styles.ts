@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { CONTAINER, CARDS, DEALER_BUTTON, TEXT, STACK } from "./layout";
+import { CONTAINER, CARDS, DEALER_BUTTON, TEXT } from "./layout";
 import { ACTIVE_TILE_BORDER } from "../tokens/colors.tokens";
 
 export const heroZoneStyles = StyleSheet.create({
@@ -46,56 +46,12 @@ export const heroZoneStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  stackCol: {
-    gap: STACK.GAP,
-    position: "relative",
-    paddingRight: DEALER_BUTTON.SLOT_SIZE + STACK.DEALER_SLOT_OFFSET,
-    alignSelf: "stretch",
-  },
-  stackColContent: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dealerSlotStack: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: DEALER_BUTTON.SLOT_SIZE,
-    height: DEALER_BUTTON.SLOT_SIZE,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroIdentityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minWidth: 0,
-  },
-  heroAvatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 999,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroAvatarImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 999,
-  },
   calcCol: {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "space-between",
     minWidth: DEALER_BUTTON.SLOT_SIZE,
     alignSelf: "stretch",
-  },
-  dealerSlot: {
-    width: DEALER_BUTTON.SLOT_SIZE,
-    height: DEALER_BUTTON.SLOT_SIZE,
-    justifyContent: "center",
-    alignItems: "center",
   },
   sittingOutBadge: {
     alignItems: "center",

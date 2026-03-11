@@ -9,15 +9,15 @@ type Props = {
   value: string;
   onChangeText: (t: string) => void;
   placeholder?: string;
+  onSubmit?: () => void;
 };
 
-export function PasswordInput({ label, value, onChangeText, placeholder }: Props) {
+export function PasswordInput({ label, value, onChangeText, placeholder, onSubmit }: Props) {
   const [visible, setVisible] = useState(false);
   return (
     <View className="ui-stack-2">
       {label ? <Text variant="muted">{label}</Text> : null}
       <View className="ui-row ui-inline-2 ui-surface ui-p-md min-h-[44px] items-center">
-        <Text variant="muted">🔒</Text>
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -26,6 +26,7 @@ export function PasswordInput({ label, value, onChangeText, placeholder }: Props
           secureTextEntry={!visible}
           autoCapitalize="none"
           autoCorrect={false}
+          onSubmitEditing={onSubmit ? () => onSubmit() : undefined}
           className="flex-1 py-2 text-text"
         />
         <Pressable
