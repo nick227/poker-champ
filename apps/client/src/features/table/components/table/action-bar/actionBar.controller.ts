@@ -86,7 +86,7 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
       return;
     }
     dispatch({ type: "RESET_TO_MIN", min: wager.bounds.min });
-  }, [wager?.bounds.min, wager?.bounds.max]);
+  }, [wager]);
 
   const wagerCalculations = useWagerCalculations(wager, potCents);
   const { display } = wagerState;
