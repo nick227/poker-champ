@@ -200,7 +200,7 @@ export function TableAnimationOverlay({
       }
       return next;
     });
-  }, [request, settings.enabled]);
+  }, [request, settings.enabled, settings.reducedMotion]);
 
   useEffect(() => {
     if (!settings.enabled) return;

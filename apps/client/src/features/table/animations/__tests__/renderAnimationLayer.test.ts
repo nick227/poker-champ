@@ -14,19 +14,14 @@ vi.mock("react-native", () => {
   };
   const Animated = {
     Value: class Value {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       constructor(_v: number) {}
     },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     timing: (_value: unknown, _config: unknown) => ({ start: (cb?: () => void) => cb?.() }),
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     sequence: (_anims: unknown[]) => ({ start: (cb?: () => void) => cb?.() }),
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     parallel: (_anims: unknown[]) => ({ start: (cb?: () => void) => cb?.() }),
   };
   const StyleSheet = {
     absoluteFill: {},
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     create: (styles: Record<string, unknown>) => styles,
   };
   const View = (_props: unknown) => null;

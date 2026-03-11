@@ -371,7 +371,7 @@ export class Dealer {
       isDisposed: () => this.disposed,
       flushSessionStatsOnly: () => this.flushSessionStatsOnly(),
       maybeActForBot: async () => {
-        this.maybeActForBot();
+        await this.requestDrive("MAYBE_ACT_FOR_BOT:LIFECYCLE_EXECUTOR");
       },
       getLifecycleLogContext: () => ({
         tableId: this.state.tableId,

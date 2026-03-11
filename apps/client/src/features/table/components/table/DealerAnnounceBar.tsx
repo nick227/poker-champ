@@ -84,7 +84,7 @@ export function DealerAnnounceBar({
     <Surface
       styleId={styleId}
       collapsable={false}
-      className="relative flex-shrink-0 bg-panel/90 rounded-lg p-4 mx-auto max-w-[96%]"
+      className="relative flex-shrink-0 p-4 mx-auto max-w-[96%]"
     >
       <Text
         variant="body"

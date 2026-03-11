@@ -14,7 +14,7 @@ function isFatalConsoleMessage(msg: ConsoleMessage): boolean {
 }
 
 export const test = base.extend({
-  page: async ({ page }, use) => {
+  page: async ({ page }, runPage) => {
     const fatalErrors: string[] = [];
 
     const onConsole = (msg: ConsoleMessage) => {
@@ -30,7 +30,7 @@ export const test = base.extend({
     page.on("console", onConsole);
     page.on("pageerror", onPageError);
 
-    await use(page);
+    await runPage(page);
 
     page.off("console", onConsole);
     page.off("pageerror", onPageError);
