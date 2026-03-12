@@ -389,6 +389,70 @@ async function setupHumanVsBotRoom() {
     }
   });
 
+  it("broadcast ordering emits valid post-action progression snapshots", async () => {
+    const { room, clientA, clientB } = await setupTwoPlayerRoom();
+    try {
+      const snap = clientA.latestSnapshot!;
+      const toActSeat = snap.hand!.toActSeat;
+      const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+      expect(toActUserId).toBeTruthy();
+      if (!toActUserId) return;
+
+      const actorClient = toActUserId === "user_a" ? clientA : clientB;
+      const beforeA = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
+      const beforeB = clientB.sentByType.TABLE_SNAPSHOT?.length ?? 0;
+      const action = pickLegalAction(actorClient.latestSnapshot!);
+
+      room.onMessageEvents.emit("ACTION", actorClient as any, {
+        ...action,
+        actionId: `ordering-${Date.now()}`,
+      });
+      await flushAsync();
+
+      await waitFor(
+        () =>
+          (clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0) > beforeA &&
+          (clientB.sentByType.TABLE_SNAPSHOT?.length ?? 0) > beforeB,
+        4000,
+        "both clients receive post-action snapshots",
+      );
+
+      const checkOrder = (snapshots: TableSnapshotPayload[]) => {
+        const reasons = snapshots.map((s) => s.reason);
+        expect(reasons.length).toBeGreaterThan(0);
+        expect(["ACTION_ACCEPTED", "AUTO_TRANSITION", "BOT_ACTION"]).toContain(reasons[0]);
+
+        const acceptedIdx = reasons.indexOf("ACTION_ACCEPTED");
+        if (acceptedIdx < 0) return;
+
+        const nextIdx = reasons.findIndex((reason, idx) =>
+          idx > acceptedIdx &&
+          (reason === "AUTO_TRANSITION" ||
+            reason === "BOT_ACTION" ||
+            reason === "RUNOUT_STAGE" ||
+            reason === "HAND_SHOWDOWN" ||
+            reason === "HAND_END"),
+        );
+
+        if (nextIdx >= 0) {
+          expect(acceptedIdx).toBeLessThan(nextIdx);
+        }
+      };
+
+      const afterA = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeA);
+      const afterB = ((clientB.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeB);
+      checkOrder(afterA);
+      checkOrder(afterB);
+    } finally {
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
   it("rejects action when provided handId does not match current hand", async () => {
     const { room, clientA, clientB } = await setupTwoPlayerRoom();
     try {
@@ -779,18 +843,22 @@ async function setupHumanVsBotRoom() {
     const warnSpy = vi.spyOn(logger, "warn");
     const { room, clientA } = await setupHumanVsBotRoom();
     try {
-      const startHandId = clientA.latestSnapshot?.hand?.handId;
-      expect(startHandId).toBeTruthy();
-      let guard = 0;
-      while (guard < 30) {
-        guard += 1;
+      let currentHandId = clientA.latestSnapshot?.hand?.handId;
+      expect(currentHandId).toBeTruthy();
+      const maxIterations = 200;
+      let iterations = 0;
+      while (iterations < maxIterations) {
+        iterations += 1;
         const snap = clientA.latestSnapshot;
         const hand = snap?.hand;
         if (!snap || !hand) {
           await delay(50);
           continue;
         }
-        if (hand.handId !== startHandId) break;
+        if (hand.handId !== currentHandId) {
+          currentHandId = hand.handId;
+          continue;
+        }
         const toActSeat = hand.toActSeat;
         const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
         const heroOpts = snap.hero.actionOptions;
@@ -810,7 +878,7 @@ async function setupHumanVsBotRoom() {
         if (toActUserId === "user_a" && heroCanAct) {
           const beforeSnapshotId = snap.snapshotId;
           const action = heroOpts?.canCheck ? ({ action: "CHECK" as const }) : pickLegalAction(snap);
-          room.onMessageEvents.emit("ACTION", clientA as any, { ...action, actionId: `river-actionable-${Date.now()}-${guard}` });
+          room.onMessageEvents.emit("ACTION", clientA as any, { ...action, actionId: `river-actionable-${Date.now()}-${iterations}` });
           await waitFor(
             () =>
               Boolean(clientA.latestSnapshot?.snapshotId) &&
@@ -951,6 +1019,204 @@ async function setupHumanVsBotRoom() {
         expect(redriveCalls.length).toBe(0);
       } finally {
         room.onDispose();
+      }
+    },
+    35_000,
+  );
+
+  it(
+    "re-derives actor when human becomes inactive mid-turn",
+    async () => {
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        return { action: "FOLD" };
+      });
+
+      const { room, clientA } = await setupHumanVsBotRoomWithTimeouts();
+      try {
+        const startHandId = clientA.latestSnapshot?.hand?.handId;
+        expect(startHandId).toBeTruthy();
+
+        await waitFor(
+          () => {
+            const snap = clientA.latestSnapshot;
+            const hand = snap?.hand;
+            if (!snap || !hand || hand.handId !== startHandId) return false;
+            const toActUserId = snap.seats.find((s) => s.seat === hand.toActSeat)?.userId;
+            return toActUserId === "user_a";
+          },
+          12_000,
+          "human toAct before inactivation",
+        );
+
+        const seqBefore = room.state.handActionSeq;
+        const handBefore = room.state.handId;
+        if (typeof room.dealer.markDisconnectedSerialized === "function") {
+          await room.dealer.markDisconnectedSerialized("user_a", Date.now() - 1);
+        } else {
+          room.dealer.markDisconnected("user_a", Date.now() - 1);
+        }
+
+        await waitFor(
+          () =>
+            room.state.handId !== handBefore ||
+            room.state.handActionSeq > seqBefore ||
+            room.state.seats[room.state.toActSeat] !== "user_a",
+          8_000,
+          "actor re-derived after human inactivation",
+        );
+
+        if (room.state.handId === handBefore && room.state.street !== "WAITING") {
+          expect(room.state.seats[room.state.toActSeat]).not.toBe("user_a");
+        }
+      } finally {
+        room.onDispose();
+      }
+    },
+    35_000,
+  );
+
+  it(
+    "discarded stale queued callback from prior turn does not mutate newer turn state",
+    async () => {
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        return { action: "FOLD" };
+      });
+      const infoSpy = vi.spyOn(logger, "info");
+
+      const { room, clientA } = await setupHumanVsBotRoom();
+      try {
+        const initialHandId = clientA.latestSnapshot?.hand?.handId ?? "";
+        expect(initialHandId).toBeTruthy();
+
+        await waitFor(
+          () => {
+            const snap = clientA.latestSnapshot;
+            if (!snap?.hand || snap.hand.handId !== initialHandId) return false;
+            const toActUserId = snap.seats.find((s) => s.seat === snap.hand!.toActSeat)?.userId;
+            return Boolean(toActUserId && toActUserId.startsWith("bot_"));
+          },
+          12_000,
+          "bot toAct before stale queue test",
+        );
+
+        const botUserId =
+          clientA.latestSnapshot?.seats.find((s) => s.userId.startsWith("bot_"))?.userId ?? "";
+        expect(botUserId).toBeTruthy();
+        if (!botUserId) return;
+
+        const dealerAny = room.dealer as any;
+        const beforeSeq = room.state.handActionSeq;
+        dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "CALL" }, 0);
+        dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "CALL" }, 400);
+
+        await waitFor(
+          () => room.state.handActionSeq > beforeSeq,
+          6_000,
+          "newer turn observed after immediate queued action",
+        );
+        const boundaryHandId = room.state.handId;
+        const boundaryStreet = room.state.street;
+        const boundarySeq = room.state.handActionSeq;
+
+        await delay(900);
+
+        expect(room.state.handId).toBe(boundaryHandId);
+        expect(room.state.street).toBe(boundaryStreet);
+        expect(room.state.handActionSeq).toBeGreaterThanOrEqual(boundarySeq);
+        const staleDiscardSeen = infoSpy.mock.calls.some((call) => {
+          const msg = String(call[1] ?? "");
+          const payload = call[0] as { msg?: string; staleReason?: string } | undefined;
+          return (
+            msg === "AUTO_ACTION_DISCARDED" ||
+            payload?.msg === "AUTO_ACTION_DISCARDED" ||
+            (
+              payload?.staleReason === "HAND_ID_CHANGED" ||
+              payload?.staleReason === "STREET_CHANGED" ||
+              payload?.staleReason === "HAND_ACTION_SEQ_CHANGED"
+            )
+          );
+        });
+        expect(staleDiscardSeen).toBe(true);
+      } finally {
+        room.onDispose();
+      }
+    },
+    35_000,
+  );
+
+  it(
+    "stale human timeout callback from prior hand is inert after hand restart boundary",
+    async () => {
+      const realSetTimeout = global.setTimeout;
+      const realClearTimeout = global.clearTimeout;
+      const capturedTimeouts = new Map<number, () => void>();
+      let nextHandle = 1;
+
+      vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, ms?: number) => {
+        if (typeof ms === "number" && ms >= 30_000) {
+          const handle = nextHandle++;
+          capturedTimeouts.set(handle, () => cb());
+          return handle as unknown as ReturnType<typeof setTimeout>;
+        }
+        return realSetTimeout(cb as (...args: unknown[]) => void, ms);
+      }) as typeof setTimeout);
+      vi.spyOn(global, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
+        const removed = capturedTimeouts.delete(Number(id));
+        if (!removed) {
+          realClearTimeout(id as unknown as NodeJS.Timeout);
+        }
+      }) as typeof clearTimeout);
+
+      const { room, clientA } = await setupHumanVsBotRoomWithTimeouts();
+      try {
+        await waitFor(
+          () => capturedTimeouts.size > 0 && (room.state.turnDeadlineMs ?? 0) > Date.now(),
+          12_000,
+          "initial human timeout arm",
+        );
+
+        const staleCallback = capturedTimeouts.values().next().value as (() => void) | undefined;
+        expect(staleCallback).toBeTruthy();
+        if (!staleCallback) return;
+
+        const state = room.state;
+        const userA = state.playersById.get("user_a");
+        expect(userA).toBeTruthy();
+        if (!userA) return;
+
+        const priorHandId = state.handId;
+        state.handId = `${priorHandId}_restarted`;
+        state.street = "PREFLOP";
+        state.roundState = "WAITING_FOR_ACTION";
+        state.turnDeadlineMs = 0;
+        state.toActSeat = userA.seat;
+        userA.status = "ACTIVE";
+        userA.connected = true;
+        userA.needsAction = true;
+
+        await (room.dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+        await waitFor(
+          () => (state.turnDeadlineMs ?? 0) > Date.now(),
+          4_000,
+          "new hand timeout arm",
+        );
+
+        const beforeDeadline = state.turnDeadlineMs;
+        staleCallback();
+        await delay(50);
+
+        expect(state.handId).toBe(`${priorHandId}_restarted`);
+        expect(state.turnDeadlineMs).toBe(beforeDeadline);
+        expect(userA.status).toBe("ACTIVE");
+      } finally {
+        room.onDispose();
+        vi.restoreAllMocks();
+        global.setTimeout = realSetTimeout;
+        global.clearTimeout = realClearTimeout;
       }
     },
     35_000,

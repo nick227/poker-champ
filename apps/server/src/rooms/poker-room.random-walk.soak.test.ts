@@ -274,14 +274,25 @@ describe("poker room random walk soak", () => {
           continue;
         }
 
-        if (Date.now() - lastProgressAt > 15_000 || Date.now() - lastRoomProgressAt > 15_000) {
+        const now = Date.now();
+        const turnDeadlineMs = Number(room.state.turnDeadlineMs ?? 0);
+        const humanDeadlineActive =
+          liveToActUserId === "user_human" &&
+          snapshotTracksLiveHand &&
+          turnDeadlineMs > now;
+        // Give a bounded grace window when a valid human deadline is active.
+        const progressBudgetMs = humanDeadlineActive
+          ? Math.min(45_000, Math.max(15_000, turnDeadlineMs - now + 2_000))
+          : 15_000;
+        if (now - lastProgressAt > progressBudgetMs || now - lastRoomProgressAt > progressBudgetMs) {
           throw new Error(
-            `No table progress for >15s at hand=${hand.handId} street=${hand.street} toActSeat=${hand.toActSeat} roomStreet=${roomStreetNow} roomHand=${roomHandIdNow} roomHandActionSeq=${roomActionSeqNow}`,
+            `No table progress for >${progressBudgetMs}ms at hand=${hand.handId} street=${hand.street} toActSeat=${hand.toActSeat} roomStreet=${roomStreetNow} roomHand=${roomHandIdNow} roomHandActionSeq=${roomActionSeqNow} toActUser=${liveToActUserId} turnDeadlineMs=${turnDeadlineMs}`,
           );
         }
-        if (Date.now() - lastHandCompletedAt > 30_000) {
+        const handCompletionBudgetMs = Math.max(30_000, progressBudgetMs + 15_000);
+        if (now - lastHandCompletedAt > handCompletionBudgetMs) {
           throw new Error(
-            `Room soak stalled: no hand completed in 30s (activeHand=${hand.handId} street=${hand.street})`,
+            `Room soak stalled: no hand completed in ${handCompletionBudgetMs}ms (activeHand=${hand.handId} street=${hand.street})`,
           );
         }
 

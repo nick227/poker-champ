@@ -98,7 +98,8 @@ export const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "TEXT", textRole: "amount", textSize: "large", durationMs: 900, delayMs: CHOREO_AMOUNT_MS },
   ],
   POT_TIER_4: [
-    // Atmosphere (BACKGROUND plane): preset supplies duration/opacity; layer supplies plane.
+    // Background video celebration (casino.webm) plus gold atmosphere.
+    { type: "ASSET", assetType: "VIDEO", source: "casino", plane: "BACKGROUND", preload: true, durationMs: 2200, delayMs: 0 },
     { type: "RADIAL_GLOW", preset: "ambientGold", plane: "BACKGROUND" },
     { type: "FLASH", plane: "BACKGROUND", durationMs: 500, delayMs: IMPACT_CHOREO_FLASH_MS },
     { type: "BURST", preset: "winBurst" },

@@ -103,12 +103,12 @@ function main() {
   if (args.includeRegressions) {
     const engineRegressionCmd =
       `pnpm exec vitest run apps/server/src/engine/dealer.auto-action-warning.regression.test.ts ` +
-      `-t "DRIVE-R06|DRIVE-R07|RETRY-R01|AUTO-WARN-R05|TIMER-RACE-R01|TIMER-RACE-R02|TIMER-RACE-R03"`;
+      `-t "DRIVE-R06|DRIVE-R07|DRIVE-R08|RETRY-R01|AUTO-WARN-R05|TIMER-RACE-R01|TIMER-RACE-R02|TIMER-RACE-R03|TIMER-RACE-R04"`;
     runOrFail(engineRegressionCmd, [], { cwd: repoRoot, env });
 
     const roomRegressionCmd =
       `pnpm exec vitest run apps/server/src/rooms/table-action-broadcast.test.ts ` +
-      `-t "rejoin/session-swap with pending action replay remains idempotent for same actionId|rejects stale client action after turn has advanced"`;
+      `-t "rejoin/session-swap with pending action replay remains idempotent for same actionId|rejects stale client action after turn has advanced|broadcast ordering emits valid post-action progression snapshots|re-derives actor when human becomes inactive mid-turn|discarded stale queued callback from prior turn does not mutate newer turn state|stale human timeout callback from prior hand is inert after hand restart boundary"`;
     runOrFail(roomRegressionCmd, [], { cwd: repoRoot, env });
   }
 

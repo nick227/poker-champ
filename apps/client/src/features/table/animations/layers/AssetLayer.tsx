@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { View } from "react-native";
+import { Video } from "expo-av";
 import type { AnimationAssetType } from "../animationTypes";
+import { getVideoAsset } from "../video.registry";
 
 type AssetLayerProps = {
   assetType: AnimationAssetType;
@@ -13,12 +15,8 @@ type AssetLayerProps = {
   onEnd?: () => void;
 };
 
-/**
- * Stub for ASSET layer (VIDEO | LOTTIE | SPRITE).
- * Placeholder until Phase 2: real playback will call onReady/onEnd; overlay contract unchanged.
- * When source is empty or load fails, render nothing (no crash).
- */
 export function AssetLayer({
+  assetType,
   source,
   delayMs = 0,
   durationMs = 800,
@@ -26,9 +24,19 @@ export function AssetLayer({
   onEnd,
 }: AssetLayerProps) {
   const mounted = useRef(true);
+  const videoRef = useRef<Video | null>(null);
+
+  const resolvedSource = (() => {
+    if (!source?.trim()) return undefined;
+    if (assetType === "VIDEO") {
+      const asset = getVideoAsset(source);
+      if (asset?.module != null) return asset.module;
+    }
+    return { uri: source };
+  })();
 
   useEffect(() => {
-    if (!source?.trim()) {
+    if (!resolvedSource) {
       onEnd?.();
       return;
     }
@@ -36,17 +44,37 @@ export function AssetLayer({
     const start = () => {
       if (!mounted.current) return;
       onReady?.();
-      // Phase 2: real playback will call onEnd when asset finishes
-      endTimeout = setTimeout(() => onEnd?.(), durationMs);
+      endTimeout = setTimeout(() => {
+        if (!mounted.current) return;
+        onEnd?.();
+      }, durationMs);
     };
     const delayTimeout = delayMs > 0 ? setTimeout(start, delayMs) : (start(), undefined);
     return () => {
-      mounted.current = false;
       if (delayTimeout != null) clearTimeout(delayTimeout);
       if (endTimeout != null) clearTimeout(endTimeout);
     };
-  }, [source, delayMs, durationMs, onReady, onEnd]);
+  }, [resolvedSource, delayMs, durationMs, onReady, onEnd]);
 
-  if (!source?.trim()) return null;
+  if (!resolvedSource) return null;
+  if (assetType === "VIDEO") {
+    return (
+      <Video
+        ref={videoRef}
+        style={{ flex: 1 }}
+        pointerEvents="none"
+        source={resolvedSource}
+        resizeMode="cover"
+        isLooping={false}
+        shouldPlay
+        onPlaybackStatusUpdate={(status) => {
+          if (!mounted.current) return;
+          if ("didJustFinish" in status && status.didJustFinish) {
+            onEnd?.();
+          }
+        }}
+      />
+    );
+  }
   return <View style={{ flex: 1 }} pointerEvents="none" />;
 }

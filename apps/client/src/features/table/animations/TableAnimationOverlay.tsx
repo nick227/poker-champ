@@ -31,6 +31,7 @@ import type {
 } from "./animationTypes";
 import { FX_ANCHOR } from "./animationTypes";
 import { DEFAULT_HEADLINES, filterReducedMotionLayers, FX_DEBUG_ANCHORS, FX_DEBUG_PREFIX, MIN_DISPLAY_MS } from "./animationConstants";
+import { shouldRunTableAnimationRequest } from "./animationGuards";
 import { resolveRenderableLayers } from "./overlayRenderable";
 import { renderAnimationLayer } from "./renderAnimationLayer";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
@@ -171,6 +172,7 @@ export function TableAnimationOverlay({
 
   useEffect(() => {
     if (!request || !settings.enabled) return;
+    if (!shouldRunTableAnimationRequest(request)) return;
     const effectiveTier = settings.reducedMotion ? Math.min(request.tier, 1) : request.tier;
     const reducedRequest: TableAnimationRequest = { ...request, tier: effectiveTier as 0 | 1 | 2 | 3 | 4 };
     const { table, hero, seat } = resolveAnimationWithCompanions(reducedRequest);

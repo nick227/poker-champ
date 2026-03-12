@@ -868,6 +868,149 @@ describe("dealer auto-action warning regressions", () => {
     dealer.dispose();
   });
 
+  it("DRIVE-R08: toAct actor becoming inactive mid-turn re-derives actor and timer owner", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r08";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_drive_r08";
+    state.handNumber = 1;
+    state.street = "TURN";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.roundCurrentBetCents = 100;
+    state.minRaiseCents = 100;
+    state.potCents = 200;
+    state.toActSeat = 0;
+    state.seats.push("h1", "h2", "", "", "", "");
+
+    const h1 = makePlayer({
+      id: "h1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    const h2 = makePlayer({
+      id: "h2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(h1.id, h1);
+    state.playersById.set(h2.id, h2);
+
+    const dealer = new Dealer(state);
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+    const scheduler = (dealer as any).turnManager?.turnTimeoutScheduler;
+    const beforeKey = String(scheduler?.pendingHumanTurnTimeoutKey ?? "");
+    expect(beforeKey).toContain(":h1");
+
+    h1.status = "OUT";
+    h1.needsAction = false;
+    h1.connected = false;
+
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+    const afterKey = String(scheduler?.pendingHumanTurnTimeoutKey ?? "");
+    expect(state.toActSeat).toBe(1);
+    expect(afterKey).toContain(":h2");
+    expect(afterKey).not.toContain(":h1");
+    expect(state.turnDeadlineMs).toBeGreaterThan(0);
+    dealer.dispose();
+  });
+
+  it("TIMER-RACE-R04: stale timeout callback from prior hand is inert after hand restart", async () => {
+    const state = new PokerState();
+    state.tableId = "table_timer_race_r04";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_timer_race_r04";
+    state.handNumber = 1;
+    state.street = "RIVER";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.roundCurrentBetCents = 100;
+    state.minRaiseCents = 100;
+    state.potCents = 200;
+    state.toActSeat = 0;
+    state.seats.push("h1", "h2", "", "", "", "");
+
+    const h1 = makePlayer({
+      id: "h1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    const h2 = makePlayer({
+      id: "h2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(h1.id, h1);
+    state.playersById.set(h2.id, h2);
+
+    const realSetTimeout = global.setTimeout;
+    const realClearTimeout = global.clearTimeout;
+    const handles = new Map<number, () => void>();
+    let nextHandle = 1;
+    const dealer = new Dealer(state);
+
+    try {
+      vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, _ms?: number) => {
+        const handle = nextHandle++;
+        handles.set(handle, () => cb());
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }) as typeof setTimeout);
+      vi.spyOn(global, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
+        handles.delete(Number(id));
+      }) as typeof clearTimeout);
+
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      const scheduler = (dealer as any).turnManager?.turnTimeoutScheduler;
+      const staleTimeoutId = Number(scheduler?.pendingHumanTurnTimeoutId ?? 0);
+      const staleTimeoutCallback = handles.get(staleTimeoutId);
+      expect(staleTimeoutCallback).toBeTruthy();
+
+      const beforeSeq = state.handActionSeq;
+      state.handId = "hand_timer_race_r04_next";
+      state.street = "WAITING";
+      state.roundState = "HAND_COMPLETE";
+      state.turnDeadlineMs = 0;
+      state.handActionSeq = beforeSeq + 1;
+      h1.needsAction = false;
+      h2.needsAction = false;
+
+      staleTimeoutCallback?.();
+      await (dealer as any).actionQueue.catch(() => undefined);
+
+      expect(state.handId).toBe("hand_timer_race_r04_next");
+      expect(state.street).toBe("WAITING");
+      expect(state.handActionSeq).toBe(beforeSeq + 1);
+      expect(state.turnDeadlineMs).toBe(0);
+    } finally {
+      dealer.dispose();
+      vi.restoreAllMocks();
+      global.setTimeout = realSetTimeout;
+      global.clearTimeout = realClearTimeout;
+    }
+  });
+
   it("LEAVE-R01: leave while to-act with queued auto-action defers removal until WAITING boundary", async () => {
     const state = new PokerState();
     state.tableId = "table_leave_r01";
