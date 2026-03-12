@@ -100,10 +100,8 @@ export function OpponentStripItemView({
           style={{ flex: 1 }}
           dataStackCents={String(stackCents)}
           dataPlayerName={opponentName}
+          holeCardsSlot={cardsSlot}
         />
-        <View style={s.cardsColumn} collapsable={false}>
-          <View style={s.cardsDock}>{cardsSlot}</View>
-        </View>
       </View>
       <TurnBar show={showTurnBar} progress={activeTurnProgress} />
     </View>

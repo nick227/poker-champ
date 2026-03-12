@@ -35,7 +35,7 @@ export function CommunityBoard({
       style={{
         gap: communityCardGap,
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: "space-between",
         height: communityBoardHeight,
       }}
     >

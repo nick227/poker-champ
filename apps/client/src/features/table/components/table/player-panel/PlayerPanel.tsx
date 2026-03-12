@@ -25,6 +25,8 @@ export type PlayerPanelProps = {
   testID?: string;
   dataStackCents?: string;
   dataPlayerName?: string;
+  /** Optional overlay slot for hero/opponent hole cards, positioned over the avatar. */
+  holeCardsSlot?: React.ReactNode;
 };
 
 export function PlayerPanel({
@@ -43,6 +45,7 @@ export function PlayerPanel({
   dataStackCents,
   dataPlayerName,
   nameTopMargin,
+  holeCardsSlot,
 }: PlayerPanelProps) {
 
   return (
@@ -59,14 +62,21 @@ export function PlayerPanel({
         </View>
       ) : null}
       <View className="flex-1 identity-row" style={s.identityRow}>
-        <AvatarImage
-          avatarUrl={avatarUrl}
-          initial={initial}
-          onPress={onAvatarPress}
-          style={s.avatar}
-          imageStyle={s.avatarImage}
-          className="bg-panel-elevated border border-border"
-        />
+        <View style={s.avatarWrapper}>
+          <AvatarImage
+            avatarUrl={avatarUrl}
+            initial={initial}
+            onPress={onAvatarPress}
+            style={s.avatar}
+            imageStyle={s.avatarImage}
+            className="bg-panel-elevated border border-border"
+          />
+          {holeCardsSlot ? (
+            <View pointerEvents="none" style={s.holeCardsOverlay}>
+              <View style={s.holeCardsContent}>{holeCardsSlot}</View>
+            </View>
+          ) : null}
+        </View>
         <View style={s.nameStackCol} className="flex-1">
           {playerName ? (
             <View style={[s.nameTextWrap, { marginTop: nameTopMargin ?? 0 }]}>

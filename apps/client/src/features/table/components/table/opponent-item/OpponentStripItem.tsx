@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
+import { View } from "react-native";
 import { PlayingCard } from "../PlayingCard";
 import { formatCents } from "@/lib/format";
 import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
+import { CARDS } from "../opponent-strip/layout";
 import { useOpponentStripItem } from "./useOpponentStripItem";
-import { useOpponentCardsLayout } from "./useOpponentCardsLayout";
-import { OpponentCardsView } from "./OpponentCardsView";
 import { OpponentStripItemView, type OpponentStripItemViewModel } from "./OpponentStripItemView";
 
 export type OpponentStripItemProps = {
@@ -51,25 +51,34 @@ export function OpponentStripItem({
     winnerName,
     activeTurnProgress,
   );
-  const layout = useOpponentCardsLayout(opponent);
   const { left: leftCard, right: rightCard } = renderCards(opponent, cardFacePackId);
 
-  const cardsSlot = (
-    <OpponentCardsView
-      cardsVisible={layout.cardsVisible && layout.hasCards}
-      isRevealed={layout.isRevealed}
-      onLayout={layout.onViewportLayout}
-      liftY={layout.liftY}
-      scale={layout.scale}
-      slotWidth={layout.slotWidth}
-      slotHeight={layout.slotHeight}
-      pairWidth={layout.pairWidth}
-      rotationLeftDeg={layout.rotationLeftDeg}
-      rotationRightDeg={layout.rotationRightDeg}
-      leftCard={leftCard}
-      rightCard={rightCard}
-    />
-  );
+  const showCards = Boolean(opponent.cards);
+  const cardsSlot = showCards ? (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{
+          marginRight: -CARDS.PAIR_OVERLAP,
+          transform: [{ rotate: `-${CARDS.FAN_ANGLE_DEG}deg` }],
+        }}
+      >
+        {leftCard}
+      </View>
+      <View
+        style={{
+          transform: [{ rotate: `${CARDS.FAN_ANGLE_DEG}deg` }],
+        }}
+      >
+        {rightCard}
+      </View>
+    </View>
+  ) : null;
 
   const viewModel: OpponentStripItemViewModel = {
     opponentId: opponent.id,

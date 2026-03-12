@@ -40,17 +40,17 @@ export function TableGameTopBar({
 
   return (
     <Surface styleId="surface.sim.table.topbar">
-      <View className="ui-row items-center ui-inline-3 flex-1">
+      <View className="ui-row items-center ui-inline-3 flex-1 items-start">
         <View className="flex-col items-center align-start">
           <IconButton
             intent="neutral"
-            size="md"
+            size="sm"
             icon={<Icon name="logo" size={18} />}
             onPress={onLogoPress}
           />
         </View>
-        <Text variant="h2">{APP_NAME}</Text>
-        <View className="flex-1 items-center justify-center">
+        <Text variant="h1">{APP_NAME}</Text>
+        <View className="flex-1 items-end justify-center">
           <Text
             variant="body"
             numberOfLines={1}

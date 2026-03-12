@@ -24,6 +24,11 @@ export const playerPanelStyles = StyleSheet.create({
     gap: IDENTITY.GAP,
     minWidth: 0,
   },
+  avatarWrapper: {
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   avatar: {
     width: AVATAR.SIZE,
     height: AVATAR.SIZE,
@@ -36,6 +41,18 @@ export const playerPanelStyles = StyleSheet.create({
     width: AVATAR.SIZE,
     height: AVATAR.SIZE,
     borderRadius: 999,
+  },
+  holeCardsOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  holeCardsContent: {
+    transform: [{ scale: 0.5 }],
   },
   nameStackCol: {
     flexDirection: "column",

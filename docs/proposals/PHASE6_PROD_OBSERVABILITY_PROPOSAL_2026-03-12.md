@@ -24,11 +24,13 @@ Recent incidents show that manual gameplay can still reveal edge timing behavior
 Source: `apps/server/src/rooms/PokerRoom.ts`
 
 - `TABLE_STALLED`
-  - Includes: `roomId`, `tableId`, `handId`, `stallReason`, `street`, `toActSeat`, `snapshotSeq`, `lastSnapshotAt`, `queueDepth`
+  - Includes: `roomId`, `tableId`, `handId`, `stallReason`, `street`, `toActSeat`, `snapshotSeq`, `lastSnapshotAt`, `stallAgeMs`, `turnAgeMs`, `decisionTraceId`, `queueDepth`
 - `TABLE_STALLED_RECOVERY_REDRIVE`
-  - Includes: `roomId`, `tableId`, `handId`, `stallReason`
+  - Includes: `roomId`, `tableId`, `handId`, `stallReason`, `stallAgeMs`, `turnAgeMs`, `decisionTraceId`
 - `DEALER_RUNTIME_METRICS` (periodic)
   - Includes:
+    - `activeTables`
+    - `waitingTurns`
     - `tableStalled`
     - `tableStallRecoveryRedrive`
     - `handsStarted`
@@ -50,6 +52,7 @@ Source: `apps/server/src/rooms/PokerRoom.ts`
 
 Source: `apps/server/src/engine/Dealer.ts`
 
+- `ENGINE_DECISION_STATE`
 - `ENGINE_DECISION`
 - `ENGINE_RUNTIME_STEP`
 - `ENGINE_PARITY`
@@ -77,43 +80,71 @@ Key computed metrics already used in gates:
 
 ## Proposed Alert Catalog
 
+### Live vs Batch split (required)
+
+Phase 6 should be explicitly split:
+
+1. Live monitors (pager/Slack)
+- real-time operational signals from runtime logs/metrics.
+
+2. Scheduled batch integrity checks
+- analyzer-derived correctness metrics computed from captured log windows.
+- these are not first-page signals; they are integrity health signals.
+
 ### Critical alerts (page)
 
-1. Connected human deadline corruption
-- Condition: `waitingHumanMissingDeadline > 0` in last 15m
-- Why: Direct precursor to live hand hangs.
-
-2. Timeout double fire
-- Condition: `timeoutDoubleFires > 0` in last 15m
-- Why: Can cause duplicate automation and invalid progression.
-
-3. Hard stall detected
-- Condition: `TABLE_STALLED` count > 0 in last 5m
-- Why: Customer-visible freeze risk.
+1. Repeated stall on same table
+- Condition:
+  - `TABLE_STALLED` seen for a `tableId`, and
+  - same `tableId` has another `TABLE_STALLED` within 2-5 minutes, or a paired `TABLE_STALLED_RECOVERY_REDRIVE`.
+- Why: high confidence customer-visible freeze risk.
 
 ### High alerts (urgent but non-paging if after-hours)
 
-4. Recovery redrive activity
-- Condition: `TABLE_STALLED_RECOVERY_REDRIVE` count > 0 in last 5m
-- Why: Near-miss indicator, frequently precedes incidents.
+2. First stall hit
+- Condition: first `TABLE_STALLED` event for a `tableId` in a fresh window.
+- Why: useful early warning, but too noisy to page immediately.
 
-5. Decision parity mismatch
+3. Recovery redrive activity
+- Condition: `TABLE_STALLED_RECOVERY_REDRIVE` count > 0 in last 5m.
+- Why: near-miss indicator, frequently precedes incidents.
+
+4. Decision parity mismatch
 - Condition: `ENGINE_PARITY_MISMATCH` count > 0 in last 15m
 - Why: Decision authority/runtime divergence.
 
 ### Medium alerts (Slack)
 
-6. Action rejection spike
+5. Action rejection spike
 - Condition: `actionRejected / max(handsStarted,1) > threshold` or event-rate threshold in 15m
 - Recommended initial threshold: 5% equivalent
 
-7. Queue pressure
+6. Queue pressure
 - Condition: `queueDepthMax >= 5` for 3 consecutive metric emissions
 - Why: Potential event loop pressure/backlog.
 
-8. Throughput regression
-- Condition: `handsPerMinute` drops >50% vs rolling 24h baseline for >=10m
+7. Throughput regression
+- Condition:
+  - `handsPerMinute` drops >50% vs rolling 24h baseline for >=10m, and
+  - `handsStarted` in the same window is above a minimum floor.
+- Recommendation: same-time-of-day baseline if available.
 - Why: Silent degradation not always accompanied by explicit stalls.
+
+### Scheduled batch integrity checks (non-paging by default)
+
+Run every 15-60 minutes over captured logs:
+
+1. `waitingHumanMissingDeadline`
+2. `timeoutDoubleFires`
+3. `deadlineOutsideWaiting`
+4. `toActMismatchCount`
+5. `handCompletionRate`
+6. `timeoutWithMissingDeadline`
+7. `waitingHumanNoNeedsAction`
+
+Escalation policy:
+- First failure: Slack summary with links to log window/artifacts.
+- Repeated failures in consecutive windows: escalate to pager.
 
 ## Query Mapping Examples
 
@@ -121,7 +152,7 @@ Key computed metrics already used in gates:
 
 Use JSON log parsing with attributes like `@msg`, `@tableId`, `@roomId`, `@stallReason`.
 
-1. TABLE_STALLED
+1. TABLE_STALLED (first-hit high severity)
 
 ```text
 env:prod service:server @msg:"TABLE_STALLED"
@@ -152,6 +183,14 @@ env:prod service:server @msg:"DEALER_RUNTIME_METRICS"
 ```
 
 Then graph `avg(@handsPerMinute)` and compare against baseline monitor.
+
+6. Heartbeat fail-safe (no gameplay progression)
+
+```text
+env:prod service:server @msg:"DEALER_RUNTIME_METRICS" @handsStarted:0 @activeTables:[1 TO *]
+```
+
+Trigger only when process health checks remain green for >5 minutes.
 
 ## Elastic / Kibana (KQL)
 
@@ -208,25 +247,56 @@ Create one dashboard with four panels:
 - `sum(turnTimeoutFired)`
 - `sum(actionRejected)` with `actionRejectedByCode` breakdown
 
+5. Stall age / triage context
+- Add and graph `stallAgeMs = now - lastSnapshotAt` (at stall event time).
+- Add and graph `turnAgeMs = now - turnAssignedAtMs`.
+- Optional future field: `actorWaitMs = now - actorAssignedAt`.
+
+6. Turn pressure sanity
+- `sum(waitingTurns)` and ratio `sum(waitingTurns)/sum(activeTables)`.
+
 ## Rollout Plan
 
-### Stage 1 (Immediate, 1 day)
+### Phase 6A: Live observability
 
-1. Ship alert rules for Critical + High only.
-2. Route Critical to pager, High to on-call Slack.
-3. Confirm logs include environment tagging (`env`, `service`, `buildSha`).
+Ship now:
 
-### Stage 2 (48-72h)
+1. Live monitors for:
+- `TABLE_STALLED`
+- `TABLE_STALLED_RECOVERY_REDRIVE`
+- `ENGINE_PARITY_MISMATCH`
+- queue pressure
+- action rejection spike
+2. Grouping/dedup rules:
+- `TABLE_STALLED` grouped by `tableId`
+- `TABLE_STALLED_RECOVERY_REDRIVE` grouped by `tableId`
+- `ENGINE_PARITY_MISMATCH` grouped by `decisionTraceId` (fallback `handId`)
+- queue pressure alerts grouped by `service`
+- action rejection alerts grouped by `service`
+3. Event tagging requirement on top-level events:
+- `env`, `service`, `buildSha`, `roomId`, `tableId`, `handId`
+4. Keep first-hit stall as High (Slack), repeated stall as Critical (pager).
 
-1. Add Medium alerts after observing baseline noise.
-2. Tune thresholds to reduce false positives.
-3. Add runbook links in each alert.
+### Phase 6B: Scheduled integrity validation
 
-### Stage 3 (1 week)
+1. Run analyzer windows every 15 minutes over the previous 20 minutes of logs.
+2. Publish Slack summary with:
+- invariant failures
+- top offending `tableId`/`handId`
+- links to artifacts
+3. Escalation:
+- 2 consecutive failing windows -> Slack incident thread
+- 3 consecutive failing windows -> Pager escalation
 
-1. Add canary validation outputs to release checklist.
-2. Enforce "no release if canary fails" policy.
-3. Weekly review of alert precision/recall.
+### Phase 6C: Release discipline
+
+1. Canary required.
+2. Room soak required for relevant server changes.
+3. Weekly alert precision/recall review.
+4. Pre-deploy safety check (last 15m):
+- block release if `TABLE_STALLED > 0`
+- block release if `ENGINE_PARITY_MISMATCH > 0`
+- block release if runtime `decisionParityMismatch > 0`
 
 ## Operational Runbook (Initial)
 
@@ -248,6 +318,19 @@ On `ENGINE_PARITY_MISMATCH`:
 2. Compare `decisionStep` vs `runtimeStep` for first mismatch event.
 3. Escalate as architecture risk even if no immediate stall occurred.
 
+On periodic integrity failure (`waitingHumanMissingDeadline`, `timeoutDoubleFires`, etc.):
+
+1. Identify failing window and affected `tableId`/`handId`.
+2. Slice logs for that window and run:
+
+```powershell
+pnpm --dir apps/server analyze:game-bugs --file <captured_log>
+pnpm --dir apps/server analyze:phase4:gate -- --file <captured_log> --min-hand-completion-rate 0.95
+pnpm --dir apps/server analyze:canary -- --file <captured_log> --min-hands-started <floor> --min-hand-completion-rate 0.95
+```
+
+3. If failures repeat in consecutive windows, escalate to pager.
+
 ## CI/CD Alignment
 
 Current workflows already run:
@@ -265,12 +348,22 @@ Recommendation:
 
 Phase 6 is considered complete when all are true for 14 consecutive days in prod:
 
+### Customer-visible SLO
+
 1. `TABLE_STALLED == 0`
-2. `TABLE_STALLED_RECOVERY_REDRIVE == 0`
-3. `ENGINE_PARITY_MISMATCH == 0`
-4. `waitingHumanMissingDeadline == 0` (from periodic analyzer samples)
-5. `timeoutDoubleFires == 0` (from periodic analyzer samples)
-6. Alert false-positive rate < 10%
+2. `ENGINE_PARITY_MISMATCH == 0`
+
+### Integrity targets (batch analyzer)
+
+3. `waitingHumanMissingDeadline == 0`
+4. `timeoutDoubleFires == 0`
+5. `toActMismatchCount == 0`
+6. `deadlineOutsideWaiting == 0`
+
+### Operational quality
+
+7. Alert false-positive rate < 10%
+8. Alert floods prevented by grouping/dedup policy
 
 ## Non-Goals
 
@@ -279,3 +372,20 @@ Phase 6 is considered complete when all are true for 14 consecutive days in prod
 3. No game-rule changes.
 
 Observability first, architecture second.
+### Field definitions (normative)
+
+1. `stallAgeMs`
+- Definition: `stallAgeMs = now - lastSnapshotAt`.
+- If `lastSnapshotAt` is unknown, emit `-1`.
+
+2. `turnAgeMs`
+- Definition: `turnAgeMs = now - turnAssignedAtMs`.
+- `turnAssignedAtMs` is the timestamp when `(handId, street, toActSeat, handActionSeq)` last changed.
+- If no active turn exists, emit `0`.
+
+3. `decisionTraceId`
+- Correlation key linking `TABLE_STALLED` / `TABLE_STALLED_RECOVERY_REDRIVE` with:
+  - `ENGINE_DECISION`
+  - `ENGINE_RUNTIME_STEP`
+  - `ENGINE_PARITY`
+  - `ENGINE_PARITY_MISMATCH`

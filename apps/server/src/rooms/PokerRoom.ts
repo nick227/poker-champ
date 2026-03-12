@@ -131,6 +131,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private lastStallLogAtMs = 0;
   private lastStallRedriveLogAtMs = 0;
   private lastRuntimeMetricsLogAtMs = 0;
+  private lastTurnKey = "";
+  private lastTurnAssignedAtMs = 0;
   /**
    * Per-key join locks to prevent race conditions when multiple clients
    * try to join simultaneously for the same user. Key format: "tableId:userId"
@@ -401,10 +403,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       const queueDepth = this.dealer.getQueueDepth();
       dealerRuntimeMetrics.observeQueueDepth(queueDepth);
       const now = Date.now();
+      this.refreshTurnAssignment(now);
+      const turnAgeMs = this.lastTurnAssignedAtMs > 0 ? now - this.lastTurnAssignedAtMs : 0;
+      const snapshotSilenceMs = this.lastSnapshotAt > 0 ? now - this.lastSnapshotAt : Number.POSITIVE_INFINITY;
+      const decisionTraceId = this.dealer.getLastDecisionTraceIdPublic();
       if (decisionStallDetectionEnabled) {
         const stallReason = this.dealer.getStallReasonPublic(now);
         if (stallReason) {
-          const snapshotSilenceMs = this.lastSnapshotAt > 0 ? now - this.lastSnapshotAt : Number.POSITIVE_INFINITY;
           // BOT_OVERDUE can be transient while lifecycle/snapshot work is still settling.
           // Avoid false positives until silence exceeds the same stall threshold used by legacy mode.
           if (stallReason === "BOT_OVERDUE" && snapshotSilenceMs < STALL_THRESHOLD_MS) {
@@ -420,6 +425,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 {
                   roomId: this.roomId,
                   tableId: this.state.tableId,
+                  activeTables: 1,
+                  waitingTurns:
+                    this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN" && this.state.toActSeat >= 0 ? 1 : 0,
                   ...dealerRuntimeMetrics.snapshot(),
                 },
                 "DEALER_RUNTIME_METRICS",
@@ -439,6 +447,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 toActSeat: this.state.toActSeat,
                 snapshotSeq: this.lastSnapshotSeq,
                 lastSnapshotAt: this.lastSnapshotAt,
+                stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
+                turnAgeMs,
+                decisionTraceId,
                 queueDepth,
               },
               "TABLE_STALLED",
@@ -454,6 +465,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                   tableId: this.state.tableId,
                   handId: this.state.handId,
                   stallReason,
+                  stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
+                  turnAgeMs,
+                  decisionTraceId,
                 },
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
@@ -494,6 +508,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 toActSeat: this.state.toActSeat,
                 snapshotSeq: this.lastSnapshotSeq,
                 lastSnapshotAt: this.lastSnapshotAt,
+                stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
+                turnAgeMs,
+                decisionTraceId,
                 queueDepth,
               },
               "TABLE_STALLED",
@@ -504,7 +521,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
               logger.warn(
-                { roomId: this.roomId, tableId: this.state.tableId, handId: this.state.handId, stallReason },
+                {
+                  roomId: this.roomId,
+                  tableId: this.state.tableId,
+                  handId: this.state.handId,
+                  stallReason,
+                  stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
+                  turnAgeMs,
+                  decisionTraceId,
+                },
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;
@@ -526,6 +551,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           {
             roomId: this.roomId,
             tableId: this.state.tableId,
+            activeTables: 1,
+            waitingTurns:
+              this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN" && this.state.toActSeat >= 0 ? 1 : 0,
             ...dealerRuntimeMetrics.snapshot(),
           },
           "DEALER_RUNTIME_METRICS",
@@ -533,6 +561,31 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.lastRuntimeMetricsLogAtMs = now;
       }
     }, STALL_CHECK_MS);
+  }
+
+  private buildTurnKey(): string {
+    if (!this.state.handId) return "";
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return "";
+    if (this.state.toActSeat < 0) return "";
+    return [
+      this.state.handId,
+      this.state.street,
+      this.state.toActSeat,
+      this.state.handActionSeq,
+    ].join(":");
+  }
+
+  private refreshTurnAssignment(now: number): void {
+    const currentKey = this.buildTurnKey();
+    if (!currentKey) {
+      this.lastTurnKey = "";
+      this.lastTurnAssignedAtMs = 0;
+      return;
+    }
+    if (currentKey !== this.lastTurnKey) {
+      this.lastTurnKey = currentKey;
+      this.lastTurnAssignedAtMs = now;
+    }
   }
 
   touchActivityInternal(): void {

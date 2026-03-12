@@ -71,6 +71,7 @@ describe("PokerRoom decision stall monitor BOT_OVERDUE grace", () => {
       logEngineDecisionPublic: vi.fn(),
       getQueueDepth: vi.fn(() => 0),
       getStallReasonPublic: vi.fn(() => "BOT_OVERDUE"),
+      getLastDecisionTraceIdPublic: vi.fn(() => null),
       maybeActForBotPublic: vi.fn(),
       logTurnStalledIfNeeded: vi.fn(),
     };
@@ -90,4 +91,3 @@ describe("PokerRoom decision stall monitor BOT_OVERDUE grace", () => {
     }
   });
 });
-

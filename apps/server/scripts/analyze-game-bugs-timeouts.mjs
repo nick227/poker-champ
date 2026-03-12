@@ -90,6 +90,18 @@ function parseNumber(value) {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function percentile(values, p) {
+  if (!Array.isArray(values) || values.length === 0) return 0;
+  const clampedP = Math.max(0, Math.min(100, p));
+  const sorted = [...values].sort((a, b) => a - b);
+  const rank = (clampedP / 100) * (sorted.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return sorted[lo];
+  const weight = rank - lo;
+  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
+}
+
 function parseJsonLine(line) {
   try {
     const parsed = JSON.parse(line);
@@ -117,6 +129,8 @@ function parseJsonLine(line) {
             : "",
       reason: typeof parsed.reason === "string" ? parsed.reason : reasonFromMsg,
       stallReason: typeof parsed.stallReason === "string" ? parsed.stallReason : "",
+      stallAgeMs: parseNumber(parsed.stallAgeMs),
+      turnAgeMs: parseNumber(parsed.turnAgeMs),
       toActSeat: parseNumber(parsed.toActSeat),
       turnDeadlineMs: parseNumber(parsed.turnDeadlineMs) ?? parseNumber(parsed.deadline),
       roundState: typeof parsed.roundState === "string" ? parsed.roundState : "",
@@ -185,6 +199,8 @@ function parseKvLine(line) {
     decisionTraceId: get("decisionTraceId") || get("trace"),
     reason: get("reason"),
     stallReason: get("stallReason"),
+    stallAgeMs: parseNumber(get("stallAgeMs")),
+    turnAgeMs: parseNumber(get("turnAgeMs")),
     toActSeat: parseNumber(get("toActSeat")),
     turnDeadlineMs: parseNumber(get("turnDeadlineMs")) ?? parseNumber(get("deadline")),
     roundState: get("roundState"),
@@ -260,6 +276,8 @@ function main() {
   const timeoutRuntimeKeys = new Map();
   const acceptedActionKeys = new Set();
   const duplicateRejectedActionKeys = [];
+  const stallAgeMsSamples = [];
+  const turnAgeMsSamples = [];
 
   for (const line of lines) {
     const e = parseLine(line);
@@ -267,6 +285,8 @@ function main() {
 
     if (e.msg === "TABLE_STALLED") {
       tableStalled += 1;
+      if (Number.isFinite(e.stallAgeMs) && e.stallAgeMs >= 0) stallAgeMsSamples.push(e.stallAgeMs);
+      if (Number.isFinite(e.turnAgeMs) && e.turnAgeMs >= 0) turnAgeMsSamples.push(e.turnAgeMs);
       if (e.stallReason) increment(stallReasonCounts, e.stallReason);
       if (!e.stallReason) {
         const hasContext =
@@ -490,6 +510,12 @@ function main() {
   const avgActionsPerHand = handsStarted > 0 ? (actionAcceptedCount / handsStarted).toFixed(4) : "0.0000";
   const stalledPer1kHands = handsStarted > 0 ? ((tableStalled / handsStarted) * 1000).toFixed(2) : "0.00";
   const timeoutRuntimePer1kHands = handsStarted > 0 ? ((timeoutRuntimeCount / handsStarted) * 1000).toFixed(2) : "0.00";
+  const stallAgeP50Ms = Math.round(percentile(stallAgeMsSamples, 50));
+  const stallAgeP95Ms = Math.round(percentile(stallAgeMsSamples, 95));
+  const stallAgeMaxMs = stallAgeMsSamples.length > 0 ? Math.max(...stallAgeMsSamples) : 0;
+  const turnAgeP50Ms = Math.round(percentile(turnAgeMsSamples, 50));
+  const turnAgeP95Ms = Math.round(percentile(turnAgeMsSamples, 95));
+  const turnAgeMaxMs = turnAgeMsSamples.length > 0 ? Math.max(...turnAgeMsSamples) : 0;
   for (const key of duplicateRejectedActionKeys) {
     if (!acceptedActionKeys.has(key)) {
       duplicateWithoutAcceptance += 1;
@@ -529,6 +555,14 @@ function main() {
   console.log(`waitingHumanNoNeedsAction=${waitingHumanNoNeedsAction}`);
   console.log(`tableStalledMissingReason=${tableStalledMissingReason}`);
   console.log(`tableStalledMissingReasonConnectedHuman=${tableStalledMissingReasonConnectedHuman}`);
+  console.log(`stallAgeSamples=${stallAgeMsSamples.length}`);
+  console.log(`stallAgeP50Ms=${stallAgeP50Ms}`);
+  console.log(`stallAgeP95Ms=${stallAgeP95Ms}`);
+  console.log(`stallAgeMaxMs=${stallAgeMaxMs}`);
+  console.log(`turnAgeSamples=${turnAgeMsSamples.length}`);
+  console.log(`turnAgeP50Ms=${turnAgeP50Ms}`);
+  console.log(`turnAgeP95Ms=${turnAgeP95Ms}`);
+  console.log(`turnAgeMaxMs=${turnAgeMaxMs}`);
 
   if (stallReasonCounts.size > 0) {
     console.log("");

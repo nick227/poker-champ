@@ -238,6 +238,7 @@ export class Dealer {
   private readonly sessionStatsTracker = new SessionPlayerStatsTracker();
   private readonly engineDecisionSampleRate = Dealer.parseSampleRate(process.env.ENGINE_DECISION_SAMPLE_RATE, 0);
   private readonly engineDecisionTableIdFilter = (process.env.ENGINE_DECISION_TABLE_ID ?? "").trim();
+  private lastDecisionTraceId: string | null = null;
 
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
@@ -1107,12 +1108,15 @@ export class Dealer {
 
   private logEngineDecision(reason: string, now?: number): void {
     if (!this.shouldLogEngineDecision()) return;
-    logger.info(this.buildEngineDecisionLogPayload(reason, now), "ENGINE_DECISION");
+    const payload = this.buildEngineDecisionLogPayload(reason, now);
+    this.lastDecisionTraceId = payload.decisionTraceId;
+    logger.info(payload, "ENGINE_DECISION");
   }
 
   private logEngineDecisionAndRuntimeStep(reason: string, now?: number): void {
     if (!this.shouldLogEngineDecision()) return;
     const payload = this.buildEngineDecisionLogPayload(reason, now);
+    this.lastDecisionTraceId = payload.decisionTraceId;
     const runtimeStep = this.deriveRuntimeStep(payload.now);
     const parityMatch = payload.step === runtimeStep;
     dealerRuntimeMetrics.observeDecisionParity(parityMatch);
@@ -1165,6 +1169,10 @@ export class Dealer {
     const evalNow = now ?? Date.now();
     const decisionState = this.buildDecisionState(evalNow);
     return getStallReason(decisionState, evalNow, this.buildRuntimeEngineQueries());
+  }
+
+  getLastDecisionTraceIdPublic(): string | null {
+    return this.lastDecisionTraceId;
   }
 
   // ---------------------------------------------------------------------------
