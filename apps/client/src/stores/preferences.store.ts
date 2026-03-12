@@ -12,7 +12,11 @@ import {
   type CardBackPackId,
   type CardFacePackId,
 } from "@/assets/cards/packs";
-import { getThemePackSurfaces, type ThemePackId } from "@/config/themePackConfig";
+import {
+  DEFAULT_THEME_PACK_ID,
+  getThemePackSurfaces,
+  type ThemePackId,
+} from "@/config/themePackConfig";
 import {
   type BackgroundImageId,
   type FeltGradient,
@@ -59,6 +63,106 @@ function legacyFromFelt(bg: SurfaceBackground) {
     feltImageId: d.imageId,
     feltGradient: d.gradient,
   };
+}
+
+type ThemeStateSlice = {
+  appBackground: SurfaceBackground;
+  feltBackground: SurfaceBackground;
+  feltColor: string;
+  feltGradient: FeltGradient | null;
+  feltImageId: string | null;
+  backgroundColor: string;
+  cardFaceColor: string;
+  cardBackPackId: CardBackPackId | null;
+  cardBackPattern: CardBackPatternId;
+  cardBackColor: string;
+  accentColor: string;
+  tableRadius: string;
+};
+
+function getThemeStateForPack(pack: ThemePackId): ThemeStateSlice {
+  const { background, felt } = getThemePackSurfaces(pack);
+  const legacyFelt = legacyFromFelt(felt);
+  const legacyApp = legacyFromApp(background);
+  const base = {
+    appBackground: background,
+    feltBackground: felt,
+    ...legacyFelt,
+    backgroundColor: legacyApp.backgroundColor,
+    cardBackPackId: null as CardBackPackId | null,
+  };
+  switch (pack) {
+    case "dark":
+      return {
+        ...base,
+        cardFaceColor: "0 50% 100%",
+        cardBackPattern: "minimal",
+        cardBackColor:
+          getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "0 0% 50%",
+        tableRadius: "0px",
+      };
+    case "monokai":
+      return {
+        ...base,
+        cardFaceColor: "60 2% 96%",
+        cardBackPattern: "geometric",
+        cardBackColor:
+          getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "340 92% 56%",
+        tableRadius: "8px",
+      };
+    case "zen":
+      return {
+        ...base,
+        cardFaceColor: "0 0% 97%",
+        cardBackPattern: "minimal",
+        cardBackColor:
+          getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "0 0% 40%",
+        tableRadius: "40px",
+      };
+    case "back-alley":
+      return {
+        ...base,
+        cardFaceColor: "0 0% 96%",
+        cardBackPattern: "classic",
+        cardBackColor:
+          getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "0 78% 42%",
+        tableRadius: "0px",
+      };
+    case "cyber":
+      return {
+        ...base,
+        cardFaceColor: "180 85% 96%",
+        cardBackPattern: "geometric",
+        cardBackColor:
+          getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "300 100% 42%",
+        tableRadius: "4px",
+      };
+    case "none":
+      return {
+        ...base,
+        cardFaceColor: "0 0% 98%",
+        cardBackPattern: "minimal",
+        cardBackColor:
+          getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "0 0% 50%",
+        tableRadius: "12px",
+      };
+    default:
+      return {
+        ...base,
+        cardFaceColor: "0 0% 98%",
+        cardBackPattern: "classic",
+        cardBackColor:
+          getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "42 82% 50%",
+        tableRadius: "28px",
+      };
+  }
 }
 
 type PreferencesState = {
@@ -109,19 +213,8 @@ export const usePreferencesStore = create<PreferencesState>()(
       soundEnabled: true,
       masterVolume: 1,
       notificationsEnabled: true,
-      feltColor: "158 30% 14%",
-      feltGradient: null,
-      feltImageId: null,
-      appBackground: DEFAULT_APP_BACKGROUND,
-      feltBackground: DEFAULT_FELT_BACKGROUND,
-      cardFaceColor: "0 0% 98%",
       cardFacePackId: DEFAULT_CARD_FACE_PACK_ID,
-      cardBackPackId: null,
-      cardBackColor: DEFAULT_CARD_BACK_HSL,
-      cardBackPattern: DEFAULT_CARD_BACK_PATTERN_ID,
-      accentColor: "42 82% 50%",
-      backgroundColor: "0 0% 5%",
-      tableRadius: "28px",
+      ...getThemeStateForPack(DEFAULT_THEME_PACK_ID),
       setSoundEnabled: (v) => set({ soundEnabled: v }),
       setMasterVolume: (v) => set({ masterVolume: Math.max(0, Math.min(1, v)) }),
       setNotificationsEnabled: (v) => set({ notificationsEnabled: v }),
@@ -192,96 +285,7 @@ export const usePreferencesStore = create<PreferencesState>()(
       setAccentColor: (v) => set({ accentColor: v }),
       setBackgroundColor: (v) => set({ backgroundColor: v }),
       setTableRadius: (v) => set({ tableRadius: v }),
-      applyThemePack: (pack) => {
-        const { background, felt } = getThemePackSurfaces(pack);
-        const legacyFelt = legacyFromFelt(felt);
-        const legacyApp = legacyFromApp(background);
-        switch (pack) {
-          case "dark":
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "0 50% 100%",
-              cardBackPackId: null,
-              cardBackPattern: "minimal",
-              cardBackColor: getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "0 0% 50%",
-              tableRadius: "0px",
-            });
-            break;
-          case "monokai":
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "60 2% 96%",
-              cardBackPackId: null,
-              cardBackPattern: "geometric",
-              cardBackColor: getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "340 92% 56%",
-              tableRadius: "8px",
-            });
-            break;
-          case "zen":
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "0 0% 97%",
-              cardBackPackId: null,
-              cardBackPattern: "minimal",
-              cardBackColor: getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "0 0% 40%",
-              tableRadius: "40px",
-            });
-            break;
-          case "back-alley":
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "0 0% 96%",
-              cardBackPackId: null,
-              cardBackPattern: "classic",
-              cardBackColor: getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "0 78% 42%",
-              tableRadius: "0px",
-            });
-            break;
-          case "cyber":
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "180 85% 96%",
-              cardBackPackId: null,
-              cardBackPattern: "geometric",
-              cardBackColor: getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "300 100% 42%",
-              tableRadius: "4px",
-            });
-            break;
-          default:
-            set({
-              appBackground: background,
-              feltBackground: felt,
-              ...legacyFelt,
-              backgroundColor: legacyApp.backgroundColor,
-              cardFaceColor: "0 0% 98%",
-              cardBackPackId: null,
-              cardBackPattern: "classic",
-              cardBackColor: getProceduralCardBackById("classic")?.background ?? DEFAULT_CARD_BACK_HSL,
-              accentColor: "42 82% 50%",
-              tableRadius: "28px",
-            });
-        }
-      },
+      applyThemePack: (pack) => set(getThemeStateForPack(pack)),
     }),
     {
       name: "preferences-storage",

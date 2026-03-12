@@ -13,6 +13,7 @@ import { useToastStore } from "@/stores/toast.store";
 import { lobbyPath, loginPathWithNext, tablePath } from "@/lib/nav";
 import { normalizeTable } from "@/lib/lobbyTables";
 import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceStorage";
+import { playSound } from "@/lib/sound";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
 import { MODAL } from "@/constants/copy";
@@ -186,6 +187,7 @@ export function useTablePageController({
   const lastPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
+  const pendingRemoveBotIdRef = useRef<string | null>(null);
 
   const closeTableAndReturn = useCallback(() => {
     // Hard leave: explicit user intent to leave seat/table lifecycle.
@@ -543,6 +545,7 @@ export function useTablePageController({
   const onPlayerPress = useCallback(
     (o: Opponent) => {
       if (o.isBot) {
+        pendingRemoveBotIdRef.current = o.id;
         dispatchRemoveBot({ tableId, botId: o.id });
       } else {
         setPlayerPopup({ name: o.name });
@@ -550,6 +553,15 @@ export function useTablePageController({
     },
     [dispatchRemoveBot, tableId],
   );
+
+  useEffect(() => {
+    const pending = pendingRemoveBotIdRef.current;
+    if (pending == null) return;
+    const stillPresent = opponents.some(({ id }) => id === pending);
+    if (stillPresent) return;
+    pendingRemoveBotIdRef.current = null;
+    playSound("donk");
+  }, [opponents]);
 
   const openChat = useCallback(() => {
     chatOverlay.setVisible(true);

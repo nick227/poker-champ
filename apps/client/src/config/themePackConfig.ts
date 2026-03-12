@@ -2,7 +2,10 @@ import type { FeltImageId } from "@/features/table";
 import type { FeltGradient } from "@/theme/backgrounds";
 import type { SurfaceBackground } from "@/theme/backgrounds";
 
-export type ThemePackId = "default" | "monokai" | "zen" | "dark" | "back-alley" | "cyber";
+export type ThemePackId = "none" | "default" | "monokai" | "zen" | "dark" | "back-alley" | "cyber";
+
+/** Theme pack applied for first-time users (no persisted preferences). */
+export const DEFAULT_THEME_PACK_ID: ThemePackId = "none";
 
 export type FeltMode = "solid" | "gradient";
 
@@ -34,7 +37,16 @@ export type ThemePackConfig = {
   felt?: SurfaceBackground;
 };
 
+const CLEARED_SURFACE: SurfaceBackground = surface(null, null, null);
+
 export const THEME_PACK_CONFIG: ReadonlyArray<ThemePackConfig> = [
+  {
+    id: "none",
+    name: "None",
+    colors: ["0 0% 98%", "0 0% 60%"],
+    background: CLEARED_SURFACE,
+    felt: CLEARED_SURFACE,
+  },
   {
     id: "monokai",
     name: "Monokai",
