@@ -851,6 +851,75 @@ async function setupHumanVsBotRoom() {
     35_000,
   );
 
+  it(
+    "does not emit TABLE_STALLED when connected human is waiting with a valid future deadline (decision stall detection enabled)",
+    async () => {
+      const decisionStallEnv = process.env.FEATURE_DECISION_STALL_DETECTION;
+      process.env.FEATURE_DECISION_STALL_DETECTION = "true";
+      vi.spyOn(RandomBotBrain.prototype, "pickAction").mockImplementation((ctx) => {
+        if (ctx.heroActionOptions.canCheck) return { action: "CHECK" };
+        if (ctx.heroActionOptions.canCall) return { action: "CALL" };
+        return { action: "FOLD" };
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+      const { room, clientA } = await setupHumanVsBotRoomWithTimeouts();
+      try {
+        const startHandId = clientA.latestSnapshot?.hand?.handId;
+        expect(startHandId).toBeTruthy();
+        let reachedFlopHumanToAct = false;
+
+        for (let guard = 0; guard < 40; guard += 1) {
+          const snap = clientA.latestSnapshot;
+          const hand = snap?.hand;
+          if (!snap || !hand || hand.handId !== startHandId) {
+            await delay(50);
+            continue;
+          }
+          const toActSeat = hand.toActSeat;
+          const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+          if (hand.street === "FLOP" && toActUserId === "user_a") {
+            reachedFlopHumanToAct = true;
+            break;
+          }
+          if (toActUserId === "user_a") {
+            const opts = snap.hero.actionOptions;
+            if (opts && (opts.canCheck || opts.canCall || opts.canFold || opts.canAllIn)) {
+              const action = opts.canCheck ? ({ action: "CHECK" as const }) : pickLegalAction(snap);
+              room.onMessageEvents.emit("ACTION", clientA as any, {
+                ...action,
+                actionId: `decision-stall-human-wait-${Date.now()}-${guard}`,
+              });
+              await delay(100);
+              continue;
+            }
+          }
+          await delay(50);
+        }
+
+        expect(reachedFlopHumanToAct).toBe(true);
+        expect(room.state.street).toBe("FLOP");
+        expect(room.state.turnDeadlineMs).toBeGreaterThan(Date.now());
+
+        if (room.stallCheckInterval) {
+          clearInterval(room.stallCheckInterval);
+          room.stallCheckInterval = null;
+        }
+        room.lastSnapshotAt = Date.now() - 30_000;
+        room.startStallMonitorInternal();
+        await delay(10_500);
+
+        const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
+        const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+        expect(stalledCalls.length).toBe(0);
+        expect(redriveCalls.length).toBe(0);
+      } finally {
+        process.env.FEATURE_DECISION_STALL_DETECTION = decisionStallEnv;
+        room.onDispose();
+      }
+    },
+    35_000,
+  );
+
   it("emits winner-visible HAND_END snapshot when human folds to bot", async () => {
     const { room, clientA } = await setupHumanVsBotRoom();
     try {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions, ScrollView } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
@@ -63,7 +63,8 @@ export function TableLoadingLanding({
         justifyContent: "flex-start",
       }}
     >
-      <View style={{ width: "100%" }} className="gap-4">
+      <View style={{ width: "100%" }} className="gap-4 flex-1">
+      <ScrollView className="flex-1">
         <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
           <View className="flex-row items-center gap-3">
             <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
@@ -97,6 +98,7 @@ export function TableLoadingLanding({
             />
           </ThemeProvider>
         </View>
+        </ScrollView>
 
         <Text variant="caption" className="text-center text-text-subtle">
           Staying on this screen while the table initializes.

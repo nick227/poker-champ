@@ -146,6 +146,10 @@ describe("poker room random walk soak", () => {
     let lastHandCompletedAt = Date.now();
     let lastHandId = client.latestSnapshot?.hand?.handId ?? "";
     let lastProgressAt = Date.now();
+    let lastRoomProgressAt = Date.now();
+    let lastRoomHandId = String(room.state.handId ?? "");
+    let lastRoomStreet = String(room.state.street ?? "");
+    let lastRoomActionSeq = Number(room.state.handActionSeq ?? 0);
     let actionSeq = 0;
     let lastActionSnapshotId = "";
     let lastHumanActionAttemptAt = 0;
@@ -154,6 +158,20 @@ describe("poker room random walk soak", () => {
 
     try {
       while (completedHands < targetHands) {
+        const roomHandIdNow = String(room.state.handId ?? "");
+        const roomStreetNow = String(room.state.street ?? "");
+        const roomActionSeqNow = Number(room.state.handActionSeq ?? 0);
+        if (
+          roomHandIdNow !== lastRoomHandId ||
+          roomStreetNow !== lastRoomStreet ||
+          roomActionSeqNow !== lastRoomActionSeq
+        ) {
+          lastRoomProgressAt = Date.now();
+          lastRoomHandId = roomHandIdNow;
+          lastRoomStreet = roomStreetNow;
+          lastRoomActionSeq = roomActionSeqNow;
+        }
+
         if (recycleStacksIfNeeded(room)) {
           await room.dealer.forceAdvanceToNextHandForTest();
         }
@@ -161,6 +179,16 @@ describe("poker room random walk soak", () => {
         const snap = client.latestSnapshot;
         const hand = snap?.hand;
         if (!snap || !hand || !hand.handId) {
+          if (Date.now() - lastRoomProgressAt > 15_000) {
+            throw new Error(
+              `No room state progress for >15s (street=${roomStreetNow} hand=${roomHandIdNow} handActionSeq=${roomActionSeqNow})`,
+            );
+          }
+          if (Date.now() - lastHandCompletedAt > 30_000) {
+            throw new Error(
+              `Room soak stalled: no hand completed in 30s (street=${roomStreetNow} hand=${roomHandIdNow})`,
+            );
+          }
           await delay(20);
           continue;
         }
@@ -207,8 +235,12 @@ describe("poker room random walk soak", () => {
 
         const liveHandId = room.state.handId || "";
         const liveStreet = String(room.state.street || "");
-        const snapshotTracksLiveHand = liveStreet !== "WAITING" && liveHandId && hand.handId === liveHandId;
-        const toActUserId = snap.seats.find((s) => s.seat === hand.toActSeat)?.userId;
+        const snapshotTracksLiveHand = liveStreet !== "WAITING" && liveStreet !== "SHOWDOWN" && liveHandId && hand.handId === liveHandId;
+        const snapshotToActUserId = snap.seats.find((s) => s.seat === hand.toActSeat)?.userId;
+        const liveToActUserId =
+          room.state.toActSeat >= 0
+            ? (room.state.seats[room.state.toActSeat] ?? "")
+            : "";
 
         // Invariant: total chip mass must be conserved across the full room runtime.
         expect(computeChipMass(room), "chip mass drift in PokerRoom soak").toBe(expectedChipMass);
@@ -221,10 +253,13 @@ describe("poker room random walk soak", () => {
           expect(disbursed, "undisbursed pot while WAITING").toBe(Number(room.state.potCents ?? 0));
         }
 
-        const humanRetryDue = Date.now() - lastHumanActionAttemptAt > 2_000;
-        if (
+        const humanRetryDue = Date.now() - lastHumanActionAttemptAt > 500;
+        const humanToAct =
           snapshotTracksLiveHand &&
-          toActUserId === "user_human" &&
+          liveToActUserId === "user_human" &&
+          (snapshotToActUserId === "user_human" || snapshotToActUserId === "" || snapshotToActUserId == null);
+        if (
+          humanToAct &&
           (snap.snapshotId !== lastActionSnapshotId || humanRetryDue)
         ) {
           const action = pickAction(snap);
@@ -239,9 +274,9 @@ describe("poker room random walk soak", () => {
           continue;
         }
 
-        if (Date.now() - lastProgressAt > 15_000) {
+        if (Date.now() - lastProgressAt > 15_000 || Date.now() - lastRoomProgressAt > 15_000) {
           throw new Error(
-            `No table progress for >15s at hand=${hand.handId} street=${hand.street} toActSeat=${hand.toActSeat}`,
+            `No table progress for >15s at hand=${hand.handId} street=${hand.street} toActSeat=${hand.toActSeat} roomStreet=${roomStreetNow} roomHand=${roomHandIdNow} roomHandActionSeq=${roomActionSeqNow}`,
           );
         }
         if (Date.now() - lastHandCompletedAt > 30_000) {

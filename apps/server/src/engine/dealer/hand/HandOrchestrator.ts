@@ -154,13 +154,21 @@ export class HandOrchestrator {
           }
 
           if (this.deps.state.street === "WAITING" && seatedCount >= 2) {
+            // Release the guard before startHand so an immediate terminal hand
+            // (e.g. HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT) can schedule the
+            // follow-up hand from inside lifecycle execution.
+            this.nextHandScheduled = false;
             await this.startHand();
             return;
           }
 
           await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
         }).finally(() => {
-          this.nextHandScheduled = false;
+          // Keep the guard latched when a nested schedule has already armed
+          // the next announce/start timers during lifecycle execution.
+          if (this.nextHandAnnounceTimer == null && this.nextHandStartTimer == null) {
+            this.nextHandScheduled = false;
+          }
         }).catch((err) => {
           logger.error({ err, reason }, "Failed to auto-start next hand");
         });

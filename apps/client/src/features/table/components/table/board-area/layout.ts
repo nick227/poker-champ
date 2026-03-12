@@ -15,7 +15,7 @@ export const CONTAINER = Object.freeze({
 
 export const BOARD = Object.freeze({
   /** Spacing between community cards row and pot. */
-  POT_MARGIN_TOP: 12,
+  POT_MARGIN_TOP: 18,
 } as const);
 
 export const CARDS = Object.freeze({

@@ -30,8 +30,8 @@ export function BoardArea({ cards, potCents, onCardSlotBounds }: BoardAreaProps)
       <View collapsable={false} style={boardAreaStyles.inner}>
         <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
 
-        <View className="pot-container w-full flex justify-center items-center" style={boardAreaStyles.potContainer}>
-          <View className="bg-green-500 rounded-md py-1 px-4">
+        <View className="pot-container w-full flex justify-center items-center bg-panel rounded-sm" style={boardAreaStyles.potContainer}>
+          <View className="items-center">
             <Text
               variant="body"
               className="text-white"
