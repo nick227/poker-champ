@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
@@ -24,6 +24,8 @@ import { ProfileAvatarSection } from "@/components/domain/settings/ProfileAvatar
 import { AwardsSection } from "@/components/domain/settings/AwardsSection";
 import { LoadingScreen } from "@/components/domain/loading/LoadingScreen";
 import { getProtectedRouteRedirect } from "@/lib/authNavigation";
+import { Input } from "@/components/base/Input";
+import { postProfileDisplayName } from "@/services/profile.post";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -44,6 +46,8 @@ export default function SettingsScreen() {
   } = storeRegistry.use.lobby();
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
+  const [profileName, setProfileName] = useState(profile.username ?? "");
+  const [savingProfile, setSavingProfile] = useState(false);
   const redirectPath = getProtectedRouteRedirect({ hydrated, token }, "/settings");
 
   const handleLogout = async () => {
@@ -69,6 +73,36 @@ export default function SettingsScreen() {
     }
   }, [bankroll]);
 
+  const handleSaveProfile = useCallback(async () => {
+    const nextName = profileName.trim();
+    if (!nextName || savingProfile) return;
+    setSavingProfile(true);
+    try {
+      const res = await postProfileDisplayName(nextName);
+      if (!res.ok) {
+        useToastStore.getState().show(res.error.message ?? "Update failed", "danger");
+        return;
+      }
+      const currentProfile = storeRegistry.profile();
+      currentProfile.setProfile({
+        ...currentProfile.profile,
+        username: nextName,
+      });
+      await refetch();
+      useToastStore.getState().show("Profile updated", "success");
+    } catch (e) {
+      useToastStore
+        .getState()
+        .show((e as Error).message ?? "Update failed", "danger");
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [profileName, savingProfile, refetch]);
+
+  useEffect(() => {
+    setProfileName(profile.username ?? "");
+  }, [profile.username]);
+
   if (!hydrated) return <LoadingScreen />;
   if (redirectPath) return <Redirect href={redirectPath} />;
 
@@ -92,10 +126,25 @@ export default function SettingsScreen() {
         />
         <View className="ui-surface-card ui-p-4 ui-stack-2">
           <Text variant="label">Profile</Text>
-          <Text variant="body">{profile.username ?? "Player"}</Text>
-          {profile.email ? (
-            <Text variant="muted" className="text-sm">{profile.email}</Text>
-          ) : null}
+          <View className="ui-row ui-inline-2 bg-panel-elevated rounded-sm p-2">
+            {profile.email ? (
+              <Text variant="muted" className="text-sm">{profile.email}</Text>
+            ) : null}
+          </View>
+          <Input
+            label="Username"
+            value={profileName}
+            onChangeText={setProfileName}
+            editable={!savingProfile}
+          />
+          <View className="ui-row justify-end mt-2">
+            <Button
+              title={savingProfile ? "Saving…" : "Save"}
+              variant="ghost"
+              onPress={handleSaveProfile}
+              disabled={savingProfile || !profileName.trim()}
+            />
+          </View>
         </View>
         <View className="ui-row justify-between ui-surface-card ui-p-4">
           <Text variant="body">Sound</Text>

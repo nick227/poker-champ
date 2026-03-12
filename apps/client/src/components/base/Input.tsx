@@ -18,7 +18,7 @@ export function Input({ label, iconLeft, bare, ...props }: InputProps) {
   if (bare) return inner;
   return (
     <View className="ui-stack-2 bg-panel rounded-lg">
-      {label ? <Text variant="muted">{label}</Text> : null}
+      {label ? <Text className="ml-4 mt-2" variant="muted">{label}</Text> : null}
       {inner}
     </View>
   );

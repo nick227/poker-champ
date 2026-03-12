@@ -403,13 +403,17 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       const queueDepth = this.dealer.getQueueDepth();
       dealerRuntimeMetrics.observeQueueDepth(queueDepth);
       const now = Date.now();
+      const activeHandForStall = this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN";
       this.refreshTurnAssignment(now);
       const turnAgeMs = this.lastTurnAssignedAtMs > 0 ? now - this.lastTurnAssignedAtMs : 0;
       const snapshotSilenceMs = this.lastSnapshotAt > 0 ? now - this.lastSnapshotAt : Number.POSITIVE_INFINITY;
-      const decisionTraceId = this.dealer.getLastDecisionTraceIdPublic();
+      const decisionTraceId =
+        this.dealer.getLastDecisionTraceIdPublic() ??
+        `stall_${this.state.tableId}_${this.state.handId || "none"}_${now}`;
       if (decisionStallDetectionEnabled) {
-        const stallReason = this.dealer.getStallReasonPublic(now);
-        if (stallReason) {
+        if (activeHandForStall) {
+          const stallReason = this.dealer.getStallReasonPublic(now);
+          if (stallReason) {
           // BOT_OVERDUE can be transient while lifecycle/snapshot work is still settling.
           // Avoid false positives until silence exceeds the same stall threshold used by legacy mode.
           if (stallReason === "BOT_OVERDUE" && snapshotSilenceMs < STALL_THRESHOLD_MS) {
@@ -477,6 +481,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             this.dealer.maybeActForBotPublic();
           }
         }
+        }
       } else {
         const toActUserId =
           this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
@@ -492,6 +497,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           toActPlayer.status === "ACTIVE";
 
         if (
+          activeHandForStall &&
           !waitingOnConnectedHumanTurn &&
           this.lastSnapshotAt > 0 &&
           now - this.lastSnapshotAt > STALL_THRESHOLD_MS

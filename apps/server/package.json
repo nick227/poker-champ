@@ -14,6 +14,7 @@
     "analyze:phase7:ready": "node scripts/check-phase7-ready.mjs",
     "analyze:phase4:compare": "node scripts/compare-phase4-captures.mjs",
     "analyze:canary": "node scripts/run-canary-validation.mjs",
+    "analyze:railway": "node scripts/scan-railway-logs.mjs",
     "analyze:phase7:paths": "node scripts/analyze-phase7-paths.mjs",
     "analyze:phase7:dead-paths": "node scripts/analyze-phase7-dead-path-candidates.mjs",
     "analyze:phase7:dead-paths:triage": "node scripts/triage-phase7-dead-path-candidates.mjs",

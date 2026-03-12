@@ -18,8 +18,8 @@ export function parseProfileFromMe(d: unknown): Profile {
           ? String(u.id)
           : undefined,
     username:
-      (typeof u?.username === "string" ? u.username : null) ??
       (typeof u?.displayName === "string" ? u.displayName : null) ??
+      (typeof u?.username === "string" ? u.username : null) ??
       (typeof u?.email === "string" ? u.email : null) ??
       "Player",
     email: typeof u?.email === "string" ? u.email : undefined,
