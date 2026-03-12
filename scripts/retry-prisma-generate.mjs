@@ -1,5 +1,7 @@
 import { spawnSync } from "child_process";
 import { setTimeout } from "timers/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const maxAttempts = 10;
 const baseDelayMs = 500;
@@ -15,7 +17,9 @@ function shouldRetryPrismaGenerate(message) {
 }
 
 function runPrismaGenerate() {
-  const result = spawnSync("pnpm", ["exec", "prisma", "generate", "--schema", "packages/db/prisma/schema.prisma"], {
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const schemaPath = path.resolve(scriptDir, "../packages/db/prisma/schema.prisma");
+  const result = spawnSync("pnpm", ["exec", "prisma", "generate", "--schema", schemaPath], {
     shell: process.platform === "win32",
     encoding: "utf8",
   });

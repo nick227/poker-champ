@@ -26,7 +26,7 @@
   "scripts": {
     "dev:web": "pnpm -C apps/client dev:web",
     "dev": "pnpm -C apps/client dev",
-    "build": "pnpm --filter @poker-champ/realtime-contract build && pnpm --filter @poker-champ/db build && node scripts/retry-prisma-generate.mjs && tsc -p tsconfig.json",
+    "build": "pnpm --filter @poker-champ/realtime-contract build && node scripts/retry-prisma-generate.mjs && pnpm --filter @poker-champ/db build && tsc -p tsconfig.json",
     "preflight:client": "pnpm --filter @poker-champ/realtime-contract build && pnpm sdk:check && pnpm api:shapes:check && pnpm -C apps/client typecheck && pnpm -C apps/client lint && pnpm test:client && pnpm test:client:money-safety",
     "preflight:client:ci": "pnpm preflight:client",
     "build:web": "pnpm --filter @poker-champ/realtime-contract build && pnpm -C apps/client build:web",
