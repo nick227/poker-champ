@@ -12,6 +12,7 @@ function parseArgs(argv) {
     outDir: "var/logs",
     testName: "plays many hands without room-level stalls",
     prefix: "room_soak_validation",
+    includeRegressions: process.env.ROOM_SOAK_INCLUDE_REGRESSIONS !== "0",
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -36,11 +37,20 @@ function parseArgs(argv) {
       out.prefix = argv[++i] ?? out.prefix;
       continue;
     }
+    if (token === "--skip-regressions") {
+      out.includeRegressions = false;
+      continue;
+    }
+    if (token === "--include-regressions") {
+      out.includeRegressions = true;
+      continue;
+    }
     if (token === "--help" || token === "-h") {
       console.log(
         "Usage: node apps/server/scripts/run-room-soak-validation.mjs " +
           "[--runs 1] [--hands 100] [--min-hand-completion-rate 0.95] " +
-          "[--out-dir var/logs] [--prefix room_soak_validation]",
+          "[--out-dir var/logs] [--prefix room_soak_validation] " +
+          "[--include-regressions|--skip-regressions]",
       );
       process.exit(0);
     }
@@ -90,6 +100,18 @@ function main() {
     FORCE_COLOR: "0",
   };
 
+  if (args.includeRegressions) {
+    const engineRegressionCmd =
+      `pnpm exec vitest run apps/server/src/engine/dealer.auto-action-warning.regression.test.ts ` +
+      `-t "DRIVE-R06|DRIVE-R07|RETRY-R01|AUTO-WARN-R05|TIMER-RACE-R01|TIMER-RACE-R02|TIMER-RACE-R03"`;
+    runOrFail(engineRegressionCmd, [], { cwd: repoRoot, env });
+
+    const roomRegressionCmd =
+      `pnpm exec vitest run apps/server/src/rooms/table-action-broadcast.test.ts ` +
+      `-t "rejoin/session-swap with pending action replay remains idempotent for same actionId|rejects stale client action after turn has advanced"`;
+    runOrFail(roomRegressionCmd, [], { cwd: repoRoot, env });
+  }
+
   for (let i = 1; i <= args.runs; i += 1) {
     const logBase = `${args.prefix}_run${i}`;
     const logPath = path.join(outDir, `${logBase}.log`);
@@ -118,6 +140,10 @@ function main() {
       ],
       { cwd: repoRoot, env },
     );
+    runOrFail("pnpm", ["--dir", "apps/server", "analyze:log-schema", "--file", logPath], {
+      cwd: repoRoot,
+      env,
+    });
 
     const text = fs.readFileSync(logPath, "utf8");
     const jsonLines = text

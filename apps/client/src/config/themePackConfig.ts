@@ -2,7 +2,16 @@ import type { FeltImageId } from "@/features/table";
 import type { FeltGradient } from "@/theme/backgrounds";
 import type { SurfaceBackground } from "@/theme/backgrounds";
 
-export type ThemePackId = "none" | "default" | "monokai" | "zen" | "dark" | "back-alley" | "cyber";
+export type ThemePackId =
+  | "none"
+  | "default"
+  | "monokai"
+  | "zen"
+  | "dark"
+  | "back-alley"
+  | "cyber"
+  | "psychedelic"
+  | "modern";
 
 /** Theme pack applied for first-time users (no persisted preferences). */
 export const DEFAULT_THEME_PACK_ID: ThemePackId = "none";
@@ -100,6 +109,30 @@ export const THEME_PACK_CONFIG: ReadonlyArray<ThemePackConfig> = [
     feltImageId: "cyber",
     background: surface("249 50% 5%", null, null),
     felt: surface("249 100% 58%", "cyber", null),
+  },
+  {
+    id: "psychedelic",
+    name: "Psychedelic",
+    colors: ["285 70% 18%", "190 95% 60%"],
+    feltMode: "gradient",
+    radialPreview: ["285 70% 22%", "310 90% 55%", "190 95% 60%"],
+    background: surface("285 70% 10%", null, null),
+    felt: surface("285 70% 18%", null, {
+      kind: "radial",
+      colors: ["285 70% 22%", "310 90% 55%", "190 95% 60%"],
+    }),
+  },
+  {
+    id: "modern",
+    name: "Modern",
+    colors: ["210 15% 14%", "210 90% 55%"],
+    feltMode: "gradient",
+    radialPreview: ["210 20% 18%", "210 15% 14%", "210 10% 10%"],
+    background: surface("210 15% 12%", null, null),
+    felt: surface("210 15% 14%", null, {
+      kind: "radial",
+      colors: ["210 20% 18%", "210 15% 14%", "210 10% 10%"],
+    }),
   },
 ];
 

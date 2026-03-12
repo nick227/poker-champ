@@ -31,7 +31,7 @@ export function CommunityBoard({
   return (
     <View
       collapsable={false}
-      className="ui-row ui-center"
+      className="ui-row ui-center mx-4"
       style={{
         gap: communityCardGap,
         alignItems: "center",

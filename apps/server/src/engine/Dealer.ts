@@ -589,6 +589,8 @@ export class Dealer {
   private pendingActorRef: { userId: string; client: Client } | null = null;
   private lastWaitingWithoutDeadlineRepairLogAt = 0;
   private lastWaitingWithoutDeadlineRepairKey = "";
+  private lastRoundClosedSelfHealLogAt = 0;
+  private lastRoundClosedSelfHealKey = "";
   // Legacy test compatibility: some regression tests introspect queue state via (dealer as any).actionQueue.
   private get actionQueue(): Promise<void> {
     return this.turnManager.getActionQueue();
@@ -767,6 +769,34 @@ export class Dealer {
       "TO_ACT_INVALID_REPAIRED",
     );
     this.state.toActSeat = repairedSeat;
+  }
+
+  private maybeSelfHealRoundClosedNoAction(trigger: string): void {
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    if (this.state.runoutMode === "STAGED") return;
+    if (!bettingRoundComplete(this.state) && !noFurtherBettingPossible(this.state)) return;
+
+    const key = `${this.state.handId}|${this.state.street}|${this.state.handActionSeq}`;
+    const now = Date.now();
+    if (
+      key !== this.lastRoundClosedSelfHealKey ||
+      now - this.lastRoundClosedSelfHealLogAt > 5000
+    ) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          handActionSeq: this.state.handActionSeq,
+          trigger,
+        },
+        "ROUND_CLOSED_SELF_HEAL_ADVANCE_REQUESTED",
+      );
+      this.lastRoundClosedSelfHealKey = key;
+      this.lastRoundClosedSelfHealLogAt = now;
+    }
+
+    void this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ROUND_CLOSED_SELF_HEAL");
   }
 
   private onWaitingForActionEntered(reason: string): void {
@@ -1241,6 +1271,7 @@ export class Dealer {
   private async requestDrive(reason: string, now?: number): Promise<void> {
     const driveNow = now ?? Date.now();
     const runDriveChecks = (trigger: string): void => {
+      this.maybeSelfHealRoundClosedNoAction(trigger);
       this.maybeSelfHealInvalidToActSeat(trigger);
       this.ensureHumanTurnTimerForCurrentActor(trigger);
       this.maybeSelfHealWaitingHumanWithoutDeadline(trigger);

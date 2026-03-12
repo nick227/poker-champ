@@ -284,6 +284,111 @@ async function setupHumanVsBotRoom() {
     }
   });
 
+  it("rejoin/session-swap with pending action replay remains idempotent for same actionId", async () => {
+    const { room, clientA, clientB } = await setupTwoPlayerRoom();
+    const clientARebound = makeClient("sess_a_rebound");
+    try {
+      await waitFor(() => Boolean(clientA.latestSnapshot?.hand?.handId), 3000, "initial hand before rebound");
+
+      // Ensure user_a is the actor so both stale and rebound sessions target the same logical turn.
+      const getToActUser = () => {
+        const snap = clientA.latestSnapshot;
+        if (!snap?.hand) return "";
+        return snap.seats.find((s) => s.seat === snap.hand!.toActSeat)?.userId ?? "";
+      };
+      if (getToActUser() !== "user_a") {
+        const snap = clientB.latestSnapshot!;
+        const action = pickLegalAction(snap);
+        room.onMessageEvents.emit("ACTION", clientB as any, {
+          ...action,
+          actionId: `session-swap-prime-${Date.now()}`,
+        });
+        await flushAsync();
+        await waitFor(() => getToActUser() === "user_a", 3000, "rotate action to user_a");
+      }
+
+      const beforeSeq = Number(room.state.handActionSeq ?? 0);
+      const handIdBefore = String(room.state.handId ?? "");
+
+      // Rebound same user with new session.
+      await room.onJoin(clientARebound as any, { buyInCents: 5000 }, { userId: "user_a", username: "alice" });
+      await waitFor(() => Boolean(clientARebound.latestSnapshot?.hand?.handId), 3000, "rebound snapshot");
+
+      const action = pickLegalAction(clientARebound.latestSnapshot!);
+      const replayActionId = `session-swap-replay-${Date.now()}`;
+
+      // Replay same actionId from stale and rebound sessions.
+      room.onMessageEvents.emit("ACTION", clientA as any, { ...action, actionId: replayActionId });
+      room.onMessageEvents.emit("ACTION", clientARebound as any, { ...action, actionId: replayActionId });
+      await flushAsync();
+
+      await waitFor(
+        () => Number(room.state.handActionSeq ?? 0) > beforeSeq || String(room.state.handId ?? "") !== handIdBefore,
+        4000,
+        "single action application after session swap replay",
+      );
+
+      // Idempotency: only one logical action should be applied.
+      expect(Number(room.state.handActionSeq ?? 0)).toBe(beforeSeq + 1);
+    } finally {
+      try {
+        await room.onLeave(clientARebound as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
+  it("rejects stale client action after turn has advanced", async () => {
+    const { room, clientA, clientB } = await setupTwoPlayerRoom();
+    try {
+      const snap = clientA.latestSnapshot!;
+      const toActSeat = snap.hand!.toActSeat;
+      const toActUserId = snap.seats.find((s) => s.seat === toActSeat)?.userId;
+      expect(toActUserId).toBeTruthy();
+      if (!toActUserId) return;
+
+      const actorClient = toActUserId === "user_a" ? clientA : clientB;
+      const staleErrorBefore = actorClient.sentByType.ERROR?.length ?? 0;
+      const beforeSeq = Number(room.state.handActionSeq ?? 0);
+
+      // First action is valid and advances the turn.
+      const legal = pickLegalAction(actorClient.latestSnapshot!);
+      room.onMessageEvents.emit("ACTION", actorClient as any, {
+        ...legal,
+        actionId: `stale-prime-${Date.now()}`,
+      });
+      await flushAsync();
+      await waitFor(() => Number(room.state.handActionSeq ?? 0) > beforeSeq, 4000, "turn advances after valid action");
+
+      // Second action from same previous actor is now stale for the new turn.
+      room.onMessageEvents.emit("ACTION", actorClient as any, {
+        ...legal,
+        actionId: `stale-late-${Date.now()}`,
+      });
+      await flushAsync();
+      await waitFor(
+        () => (actorClient.sentByType.ERROR?.length ?? 0) > staleErrorBefore,
+        3000,
+        "stale action rejected",
+      );
+
+      const codes = ((actorClient.sentByType.ERROR ?? []) as Array<{ code?: string }>).map((e) => e?.code);
+      expect(codes.some((code) => code === "NOT_YOUR_TURN" || code === "NOT_ELIGIBLE")).toBe(true);
+    } finally {
+      try {
+        await room.onLeave(clientA as any, 4000);
+      } catch {}
+      try {
+        await room.onLeave(clientB as any, 4000);
+      } catch {}
+    }
+  });
+
   it("rejects action when provided handId does not match current hand", async () => {
     const { room, clientA, clientB } = await setupTwoPlayerRoom();
     try {

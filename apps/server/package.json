@@ -11,6 +11,7 @@
     "analyze:game-bugs": "node scripts/analyze-game-bugs-timeouts.mjs",
     "analyze:phase4": "node scripts/analyze-game-bugs-timeouts.mjs --max-issues 100",
     "analyze:phase4:gate": "node scripts/check-phase4-gate.mjs",
+    "analyze:log-schema": "node scripts/check-log-schema-contract.mjs",
     "analyze:phase7:ready": "node scripts/check-phase7-ready.mjs",
     "analyze:phase4:compare": "node scripts/compare-phase4-captures.mjs",
     "analyze:canary": "node scripts/run-canary-validation.mjs",

@@ -1,4 +1,4 @@
-import { View, Pressable, ScrollView, Image, Platform } from "react-native";
+import { View, Pressable, ScrollView, Image, Platform, useWindowDimensions } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Text } from "@/components/base/Text";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -24,11 +24,17 @@ type FeltPresetImage = { name: string; imageId: FeltImageId };
 type FeltPreset = FeltPresetColor | FeltPresetImage;
 
 const FELT_COLOR_PRESETS: ReadonlyArray<FeltPresetColor> = [
-  { name: "Forest", value: "158 30% 14%" },
   { name: "Ocean", value: "217 30% 14%" },
   { name: "Blood", value: "0 30% 14%" },
   { name: "Void", value: "0 0% 5%" },
+  { name: "Royal", value: "230 35% 20%" },
+  { name: "Sunset", value: "20 65% 30%" },
 ];
+
+const SWATCH_SIZE_MOBILE = 56;
+/** Slightly smaller on wide screens so 6 fit per row (6+5), avoiding a lone swatch on its own row. */
+const SWATCH_SIZE_DESKTOP = 48;
+const WIDE_LAYOUT_BREAKPOINT = 400;
 
 const FELT_PRESETS: ReadonlyArray<FeltPreset> = [...FELT_COLOR_PRESETS, ...FELT_IMAGE_PRESETS];
 
@@ -43,6 +49,9 @@ export type ThemePickerSheetProps = {
 };
 
 export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const swatchSize =
+    windowWidth >= WIDE_LAYOUT_BREAKPOINT ? SWATCH_SIZE_DESKTOP : SWATCH_SIZE_MOBILE;
   const {
     appBackground,
     feltBackground,
@@ -146,6 +155,8 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
     );
   };
 
+  const swatchWrapperStyle = { width: swatchSize };
+
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Table Experience">
       <ScrollView className="flex-1 ui-p-stack-2" showsVerticalScrollIndicator={false}>
@@ -189,33 +200,41 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
 
         <View className="h-px bg-border-subtle mb-6" />
 
-        {/* BACKGROUND and FELT rows are separate so later felt-specific textures can be added without confusion. */}
+        {/* BACKGROUND and FELT: fixed-width swatches, flex-wrap, justify-between for consistent layout across devices. */}
         <Text variant="label" className="mb-3">Background</Text>
-        <View className="ui-row gap-3 mb-6 flex-wrap">
+        <View
+          className="mb-6 flex-row flex-wrap gap-3"
+          style={{ justifyContent: "space-between" }}
+        >
           <Pressable
-            key="none"
             onPress={withTapSound(onAppBackgroundClearPress)}
+            style={swatchWrapperStyle}
             className="ui-col items-center"
           >
             <View
               className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isAppBackgroundNone ? "border-gold" : "border-transparent"}`}
               style={{ backgroundColor: "hsl(0 0% 12%)" }}
             />
-            <Text variant="muted" className="mt-1 text-center text-[10px]">None</Text>
+            <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">None</Text>
           </Pressable>
           {FELT_COLOR_PRESETS.map((p) => {
-            const isSelected = !isAppBackgroundNone && appBackground.imageId === null && appBackground.gradient === null && appBackground.color === p.value;
+            const isSelected =
+              !isAppBackgroundNone &&
+              appBackground.imageId === null &&
+              appBackground.gradient === null &&
+              appBackground.color === p.value;
             return (
               <Pressable
                 key={p.value}
                 onPress={withTapSound(() => onAppBackgroundColorPress(p.value))}
+                style={swatchWrapperStyle}
                 className="ui-col items-center"
               >
                 <View
                   className={`w-12 h-12 rounded-full border-2 ${isSelected ? "border-gold" : "border-transparent"}`}
                   style={{ backgroundColor: `hsl(${p.value})` }}
                 />
-                <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+                <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">{p.name}</Text>
               </Pressable>
             );
           })}
@@ -226,6 +245,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
               <Pressable
                 key={p.imageId}
                 onPress={withTapSound(() => onAppBackgroundImagePress(p.imageId))}
+                style={swatchWrapperStyle}
                 className="ui-col items-center"
               >
                 <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>
@@ -235,7 +255,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
                     <View className="w-full h-full bg-panel" />
                   )}
                 </View>
-                <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+                <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">{p.name}</Text>
               </Pressable>
             );
           })}
@@ -244,17 +264,20 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
         <View className="h-px bg-border-subtle mb-6" />
 
         <Text variant="label" className="mb-3">Felt Color</Text>
-        <View className="ui-row gap-3 mb-8 flex-wrap">
+        <View
+          className="mb-8 flex-row flex-wrap gap-3"
+          style={{ justifyContent: "space-between" }}
+        >
           <Pressable
-            key="felt-none"
             onPress={withTapSound(clearFeltBackground)}
+            style={swatchWrapperStyle}
             className="ui-col items-center"
           >
             <View
               className={`w-12 h-12 rounded-full border-2 ${isFeltBackgroundNone ? "border-gold" : "border-transparent"}`}
               style={{ backgroundColor: "hsl(0 0% 12%)" }}
             />
-            <Text variant="muted" className="mt-1 text-center text-[10px]">None</Text>
+            <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">None</Text>
           </Pressable>
           {FELT_PRESETS.map((p) => {
             const isColor = "value" in p;
@@ -265,13 +288,14 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
                 <Pressable
                   key={key}
                   onPress={withTapSound(() => setFeltBackgroundColor(p.value))}
+                  style={swatchWrapperStyle}
                   className="ui-col items-center"
                 >
                   <View
                     className={`w-12 h-12 rounded-full border-2 ${isSelected ? "border-gold" : "border-transparent"}`}
                     style={{ backgroundColor: `hsl(${p.value})` }}
                   />
-                  <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+                  <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">{p.name}</Text>
                 </Pressable>
               );
             }
@@ -280,6 +304,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
               <Pressable
                 key={key}
                 onPress={withTapSound(() => setFeltBackgroundImageId(p.imageId))}
+                style={swatchWrapperStyle}
                 className="ui-col items-center"
               >
                 <View className={`w-12 h-12 rounded-full border-2 overflow-hidden ${isSelected ? "border-gold" : "border-transparent"}`}>
@@ -289,7 +314,7 @@ export function ThemePickerSheet({ visible, onClose }: ThemePickerSheetProps) {
                     <View className="w-full h-full bg-panel" />
                   )}
                 </View>
-                <Text variant="muted" className="mt-1 text-center text-[10px]">{p.name}</Text>
+                <Text variant="muted" numberOfLines={1} className="mt-1 text-center text-[10px]">{p.name}</Text>
               </Pressable>
             );
           })}

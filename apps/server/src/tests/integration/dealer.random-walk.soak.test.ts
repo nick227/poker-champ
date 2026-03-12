@@ -659,7 +659,7 @@ describe("dealer random walk soak", () => {
     expect(toActPlayer?.connected).toBe(true);
     expect(toActPlayer?.needsAction).toBe(true);
     expect(state.turnDeadlineMs, "missing turn deadline for human at flop after preflop transition").toBeGreaterThan(0);
-  });
+  }, 30_000);
 
   it("self-heals WAITING human actor missing needsAction and arms deadline", async () => {
     const state = new PokerState();

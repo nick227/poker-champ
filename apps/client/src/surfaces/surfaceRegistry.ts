@@ -133,7 +133,7 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     { paddingPreset: "sm", elevationPreset: 1 },
   ),
   "surface.sim.table.actionbar": createDefinition(
-    "border-t border-border-subtle flex items-center justify-center",
+    "flex items-center justify-center",
     { paddingPreset: "none", elevationPreset: 1 },
   ),
   "surface.sim.replay": createDefinition("bg-replay", {

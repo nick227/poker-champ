@@ -142,6 +142,26 @@ function getThemeStateForPack(pack: ThemePackId): ThemeStateSlice {
         accentColor: "300 100% 42%",
         tableRadius: "4px",
       };
+    case "psychedelic":
+      return {
+        ...base,
+        cardFaceColor: "60 100% 97%",
+        cardBackPattern: "geometric",
+        cardBackColor:
+          getProceduralCardBackById("geometric")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "190 95% 60%",
+        tableRadius: "24px",
+      };
+    case "modern":
+      return {
+        ...base,
+        cardFaceColor: "0 0% 100%",
+        cardBackPattern: "minimal",
+        cardBackColor:
+          getProceduralCardBackById("minimal")?.background ?? DEFAULT_CARD_BACK_HSL,
+        accentColor: "210 90% 55%",
+        tableRadius: "16px",
+      };
     case "none":
       return {
         ...base,
