@@ -21,7 +21,7 @@ const INSTANT_MAX_BUY_IN_CENTS = getMaxBuyInCents(INSTANT_BLINDS.bigBlindCents);
 const PRESETS: Record<InstantGamePresetId, InstantGamePreset> = {
   MULTIPLAYER_RING: {
     id: "MULTIPLAYER_RING",
-    title: "Multiplayer Game",
+    title: "Multi-Bot Game",
     body: "Battle with the bots.",
     cta: "Multiplayer",
     helper: "",

@@ -58,7 +58,7 @@ export function PlayerPanel({
           <DealerButton size="small" />
         </View>
       ) : null}
-      <View style={s.identityRow}>
+      <View className="flex-1 identity-row" style={s.identityRow}>
         <AvatarImage
           avatarUrl={avatarUrl}
           initial={initial}

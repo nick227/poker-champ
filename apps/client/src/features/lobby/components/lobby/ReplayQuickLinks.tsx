@@ -35,7 +35,7 @@ export function ReplayQuickLinks({
             Champ
           </Text>
           <Text variant="h2" className="mt-1 text-base">
-            Site leaderboard
+            Site Leaderboard
           </Text>
           <Text variant="muted" className="mt-1 text-xs">
             ARe you up there?
@@ -60,7 +60,7 @@ export function ReplayQuickLinks({
               Poker School
             </Text>
             <Text variant="muted" className="mt-1 text-xs">
-              Strategic poker coaching.
+              Simple poker coach.
             </Text>
             <View className="mt-3">
               <Button
