@@ -215,6 +215,93 @@ describe("dealer auto-action warning regressions", () => {
     detach();
   });
 
+  it("DRIVE-R01: ACTION_RESOLVED_NEXT_ACTOR trigger drives bot automation", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r01";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 2000;
+    state.maxBuyInCents = 20000;
+
+    const dealer = new Dealer(state);
+    await dealer.addPlayer("u1", "u1", 5000);
+    await dealer.addBot("bot_1", "bot_1", 5000);
+    await waitFor(() => state.street !== "WAITING", 4000, "active hand");
+
+    const bot = state.playersById.get("bot_1");
+    const human = state.playersById.get("u1");
+    expect(bot).toBeTruthy();
+    expect(human).toBeTruthy();
+    if (!bot || !human) return;
+
+    // Force bot as current actor and ensure the hand is still actionable.
+    state.toActSeat = bot.seat;
+    bot.needsAction = true;
+    bot.status = "ACTIVE";
+    human.needsAction = false;
+    state.turnDeadlineMs = 0;
+
+    const beforeSeq = state.handActionSeq;
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+    await waitFor(() => state.handActionSeq > beforeSeq || state.street === "WAITING", 3000, "bot auto-action progression");
+  });
+
+  it("DRIVE-R02: invalid toAct seat is repaired to an actionable player", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r02";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_drive_r02";
+    state.handNumber = 1;
+    state.street = "FLOP";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.roundCurrentBetCents = 200;
+    state.minRaiseCents = 100;
+    state.seats.push("u1", "u2", "u3", "", "", "");
+
+    const p1 = makePlayer({
+      id: "u1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 200,
+      committedCents: 200,
+      status: "ACTIVE",
+      needsAction: false,
+    });
+    const p2 = makePlayer({
+      id: "u2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 200,
+      committedCents: 200,
+      status: "ACTIVE",
+      needsAction: false,
+    });
+    const p3 = makePlayer({
+      id: "u3",
+      seat: 2,
+      kind: "BOT",
+      stackCents: 4900,
+      roundBetCents: 200,
+      committedCents: 200,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(p1.id, p1);
+    state.playersById.set(p2.id, p2);
+    state.playersById.set(p3.id, p3);
+    state.toActSeat = p1.seat; // invalid: does not need action
+
+    const dealer = new Dealer(state);
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+    expect(state.toActSeat).toBe(p3.seat);
+    assertChurnStateInvariants(state);
+  });
+
   it("LEAVE-R01: leave while to-act with queued auto-action defers removal until WAITING boundary", async () => {
     const state = new PokerState();
     state.tableId = "table_leave_r01";

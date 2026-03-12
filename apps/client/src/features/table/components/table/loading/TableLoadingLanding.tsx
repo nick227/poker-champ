@@ -64,40 +64,35 @@ export function TableLoadingLanding({
       }}
     >
       <View style={{ width: "100%" }} className="gap-4 flex-1">
-      <ScrollView className="flex-1">
-        <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
-          <View className="flex-row items-center gap-3">
+        <ScrollView className="flex-1">
+          <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
             <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
-            <Text variant="label" className="text-text-subtle">
-              Loading Table
+            <Text variant="h2" className="mt-3 text-text">
+              {loadingTitle}
             </Text>
+            <Text variant="muted" className="mt-2 text-text-subtle">
+              {statusMessage}
+            </Text>
+            {shouldShowAction ? (
+              <View className="mt-4">
+                <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
+              </View>
+            ) : null}
           </View>
-          <Text variant="h2" className="mt-3 text-text">
-            {loadingTitle}
-          </Text>
-          <Text variant="muted" className="mt-2 text-text-subtle">
-            {statusMessage}
-          </Text>
-          {shouldShowAction ? (
-            <View className="mt-4">
-              <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
-            </View>
-          ) : null}
-        </View>
 
-        <View
-          key={tableId ?? "session"}
-          className="overflow-hidden rounded-2xl border border-border-subtle bg-panel-elevated"
-          style={{ minHeight: SLOT_LANDING_MIN_HEIGHT }}
-        >
-          <ThemeProvider initialThemeId="poker-champ-dark">
-            <SlotMachine
-              bankrollCents={effectiveBankroll}
-              onBankrollChange={setSlotBankroll}
-              onSpinStart={handleSlotSpinStart}
-            />
-          </ThemeProvider>
-        </View>
+          <View
+            key={tableId ?? "session"}
+            className="overflow-hidden rounded-2xl border border-border-subtle bg-panel-elevated"
+            style={{ minHeight: SLOT_LANDING_MIN_HEIGHT }}
+          >
+            <ThemeProvider initialThemeId="poker-champ-dark">
+              <SlotMachine
+                bankrollCents={effectiveBankroll}
+                onBankrollChange={setSlotBankroll}
+                onSpinStart={handleSlotSpinStart}
+              />
+            </ThemeProvider>
+          </View>
         </ScrollView>
 
         <Text variant="caption" className="text-center text-text-subtle">

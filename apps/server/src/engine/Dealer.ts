@@ -735,6 +735,40 @@ export class Dealer {
     this.ensureHumanTurnTimerForCurrentActor(`SELF_HEAL:${trigger}`);
   }
 
+  private maybeSelfHealInvalidToActSeat(trigger: string): void {
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    if (this.state.runoutMode === "STAGED") return;
+    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) return;
+
+    const currentSeat = this.state.toActSeat;
+    const toActUserId = currentSeat >= 0 ? (this.state.seats[currentSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    const invalidToAct = !toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction;
+    if (!invalidToAct) return;
+
+    const pivot = currentSeat >= 0
+      ? currentSeat
+      : (this.state.dealerSeat >= 0 ? this.state.dealerSeat : 0);
+    const repairedSeat = findNextToActSeat(this.state, pivot);
+    if (repairedSeat < 0 || repairedSeat === currentSeat) return;
+
+    const repairedUserId = this.state.seats[repairedSeat] ?? "";
+    logger.error(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        trigger,
+        toActSeatBefore: currentSeat,
+        toActUserIdBefore: toActUserId,
+        toActSeatAfter: repairedSeat,
+        toActUserIdAfter: repairedUserId,
+      },
+      "TO_ACT_INVALID_REPAIRED",
+    );
+    this.state.toActSeat = repairedSeat;
+  }
+
   private onWaitingForActionEntered(reason: string): void {
     void this.requestDrive(`ROUND_STATE_ENTER:${reason}`);
   }
@@ -1207,6 +1241,7 @@ export class Dealer {
   private async requestDrive(reason: string, now?: number): Promise<void> {
     const driveNow = now ?? Date.now();
     const runDriveChecks = (trigger: string): void => {
+      this.maybeSelfHealInvalidToActSeat(trigger);
       this.ensureHumanTurnTimerForCurrentActor(trigger);
       this.maybeSelfHealWaitingHumanWithoutDeadline(trigger);
       this.logEngineDecisionState(trigger);
@@ -1218,6 +1253,7 @@ export class Dealer {
         // Phase 7 Step D (single trigger path): keep equivalent behavior while
         // routing progression checks through requestDrive boundary.
         case "ACTION_RESOLVED_NEXT_ACTOR":
+          this.maybeActForBot();
           runDriveChecks("ACTION_RESOLVED_NEXT_ACTOR");
           return;
         // Phase 7 Step E: second trigger path routed through requestDrive.
