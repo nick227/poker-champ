@@ -398,18 +398,36 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.stallCheckInterval = setInterval(() => {
       const connectedHumanCount = this.computeConnectedHumanCount();
       if (connectedHumanCount === 0) return;
-      this.dealer.logEngineDecisionPublic("STALL_MONITOR_TICK");
 
       const queueDepth = this.dealer.getQueueDepth();
       dealerRuntimeMetrics.observeQueueDepth(queueDepth);
       const now = Date.now();
       const activeHandForStall = this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN";
+      const waitingTurns = activeHandForStall && this.state.toActSeat >= 0 ? 1 : 0;
       this.refreshTurnAssignment(now);
       const turnAgeMs = this.lastTurnAssignedAtMs > 0 ? now - this.lastTurnAssignedAtMs : 0;
       const snapshotSilenceMs = this.lastSnapshotAt > 0 ? now - this.lastSnapshotAt : Number.POSITIVE_INFINITY;
       const decisionTraceId =
         this.dealer.getLastDecisionTraceIdPublic() ??
         `stall_${this.state.tableId}_${this.state.handId || "none"}_${now}`;
+      if (waitingTurns === 0) {
+        if (this.lastRuntimeMetricsLogAtMs + METRICS_LOG_INTERVAL_MS < now) {
+          logger.info(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              activeTables: 1,
+              waitingTurns,
+              ...dealerRuntimeMetrics.snapshot(),
+            },
+            "DEALER_RUNTIME_METRICS",
+          );
+          this.lastRuntimeMetricsLogAtMs = now;
+        }
+        return;
+      }
+
+      this.dealer.logEngineDecisionPublic("STALL_MONITOR_TICK");
       if (decisionStallDetectionEnabled) {
         if (activeHandForStall) {
           const stallReason = this.dealer.getStallReasonPublic(now);
@@ -430,8 +448,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                   roomId: this.roomId,
                   tableId: this.state.tableId,
                   activeTables: 1,
-                  waitingTurns:
-                    this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN" && this.state.toActSeat >= 0 ? 1 : 0,
+                  waitingTurns,
                   ...dealerRuntimeMetrics.snapshot(),
                 },
                 "DEALER_RUNTIME_METRICS",
@@ -558,8 +575,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             roomId: this.roomId,
             tableId: this.state.tableId,
             activeTables: 1,
-            waitingTurns:
-              this.state.street !== "WAITING" && this.state.street !== "SHOWDOWN" && this.state.toActSeat >= 0 ? 1 : 0,
+            waitingTurns,
             ...dealerRuntimeMetrics.snapshot(),
           },
           "DEALER_RUNTIME_METRICS",
