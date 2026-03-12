@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           pnpm --dir apps/server analyze:canary -- \
-            --file var/logs/room_soak_validation_run1.log \
+            --file "$GITHUB_WORKSPACE/var/logs/room_soak_validation_run1.log" \
             --min-hands-started 20 \
             --min-hand-completion-rate 0.95
 
