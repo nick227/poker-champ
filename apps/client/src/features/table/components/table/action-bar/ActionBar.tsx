@@ -24,13 +24,17 @@ export type ActionBarProps = {
   actionOptions?: HeroActionOptions;
   potCents?: number;
   onAction: ActionBarOnAction;
+  /** When true, bar is interactive even if actionContext.showActions is false (e.g. lesson resume). */
+  forceInteractive?: boolean;
 };
 
 export function ActionBar({
   actionContext,
+  forceInteractive = false,
   ...rest
 }: ActionBarProps) {
   const ctrl: ActionBarController = useActionBarController({ actionContext, ...rest });
+  const interactive = ctrl.showActions || forceInteractive;
 
   return (
     <View
@@ -42,8 +46,8 @@ export function ActionBar({
         style={[
           actionBarStyles.inner,
           {
-            opacity: ctrl.showActions ? 1 : 0.5,
-            pointerEvents: ctrl.showActions ? "auto" : "none",
+            opacity: interactive ? 1 : 0.5,
+            pointerEvents: interactive ? "auto" : "none",
           },
         ]}
         className="ui-action-bar mt-2"

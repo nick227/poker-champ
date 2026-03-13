@@ -235,6 +235,9 @@ export const TableSnapshotPayloadSchema = z.object({
   calculationsMeta: CalculationsMetaSchema.optional(),
   lastAction: TableLastActionSchema.optional(),
 
+  /** Lesson snapshots: 1 = legacy (may need client repair); 2+ = canonical, no repair. Omitted for non-lesson snapshots. */
+  lessonSnapshotVersion: z.number().int().positive().optional(),
+
   lastHandResult: z
     .object({
       handId: z.string().min(1),
@@ -294,6 +297,9 @@ export type TableInboundMessage = z.infer<typeof TableInboundMessageSchema>;
 export type TableOutboundMessage = z.infer<typeof TableOutboundMessageSchema>;
 export type TableSeatSnapshot = z.infer<typeof TableSeatSnapshotSchema>;
 export type TableSnapshotPayload = z.infer<typeof TableSnapshotPayloadSchema>;
+
+/** Lesson snapshot version 2 = canonical (wager bounds set at seed; client skips repair). */
+export const CANONICAL_LESSON_SNAPSHOT_VERSION = 2;
 export type TableLastAction = z.infer<typeof TableLastActionSchema>;
 export type HeroActionOptions = z.infer<typeof HeroActionOptionsSchema>;
 export type HeroPlayerStats = z.infer<typeof HeroPlayerStatsSchema>;

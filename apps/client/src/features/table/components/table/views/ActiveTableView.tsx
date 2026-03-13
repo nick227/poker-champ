@@ -51,8 +51,12 @@ export type ActiveTableViewProps = {
   heroAvatarUrlOverride?: string;
   onHeroAvatarPress?: () => void;
   tableMode?: "live" | "replay";
+  /** Optional override for whether to show hero calculation chips (equity / VPIP / PFR). */
+  showHeroStats?: boolean;
   forceDisableActions?: boolean;
   disabledActionMessage?: string;
+  /** When true, action bar is always interactive (e.g. lesson mode so resume at step 2/3 works). */
+  forceActionBarInteractive?: boolean;
   /** Report board rect for overlay BOARD-anchored FX (overlay coordinate space). */
   onBoardBounds?: (rect: Rect) => void;
   /** Report hero zone rect for HERO-anchored FX. */
@@ -87,8 +91,10 @@ export function ActiveTableView({
   heroAvatarUrlOverride,
   onHeroAvatarPress,
   tableMode = "live",
+  showHeroStats,
   forceDisableActions = false,
   disabledActionMessage = "Waiting for lesson result...",
+  forceActionBarInteractive = false,
   onBoardBounds,
   onHeroBounds,
   onSeatBounds,
@@ -241,10 +247,11 @@ export function ActiveTableView({
       bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
     } else if (
       forceDisableActions ||
-      waitingBetweenHands ||
-      !hasActionOptions ||
-      !actionContext.showActions ||
-      isPendingHeroAction
+      (!forceActionBarInteractive &&
+        (waitingBetweenHands ||
+          !hasActionOptions ||
+          !actionContext.showActions ||
+          isPendingHeroAction))
     ) {
       const textVariantClass = {
         default: "text-center text-muted",
@@ -279,6 +286,7 @@ export function ActiveTableView({
           actionOptions={heroActionOptions}
           potCents={potCents}
           onAction={handleAction}
+          forceInteractive={forceActionBarInteractive}
         />
       );
     }
@@ -322,7 +330,7 @@ export function ActiveTableView({
                   potOdds={heroCalculations?.potOddsPct}
                   outs={heroCalculations?.outs}
                   playerStats={heroPlayerStats}
-                  showStats={snapshot.table?.showStats ?? false}
+                  showStats={showHeroStats ?? (snapshot.table?.showStats ?? false)}
                   isWinner={isHeroWinner}
                   isDealer={isHeroDealer}
                   isActiveTurn={isHeroToAct}

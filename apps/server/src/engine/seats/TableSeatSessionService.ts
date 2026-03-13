@@ -1,4 +1,5 @@
 import { getPrisma } from "@poker-champ/db";
+import { logger } from "../../lib/logger.js";
 
 type SeatSessionState = "SEATED_ACTIVE" | "SEATED_SITTING_OUT" | "LEFT";
 
@@ -48,6 +49,43 @@ type SittingOutSessionTimestamp = {
 };
 
 export class TableSeatSessionService {
+  private static async safeSeatSessionUpdateMany(args: {
+    op: string;
+    context: Record<string, unknown>;
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<void> {
+    const prisma = getPrisma() as any;
+    const updateMany = prisma?.tableSeatSession?.updateMany;
+    if (typeof updateMany !== "function") {
+      logger.warn(
+        {
+          ...args.context,
+          op: args.op,
+          hasPrisma: Boolean(prisma),
+          hasTableSeatSession: Boolean(prisma?.tableSeatSession),
+        },
+        "TABLE_SEAT_SESSION_PERSIST_SKIPPED",
+      );
+      return;
+    }
+    try {
+      await updateMany({
+        where: args.where,
+        data: args.data,
+      });
+    } catch (err) {
+      logger.warn(
+        {
+          ...args.context,
+          op: args.op,
+          message: (err as Error | undefined)?.message ?? String(err),
+        },
+        "TABLE_SEAT_SESSION_PERSIST_FAILED",
+      );
+    }
+  }
+
   static async listRestorableSessionsForTable(params: {
     tableId: string;
     retentionHours: number;
@@ -232,8 +270,12 @@ export class TableSeatSessionService {
     stackCentsSnapshot?: number;
     handIdSnapshot?: string;
   }): Promise<void> {
-    const prisma = getPrisma() as any;
-    await prisma.tableSeatSession.updateMany({
+    await this.safeSeatSessionUpdateMany({
+      op: "markSittingOut",
+      context: {
+        tableId: params.tableId,
+        userId: params.userId,
+      },
       where: { tableId: params.tableId, userId: params.userId },
       data: {
         state: "SEATED_SITTING_OUT" as SeatSessionState,
@@ -252,8 +294,13 @@ export class TableSeatSessionService {
     stackCentsSnapshot?: number;
     handIdSnapshot?: string;
   }): Promise<void> {
-    const prisma = getPrisma() as any;
-    await prisma.tableSeatSession.updateMany({
+    await this.safeSeatSessionUpdateMany({
+      op: "markLeft",
+      context: {
+        tableId: params.tableId,
+        userId: params.userId,
+        reason: params.reason,
+      },
       where: { tableId: params.tableId, userId: params.userId },
       data: {
         state: "LEFT" as SeatSessionState,
@@ -300,8 +347,12 @@ export class TableSeatSessionService {
     stackCentsSnapshot?: number;
     handIdSnapshot?: string;
   }): Promise<void> {
-    const prisma = getPrisma() as any;
-    await prisma.tableSeatSession.updateMany({
+    await this.safeSeatSessionUpdateMany({
+      op: "touchConnected",
+      context: {
+        tableId: params.tableId,
+        userId: params.userId,
+      },
       where: { tableId: params.tableId, userId: params.userId },
       data: {
         state: "SEATED_ACTIVE" as SeatSessionState,

@@ -16,60 +16,45 @@ Already covered by new regression + soak gate:
 - timer rearm race on same turn (`TIMER-RACE-R01`)
 - room-level session rebound replay idempotency
 
+## Status Update (2026-03-13)
+Priority coverage has materially improved since this document was written.
+
+Addressed with direct test coverage:
+- P0.1 actor changes while old timer remains armed
+  - Covered by `TIMER-RACE-R02` in `apps/server/src/engine/dealer.auto-action-warning.regression.test.ts`.
+- P0.2 timeout fires after manual action
+  - Covered by `TIMER-RACE-R03` in `apps/server/src/engine/dealer.auto-action-warning.regression.test.ts`.
+- P0.3 stale client action after turn advanced
+  - Covered by `rejects stale client action after turn has advanced` in `apps/server/src/rooms/table-action-broadcast.test.ts`.
+- P0.4 seat removed while timer active
+  - Covered by `DRIVE-R07` in `apps/server/src/engine/dealer.auto-action-warning.regression.test.ts`.
+- P0.5 event-loop pause / delayed callback behavior
+  - Covered by `simulated event-loop pause: overdue timeout still fires once and clears deadline` in `apps/server/src/engine/dealer/turn/__tests__/TurnManager.test.ts`.
+- P1.6 actor becomes inactive mid-turn
+  - Covered by `DRIVE-R08` and `re-derives actor when human becomes inactive mid-turn`.
+- P1.7 hand restart race with stale callbacks
+  - Covered by `TIMER-RACE-R04` and `mixed stale timeout + queued callback from prior hand are inert after hand restart boundary`.
+- P1.8 queue starvation under load
+  - Covered by `handles burst action pressure without queue starvation` and room-level burst coverage.
+- P1.9 multi-table interference
+  - Covered by `runs concurrent tables without stalls` in `apps/server/src/rooms/poker-room.multitable.soak.test.ts`.
+- P2.10 broadcast ordering contract
+  - Covered by `broadcast ordering emits valid post-action progression snapshots` in `apps/server/src/rooms/table-action-broadcast.test.ts`.
+- P1.11 persistence partial-failure payout path
+  - Runtime divergence case covered by money-safety tests in `apps/server/src/engine/dealer/settlement/settlement-service.money-safety.test.ts`.
+  - Settlement now applies payouts ledger-first, and failed hand-history payout persistence emits `HAND_HISTORY_PAYOUT_RECORD_FAILED` with `handId`, `tableId`, `recipientUserId`, `payoutIndex`, and `amountCents`.
+- Follow-up on same-recipient concurrent credits
+  - Covered by `atomically credits concurrent payouts for the same recipient without lost updates` in `apps/server/src/engine/persistence/LedgerService.concurrent.test.ts`.
+  - `LedgerService` now uses atomic balance updates inside the transaction rather than read-then-write balance assignment.
+
 ## Remaining Blind Spots (Priority)
 
-## P0 (highest risk)
-1. Actor changes while old timer remains armed
-- Risk: wrong player times out.
-- Test: change `toActSeat` rapidly twice and assert only latest timer callback can mutate state.
-
-2. Timeout fires after manual action
-- Risk: double-apply (manual + timeout).
-- Test: arm timeout, apply action immediately, assert timeout callback is inert.
-
-3. Stale client action after turn advanced
-- Risk: action mutates wrong turn.
-- Test: submit delayed action with valid `actionId` after `handActionSeq` increments; assert reject/no mutation.
-
-4. Seat removed while timer active
-- Risk: timer callback references nonexistent actor.
-- Test: remove seat mid-turn and assert timeout cancellation and clean progression.
-
-5. Event-loop pause / delayed callback behavior
-- Risk: late timeout mutates invalid state.
-- Test: inject event loop delay and assert timer invariants still hold.
-
-## P1 (high)
-6. Actor becomes inactive mid-turn (sit out / bust / abandon)
-- Risk: no re-derive, table idles.
-- Test: force status change during waiting turn; assert next actor derivation and progress.
-
-7. Hand restart race with stale callbacks
-- Risk: old hand timer/automation mutates next hand.
-- Test: end hand while old callbacks are pending; assert stale callbacks are discarded.
-
-8. Queue starvation under load
-- Risk: queue grows and progression slows without explicit stall.
-- Test: synthetic burst enqueue; assert queue drains and progress heartbeat remains healthy.
-
-9. Multi-table interference
-- Risk: one hot table starves others.
-- Test: 10 concurrent room soaks; assert per-table completion and no cross-table stall spikes.
-
 ## P2 (important reliability and debugging)
-10. Broadcast ordering contract
-- Risk: UI renders invalid sequence.
-- Test: assert per-turn order contract for key events (`ACTION_RESULT` and `TABLE_SNAPSHOT` ordering policy).
-
 11. Snapshot vs internal-state drift
 - Risk: analyzers pass but runtime truth differs.
 - Test: periodic assertion that exported snapshot projections match internal state invariants.
 
-12. Persistence partial-failure payout path
-- Risk: pot/stack divergence on write failure.
-- Test: inject write failure between payout operations; assert rollback/compensation behavior.
-
-13. Log schema drift breaks analyzers
+12. Log schema drift breaks analyzers
 - Risk: false green pipeline.
 - Test: schema contract test for required log fields and messages.
 
@@ -131,11 +116,11 @@ Acceptance:
 - analyzer fails on missing required fields/messages
 
 ## Recommended Next 5 Tests (execution order)
-1. timeout-after-action race
-2. stale client action after turn advance
-3. seat removal while timer active
-4. event-loop pause simulation
-5. multi-table concurrent soak
+1. explicit log schema contract test with source-of-truth fixture
+2. snapshot vs internal-state drift
+3. required observability field contract (`buildSha`, lifecycle fields)
+4. analyzer fail-closed proof on missing required fields/messages
+5. CI lane wiring for log contract enforcement
 
 ## CI Integration Plan
 - Extend quick gate with P0 deterministic tests.
@@ -150,4 +135,8 @@ Acceptance:
 
 ## Notes
 - Existing regression and room-soak gates are now a strong baseline.
-- This document tracks the remaining reliability gap, not solved issues.
+- As of 2026-03-13, the original P0 and P1 items are covered by tests in-repo.
+- The remaining gap is now:
+  - P2 projection drift
+  - P2 observability/schema contract enforcement
+- The observability field list in this document is a requirement target, not an enforcement mechanism. The real gap remains a CI contract test that fails when required fields or parse-stable events drift.

@@ -24,6 +24,9 @@
     "phase7:validate:full": "node scripts/run-phase7-validation.mjs --runs 2 --hands 400 --sample-rate 0.35 --dead-path-baseline 9 --min-hand-completion-rate 0.98 --prefix phase7_validation_full",
     "room-soak:validate": "node scripts/run-room-soak-validation.mjs --runs 1 --hands 30 --min-hand-completion-rate 0.95 --prefix room_soak_validation",
     "room-soak:validate:quick": "node scripts/run-room-soak-validation.mjs --runs 1 --hands 10 --min-hand-completion-rate 0.90 --prefix room_soak_validation_quick",
+    "multitable-soak:validate": "node scripts/run-multitable-soak-validation.mjs --runs 1 --tables 4 --hands-per-table 30 --min-hand-completion-rate 0.95 --max-rejection-rate 0.10 --prefix multitable_soak_validation",
+    "multitable-soak:validate:quick": "node scripts/run-multitable-soak-validation.mjs --runs 1 --tables 3 --hands-per-table 10 --min-hand-completion-rate 0.90 --max-rejection-rate 0.10 --prefix multitable_soak_validation_quick",
+    "multitable-soak:nightly": "node scripts/run-multitable-soak-validation.mjs --runs 1 --tables 10 --hands-per-table 100 --min-hand-completion-rate 0.95 --max-rejection-rate 0.05 --prefix multitable_soak_nightly",
     "lint": "eslint src --config ../../eslint.config.mjs"
   },
   "dependencies": {

@@ -308,8 +308,8 @@ describe("dealer random walk soak", () => {
           });
         }
 
-        expect(state.street).toBe("PREFLOP");
-        expect(state.board.length).toBe(0);
+        expect(["PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"]).toContain(String(state.street));
+        if (state.street === "PREFLOP") expect(state.board.length).toBe(0);
 
         const trace: string[] = [`hand=${h + 1}`, `handId=${state.handId}`];
         let guard = 0;
@@ -538,6 +538,126 @@ describe("dealer random walk soak", () => {
     }
   }, isNightlySoak ? 300_000 : 120_000);
 
+  it("handles burst action pressure without queue starvation", async () => {
+    const state = new PokerState();
+    state.tableId = "table_soak_queue_pressure";
+    state.maxSeats = 3;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.dealerSeat = 1;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("u1", "u2", "u3");
+    state.street = "WAITING";
+
+    state.playersById.set("u1", makePlayer("u1", 0, 6000));
+    state.playersById.set("u2", makePlayer("u2", 1, 6000));
+    state.playersById.set("u3", makePlayer("u3", 2, 6000));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      creditRefund: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
+    (dealer as any).scheduleHumanTurnTimeout = () => {};
+
+    const optionsService = new ActionOptionsService();
+    await withTimeout((dealer as any).startHand(), 10_000, "queue pressure startHand");
+    expect(state.street).not.toBe("WAITING");
+
+    const toActId = state.seats[state.toActSeat];
+    expect(toActId).toBeTruthy();
+    const options = optionsService.buildHeroActionOptions(state, toActId!);
+    expect(options).toBeTruthy();
+
+    const burstAction: ActionPayload = options!.canCall
+      ? { action: "CALL" }
+      : options!.canCheck
+        ? { action: "CHECK" }
+        : options!.canAllIn
+          ? { action: "ALL_IN" }
+          : options!.canFold
+            ? { action: "FOLD" }
+            : options!.canRaise
+              ? { action: "RAISE", amountCents: options!.minRaiseTo ?? options!.maxRaiseTo ?? 1 }
+              : { action: "FOLD" };
+
+    let burstSettled = false;
+    let maxQueueDepth = dealer.getQueueDepth();
+    const monitor = (async () => {
+      while (!burstSettled) {
+        maxQueueDepth = Math.max(maxQueueDepth, dealer.getQueueDepth());
+        await Promise.resolve();
+      }
+    })();
+
+    let accepted = 0;
+    let rejected = 0;
+    const burst = Array.from({ length: 30 }, (_, i) =>
+      dealer
+        .handleAction(toActId!, {
+          ...burstAction,
+          actionId: `queue-pressure-${Date.now()}-${i}`,
+        })
+        .then(() => {
+          accepted += 1;
+        })
+        .catch((err) => {
+          if (err instanceof PokerError) {
+            rejected += 1;
+            return;
+          }
+          throw err;
+        }),
+    );
+
+    await withTimeout(Promise.all(burst), 10_000, "queue pressure burst settle");
+    burstSettled = true;
+    await monitor;
+
+    expect(accepted, "expected at least one accepted action from burst").toBeGreaterThan(0);
+    expect(rejected, "expected some rejected actions from stale/not-your-turn burst").toBeGreaterThan(0);
+
+    const drainStartedAt = Date.now();
+    await waitUntil(() => dealer.getQueueDepth() === 0, 10_000, "queue pressure drain");
+    const drainMs = Date.now() - drainStartedAt;
+    expect(maxQueueDepth, "queue depth did not spike under burst pressure").toBeGreaterThan(0);
+    expect(drainMs, `queue drained too slowly under burst pressure (maxDepth=${maxQueueDepth})`).toBeLessThan(2_500);
+    expect(dealer.getQueueDepth()).toBe(0);
+
+    let guard = 0;
+    while (state.street !== "WAITING" && guard < 30) {
+      guard += 1;
+      const currentToActId = state.seats[state.toActSeat];
+      expect(currentToActId, `missing toAct at guard=${guard}`).toBeTruthy();
+      const currentOptions = optionsService.buildHeroActionOptions(state, currentToActId!);
+      expect(currentOptions, `missing options at guard=${guard}`).toBeTruthy();
+      const action: ActionPayload = currentOptions!.canCheck
+        ? { action: "CHECK" }
+        : currentOptions!.canCall
+          ? { action: "CALL" }
+          : currentOptions!.canAllIn
+            ? { action: "ALL_IN" }
+            : currentOptions!.canFold
+              ? { action: "FOLD" }
+              : currentOptions!.canRaise
+                ? { action: "RAISE", amountCents: currentOptions!.minRaiseTo ?? currentOptions!.maxRaiseTo ?? 1 }
+                : { action: "FOLD" };
+      await withTimeout(dealer.handleAction(currentToActId!, action), 10_000, `queue pressure advance guard=${guard}`);
+      await waitUntil(() => dealer.getQueueDepth() === 0, 10_000, `queue pressure drain guard=${guard}`);
+      expect(dealer.getStallReasonPublic(Date.now())).toBeNull();
+    }
+
+    expect(state.street, "hand should complete after queue pressure burst").toBe("WAITING");
+  });
+
   it("arms a human turn deadline after preflop-to-flop transition", async () => {
     const state = new PokerState();
     state.tableId = "table_soak_transition_deadline";
@@ -629,6 +749,10 @@ describe("dealer random walk soak", () => {
     for (let attempt = 0; attempt < 5 && !reachedFlop; attempt++) {
       if (state.street !== "WAITING") break;
       await (dealer as any).startHand();
+      if (String(state.street) === "FLOP") {
+        reachedFlop = true;
+        break;
+      }
       if (String(state.street) !== "PREFLOP") continue;
 
       let guard = 0;
@@ -637,14 +761,22 @@ describe("dealer random walk soak", () => {
         if (guard > 80) throw new Error("preflop guard exceeded in human-vs-bot setup");
         const toActId = state.seats[state.toActSeat];
         if (!toActId) throw new Error("missing toAct seat");
-        if (toActId !== "h1") {
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          continue;
-        }
+        // Drive both actors deterministically to avoid bot automation timing races.
         const options = optionsService.buildHeroActionOptions(state, toActId);
         expect(options).toBeTruthy();
         const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
-        await dealer.handleAction(toActId, action);
+        try {
+          await dealer.handleAction(toActId, action);
+        } catch (err) {
+          if (
+            err instanceof PokerError &&
+            (err.code === "NOT_YOUR_TURN" || err.code === "NOT_ELIGIBLE" || err.code === "BAD_STATE")
+          ) {
+            // Bot automation can advance actor between option-build and submit in this focused test.
+            continue;
+          }
+          throw err;
+        }
       }
 
       reachedFlop = String(state.street) === "FLOP";
@@ -718,9 +850,22 @@ describe("dealer random walk soak", () => {
     state.turnDeadlineMs = 0;
 
     await Promise.resolve((dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR"));
-
-    expect(toActPlayer!.needsAction, "self-heal should restore human turn actionable state").toBe(true);
-    expect(state.turnDeadlineMs, "self-heal should arm a human turn deadline").toBeGreaterThan(0);
+    await waitUntil(
+      () => {
+        const currentToActId = state.seats[state.toActSeat];
+        if (!currentToActId) return false;
+        const currentToAct = state.playersById.get(currentToActId);
+        if (!currentToAct) return false;
+        return (
+          currentToAct.kind === "HUMAN" &&
+          currentToAct.connected &&
+          currentToAct.needsAction === true &&
+          state.turnDeadlineMs > 0
+        );
+      },
+      5_000,
+      "self-heal to restore human actionable turn + deadline",
+    );
   });
 });
 

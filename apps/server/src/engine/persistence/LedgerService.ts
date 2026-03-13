@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { nanoid } from "nanoid";
 import type { Street } from "../../state/PokerState.js";
 
@@ -223,55 +223,91 @@ export class LedgerService {
     externalRef: string;
     metaJson?: any;
   }): Promise<number> {
-    // Check idempotency
-    const existing = await this.prisma.balanceTransaction.findUnique({
-      where: { externalRef: params.externalRef },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.balanceTransaction.findUnique({
+          where: { externalRef: params.externalRef },
+        });
 
-    if (existing) {
-      // Already processed, return current balance
-      return await this.getBalance(params.userId);
+        if (existing) {
+          const balance = await tx.playerBalance.findUnique({
+            where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
+            select: { balanceCents: true },
+          });
+          return balance?.balanceCents ?? 0;
+        }
+
+        await tx.playerBalance.upsert({
+          where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
+          create: {
+            id: nanoid(),
+            tableId: this.tableId,
+            userId: params.userId,
+            balanceCents: 0,
+            status: "ACTIVE",
+          },
+          update: {},
+        });
+
+        let nextBalance: number;
+        if (params.amountCents >= 0) {
+          const updated = await tx.playerBalance.update({
+            where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
+            data: { balanceCents: { increment: params.amountCents } },
+            select: { balanceCents: true },
+          });
+          nextBalance = updated.balanceCents;
+        } else {
+          const debitAmount = Math.abs(params.amountCents);
+          // updateMany lets us enforce balance >= debitAmount in the write itself.
+          // It only returns a count, so we re-read the row to get the new balance.
+          // That read is still safe here because both statements are inside one transaction.
+          const updated = await tx.playerBalance.updateMany({
+            where: {
+              tableId: this.tableId,
+              userId: params.userId,
+              balanceCents: { gte: debitAmount },
+            },
+            data: { balanceCents: { decrement: debitAmount } },
+          });
+          if (updated.count !== 1) {
+            const balance = await tx.playerBalance.findUnique({
+              where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
+              select: { balanceCents: true },
+            });
+            const current = balance?.balanceCents ?? 0;
+            throw new Error(
+              `INSUFFICIENT_BALANCE: User ${params.userId} has ${current} cents, cannot debit ${debitAmount} cents`
+            );
+          }
+          const balance = await tx.playerBalance.findUnique({
+            where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
+            select: { balanceCents: true },
+          });
+          nextBalance = balance?.balanceCents ?? 0;
+        }
+
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            tableId: this.tableId,
+            userId: params.userId,
+            handId: params.handId,
+            type: params.type,
+            amountCents: params.amountCents,
+            externalRef: params.externalRef,
+            metaJson: params.metaJson ?? undefined,
+          },
+        });
+
+        return nextBalance;
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return await this.getBalance(params.userId);
+      }
+      throw err;
     }
-
-    // Get current balance
-    const current = await this.getBalance(params.userId);
-    const next = current + params.amountCents;
-
-    // Prevent negative balance
-    if (next < 0) {
-      throw new Error(
-        `INSUFFICIENT_BALANCE: User ${params.userId} has ${current} cents, cannot debit ${Math.abs(params.amountCents)} cents`
-      );
-    }
-
-    // Update PlayerBalance
-    await this.prisma.playerBalance.upsert({
-      where: { tableId_userId: { tableId: this.tableId, userId: params.userId } },
-      create: {
-        id: nanoid(),
-        tableId: this.tableId,
-        userId: params.userId,
-        balanceCents: next,
-        status: "ACTIVE",
-      },
-      update: { balanceCents: next },
-    });
-
-    // Record transaction
-    await this.prisma.balanceTransaction.create({
-      data: {
-        id: nanoid(),
-        tableId: this.tableId,
-        userId: params.userId,
-        handId: params.handId,
-        type: params.type,
-        amountCents: params.amountCents,
-        externalRef: params.externalRef,
-        metaJson: params.metaJson ?? undefined,
-      },
-    });
-
-    return next;
   }
 
   /**

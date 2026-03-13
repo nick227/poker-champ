@@ -4,6 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TableSnapshotPayloadSchema, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { getPrisma, disconnectPrisma } from "@poker-champ/db";
+import { CANONICAL_LESSON_SNAPSHOT_VERSION } from "@poker-champ/realtime-contract";
+import {
+  normalizeActionStepSnapshot,
+  validateActionStepSnapshot,
+} from "../apps/server/src/lessons/normalizeActionStepSnapshot.js";
 
 type StepConfigOption = {
   optionKey: string;
@@ -316,6 +321,29 @@ async function seedLessons() {
         const snapshotPath = path.resolve(lessonDir, step.snapshotPath);
         const snapshotRaw = await readJson<unknown>(snapshotPath);
         snapshotJson = TableSnapshotPayloadSchema.parse(snapshotRaw);
+        if (step.type === "ACTION_STEP" && snapshotJson) {
+          const expectedAction =
+            typeof step.gradingSpecJson?.expectedAction === "string"
+              ? step.gradingSpecJson.expectedAction.trim()
+              : "";
+          if (expectedAction) {
+            const version = snapshotJson.lessonSnapshotVersion;
+            const alreadyCanonical = version != null && version >= CANONICAL_LESSON_SNAPSHOT_VERSION;
+            if (alreadyCanonical) {
+              // Versioned v2+ snapshots: validate invariants only, keep payload as-is.
+              validateActionStepSnapshot(snapshotJson, expectedAction, {
+                lessonId,
+                stepId: step.id,
+              });
+            } else {
+              // Legacy / unversioned snapshots: normalize (which also validates).
+              snapshotJson = normalizeActionStepSnapshot(snapshotJson, expectedAction, {
+                lessonId,
+                stepId: step.id,
+              });
+            }
+          }
+        }
       }
 
       await prisma.lessonStep.upsert({

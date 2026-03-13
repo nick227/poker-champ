@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { MinimalHandSpec, SpecAction, Street } from "./minimalHandSpec.types.js";
 import { BOARD_LENGTH_BY_STREET, STREET_ORDER } from "./minimalHandSpec.types.js";
+import { normalizeActionStepSnapshot } from "./normalizeActionStepSnapshot.js";
 export type HeroDecisionPoint = {
   snapshot: TableSnapshotPayload;
   expectedAction: string;
@@ -142,6 +143,45 @@ function isHeroDecision(spec: MinimalHandSpec, action: SpecAction): boolean {
   return action.actorSeat === spec.heroSeat;
 }
 
+/**
+ * Derive full legal actionOptions from current state so all legal buttons are enabled in the UI.
+ * Learners can choose any legal action; grading marks the expected one correct.
+ */
+function actionOptionsFromState(
+  state: ProjectionState,
+  heroSeat: number,
+  expectedAction: string,
+): TableSnapshotPayload["hero"]["actionOptions"] {
+  const hero = getSeat(state, heroSeat);
+  if (!hero || hero.status !== "ACTIVE") {
+    return actionOptionsForExpected(expectedAction);
+  }
+  const { stackCents, roundBetCents } = hero;
+  const roundCurrentBetCents = state.roundCurrentBetCents;
+  const canCheck = roundCurrentBetCents === roundBetCents;
+  const callAmount = Math.max(0, roundCurrentBetCents - roundBetCents);
+  const canCall = callAmount > 0 && stackCents > 0;
+  const canBet = roundCurrentBetCents === 0 && stackCents > 0;
+  const canRaise = roundCurrentBetCents > 0 && stackCents > 0;
+  const canFold = true;
+  const canAllIn = stackCents > 0;
+  const u = expectedAction.toUpperCase();
+  const primaryWagerAction =
+    u === "BET" ? "BET" : u === "RAISE" ? "RAISE" : canBet ? "BET" : canRaise ? "RAISE" : "NONE";
+  return {
+    canFold,
+    canCheck,
+    canCall,
+    canBet,
+    canRaise,
+    canAllIn,
+    primaryWagerAction,
+    callAmount: canCall ? Math.min(callAmount, stackCents) : 0,
+    minRaiseTo: undefined,
+    maxRaiseTo: undefined,
+  };
+}
+
 function actionOptionsForExpected(expectedAction: string): TableSnapshotPayload["hero"]["actionOptions"] {
   const u = expectedAction.toUpperCase();
   return {
@@ -226,7 +266,7 @@ function buildSnapshot(
       youAreSeated: true,
       seat: spec.heroSeat,
       holeCards: [...spec.heroHoleCards],
-      actionOptions: actionOptionsForExpected(expectedAction),
+      actionOptions: actionOptionsFromState(state, spec.heroSeat, expectedAction),
     },
   };
 
@@ -288,13 +328,9 @@ export function projectSpecToSnapshots(spec: MinimalHandSpec): ProjectSpecResult
     if (isHeroDecision(spec, action)) {
       stepSeq++;
       const expectedAction = action.action;
-      const snapshot = buildSnapshot(
-        state,
-        spec,
-        `step_${String(stepSeq).padStart(2, "0")}`,
-        expectedAction,
-        stepSeq,
-      );
+      const stepId = `step_${String(stepSeq).padStart(2, "0")}`;
+      const rawSnapshot = buildSnapshot(state, spec, stepId, expectedAction, stepSeq);
+      const snapshot = normalizeActionStepSnapshot(rawSnapshot, expectedAction, { stepId });
       const proActionAmountCents =
         (action.action === "BET" || action.action === "RAISE" || action.action === "ALL_IN") && (action.sizeBB != null || action.sizePot != null)
           ? resolveAmountCents(state, spec, action)

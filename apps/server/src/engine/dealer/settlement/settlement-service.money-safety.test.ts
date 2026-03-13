@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SettlementService } from "./SettlementService.js";
 import { PokerState } from "../../../state/PokerState.js";
 import { PlayerState } from "../../../state/PlayerState.js";
+import { logger } from "../../../lib/logger.js";
 
 function makePlayer(input: {
   id: string;
@@ -174,5 +175,53 @@ describe("SettlementService money safety", () => {
     );
 
     expect(persistence.creditPayout).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not mutate the later winner stack when a subsequent payout persistence write fails", async () => {
+    const { service, state, persistence, recordPayout } = makeService();
+    const a = makePlayer({ id: "A", seat: 0, stackCents: 1200 });
+    const b = makePlayer({ id: "B", seat: 1, stackCents: 800 });
+    state.playersById.set(a.id, a);
+    state.playersById.set(b.id, b);
+
+    persistence.creditPayout
+      .mockResolvedValueOnce(1550)
+      .mockRejectedValueOnce(new Error("payout-write-failed"));
+
+    await service.creditPayoutToPlayer(a, 350);
+    await expect(service.creditPayoutToPlayer(b, 250)).rejects.toThrow("payout-write-failed");
+
+    expect(a.stackCents).toBe(1550);
+    expect(b.stackCents).toBe(800);
+    expect(service.getCurrentHandPotDisbursedCents()).toBe(350);
+    expect(recordPayout).toHaveBeenCalledTimes(1);
+    expect(recordPayout).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: "A", payoutIndex: 1, amountCents: 350 }),
+    );
+  });
+
+  it("warns but preserves credited payout when hand-history payout recording fails", async () => {
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined as any);
+    const { service, state, persistence, recordPayout } = makeService();
+    const a = makePlayer({ id: "A", seat: 0, stackCents: 1200 });
+    state.playersById.set(a.id, a);
+
+    persistence.creditPayout.mockResolvedValueOnce(1550);
+    recordPayout.mockRejectedValueOnce(new Error("recordPayout failed"));
+
+    await expect(service.creditPayoutToPlayer(a, 350)).resolves.toBeUndefined();
+
+    expect(a.stackCents).toBe(1550);
+    expect(service.getCurrentHandPotDisbursedCents()).toBe(350);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        handId: "hand_settlement",
+        tableId: "table_settlement",
+        recipientUserId: "A",
+        payoutIndex: 1,
+        amountCents: 350,
+      }),
+      "HAND_HISTORY_PAYOUT_RECORD_FAILED",
+    );
   });
 });

@@ -167,6 +167,43 @@ describe("TurnManager", () => {
     expect(state.turnDeadlineMs).toBe(0);
   });
 
+  it("simulated event-loop pause: overdue timeout still fires once and clears deadline", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-12T12:00:00.000Z"));
+    const state = createActionableState();
+    let callbackNow = 0;
+    const setPlayerSittingOutInternal = vi.fn(async () => {
+      callbackNow = Date.now();
+    });
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction: async () => {},
+      setPlayerSittingOutInternal,
+    });
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+    const armedDeadline = state.turnDeadlineMs;
+    expect(armedDeadline).toBeGreaterThan(0);
+
+    // Simulate a paused event loop by jumping wall clock beyond the deadline,
+    // then flushing pending timers; timeout callback must remain correct.
+    vi.setSystemTime(new Date(armedDeadline + 5_000));
+    await vi.runOnlyPendingTimersAsync();
+    await turnManager.getActionQueue();
+
+    expect(setPlayerSittingOutInternal).toHaveBeenCalledTimes(1);
+    expect(callbackNow).toBeGreaterThan(armedDeadline);
+    expect(state.turnDeadlineMs).toBe(0);
+
+    await vi.runOnlyPendingTimersAsync();
+    await turnManager.getActionQueue();
+    expect(setPlayerSittingOutInternal).toHaveBeenCalledTimes(1);
+  });
+
   it("clears deadline when pending timeout is cancelled", () => {
     const state = createActionableState();
     const turnManager = new TurnManager({

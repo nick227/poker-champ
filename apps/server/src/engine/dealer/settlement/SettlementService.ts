@@ -464,6 +464,31 @@ export class SettlementService {
     const potCentsBefore = this.deps.state.potCents;
     const disbursedBefore = this.currentHandPotDisbursedCents;
     const next = prevStackCents + amountCents;
+    const persistedNext = await this.deps.persistence.creditPayout({
+      userId: player.id,
+      handId: this.deps.state.handId,
+      amountCents,
+      currentBalance: prevStackCents,
+      player,
+    });
+    if (persistedNext !== next) {
+      const dump = this.formatMoneyDump({
+        actionType: "PAYOUT",
+        actorUserId: player.id,
+        expectedNext: next,
+        persistedNext,
+        stackBefore: prevStackCents,
+        stackAfter: player.stackCents,
+        roundBetBefore: prevRoundBetCents,
+        roundBetAfter: player.roundBetCents,
+        potBefore: potCentsBefore,
+        potAfter: this.deps.state.potCents,
+      });
+      throw new PokerError(
+        "BAD_STATE",
+        `LEDGER_BALANCE_MISMATCH ${dump}`,
+      );
+    }
     player.stackCents = next;
     this.currentHandPotDisbursedCents += amountCents;
     this.assertCreditDelta(amountCents, prevStackCents, player.stackCents, "SHOWDOWN_PAYOUT");
@@ -503,30 +528,20 @@ export class SettlementService {
       potBefore: potCentsBefore,
       potAfter: this.deps.state.potCents,
     });
-    await this.recordAcceptedPayout(player.id, amountCents);
-    const persistedNext = await this.deps.persistence.creditPayout({
-      userId: player.id,
-      handId: this.deps.state.handId,
-      amountCents,
-      currentBalance: prevStackCents,
-      player,
-    });
-    if (persistedNext !== next) {
-      const dump = this.formatMoneyDump({
-        actionType: "PAYOUT",
-        actorUserId: player.id,
-        expectedNext: next,
-        persistedNext,
-        stackBefore: prevStackCents,
-        stackAfter: player.stackCents,
-        roundBetBefore: prevRoundBetCents,
-        roundBetAfter: player.roundBetCents,
-        potBefore: potCentsBefore,
-        potAfter: this.deps.state.potCents,
-      });
-      throw new PokerError(
-        "BAD_STATE",
-        `LEDGER_BALANCE_MISMATCH ${dump}`,
+    const payoutIndex = this.currentHandPayoutIndex + 1;
+    try {
+      await this.recordAcceptedPayout(player.id, amountCents);
+    } catch (err) {
+      logger.warn(
+        {
+          err,
+          handId: this.deps.state.handId,
+          tableId: this.deps.state.tableId,
+          recipientUserId: player.id,
+          payoutIndex,
+          amountCents,
+        },
+        "HAND_HISTORY_PAYOUT_RECORD_FAILED",
       );
     }
   }

@@ -17,7 +17,8 @@ function normalizeLessonAction(answer: unknown): NormalizedAction | null {
   const obj = asObject(answer);
   if (!obj) return null;
   const rawType = typeof obj.type === "string" ? obj.type.toUpperCase() : "";
-  const amountRaw = typeof obj.amount === "number" ? obj.amount : undefined;
+  const amountRaw =
+    typeof obj.amount === "number" ? obj.amount : typeof obj.amountCents === "number" ? obj.amountCents : undefined;
   const amountCents =
     amountRaw != null && Number.isFinite(amountRaw) ? Math.max(0, Math.round(amountRaw)) : undefined;
   switch (rawType) {

@@ -322,4 +322,105 @@ describe("poker room random walk soak", () => {
       }
     }
   }, soakTimeoutMs);
+
+  it("handles room-level action burst without queue starvation", async () => {
+    (CashierService as any).processCashGameBuyIn = async () => ({ success: true, newTableBalance: 5000 });
+    (CashierService as any).processCashGameCashOut = async () => ({ success: true });
+
+    const warnSpy = vi.spyOn(logger, "warn");
+
+    const room = new PokerRoom() as any;
+    room.setMetadata = async () => {};
+    room.roomId = "room_queue_starvation_regression";
+    room.onCreate({
+      tableConfig: {
+        tableId: "table_room_queue_starvation_regression",
+        name: "Room Queue Starvation Regression",
+        maxSeats: 6,
+        smallBlindCents: 50,
+        bigBlindCents: 100,
+        minBuyInCents: 2000,
+        maxBuyInCents: 20_000,
+        visibility: "PUBLIC",
+        createdAt: Date.now(),
+      },
+    });
+
+    const client = makeClient("sess_room_queue_starvation");
+    await room.onJoin(client as any, { buyInCents: 5000 }, { userId: "user_human", username: "human" });
+    room.onMessageEvents.emit("ADD_BOT", client as any, {
+      name: "Bot",
+      buyInCents: 5000,
+      botId: "chaos_carl",
+    });
+
+    await waitFor(
+      () =>
+        Boolean(client.latestSnapshot?.hand?.handId) &&
+        client.latestSnapshot!.seats.some((s) => s.isBot),
+      12_000,
+      "initial hand + bot seated",
+    );
+
+    const waitForHumanTurn = async (label: string) => {
+      await waitFor(() => {
+        const snap = client.latestSnapshot;
+        if (!snap?.hand?.handId) return false;
+        const liveHandId = String(room.state.handId ?? "");
+        const liveStreet = String(room.state.street ?? "");
+        if (!liveHandId || liveStreet === "WAITING" || liveStreet === "SHOWDOWN") return false;
+        if (snap.hand.handId !== liveHandId) return false;
+        const liveToActUserId = room.state.toActSeat >= 0 ? (room.state.seats[room.state.toActSeat] ?? "") : "";
+        const snapToActUserId = snap.seats.find((s) => s.seat === snap.hand.toActSeat)?.userId ?? "";
+        return liveToActUserId === "user_human" && (snapToActUserId === "user_human" || snapToActUserId === "");
+      }, 12_000, label);
+    };
+
+    try {
+      await waitForHumanTurn("human toAct before burst");
+      const beforeHandId = String(room.state.handId ?? "");
+      const beforeStreet = String(room.state.street ?? "");
+      const beforeActionSeq = Number(room.state.handActionSeq ?? 0);
+
+      const snapshot = client.latestSnapshot!;
+      const burstAction = pickAction(snapshot);
+      const burstCount = 40;
+      for (let i = 0; i < burstCount; i += 1) {
+        room.onMessageEvents.emit("ACTION", client as any, {
+          ...burstAction,
+          actionId: `room-queue-burst-${Date.now()}-${i}`,
+        });
+      }
+
+      let maxQueueDepth = room.dealer.getQueueDepth();
+      const monitorStartedAt = Date.now();
+      await waitFor(() => {
+        maxQueueDepth = Math.max(maxQueueDepth, room.dealer.getQueueDepth());
+        const progressed =
+          String(room.state.handId ?? "") !== beforeHandId ||
+          String(room.state.street ?? "") !== beforeStreet ||
+          Number(room.state.handActionSeq ?? 0) > beforeActionSeq;
+        return progressed && room.dealer.getQueueDepth() === 0;
+      }, 10_000, "queue burst drain + progress");
+      const drainMs = Date.now() - monitorStartedAt;
+
+      expect(maxQueueDepth, "queue depth did not rise under room burst").toBeGreaterThan(0);
+      expect(drainMs, `room action burst drained too slowly (maxDepth=${maxQueueDepth})`).toBeLessThan(4_000);
+      expect(room.dealer.getQueueDepth()).toBe(0);
+
+      const snapAfterBurst = client.latestSnapshot;
+      expect(snapAfterBurst?.hand?.handId).toBeTruthy();
+
+      const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
+      const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+      expect(stalledCalls.length, "queue burst emitted TABLE_STALLED").toBe(0);
+      expect(redriveCalls.length, "queue burst emitted TABLE_STALLED_RECOVERY_REDRIVE").toBe(0);
+    } finally {
+      try {
+        await room.onLeave(client as any, 4000);
+      } catch {
+        // ignore teardown issues in soak cleanup
+      }
+    }
+  }, 120_000);
 });

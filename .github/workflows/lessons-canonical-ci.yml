@@ -5,6 +5,8 @@ on:
     paths:
       - "content/lessons/content/**"
       - "scripts/seed-lessons-content.ts"
+      - "scripts/lessons-audit.ts"
+      - "apps/server/src/lessons/normalizeActionStepSnapshot.ts"
       - "scripts/check-lessons-seed-integrity.ts"
       - "scripts/check-lessons-content.ts"
       - "apps/server/src/http/LessonsRouter.ts"
@@ -96,6 +98,7 @@ jobs:
           exit 1
       - run: pnpm db:migrate
       - run: pnpm lessons:content:check
+      - run: pnpm lessons:audit
       - run: pnpm lessons:seed:content -- --replace-noncanonical
       - run: pnpm lessons:seed:integrity
       - run: pnpm -C apps/client exec playwright test e2e/lessons-canonical-runtime.spec.ts --project=chromium --reporter=line

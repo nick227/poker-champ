@@ -1,7 +1,10 @@
+import React from "react";
 import { vi } from "vitest";
 
 // Define __DEV__ for test environment
 (globalThis as any).__DEV__ = false;
+// So components compiled with classic JSX (React.createElement) have React in scope
+(globalThis as any).React = React;
 
 const STUB_ASSET = 0;
 const SOUND_KEYS_LIST = [
@@ -84,4 +87,18 @@ vi.mock("@react-navigation/native", () => ({
     dispatch: noop,
     setOptions: noop,
   }),
+}));
+
+vi.mock("expo-av", () => {
+  const Video = (_props: unknown) => null;
+  const Audio = {
+    Sound: class {
+      static createAsync = vi.fn(() => Promise.resolve({ sound: { playAsync: vi.fn(), unloadAsync: vi.fn() } }));
+    },
+  };
+  return { Video, Audio };
+});
+
+vi.mock("@/features/table/animations/video.registry", () => ({
+  getVideoAsset: (_key: string) => undefined,
 }));

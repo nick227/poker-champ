@@ -106,9 +106,24 @@ function main() {
       `-t "DRIVE-R06|DRIVE-R07|DRIVE-R08|RETRY-R01|AUTO-WARN-R05|TIMER-RACE-R01|TIMER-RACE-R02|TIMER-RACE-R03|TIMER-RACE-R04"`;
     runOrFail(engineRegressionCmd, [], { cwd: repoRoot, env });
 
+    const timerPauseRegressionCmd =
+      `pnpm exec vitest run apps/server/src/engine/dealer/turn/__tests__/TurnManager.test.ts ` +
+      `-t "simulated event-loop pause: overdue timeout still fires once and clears deadline"`;
+    runOrFail(timerPauseRegressionCmd, [], { cwd: repoRoot, env });
+
+    const queuePressureRegressionCmd =
+      `pnpm exec vitest run apps/server/src/tests/integration/dealer.random-walk.soak.test.ts ` +
+      `-t "handles burst action pressure without queue starvation"`;
+    runOrFail(queuePressureRegressionCmd, [], { cwd: repoRoot, env });
+
+    const roomQueuePressureRegressionCmd =
+      `pnpm exec vitest run apps/server/src/rooms/poker-room.random-walk.soak.test.ts ` +
+      `-t "handles room-level action burst without queue starvation"`;
+    runOrFail(roomQueuePressureRegressionCmd, [], { cwd: repoRoot, env });
+
     const roomRegressionCmd =
       `pnpm exec vitest run apps/server/src/rooms/table-action-broadcast.test.ts ` +
-      `-t "rejoin/session-swap with pending action replay remains idempotent for same actionId|rejects stale client action after turn has advanced|broadcast ordering emits valid post-action progression snapshots|re-derives actor when human becomes inactive mid-turn|discarded stale queued callback from prior turn does not mutate newer turn state|stale human timeout callback from prior hand is inert after hand restart boundary"`;
+      `-t "rejoin/session-swap with pending action replay remains idempotent for same actionId|rejects stale client action after turn has advanced|broadcast ordering emits valid post-action progression snapshots|broadcast contract: first post-action snapshot is ACTION_ACCEPTED or a progressed AUTO_TRANSITION|snapshot log persistence failure does not block action progression|hand-end award persistence failure does not block hand transition|re-derives actor when human becomes inactive mid-turn|maintains valid actor derivation under rapid disconnect/reconnect churn|discarded stale queued callback from prior turn does not mutate newer turn state|queued callback from prior hand is inert after hand restart boundary|timeout callback after manual action is inert for stale turn token at room boundary|seat removed while timer active: stale timeout callback is inert|stale human timeout callback from prior hand is inert after hand restart boundary|mixed stale timeout \\+ queued callback from prior hand are inert after hand restart boundary"`;
     runOrFail(roomRegressionCmd, [], { cwd: repoRoot, env });
   }
 

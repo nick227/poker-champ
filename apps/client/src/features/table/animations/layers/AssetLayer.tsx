@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { Video } from "expo-av";
 import type { AnimationAssetType } from "../animationTypes";
-import { getVideoAsset } from "../video.registry";
+import { getVideoAsset } from "@/features/table/animations/video.registry";
 
 type AssetLayerProps = {
   assetType: AnimationAssetType;

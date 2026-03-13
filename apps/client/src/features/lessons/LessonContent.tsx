@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { lessonService } from "./lesson.service";
-import { ActiveTableView } from "@/features/table";
+import { ActiveTableView, ACTION_BAR_HEIGHT } from "@/features/table";
 import { mapSeatsToOpponents } from "@/features/table";
 import { buildTableSceneModel } from "@/features/table";
 import { buildReplayDisabledSceneModel } from "@/components/replay/replaySceneModel";
@@ -316,23 +316,6 @@ export function LessonContent({
     void loadDecisionRuntime();
   }, [step, isMigratedActionStep, loadDecisionRuntime, resetDecisionRuntime]);
 
-  const handleAction = useCallback<ActionBarOnAction>(
-    async (payload) => {
-      if (!step) return;
-      if (session.currentFeedback != null) return;
-      if (!isMigratedActionStep) {
-        await session.submitAction(payload);
-        return;
-      }
-      if (session.submitting || decisionRuntimeState === "SUBMITTING") return;
-      await session.submitAction(payload);
-      if (decisionRuntimeState === "QUESTION") {
-        await submitDecisionRuntime(payload);
-      }
-    },
-    [step, isMigratedActionStep, session, decisionRuntimeState, submitDecisionRuntime],
-  );
-
   const opponents = useMemo(() => (stepSnapshot ? mapSeatsToOpponents(stepSnapshot) : []), [stepSnapshot]);
 
   const sceneModel = useMemo(() => {
@@ -341,6 +324,29 @@ export function LessonContent({
     if (step.type === "ACTION_STEP") return base;
     return buildReplayDisabledSceneModel(base);
   }, [stepSnapshot, step]);
+
+  const handleAction = useCallback<ActionBarOnAction>(
+    async (payload) => {
+      if (!step) return;
+      if (session.currentFeedback != null) return;
+      const enriched =
+        payload.type === "ALL_IN" &&
+        payload.amount == null &&
+        sceneModel?.heroStackCents != null
+          ? { ...payload, amount: sceneModel.heroStackCents }
+          : payload;
+      if (!isMigratedActionStep) {
+        await session.submitAction(enriched);
+        return;
+      }
+      if (session.submitting || decisionRuntimeState === "SUBMITTING") return;
+      await session.submitAction(enriched);
+      if (decisionRuntimeState === "QUESTION") {
+        await submitDecisionRuntime(payload);
+      }
+    },
+    [step, isMigratedActionStep, session, decisionRuntimeState, submitDecisionRuntime, sceneModel?.heroStackCents],
+  );
 
   const continueToNextQuestion = useCallback(async () => {
     if (session.canGoNext) {
@@ -418,7 +424,8 @@ export function LessonContent({
           ]
         : String(stepSnapshot.hand.street)
       : null;
-  const lessonSheetMaxHeight = windowHeight * 0.7;
+  const reservedBottom = ACTION_BAR_HEIGHT + 24 + 80;
+  const lessonSheetMaxHeight = Math.min(windowHeight * 0.7, Math.max(200, windowHeight - reservedBottom));
   const { headerBadges, navigationButtons } = useLessonContentViewModel({
     tierLabel,
     streetLabel,
@@ -480,7 +487,7 @@ export function LessonContent({
 
   return (
     <View className="flex-1">
-      <View className="flex-1">
+      <View className="flex-1" style={{ minHeight: 0, overflow: "hidden", zIndex: 2 }} testID="lesson-table-wrapper">
         {sceneModel ? (
           <ActiveTableView
             key={`${step.id}:${retryNonce}`}
@@ -491,12 +498,19 @@ export function LessonContent({
             balanceCents={balanceCents}
             tableStatus="LESSON"
             connectionStatus="CONNECTED"
-            tableMode={step.type === "ACTION_STEP" ? "live" : "replay"}
+            tableMode="live"
+            showHeroStats={false}
             forceDisableActions={
               step.type === "ACTION_STEP" &&
               (session.currentFeedback != null ||
                 session.submitting ||
                 (isMigratedActionStep && decisionRuntimeState === "SUBMITTING"))
+            }
+            forceActionBarInteractive={
+              step.type === "ACTION_STEP" &&
+              session.currentFeedback == null &&
+              !session.submitting &&
+              !(isMigratedActionStep && decisionRuntimeState === "SUBMITTING")
             }
             disabledActionMessage={
               session.submitting ? LESSON_CONTENT_COPY.states.evaluatingDecision : LESSON_CONTENT_COPY.states.actionLocked
@@ -505,9 +519,14 @@ export function LessonContent({
         ) : null}
       </View>
 
-      <View className="mt-2">
+      <View
+        className="mt-2"
+        style={{ zIndex: 1 }}
+        pointerEvents="none"
+        testID="lesson-sheet"
+      >
         {sheetMinimized ? (
-          <View className="mx-3">
+          <View className="mx-3" style={{ zIndex: 3 }} pointerEvents="auto">
             <Pressable
               onPress={() => setSheetMinimized(false)}
               className="rounded-t-2xl border-t-2 border-border bg-panel-elevated px-4 py-3 shadow-lg"
@@ -529,7 +548,8 @@ export function LessonContent({
         ) : (
           <View
             className="mx-3 overflow-hidden rounded-t-2xl border-t-2 border-border bg-panel-elevated shadow-2xl"
-            style={{ maxHeight: lessonSheetMaxHeight }}
+            style={{ maxHeight: lessonSheetMaxHeight, zIndex: 3 }}
+            pointerEvents="auto"
           >
             <View className="flex-col" style={{ maxHeight: lessonSheetMaxHeight }}>
               <View className="mx-4 mt-2 items-center" {...collapsePanResponder.panHandlers}>
@@ -634,7 +654,7 @@ export function LessonContent({
               </View>
 
               {showStepNavigation ? (
-                <View className="mx-4 mb-3 mt-3 flex-row gap-2">
+                <View className="mx-4 mb-3 mt-3 flex-row gap-2" pointerEvents="box-none">
                   {navigationButtons.map((button) => (
                     <View key={button.id} className="flex-1">
                       <Button
