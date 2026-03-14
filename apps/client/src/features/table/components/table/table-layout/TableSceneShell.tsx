@@ -74,7 +74,9 @@ export function TableSceneShell({
   immersiveBoard = false,
   hideBottomSection = false,
   showStatusView = false,
-  revealed = false,
+  // Default to visible for standalone callers (lesson/replay). TableSceneRouter
+  // passes an explicit reveal state for the main table loading transition.
+  revealed = true,
   revealDurationMs = TABLE_REVEAL_MS,
   reducedMotion = false,
 }: TableSceneShellProps) {
