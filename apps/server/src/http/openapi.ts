@@ -261,9 +261,35 @@ export const openApiSpec = {
           "count",
         ],
       },
+      RootStatus: {
+        type: "object",
+        properties: {
+          service: { type: "string" },
+          status: { type: "string" },
+          health: { type: "string" },
+          openapi: { type: "string" },
+        },
+        required: ["service", "status", "health", "openapi"],
+      },
     },
   },
   paths: {
+    "/": {
+      get: {
+        tags: ["meta"],
+        operationId: "rootStatus",
+        responses: {
+          "200": {
+            description: "Service status",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/RootStatus" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/openapi.json": {
       get: {
         tags: ["meta"],
