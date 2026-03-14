@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "Button open puts you in the driver's seat. You'll see a flop in position or win the blinds."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "bet"
         ],
-        "followUpContent": "A flop bet gets value from worse and makes draws pay. You had the lead pre—continuing tells a coherent story."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -160,7 +160,7 @@
         "acceptedCorrectActions": [
           "check"
         ],
-        "followUpContent": "Checking the turn keeps the pot in check and sets up a river value bet. You don't have to bet every street to win."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -214,7 +214,7 @@
         "acceptedCorrectActions": [
           "bet"
         ],
-        "followUpContent": "Thin value means betting when you're ahead often enough to make the bet profitable. The river is where many players underbet or check too much."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

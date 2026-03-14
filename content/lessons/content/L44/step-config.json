@@ -25,7 +25,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_01.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Short stack; it's on you. What would the pro do?",
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "all_in"
         ],
-        "followUpContent": "Short stacks should get it in pre when they have a hand—you want folds or a flip, not awkward postflop stack sizes."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

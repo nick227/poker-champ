@@ -365,5 +365,63 @@ describe("table adapter money mapping", () => {
     const idsInOrder = opponents.map((o) => o.id);
     expect(idsInOrder).toEqual(["p1", "p2", "p3", "p4", "p5"]);
   });
+
+  it("keeps occupied opponents when malformed lesson snapshots reuse the hero userId", () => {
+    const snapshot = makeSnapshot();
+    const malformedLessonSnapshot: TableSnapshotPayload = {
+      ...snapshot,
+      hero: {
+        userId: "user_1",
+        youAreSeated: true,
+        seat: 2,
+      },
+      seats: [
+        {
+          seat: 1,
+          occupied: true,
+          userId: "user_1",
+          name: "Villain",
+          stackCents: 1800,
+          roundBetCents: 100,
+          committedCents: 100,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: false,
+          status: "ACTIVE",
+          isToAct: false,
+          isBot: true,
+        },
+        {
+          seat: 2,
+          occupied: true,
+          userId: "user_1",
+          name: "Hero",
+          stackCents: 2200,
+          roundBetCents: 50,
+          committedCents: 50,
+          connected: true,
+          disconnectDeadlineTs: 0,
+          isDealer: true,
+          status: "ACTIVE",
+          isToAct: true,
+          isBot: false,
+        },
+      ],
+      hand: {
+        ...snapshot.hand!,
+        dealerSeat: 2,
+        sbSeat: 2,
+        bbSeat: 1,
+        toActSeat: 2,
+      },
+      lastHandResult: undefined,
+    };
+
+    const opponents = mapSeatsToOpponents(malformedLessonSnapshot);
+    expect(opponents).toHaveLength(1);
+    expect(opponents[0]?.seat).toBe(1);
+    expect(opponents[0]?.name).toBe("Villain");
+    expect(opponents[0]?.cards).toEqual({ faceDown: true, visible: true });
+  });
 });
 

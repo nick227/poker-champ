@@ -25,7 +25,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_01.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "You're in the big blind facing a button open. What would the pro do?",
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "call"
         ],
-        "followUpContent": "The BB gets a discount and solid pot odds to see a flop. With a playable hand, call and play the rest of the hand in position or with initiative."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -77,7 +77,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_02.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Flop is out; it's on you first. What would the pro do?",
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "check"
         ],
-        "followUpContent": "Check. As the caller you're not obliged to donk—you keep the pot small and get to see what the aggressor does."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -159,7 +159,7 @@
         "acceptedCorrectActions": [
           "call"
         ],
-        "followUpContent": "Call. You've got a price and your hand can improve or already be best. Folding here with a playable hand is leaving money on the table."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -182,7 +182,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_04.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Turn card is out; action to you. What would the pro do?",
+      "beforeInstructorMessage": "Decision 4. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -212,7 +212,7 @@
         "acceptedCorrectActions": [
           "check"
         ],
-        "followUpContent": "Check again. You're not value-betting yet, but you're not dead. Control the pot and see the river."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -236,7 +236,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_05.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "River is out. Do you bet or check?",
+      "beforeInstructorMessage": "Decision 5. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -266,7 +266,7 @@
         "acceptedCorrectActions": [
           "check"
         ],
-        "followUpContent": "Check the river. With a marginal hand you're often good at showdown; betting mostly gets called by better and folds out worse."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

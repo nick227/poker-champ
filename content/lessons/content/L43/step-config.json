@@ -25,7 +25,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_01.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Action to you on the button. What would the pro do?",
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "A button open takes the lead and gets folds or builds a pot you'll play in position. Limping or folding gives up too much edge."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -77,7 +77,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_02.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Villain bets the flop. Your hand is weak on this board. What would the pro do?",
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "fold"
         ],
-        "followUpContent": "K-Q-J is a terrible board for 7-6: you're rarely ahead and can't bluff. The pro lets it go and waits for a better spot."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

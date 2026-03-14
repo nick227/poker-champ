@@ -162,16 +162,21 @@ export function buildTableSceneModel(
   );
   const expandedOptions = expandOptionsWithFullLegal(mergedOptions, snapshot, heroStackCents, heroRoundBetCents);
   const snapshotVersion = snapshot.lessonSnapshotVersion;
-  const skipWagerRepair = snapshotVersion != null && snapshotVersion >= CANONICAL_LESSON_SNAPSHOT_VERSION;
-  const heroActionOptions = skipWagerRepair
-    ? expandedOptions
-    : fillWagerBoundsFromSnapshot(expandedOptions, snapshot, heroStackCents, heroRoundBetCents);
-  if (!skipWagerRepair && mergedOptions && snapshot.hero?.actionOptions && (snapshot.hero.actionOptions.minRaiseTo == null || snapshot.hero.actionOptions.maxRaiseTo == null)) {
+  const isCanonicalLessonSnapshot = snapshotVersion != null && snapshotVersion >= CANONICAL_LESSON_SNAPSHOT_VERSION;
+  const missingWagerBounds =
+    expandedOptions != null &&
+    (expandedOptions.canBet || expandedOptions.canRaise) &&
+    (expandedOptions.minRaiseTo == null || expandedOptions.maxRaiseTo == null);
+  const heroActionOptions = missingWagerBounds
+    ? fillWagerBoundsFromSnapshot(expandedOptions, snapshot, heroStackCents, heroRoundBetCents)
+    : expandedOptions;
+  if (mergedOptions && snapshot.hero?.actionOptions && (snapshot.hero.actionOptions.minRaiseTo == null || snapshot.hero.actionOptions.maxRaiseTo == null)) {
     const needed = (mergedOptions.primaryWagerAction === "BET" && mergedOptions.canBet) || (mergedOptions.primaryWagerAction === "RAISE" && mergedOptions.canRaise);
     if (needed && heroActionOptions?.minRaiseTo != null) {
-      console.warn("LESSON_SNAPSHOT_REPAIR: fillWagerBoundsFromSnapshot applied (legacy snapshot, lessonSnapshotVersion missing or < canonical)", {
+      console.warn("LESSON_SNAPSHOT_REPAIR: fillWagerBoundsFromSnapshot applied", {
         snapshotId: snapshot.snapshotId,
         lessonSnapshotVersion: snapshotVersion ?? "missing",
+        canonicalSnapshot: isCanonicalLessonSnapshot,
       });
     }
   }

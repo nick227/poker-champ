@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "Open. Even with a short stack in the BB, you've got a hand and position—raise and play."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "bet"
         ],
-        "followUpContent": "Bet. Stack sizes are uneven—your bet still builds a meaningful pot and defines the hand."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -160,7 +160,7 @@
         "acceptedCorrectActions": [
           "bet"
         ],
-        "followUpContent": "Bet the turn. With different stack depths you're still building the pot when you're ahead—keep the line going."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

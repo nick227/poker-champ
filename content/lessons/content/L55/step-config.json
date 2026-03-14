@@ -25,7 +25,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_01.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Button; action on you. What would the pro do?",
+      "beforeInstructorMessage": "Decision 1. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "Open raise. Position and a playable hand—that's a raise."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -77,7 +77,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_02.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Villain leads the flop. You're strong. What would the pro do?",
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "Raise for value. You're ahead of their donk range—build the pot and make draws pay."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

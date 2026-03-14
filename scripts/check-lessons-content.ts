@@ -46,6 +46,55 @@ function validateSnapshotBasicShape(snapshotJson, label) {
   if (!asObject(obj.hero)) throw new Error(`${label} snapshot.hero is required`);
 }
 
+function validateSnapshotIdentityConsistency(snapshotJson, label) {
+  const hero = asObject(snapshotJson?.hero);
+  const seats = Array.isArray(snapshotJson?.seats) ? snapshotJson.seats : [];
+  const heroSeat = hero?.seat;
+  const heroUserId = hero?.userId;
+
+  if (!Number.isInteger(heroSeat) || heroSeat < 0) {
+    throw new Error(`${label} snapshot.hero.seat must be a non-negative integer`);
+  }
+  if (!isNonEmptyString(heroUserId)) {
+    throw new Error(`${label} snapshot.hero.userId must be a non-empty string`);
+  }
+
+  const occupiedIds = new Map();
+  let heroSeatRecord = null;
+  for (const seat of seats) {
+    if (!seat || seat.occupied !== true) continue;
+    if (!isNonEmptyString(seat.userId)) {
+      throw new Error(`${label} occupied seat ${seat?.seat ?? "unknown"} is missing userId`);
+    }
+    if (occupiedIds.has(seat.userId)) {
+      throw new Error(
+        `${label} duplicate occupied seat userId ${seat.userId} at seats ${occupiedIds.get(seat.userId)} and ${seat.seat}`,
+      );
+    }
+    occupiedIds.set(seat.userId, seat.seat);
+    if (seat.seat === heroSeat) {
+      heroSeatRecord = seat;
+    }
+  }
+
+  if (!heroSeatRecord) {
+    throw new Error(`${label} snapshot.hero.seat ${heroSeat} does not match any occupied seat`);
+  }
+  if (heroSeatRecord.userId !== heroUserId) {
+    throw new Error(
+      `${label} snapshot.hero.userId ${heroUserId} does not match occupied hero seat userId ${heroSeatRecord.userId}`,
+    );
+  }
+  if (hero.youAreSeated !== true) {
+    throw new Error(`${label} snapshot.hero.youAreSeated must be true for lesson snapshots`);
+  }
+  if (snapshotJson?.hand?.toActSeat != null && snapshotJson.hand.toActSeat !== heroSeat) {
+    throw new Error(
+      `${label} snapshot.hand.toActSeat ${snapshotJson.hand.toActSeat} must match snapshot.hero.seat ${heroSeat}`,
+    );
+  }
+}
+
 function parseLeadingHandToken(title) {
   if (!isNonEmptyString(title)) return null;
   const match = title.trim().match(/^([2-9TJQKA]{2})(s|o)?\b/i);
@@ -76,7 +125,7 @@ function countAllInOpponents(snapshotJson) {
   ).length;
 }
 
-function validateTitleSemanticConsistency(snapshotJson, title, dirName, stepId) {
+function validateTitleSemanticConsistency(snapshotJson, title, dirName, stepId, config) {
   const handToken = parseLeadingHandToken(title);
   if (handToken) {
     const heroHoleCards = snapshotJson?.hero?.holeCards;
@@ -90,31 +139,30 @@ function validateTitleSemanticConsistency(snapshotJson, title, dirName, stepId) 
   const normalizedTitle = String(title ?? "").toLowerCase();
   const street = String(snapshotJson?.hand?.street ?? "").toUpperCase();
   const allInOpponents = countAllInOpponents(snapshotJson);
+  const isFullHandGhostLesson = config?.lessonType === "FULL_HAND_GHOST" && Array.isArray(config?.steps) && config.steps.length > 1;
 
-  if (normalizedTitle.includes("two all-ins") || normalizedTitle.includes("double all-in")) {
-    if (allInOpponents < 2) {
-      throw new Error(`${dirName}:${stepId} expected at least 2 ALL_IN opponents for "${title}", found ${allInOpponents}`);
+  if (!isFullHandGhostLesson) {
+    if (normalizedTitle.includes("two all-ins") || normalizedTitle.includes("double all-in")) {
+      if (allInOpponents < 2) {
+        throw new Error(`${dirName}:${stepId} expected at least 2 ALL_IN opponents for "${title}", found ${allInOpponents}`);
+      }
     }
-  } else if (normalizedTitle.includes("all-in")) {
-    if (allInOpponents < 1) {
-      throw new Error(`${dirName}:${stepId} expected at least 1 ALL_IN opponent for "${title}", found ${allInOpponents}`);
+
+    if (normalizedTitle.includes("turn") && street !== "TURN") {
+      throw new Error(`${dirName}:${stepId} title implies TURN but snapshot street is ${street || "UNKNOWN"}`);
+    }
+    if (normalizedTitle.includes("river") && street !== "RIVER") {
+      throw new Error(`${dirName}:${stepId} title implies RIVER but snapshot street is ${street || "UNKNOWN"}`);
+    }
+    if (normalizedTitle.includes("utg") && street !== "PREFLOP") {
+      throw new Error(`${dirName}:${stepId} title implies PREFLOP/UTG context but snapshot street is ${street || "UNKNOWN"}`);
+    }
+    if (normalizedTitle.includes("limper") && street !== "PREFLOP") {
+      throw new Error(`${dirName}:${stepId} title implies limper preflop context but snapshot street is ${street || "UNKNOWN"}`);
     }
   }
 
-  if (normalizedTitle.includes("turn") && street !== "TURN") {
-    throw new Error(`${dirName}:${stepId} title implies TURN but snapshot street is ${street || "UNKNOWN"}`);
-  }
-  if (normalizedTitle.includes("river") && street !== "RIVER") {
-    throw new Error(`${dirName}:${stepId} title implies RIVER but snapshot street is ${street || "UNKNOWN"}`);
-  }
-  if (normalizedTitle.includes("utg") && street !== "PREFLOP") {
-    throw new Error(`${dirName}:${stepId} title implies PREFLOP/UTG context but snapshot street is ${street || "UNKNOWN"}`);
-  }
-  if (normalizedTitle.includes("limper") && street !== "PREFLOP") {
-    throw new Error(`${dirName}:${stepId} title implies limper preflop context but snapshot street is ${street || "UNKNOWN"}`);
-  }
-
-  if (normalizedTitle.includes("two limpers")) {
+  if (!isFullHandGhostLesson && normalizedTitle.includes("two limpers")) {
     const bb = Number(snapshotJson?.table?.bigBlindCents ?? 0);
     const heroSeat = snapshotJson?.hero?.seat;
     const seats = Array.isArray(snapshotJson?.seats) ? snapshotJson.seats : [];
@@ -159,7 +207,7 @@ function validateTopLevel(config, dirName) {
   if (!asObject(config)) throw new Error(`${dirName}: config must be an object`);
   if (!isNonEmptyString(config.lessonId)) throw new Error(`${dirName}: lessonId required`);
   if (!isNonEmptyString(config.title)) throw new Error(`${dirName}: title required`);
-  if (!["MODULE_A", "MODULE_B", "MODULE_C", "MODULE_D"].includes(config.moduleCode)) {
+  if (!["MODULE_A", "MODULE_B", "MODULE_C", "MODULE_D", "MODULE_GHOST"].includes(config.moduleCode)) {
     throw new Error(`${dirName}: moduleCode must be canonical module code`);
   }
   if (!["teaches", "drills", "tests"].includes(config.role)) {
@@ -235,11 +283,12 @@ async function validateLessonDir(dirName) {
       if (!result.success && process.env.LESSONS_STRICT_SNAPSHOT === "1") {
         throw new Error(`${dirName}:${step.id} snapshot invalid at ${step.snapshotPath}`);
       }
+      validateSnapshotIdentityConsistency(snapshotJson, `${dirName}:${step.id}`);
       const resolvedVersion = result.success ? result.data.version : snapshotJson.version;
       if (resolvedVersion !== step.snapshotVersion) {
         throw new Error(`${dirName}:${step.id} snapshotVersion mismatch (${step.snapshotVersion} != ${resolvedVersion})`);
       }
-      validateTitleSemanticConsistency(snapshotJson, config.title, dirName, step.id);
+      validateTitleSemanticConsistency(snapshotJson, config.title, dirName, step.id, config);
       validateTwoAllInsScenario(snapshotJson, config.title, dirName, step.id);
     }
   }
@@ -272,4 +321,3 @@ main().catch((error) => {
   console.error(error?.stack || error?.message || String(error));
   process.exitCode = 1;
 });
-

@@ -22,7 +22,7 @@ export type HeroDecisionPoint = {
 };
 
 const BB_TO_CENTS = 100;
-const LESSON_HERO_USER_ID = "user_1";
+const LESSON_HERO_USER_ID = "hero_user";
 
 type SeatState = {
   seat: number;

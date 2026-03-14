@@ -2,8 +2,8 @@
   "version": 1,
   "snapshotId": "step_02",
   "snapshotSeq": 2,
-  "emittedAtTs": 1772743946224,
-  "serverTimeTs": 1772743946224,
+  "emittedAtTs": 1773488039767,
+  "serverTimeTs": 1773488039767,
   "reason": "ACTION_ACCEPTED",
   "table": {
     "tableId": "lesson-spec",
@@ -17,7 +17,7 @@
     "showStats": true
   },
   "hand": {
-    "handId": "spec_1772743946223",
+    "handId": "spec_1773488039767",
     "handNumber": 1,
     "street": "FLOP",
     "dealerSeat": 2,
@@ -53,7 +53,7 @@
     {
       "seat": 2,
       "occupied": true,
-      "userId": "user_1",
+      "userId": "hero_user",
       "isBot": false,
       "name": "Hero",
       "status": "ACTIVE",
@@ -67,7 +67,7 @@
     }
   ],
   "hero": {
-    "userId": "user_1",
+    "userId": "hero_user",
     "youAreSeated": true,
     "seat": 2,
     "holeCards": [
@@ -75,15 +75,18 @@
       "Qs"
     ],
     "actionOptions": {
-      "canFold": false,
-      "canCheck": false,
+      "canFold": true,
+      "canCheck": true,
       "canCall": false,
       "canBet": true,
       "canRaise": false,
-      "canAllIn": false,
+      "canAllIn": true,
       "primaryWagerAction": "BET",
-      "callAmount": 0
+      "callAmount": 0,
+      "minRaiseTo": 100,
+      "maxRaiseTo": 9750
     }
   },
-  "stateHash": "04b1a101ecaa106497748ac6bc75f70ff690bc29"
+  "stateHash": "aa737a3c44575900df14a1ed9829e53bc670e48e",
+  "lessonSnapshotVersion": 2
 }

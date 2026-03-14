@@ -55,7 +55,7 @@
         "acceptedCorrectActions": [
           "raise"
         ],
-        "followUpContent": "Open from the button. You've got a hand and position—raise and define the hand."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -77,7 +77,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_02.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "Villain c-bets the flop. What would the pro do?",
+      "beforeInstructorMessage": "Decision 2. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -107,7 +107,7 @@
         "acceptedCorrectActions": [
           "call"
         ],
-        "followUpContent": "Call. You've got a price and either a draw or some showdown value—see the turn and re-evaluate."
+        "followUpContent": "(Add teaching note.)"
       }
     },
     {
@@ -130,7 +130,7 @@
       "snapshotVersion": 1,
       "snapshotPath": "./snapshots/step_03.json",
       "gradingVersion": 1,
-      "beforeInstructorMessage": "They fire again on the turn. What would the pro do?",
+      "beforeInstructorMessage": "Decision 3. What would the pro do?",
       "question": "What would the pro do?",
       "gradingSpecJson": {
         "type": "ACTION_STEP",
@@ -160,7 +160,7 @@
         "acceptedCorrectActions": [
           "fold"
         ],
-        "followUpContent": "Fold. The second barrel means they're not giving up. Your hand didn't improve enough to call without a plan—save the chips."
+        "followUpContent": "(Add teaching note.)"
       }
     }
   ],

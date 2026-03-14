@@ -182,10 +182,16 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       ? snapshot.lastHandResult.showdownHoleCardsByUserId
       : undefined;
   const heroId = snapshot.hero.userId;
+  const heroSeatNumber = snapshot.hero.seat;
   const serverNowTs = snapshot.serverTimeTs;
   const opponents: Opponent[] = [];
   for (const seat of snapshot.seats) {
-    if (!seat.occupied || !seat.userId || seat.userId === heroId) continue;
+    if (!seat.occupied || !seat.userId) continue;
+    if (heroSeatNumber != null) {
+      if (seat.seat === heroSeatNumber) continue;
+    } else if (seat.userId === heroId) {
+      continue;
+    }
 
     let cards: Opponent["cards"] | undefined;
     const showdownCards = showdownHoleCardsByUserId?.[seat.userId];
