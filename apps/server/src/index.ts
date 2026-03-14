@@ -144,6 +144,15 @@ app.get("/health", (_req, res) => {
   res.send("OK");
 });
 
+app.get("/", (_req, res) => {
+  res.json({
+    service: "poker-champ-api",
+    status: "ok",
+    health: "/health",
+    openapi: "/openapi.json",
+  });
+});
+
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   void next;
   if (err?.status && Array.isArray(err?.errors)) {
@@ -175,7 +184,7 @@ const gameServer = new Server({
       const path = req.path ?? "";
       const isApiRoute = path === "/api" || path.startsWith("/api/");
       const isAvatarRoute = path.startsWith("/avatars/");
-      if (isApiRoute || isAvatarRoute || path === "/health" || path === "/openapi.json") {
+      if (isApiRoute || isAvatarRoute || path === "/" || path === "/health" || path === "/openapi.json") {
         app(req, res, next);
         return;
       }
