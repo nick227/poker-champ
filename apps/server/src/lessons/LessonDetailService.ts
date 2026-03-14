@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { getRuntimeConfigFromGradingSpec } from "./utils/runtimeConfig.js";
 import { asObject } from "./utils/objectHelpers.js";
+import { repairLessonSnapshot } from "./repairLessonSnapshot.js";
 import type { LessonDetailResponseDto } from "./types.js";
 
 function getGradingDisplay(gradingSpecJson: unknown): {
@@ -50,7 +51,7 @@ export async function getLesson(
       id: step.id,
       sequence: step.sequence,
       type: step.type,
-      snapshot: step.snapshotJson,
+      snapshot: repairLessonSnapshot(step.snapshotJson),
       beforeInstructorMessage: step.beforeMessage,
       question: step.questionText,
       followUpInstructorMessage: step.followUpMessage,

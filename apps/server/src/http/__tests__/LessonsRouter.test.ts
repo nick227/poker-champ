@@ -467,6 +467,42 @@ describe("LessonsRouter", () => {
     expect(res.status).toBe(404);
   });
 
+  it("repairs stale duplicate snapshot seat identities in lesson detail responses", async () => {
+    state.steps[0].snapshotJson = {
+      hero: {
+        seat: 2,
+        userId: "user_1",
+        youAreSeated: true,
+        holeCards: ["Ah", "Jh"],
+        actionOptions: {
+          canBet: false,
+          canCall: false,
+          canFold: false,
+          canAllIn: true,
+          canCheck: false,
+          canRaise: false,
+          callAmount: 0,
+          primaryWagerAction: "NONE",
+        },
+      },
+      seats: [
+        { seat: 1, occupied: true, userId: "user_1", stackCents: 10000 },
+        { seat: 2, occupied: true, userId: "user_1", stackCents: 10000 },
+      ],
+      hand: {
+        toActSeat: 2,
+      },
+    };
+
+    const res = await get("/api/lessons/lesson_test");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const snapshot = body.lesson.steps[0].snapshot;
+    expect(snapshot.hero.userId).toBe("hero_user");
+    expect(snapshot.seats.find((seat: any) => seat.seat === 2)?.userId).toBe("hero_user");
+    expect(snapshot.seats.find((seat: any) => seat.seat === 1)?.userId).toBe("user_1");
+  });
+
   it("returns per-lesson progress state in lessons list", async () => {
     const listBefore = await get("/api/lessons");
     expect(listBefore.status).toBe(200);
