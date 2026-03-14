@@ -52,6 +52,28 @@ const REQUIRED_FIELDS_BY_MSG = {
     "reason",
     "now",
   ],
+  ENGINE_RUNTIME_STEP: [
+    "decisionTraceId",
+    "tableId",
+    "handId",
+    "street",
+    "toActSeat",
+    "toActUserId",
+    "turnDeadlineMs",
+    "step",
+    "reason",
+    "now",
+    "runtimeStep",
+  ],
+  ENGINE_PARITY: [
+    "tableId",
+    "handId",
+    "decisionTraceId",
+    "reason",
+    "decisionStep",
+    "runtimeStep",
+    "match",
+  ],
   ENGINE_PARITY_MISMATCH: [
     "tableId",
     "handId",
@@ -65,6 +87,15 @@ const REQUIRED_FIELDS_BY_MSG = {
     "activeTables",
     "waitingTurns",
   ],
+};
+
+// Fault-path events such as TABLE_STALLED may legitimately be absent in a healthy soak run.
+// Presence is required only for events that should appear in normal sampled soak output.
+const MIN_EXPECTED_COUNTS_BY_MSG = {
+  ENGINE_DECISION: 1,
+  ENGINE_RUNTIME_STEP: 1,
+  ENGINE_PARITY: 1,
+  DEALER_RUNTIME_METRICS: 1,
 };
 
 function hasValue(obj, key) {
@@ -84,6 +115,7 @@ function main() {
   const lines = content.split(/\r?\n/).filter((line) => line.trim().startsWith("{"));
   let checked = 0;
   const issues = [];
+  const countsByMsg = new Map();
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -97,11 +129,19 @@ function main() {
     const requiredFields = REQUIRED_FIELDS_BY_MSG[msg];
     if (!requiredFields) continue;
     checked += 1;
+    countsByMsg.set(msg, (countsByMsg.get(msg) ?? 0) + 1);
 
     for (const field of requiredFields) {
       if (!hasValue(entry, field)) {
         issues.push(`line=${i + 1} msg=${msg} missing=${field}`);
       }
+    }
+  }
+
+  for (const [msg, minCount] of Object.entries(MIN_EXPECTED_COUNTS_BY_MSG)) {
+    const count = countsByMsg.get(msg) ?? 0;
+    if (count < minCount) {
+      issues.push(`msg=${msg} count=${count} expected>=${minCount}`);
     }
   }
 

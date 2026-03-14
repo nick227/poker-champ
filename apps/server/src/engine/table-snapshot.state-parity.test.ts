@@ -59,7 +59,7 @@ async function emitSnapshotFor(dealer: Dealer, userId: string, reason: TableSnap
   await dealer.emitSnapshotToUser(userId, reason, `act_${Date.now()}`);
   const [type, payload] = client.send.mock.calls.at(-1) as ["TABLE_SNAPSHOT", TableSnapshotPayload];
   expect(type).toBe("TABLE_SNAPSHOT");
-  dealer.unbindClient(userId, client as any);
+  dealer.unbindClient(userId);
   return payload;
 }
 

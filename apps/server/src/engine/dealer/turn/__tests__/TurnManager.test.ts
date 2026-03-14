@@ -116,6 +116,53 @@ describe("TurnManager", () => {
     expect(setPlayerSittingOutInternal).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps exactly one live timeout handle when the same actor is armed twice rapidly", () => {
+    const state = createActionableState();
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    const handles = new Map<number, () => void>();
+    let nextHandle = 1;
+
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, _ms?: number) => {
+      const handle = nextHandle++;
+      handles.set(handle, () => cb());
+      return handle as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout);
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
+      const removed = handles.delete(Number(id));
+      if (!removed) {
+        realClearTimeout(id as unknown as NodeJS.Timeout);
+      }
+    }) as typeof clearTimeout);
+
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction: async () => {},
+      setPlayerSittingOutInternal: async () => {},
+    });
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+    const firstDeadline = state.turnDeadlineMs;
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+
+    expect(firstDeadline).toBeGreaterThan(0);
+    expect(state.turnDeadlineMs).toBe(firstDeadline);
+    expect(handles.size).toBe(1);
+    expect(clearTimeoutSpy).not.toHaveBeenCalled();
+
+    turnManager.clearPendingHumanTurnTimeout();
+    expect(handles.size).toBe(0);
+    expect(state.turnDeadlineMs).toBe(0);
+
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  });
+
   it("ignores stale timeout token when state has advanced", async () => {
     vi.useFakeTimers();
     const state = createActionableState();

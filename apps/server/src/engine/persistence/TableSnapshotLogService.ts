@@ -15,6 +15,10 @@ export class TableSnapshotLogService {
   private static readonly DEFAULT_PAYLOAD_BYTES_CAP = 256 * 1024;
   private static readonly DEFAULT_SAMPLE_RATE = 1.0;
 
+  private static isEnabled(): boolean {
+    return Boolean(process.env.DATABASE_URL);
+  }
+
   private static getPayloadBytesCap(): number {
     const raw = process.env.SNAPSHOT_LOG_MAX_BYTES;
     if (!raw) return TableSnapshotLogService.DEFAULT_PAYLOAD_BYTES_CAP;
@@ -43,6 +47,8 @@ export class TableSnapshotLogService {
     stateHash: string;
     schemaVersion: number;
   }): Promise<void> {
+    if (!TableSnapshotLogService.isEnabled()) return;
+
     const sampleRate = TableSnapshotLogService.getSampleRate();
     if (sampleRate <= 0 || Math.random() > sampleRate) return;
 

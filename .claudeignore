@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Logs
+*.log
+var/
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+
+# Artifacts
+artifacts/

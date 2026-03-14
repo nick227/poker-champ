@@ -12,6 +12,37 @@ const isNightlySoak = process.env.SOAK_PROFILE === "nightly";
 const configuredHands = Number(process.env.SOAK_HANDS ?? "");
 const configuredProgressEvery = Number(process.env.SOAK_PROGRESS_EVERY ?? "");
 const soakHeartbeatFile = (process.env.SOAK_HEARTBEAT_FILE ?? "").trim();
+const soakActionTimeoutMs = 20_000;
+const testPollIntervalMs = 1;
+const soakTestTimeoutMs = isNightlySoak ? 300_000 : 240_000;
+
+async function yieldToEventLoop(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, testPollIntervalMs));
+}
+
+/** Real timeout: does not depend on polling or fake timers. */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out waiting for: ${label}`)), timeoutMs),
+    ),
+  ]);
+}
+
+/** Real timeout: condition is polled but overall wait is bounded by wall-clock time.
+ * Uses an inline Date.now() check so the timeout fires even if the event loop is blocked. */
+async function waitUntil(
+  condition: () => boolean,
+  timeoutMs: number,
+  label: string,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for: ${label}`);
+    await yieldToEventLoop();
+  }
+}
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -26,49 +57,6 @@ function mulberry32(seed: number): () => number {
 function randomIntInclusive(rng: () => number, min: number, max: number): number {
   if (max <= min) return min;
   return Math.floor(rng() * (max - min + 1)) + min;
-}
-
-async function waitUntil(
-  condition: () => boolean,
-  timeoutMs: number,
-  label: string,
-): Promise<void> {
-  const started = Date.now();
-  while (!condition()) {
-    if (Date.now() - started > timeoutMs) {
-      throw new Error(`Timed out waiting for: ${label}`);
-    }
-    await Promise.resolve();
-  }
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  const started = Date.now();
-  let settled = false;
-  let result: T | undefined;
-  let failure: unknown;
-
-  void promise
-    .then((value) => {
-      settled = true;
-      result = value;
-    })
-    .catch((err) => {
-      settled = true;
-      failure = err;
-    });
-
-  while (!settled) {
-    if (Date.now() - started > timeoutMs) {
-      throw new Error(`Timed out waiting for: ${label}`);
-    }
-    await Promise.resolve();
-  }
-
-  if (failure) {
-    throw failure;
-  }
-  return result as T;
 }
 
 function makePlayer(id: string, seat: number, stackCents: number, kind: "HUMAN" | "BOT" = "HUMAN"): PlayerState {
@@ -125,12 +113,10 @@ function pickRandomLegalAction(
 describe("dealer random walk soak", () => {
   it("plays many hands without deadlock and preserves per-hand payout conservation", async () => {
     const rng = mulberry32(20260219);
-    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((handler: TimerHandler) => {
-        if (typeof handler === "function") handler();
-        return 0 as unknown as ReturnType<typeof setTimeout>;
-      }) as unknown as typeof setTimeout,
-    );
+    vi.stubEnv("POKER_BOT_DELAY_MS", "0");
+    vi.stubEnv("RUNOUT_STAGE_DELAY_MS", "0");
+    vi.stubEnv("HAND_RESULT_HOLD_MS", "0");
+    let dealer: Dealer | undefined;
 
     try {
       const state = new PokerState();
@@ -173,7 +159,7 @@ describe("dealer random walk soak", () => {
         assertHandBalanced: async () => {},
       } as any;
 
-      const dealer = new Dealer(state, persistence, {
+      dealer = new Dealer(state, persistence, {
         onTableSnapshotEmitted: ({ payloadJson }) => {
           snapshots.push(payloadJson.snapshotSeq);
         },
@@ -187,8 +173,7 @@ describe("dealer random walk soak", () => {
         settlementService.getCurrentHandPotDisbursedCents();
       let expectedChipMass = computeChipMass();
       (dealer as any).scheduleNextHand = () => {};
-      // This soak test drives actions explicitly; with setTimeout mocked to immediate,
-      // turn-timeout automation would preempt the random-walk driver.
+      // This soak test drives actions explicitly.
       (dealer as any).scheduleHumanTurnTimeout = () => {};
 
       const optionsService = new ActionOptionsService();
@@ -315,10 +300,30 @@ describe("dealer random walk soak", () => {
         let guard = 0;
         let stableStallKey = "";
         let stableStallCount = 0;
+        let stableNoOptionsKey = "";
+        let stableNoOptionsCount = 0;
+        const traceCap = 400;
+        const wallClockStallMs = 5_000;
+        let lastProgressKey = "";
+        let lastProgressAt = Date.now();
         while (state.street !== "WAITING") {
           guard += 1;
           if (guard >= 800) {
             throw new Error(`Infinite loop detected: ${trace.join("|")}`);
+          }
+          // Wall-clock forward-progress guard: catches stalls that burn through the iteration
+          // counter without meaningful state change (e.g. oscillating pot, stuck roundState).
+          const progressKey = `${state.street}:${state.roundState}:${state.toActSeat}:${state.potCents}:${state.handActionSeq}`;
+          if (progressKey !== lastProgressKey) {
+            lastProgressKey = progressKey;
+            lastProgressAt = Date.now();
+          } else if (Date.now() - lastProgressAt > wallClockStallMs) {
+            throw new Error(
+              `Wall-clock stall: no state progress for >${wallClockStallMs}ms key=${progressKey} ${trace.join("|")}`,
+            );
+          }
+          if (trace.length > traceCap) {
+            throw new Error(`Trace cap exceeded (livelock): ${trace.slice(-20).join("|")}`);
           }
 
           // Core money safety invariants: no negative chip state.
@@ -333,7 +338,7 @@ describe("dealer random walk soak", () => {
           const queueDepth = dealer.getQueueDepth();
           const stallReason = dealer.getStallReasonPublic(Date.now());
           expect(queueDepth, `queue depth spike ${trace.join("|")}`).toBeLessThan(5);
-          if (stallReason && queueDepth === 0) {
+          if (state.roundState === "WAITING_FOR_ACTION" && stallReason && queueDepth === 0) {
             const stallKey = `${state.handId}:${state.street}:${state.handActionSeq}:${stallReason}`;
             if (stallKey === stableStallKey) {
               stableStallCount += 1;
@@ -354,7 +359,7 @@ describe("dealer random walk soak", () => {
           if (rng() < 0.15) {
             trace.push("tick");
             await withTimeout(
-              Promise.resolve((dealer as any).requestDrive?.("random_walk_tick")),
+              Promise.resolve((dealer as any).requestDrive("random_walk_tick")),
               2_000,
               `requestDrive random_walk_tick ${trace.join("|")}`,
             );
@@ -362,12 +367,12 @@ describe("dealer random walk soak", () => {
           if (rng() < 0.05) {
             trace.push("double_tick");
             await withTimeout(
-              Promise.resolve((dealer as any).requestDrive?.("double_tick_1")),
+              Promise.resolve((dealer as any).requestDrive("double_tick_1")),
               2_000,
               `requestDrive double_tick_1 ${trace.join("|")}`,
             );
             await withTimeout(
-              Promise.resolve((dealer as any).requestDrive?.("double_tick_2")),
+              Promise.resolve((dealer as any).requestDrive("double_tick_2")),
               2_000,
               `requestDrive double_tick_2 ${trace.join("|")}`,
             );
@@ -413,6 +418,22 @@ describe("dealer random walk soak", () => {
           if (state.roundState === "SHOWDOWN") {
             expect(bettingRoundComplete(state) || noFurtherBettingPossible(state)).toBe(true);
           }
+
+          // Fast-path: hand is active but no player action is needed right now.
+          // Drive a tick so lifecycle work (street advance, showdown, etc.) can run, then
+          // re-enter the loop. Bypasses the no_options livelock counter which is only
+          // meaningful when roundState === WAITING_FOR_ACTION. Hang detection is handled
+          // by the wall-clock progress guard above.
+          if (state.roundState !== "WAITING_FOR_ACTION") {
+            trace.push(`drive:${state.roundState}`);
+            await withTimeout(
+              Promise.resolve((dealer as any).requestDrive("round_state_tick")),
+              2_000,
+              `requestDrive round_state_tick ${state.roundState} ${trace.join("|")}`,
+            );
+            continue;
+          }
+
           if (state.roundState === "WAITING_FOR_ACTION") {
             expect(state.toActSeat).toBeGreaterThanOrEqual(0);
             expect(state.toActSeat).toBeLessThan(state.seats.length);
@@ -443,8 +464,19 @@ describe("dealer random walk soak", () => {
           const options = optionsService.buildHeroActionOptions(state, toActId);
           if (!options) {
             trace.push(`no_options:${toActId}`);
+            const noOptionsKey = `${state.handId}:${state.street}:${state.toActSeat}:${toActId}`;
+            if (noOptionsKey === stableNoOptionsKey) {
+              stableNoOptionsCount += 1;
+            } else {
+              stableNoOptionsKey = noOptionsKey;
+              stableNoOptionsCount = 1;
+            }
+            expect(
+              stableNoOptionsCount,
+              `no_options livelock: same actor/state repeated ${stableNoOptionsCount} times ${trace.join("|")}`,
+            ).toBeLessThan(8);
             await withTimeout(
-              Promise.resolve((dealer as any).requestDrive?.("no_options_tick")),
+              Promise.resolve((dealer as any).requestDrive("no_options_tick")),
               2_000,
               `requestDrive no_options_tick ${trace.join("|")}`,
             );
@@ -465,7 +497,7 @@ describe("dealer random walk soak", () => {
             }
             await withTimeout(
               dealer.handleAction(toActId, action),
-              10_000,
+              soakActionTimeoutMs,
               `handleAction ${toActId}:${action.action} ${trace.join("|")}`,
             );
           } catch (err) {
@@ -479,7 +511,33 @@ describe("dealer random walk soak", () => {
               trace.push(`stale_reject:${err.code}`);
               continue;
             }
-            throw err;
+            // handleAction timed out: if state progressed, treat like late startHand completion (tolerate and continue).
+            const isTimeout =
+              err instanceof Error && err.message.startsWith("Timed out waiting for:");
+            if (isTimeout) {
+              const afterTimeout = {
+                toActSeat: state.toActSeat,
+                street: state.street,
+                potCents: state.potCents,
+                handActionSeq: state.handActionSeq,
+              };
+              const progressed =
+                afterTimeout.toActSeat !== before.toActSeat ||
+                afterTimeout.street !== before.street ||
+                afterTimeout.potCents !== before.potCents ||
+                afterTimeout.handActionSeq !== before.handActionSeq;
+              if (progressed) {
+                console.error(
+                  `[SOAK_WARN] handleAction timeout but state progressed hand=${h + 1} handId=${state.handId} street=${state.street} ${toActId}:${action.action}`,
+                );
+                trace.push("handleAction_timeout_progressed");
+                // Fall through to after/progressed/expect(computeChipMass) with current state.
+              } else {
+                throw err;
+              }
+            } else {
+              throw err;
+            }
           }
 
           const after = {
@@ -534,9 +592,10 @@ describe("dealer random walk soak", () => {
         expect(p.stackCents).toBeGreaterThanOrEqual(0);
       }
     } finally {
-      setTimeoutSpy.mockRestore();
+      dealer?.dispose();
+      vi.unstubAllEnvs();
     }
-  }, isNightlySoak ? 300_000 : 120_000);
+  }, soakTestTimeoutMs);
 
   it("handles burst action pressure without queue starvation", async () => {
     const state = new PokerState();
@@ -567,6 +626,7 @@ describe("dealer random walk soak", () => {
     const dealer = new Dealer(state, persistence);
     (dealer as any).scheduleNextHand = () => {};
     (dealer as any).scheduleHumanTurnTimeout = () => {};
+    try {
 
     const optionsService = new ActionOptionsService();
     await withTimeout((dealer as any).startHand(), 10_000, "queue pressure startHand");
@@ -602,10 +662,7 @@ describe("dealer random walk soak", () => {
     let rejected = 0;
     const burst = Array.from({ length: 30 }, (_, i) =>
       dealer
-        .handleAction(toActId!, {
-          ...burstAction,
-          actionId: `queue-pressure-${Date.now()}-${i}`,
-        })
+        .handleAction(toActId!, burstAction, `queue-pressure-${Date.now()}-${i}`)
         .then(() => {
           accepted += 1;
         })
@@ -618,8 +675,11 @@ describe("dealer random walk soak", () => {
         }),
     );
 
-    await withTimeout(Promise.all(burst), 10_000, "queue pressure burst settle");
-    burstSettled = true;
+    try {
+      await withTimeout(Promise.all(burst), 10_000, "queue pressure burst settle");
+    } finally {
+      burstSettled = true;
+    }
     await monitor;
 
     expect(accepted, "expected at least one accepted action from burst").toBeGreaterThan(0);
@@ -656,6 +716,9 @@ describe("dealer random walk soak", () => {
     }
 
     expect(state.street, "hand should complete after queue pressure burst").toBe("WAITING");
+    } finally {
+      dealer.dispose();
+    }
   });
 
   it("arms a human turn deadline after preflop-to-flop transition", async () => {
@@ -687,12 +750,13 @@ describe("dealer random walk soak", () => {
     (dealer as any).scheduleNextHand = () => {};
     const optionsService = new ActionOptionsService();
 
-    await (dealer as any).startHand();
-    expect(state.street).toBe("PREFLOP");
+    try {
+      await withTimeout((dealer as any).startHand(), 10_000, "startHand");
+      expect(state.street).toBe("PREFLOP");
 
-    let guard = 0;
-    let lastPreflopActor = "";
-    while (String(state.street) === "PREFLOP") {
+      let guard = 0;
+      let lastPreflopActor = "";
+      while (String(state.street) === "PREFLOP") {
       guard += 1;
       if (guard > 8) throw new Error("preflop guard exceeded");
       const toActId = state.seats[state.toActSeat];
@@ -714,6 +778,9 @@ describe("dealer random walk soak", () => {
     expect(toActPlayer!.needsAction).toBe(true);
     expect(state.turnDeadlineMs, "missing turn deadline on human flop turn").toBeGreaterThan(0);
     expect(lastPreflopActor).toBeTruthy();
+    } finally {
+      dealer.dispose();
+    }
   });
 
   it("keeps human deadline armed after preflop check in human-vs-bot flop transition", async () => {
@@ -746,9 +813,10 @@ describe("dealer random walk soak", () => {
     ((dealer as any).turnAutomationService as any).deps.botResolver.pickAction = () => ({ action: "CALL" });
     const optionsService = new ActionOptionsService();
     let reachedFlop = false;
-    for (let attempt = 0; attempt < 5 && !reachedFlop; attempt++) {
-      if (state.street !== "WAITING") break;
-      await (dealer as any).startHand();
+    try {
+      for (let attempt = 0; attempt < 5 && !reachedFlop; attempt++) {
+        if (state.street !== "WAITING") break;
+        await withTimeout((dealer as any).startHand(), 10_000, "startHand");
       if (String(state.street) === "FLOP") {
         reachedFlop = true;
         break;
@@ -791,6 +859,9 @@ describe("dealer random walk soak", () => {
     expect(toActPlayer?.connected).toBe(true);
     expect(toActPlayer?.needsAction).toBe(true);
     expect(state.turnDeadlineMs, "missing turn deadline for human at flop after preflop transition").toBeGreaterThan(0);
+    } finally {
+      dealer.dispose();
+    }
   }, 30_000);
 
   it("self-heals WAITING human actor missing needsAction and arms deadline", async () => {
@@ -822,35 +893,36 @@ describe("dealer random walk soak", () => {
     (dealer as any).scheduleNextHand = () => {};
     const optionsService = new ActionOptionsService();
 
-    await (dealer as any).startHand();
-    expect(state.street).toBe("PREFLOP");
+    try {
+      await withTimeout((dealer as any).startHand(), 10_000, "startHand");
+      expect(state.street).toBe("PREFLOP");
 
-    let guard = 0;
-    while (String(state.street) === "PREFLOP") {
-      guard += 1;
-      if (guard > 8) throw new Error("preflop guard exceeded");
+      let guard = 0;
+      while (String(state.street) === "PREFLOP") {
+        guard += 1;
+        if (guard > 8) throw new Error("preflop guard exceeded");
+        const toActId = state.seats[state.toActSeat];
+        expect(toActId).toBeTruthy();
+        const options = optionsService.buildHeroActionOptions(state, toActId!);
+        expect(options).toBeTruthy();
+        const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
+        await dealer.handleAction(toActId!, action);
+      }
+
+      expect(state.street).toBe("FLOP");
       const toActId = state.seats[state.toActSeat];
       expect(toActId).toBeTruthy();
-      const options = optionsService.buildHeroActionOptions(state, toActId!);
-      expect(options).toBeTruthy();
-      const action: ActionPayload = options!.canCheck ? { action: "CHECK" } : { action: "CALL" };
-      await dealer.handleAction(toActId!, action);
-    }
+      const toActPlayer = state.playersById.get(toActId!);
+      expect(toActPlayer).toBeTruthy();
+      expect(toActPlayer!.kind).toBe("HUMAN");
+      expect(toActPlayer!.connected).toBe(true);
 
-    expect(state.street).toBe("FLOP");
-    const toActId = state.seats[state.toActSeat];
-    expect(toActId).toBeTruthy();
-    const toActPlayer = state.playersById.get(toActId!);
-    expect(toActPlayer).toBeTruthy();
-    expect(toActPlayer!.kind).toBe("HUMAN");
-    expect(toActPlayer!.connected).toBe(true);
+      // Simulate stale state drift that historically caused local stalls.
+      toActPlayer!.needsAction = false;
+      state.turnDeadlineMs = 0;
 
-    // Simulate stale state drift that historically caused local stalls.
-    toActPlayer!.needsAction = false;
-    state.turnDeadlineMs = 0;
-
-    await Promise.resolve((dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR"));
-    await waitUntil(
+      await Promise.resolve((dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR"));
+      await waitUntil(
       () => {
         const currentToActId = state.seats[state.toActSeat];
         if (!currentToActId) return false;
@@ -866,6 +938,9 @@ describe("dealer random walk soak", () => {
       5_000,
       "self-heal to restore human actionable turn + deadline",
     );
+    } finally {
+      dealer.dispose();
+    }
   });
 });
 

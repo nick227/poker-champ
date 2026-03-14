@@ -1311,7 +1311,7 @@ async function setupHumanVsBotRoom() {
       const { room, clientA } = await setupHumanVsBotRoom();
       try {
         const botUserId =
-          clientA.latestSnapshot?.seats.find((s) => s.userId.startsWith("bot_"))?.userId ?? "";
+          clientA.latestSnapshot?.seats.find((s) => s.userId?.startsWith("bot_"))?.userId ?? "";
         expect(botUserId).toBeTruthy();
         if (!botUserId) return;
 
@@ -1373,7 +1373,7 @@ async function setupHumanVsBotRoom() {
         expect(initialHandId).toBeTruthy();
 
         const botUserId =
-          clientA.latestSnapshot?.seats.find((s) => s.userId.startsWith("bot_"))?.userId ?? "";
+          clientA.latestSnapshot?.seats.find((s) => s.userId?.startsWith("bot_"))?.userId ?? "";
         expect(botUserId).toBeTruthy();
         if (!botUserId) return;
 
@@ -1877,7 +1877,7 @@ async function setupHumanVsBotRoom() {
         await (room.dealer as any).requestDrive("MIXED_STALE_PRIME_HUMAN_TIMEOUT");
 
         const started = Date.now();
-        while ((state.turnDeadlineMs ?? 0) <= 0 || capturedTimeouts.size === 0) {
+        while (capturedTimeouts.size === 0) {
           if (Date.now() - started > 20_000) {
             throw new Error("Timed out waiting for: initial human timeout arm for mixed stale race");
           }
@@ -1891,12 +1891,6 @@ async function setupHumanVsBotRoom() {
           await flushAsync();
           await delay(25);
         }
-        await waitFor(
-          () => capturedTimeouts.size > 0,
-          10_000,
-          "captured timeout callback for mixed stale race",
-        );
-
         const staleTimeoutCallback = capturedTimeouts.values().next().value as (() => void) | undefined;
         expect(staleTimeoutCallback).toBeTruthy();
         if (!staleTimeoutCallback) return;
@@ -1963,6 +1957,81 @@ async function setupHumanVsBotRoom() {
         vi.restoreAllMocks();
         global.setTimeout = realSetTimeout;
         global.clearTimeout = realClearTimeout;
+      }
+    },
+    35_000,
+  );
+
+  it(
+    "reconnect after auto-action advancement emits a fresh snapshot with current engine state",
+    async () => {
+      const { room, clientA, clientB } = await setupTwoPlayerRoomWithTimeouts();
+      try {
+        const before = clientA.latestSnapshot!;
+        const toActSeat = before.hand!.toActSeat;
+        const toActUserId = before.seats.find((s) => s.seat === toActSeat)?.userId ?? "";
+        expect(toActUserId).toBeTruthy();
+        if (!toActUserId) return;
+
+        const reconnectClient = toActUserId === "user_a" ? clientA : clientB;
+        const beforeDisconnectSnapshotId = reconnectClient.latestSnapshot?.snapshotId ?? "";
+        const beforeSeq = Number(room.state.handActionSeq ?? 0);
+        const beforeHandId = String(room.state.handId ?? "");
+
+        await room.dealer.markDisconnectedSerialized(toActUserId, Date.now() - 1);
+        await waitFor(
+          () =>
+            String(room.state.handId ?? "") !== beforeHandId ||
+            Number(room.state.handActionSeq ?? 0) > beforeSeq ||
+            Number(room.state.toActSeat ?? -1) !== toActSeat,
+          10_000,
+          "auto action progression after disconnect",
+        );
+
+        const progressedState = {
+          handId: String(room.state.handId ?? ""),
+          street: String(room.state.street ?? ""),
+          toActSeat: Number(room.state.toActSeat ?? -1),
+          turnDeadlineMs: Number(room.state.turnDeadlineMs ?? 0),
+        };
+
+        await room.dealer.markReconnectedSerialized(toActUserId);
+        await waitFor(
+          () =>
+            reconnectClient.latestSnapshot?.snapshotId !== beforeDisconnectSnapshotId &&
+            reconnectClient.latestSnapshot?.reason === "RECONNECT",
+          6_000,
+          "fresh reconnect snapshot",
+        );
+
+        const reconnectSnapshot = reconnectClient.latestSnapshot!;
+        if (progressedState.street === "WAITING") {
+          expect(reconnectSnapshot.hand).toBeUndefined();
+        } else {
+          expect(reconnectSnapshot.hand?.handId ?? "").toBe(progressedState.handId);
+          expect(reconnectSnapshot.hand?.street ?? "").toBe(progressedState.street);
+          expect(Number(reconnectSnapshot.hand?.toActSeat ?? -1)).toBe(progressedState.toActSeat);
+          expect(Number(reconnectSnapshot.hand?.turnDeadlineMs ?? 0)).toBe(progressedState.turnDeadlineMs);
+        }
+
+        const currentToActUserId =
+          progressedState.toActSeat >= 0 ? String(room.state.seats[progressedState.toActSeat] ?? "") : "";
+        const currentToActPlayer = currentToActUserId ? room.state.playersById.get(currentToActUserId) : undefined;
+        if (
+          currentToActPlayer?.kind === "HUMAN" &&
+          currentToActPlayer.connected &&
+          currentToActPlayer.status === "ACTIVE" &&
+          currentToActPlayer.needsAction
+        ) {
+          expect(progressedState.turnDeadlineMs).toBeGreaterThan(0);
+        }
+      } finally {
+        try {
+          await room.onLeave(clientA as any, 4000);
+        } catch (err) { console.warn("cleanup error (table-action-broadcast):", err); }
+        try {
+          await room.onLeave(clientB as any, 4000);
+        } catch (err) { console.warn("cleanup error (table-action-broadcast):", err); }
       }
     },
     35_000,

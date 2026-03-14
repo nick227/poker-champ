@@ -15,3 +15,9 @@ export const ACTION_BAR_HEIGHT = 200;
 
 /** Vertical band height for hero section. Shell contract; component layout lives in hero-zone/layout.ts. */
 export const HERO_ZONE_HEIGHT = 124;
+
+/** Fixed height for opponent strip area when loading (placeholder). Prevents layout reflow on reveal. */
+export const OPPONENT_STRIP_HEIGHT = 110;
+
+/** Duration (ms) for table body fade-in when reveal latch fires. Table body only; top bar and dealer bar stay outside. */
+export const TABLE_REVEAL_MS = 180;

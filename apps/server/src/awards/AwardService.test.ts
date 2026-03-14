@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const databaseUrlEnv = process.env.DATABASE_URL;
+process.env.DATABASE_URL = process.env.DATABASE_URL || "mysql://test:test@localhost:3306/test";
+
 const {
   state,
   prismaMock,

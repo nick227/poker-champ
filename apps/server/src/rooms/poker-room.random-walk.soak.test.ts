@@ -371,7 +371,9 @@ describe("poker room random walk soak", () => {
         if (!liveHandId || liveStreet === "WAITING" || liveStreet === "SHOWDOWN") return false;
         if (snap.hand.handId !== liveHandId) return false;
         const liveToActUserId = room.state.toActSeat >= 0 ? (room.state.seats[room.state.toActSeat] ?? "") : "";
-        const snapToActUserId = snap.seats.find((s) => s.seat === snap.hand.toActSeat)?.userId ?? "";
+        const snapToActSeat = snap.hand?.toActSeat;
+        const snapToActUserId =
+          snapToActSeat == null ? "" : (snap.seats.find((s) => s.seat === snapToActSeat)?.userId ?? "");
         return liveToActUserId === "user_human" && (snapToActUserId === "user_human" || snapToActUserId === "");
       }, 12_000, label);
     };

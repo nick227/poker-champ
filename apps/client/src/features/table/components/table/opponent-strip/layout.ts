@@ -34,11 +34,11 @@ export const ROW = Object.freeze({
   DEALER_DOCK_WIDTH: 40,
 } as const);
 
-export const AVATAR = Object.freeze({
+const AVATAR = Object.freeze({
   SIZE: 56,
 } as const);
 
-export const TEXT = Object.freeze({
+const TEXT = Object.freeze({
   NAME_FONT_SIZE: 21,
   STACK_FONT_SIZE: 11,
   STATUS_FONT_SIZE: 9,

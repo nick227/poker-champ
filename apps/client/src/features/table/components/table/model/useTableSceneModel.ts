@@ -14,6 +14,7 @@ import {
   getIsDealer,
 } from "../table.adapter";
 import { getActionContext } from "../action-bar/actionBar.logic";
+import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
 
 function mergeCallWithStack(
   actionOptions: HeroActionOptions | undefined,
@@ -92,11 +93,9 @@ function fillWagerBoundsFromSnapshot(
   if (hasBounds) return actionOptions;
   const primary = actionOptions.primaryWagerAction;
   let needBet = primary === "BET" && actionOptions.canBet;
-  let needRaise = primary === "RAISE" && actionOptions.canRaise;
-  if (!needBet && !needRaise) {
+  if (!needBet && !(primary === "RAISE" && actionOptions.canRaise)) {
     if (actionOptions.canBet || actionOptions.canRaise) {
       needBet = actionOptions.canBet;
-      needRaise = actionOptions.canRaise && !needBet;
     } else {
       return actionOptions;
     }
@@ -248,12 +247,13 @@ export function buildTableSceneModel(
 export type TableSceneModel = ReturnType<typeof buildTableSceneModel>;
 
 export function useTableSceneModel(
-  snapshot: TableSnapshotPayload,
+  snapshot: TableSnapshotPayload | null,
   handResultMessage?: HandResultMessage | null,
   connectionStatus?: ConnectionStatus,
 ) {
+  const effective = snapshot ?? DUMMY_TABLE_SNAPSHOT;
   return useMemo(
-    () => buildTableSceneModel(snapshot, handResultMessage, connectionStatus),
-    [snapshot, handResultMessage, connectionStatus],
+    () => buildTableSceneModel(effective, handResultMessage, connectionStatus),
+    [effective, handResultMessage, connectionStatus],
   );
 }

@@ -36,70 +36,225 @@ So today we have **three separate component trees**. Each view mounts its **own*
 
 ---
 
-## Proposal: Single Shell + Slot Content + Explicit Loading Order
+## One reveal trigger + reveal latch
 
-Goal: one persistent **TableSceneShell** for the table route, with clear **loading order** and **animation-in** of the main top-level table elements so that leaving the loading page feels controlled and flash-free on RN.
+The transition from loading to table content should happen only when **both** are true:
 
-### 1. Single shell at router level
+- `hasSnapshot === true`
+- loading hold expired
 
-- **TableSceneRouter** should render **one** `TableSceneShell` for the whole table screen (for states that show the table at all: connecting, idle, active).
-- The router does **not** choose between three full views that each include a shell. It chooses **which content to pass into the shell slots**: dealerBar, board, hero, bottom, and optionally topBarRight / opponents.
-- Auth-only states (e.g. auth_loading, auth_required) can remain a separate minimal screen if desired, or reuse the same shell with “status” slot content; either way, the **table** path (connecting → idle → active) should use one shell.
+Derive the condition, but **latch the reveal once it happens**. Snapshots can update many times (refresh, seat change, hand reset); without a latch, you risk accidental re-fades.
 
-This matches the existing design doc and removes the unmount/remount of the shell on transition.
+**Condition:**
 
-### 2. Loading “leave” order (when snapshot becomes available and hold expires)
+```ts
+const shouldRevealTableContent = hasSnapshot && !holdDelayActive;
+```
 
-Define a strict order so that the shell and then the main regions appear in a predictable way:
+**Latch (use this as the fade trigger):**
 
-1. **Shell first (stable)**  
-   The shell (top bar, opponent strip area, game area container, hero area, action bar area, dealer bar) is already mounted and laid out. No structural change when we leave loading.
+```ts
+const [revealed, setRevealed] = useState(false);
 
-2. **Content swap in the “board” slot**  
-   Replace loading content (e.g. `TableLoadingLanding`) with the real table content. Prefer a **single content swap** in the board slot (and any other slots that differ) so we don’t thrash layout. For connecting, the board slot shows loading/status content; for idle/active it shows `BoardArea` (and the rest of the layout is already the same structure as Empty/Active).
+useEffect(() => {
+  if (!revealed && hasSnapshot && !holdDelayActive) {
+    setRevealed(true);
+  }
+}, [revealed, hasSnapshot, holdDelayActive]);
+```
 
-3. **Staged reveal of main elements (optional but recommended)**  
-   To avoid a single instant “pop” of all content, reveal top-level table elements in a fixed order, e.g.:
-   - Top bar (already visible in shell).
-   - Opponent strip (data appears).
-   - Board + pot (felt + community cards).
-   - Hero zone.
-   - Action bar / bottom CTA.
+Use **`revealed`** (not `shouldRevealTableContent`) to drive: (1) swapping from loading slots to real table slots, and (2) the fade-in animation. This prevents re-fades on snapshot refresh, seat change, or hand reset. Reset `revealed` only when leaving the table (e.g. when `tableId` or route changes).
 
-   Each step can be opacity 0 → 1 (or a short fade) with a small delay, so the transition feels intentional rather than a flash.
+---
 
-### 3. Animation-in strategy for RN
+## Freeze layout during loading
 
-- **Single shell**: No shell unmount/remount; only slot content and props change. This alone reduces flash.
-- **Board slot**: When transitioning from loading to table, swap the board slot content (loading UI → `BoardArea`). Option A: swap immediately but wrap the new content in an `Animated.View` that fades in (opacity 0 → 1 over ~150–250 ms). Option B: keep loading visible and cross-fade (two layers, opacity drive) then unmount loading. Prefer the simplest approach that doesn’t require double layout (e.g. Option A with a single content swap + fade-in).
-- **Staged reveal**: If we want a cascade, each region (opponent strip, game area, hero, bottom) can be wrapped in a wrapper that:
-  - Renders its children.
-  - Uses `Animated.View` with opacity driven by a shared “reveal” timeline (e.g. delays 0, 50, 100, 150, 200 ms).
-  - Respects `AccessibilityInfo.isReduceMotionEnabled()`: when true, skip delays and set opacity to 1 immediately (or skip animation).
-- **No layout thrash**: Use the same layout for “connecting” as for “idle/active” (same shell structure). Avoid `immersiveBoard` for the loading state if it changes layout; instead use the same scroll/layout as the main table with the board slot filled by loading content so that when we swap to `BoardArea`, only the content changes, not the structure.
+Using the same layout for loading and table is not enough on its own. **Reserve space for everything immediately** so React Native does not recalculate layout heights during reveal.
 
-### 4. Status view alignment
+**Explicit rule:** All shell regions must render placeholders during loading so layout size does not change during reveal. This eliminates subtle layout pop.
 
-- **StatusTableView** today uses `TableSceneShell` with `immersiveBoard` and a different structure. To get a single shell and no flash:
-  - **Option A**: Remove the separate StatusTableView component for the table route. Router always renders one `TableSceneShell`; when in auth_loading / auth_required / connecting (or hold), it passes “status” slot content (e.g. `TableLoadingLanding` in the board slot, empty hero, status dealer bar, “Return to lobby” in bottom). When in idle/active, it passes the real content. Same shell, same layout, only slot content changes.
-  - **Option B**: Keep StatusTableView but have it only supply **slot content** (dealerBar, board, hero, bottom), and have the router render the single shell and pass that content in. Then StatusTableView is a “content provider” for the shell, not a full page that mounts its own shell.
+Example: the shell layout should **always** render (in order):
 
-Either way, the shell must be rendered once by the router (or a single parent), and Status/Empty/Active only supply props/slots.
+- TopBar
+- OpponentStrip (empty placeholder when loading)
+- BoardArea
+- HeroZone (empty placeholder when loading)
+- ActionBarArea (empty placeholder when loading)
+- DealerBar
 
-### 5. Hold delay behavior
+**During loading:**
 
-- Keep the existing “slot spin” hold: don’t reveal table content until the chosen minimum time (e.g. 1500 ms) after the loading animation starts, so the transition doesn’t feel abrupt.
-- When the hold expires, the **reveal** should be the single-shell content swap + optional staged fade-in, not a full view swap.
+- **BoardArea** → loading UI (e.g. TableLoadingLanding).
+- **HeroZone** → placeholder (e.g. empty view with same min height); do not omit the region.
+- **ActionBarArea** → placeholder (same height); do not omit the region.
+- **OpponentStrip** → skeleton or empty placeholder.
 
-### 6. Implementation checklist (high level)
+So the shell never adds or removes regions when switching from loading to table—only the **content** inside each slot changes. Layout heights stay fixed.
 
-- [ ] Refactor **TableSceneRouter** to render **one** `TableSceneShell` for connecting/idle/active.
-- [ ] Derive **slot content** (dealerBar, board, hero, bottom, opponents, topBarRight) from `scene.mode`, `renderModel`, and `actions`, instead of rendering full Status/Empty/Active views.
-- [ ] For connecting (and hold): pass loading content into the same shell slots; use the **same layout** as idle/active (no `immersiveBoard` for this path if it changes structure).
-- [ ] On transition from loading to table: swap board (and other slots) to real content; optionally wrap new content in `Animated.View` and run a short opacity 0 → 1 (and optionally staged delays for each region).
-- [ ] Honor reduced motion: when `AccessibilityInfo.isReduceMotionEnabled()` is true, skip reveal delays and use opacity 1 (or no animation).
-- [ ] Remove or repurpose **StatusTableView** so it no longer mounts its own shell; use it only as a content factory or inline its content into the router’s slot resolution.
-- [ ] Keep **EmptyTableView** and **ActiveTableView** as content factories (they return slot props or React nodes for dealerBar, board, hero, bottom) or inline their slot content into the router so the single shell is always filled by the same resolution logic.
+**Placeholder heights must be fixed (explicit constants).** Do not derive heights from layout or content. Use named constants so loading placeholders and the real shell use the same values; otherwise RN may still reflow. Example:
+
+```ts
+const HERO_ZONE_HEIGHT = 96;
+const ACTION_BAR_HEIGHT = 84;
+const OPPONENT_STRIP_HEIGHT = 110;
+```
+
+Loading placeholders (empty views for hero, action bar, opponent strip) should use these constants for `height` / `minHeight`. The same constants should drive the shell’s layout so there is no height change on reveal.
+
+---
+
+## Slot content: pure resolver; shell fully dumb
+
+Avoid turning EmptyTableView and ActiveTableView into “content factories” that secretly own logic or layout again. That recreates mini-pages and leaks the old architecture.
+
+**Preferred shape:** a pure function that returns slot content only:
+
+```ts
+resolveTableSceneSlots(scene, renderModel, actions) => {
+  dealerBar,
+  board,
+  hero,
+  bottom,
+  opponents,
+  // ... any other shell props
+}
+```
+
+The router calls this and passes the result into the single shell. **Make TableSceneShell fully dumb:** the shell must not know scene state. It should only render slots.
+
+Example:
+
+```tsx
+<TableSceneShell
+  dealerBar={slots.dealerBar}
+  opponents={slots.opponents}
+  board={slots.board}
+  hero={slots.hero}
+  bottom={slots.bottom}
+/>
+```
+
+Everything conditional (loading vs idle vs active, placeholders vs real content) lives in `resolveTableSceneSlots()`. This keeps the shell extremely stable.
+
+**Router structure (final shape).** For clarity, the component tree should look like:
+
+```
+TablePage
+  → TableSceneRouter
+       → resolveTableSceneSlots()
+       → TableSceneShell
+             TopBar
+             Animated(tableBody)
+                 OpponentStrip
+                 Board
+                 HeroZone
+                 ActionBar
+             DealerBar
+```
+
+This ensures: shell is stable, only the table body fades, and slots swap via the resolver. TopBar and DealerBar stay outside the animated wrapper.
+
+No component called “StatusTableView” or “EmptyTableView” that mounts anything; at most they are **helpers** that return nodes/slots for a given mode. StatusTableView must **not** remain a real view in the table route—if it survives, it is only a helper that returns nodes/slots. Otherwise the old architecture leaks back.
+
+---
+
+## Animation scope (v1): keep it minimal
+
+Do **not** stage many regions initially. Animating top bar, opponent strip, board, hero, and action bar separately is easy to overcomplicate and introduces timing bugs.
+
+**v1 first implementation:**
+
+- Stable shell always mounted.
+- Loading board content shown in the board slot until reveal.
+- Swap to real content when `shouldRevealTableContent` is true.
+- Fade in the **main table body** (board/game region) over a **fixed duration** (see constant below). One fade, one region.
+
+That likely gets ~80% of the improvement. Optionally, later: hero + bottom as **one second group** (single delay, then fade together). No per-region stagger in v1.
+
+**Avoid double-render crossfade for v1.** Keeping loading visible and crossfading with real content (two layers, opacity drive) can look nice but increases complexity and overlap weirdness. Prefer:
+
+- **Single swap + new content fades in.** One content tree after the swap; wrap it in an `Animated.View` and run opacity 0 → 1. Add reduced motion and optional stagger only after the simple version is solid.
+
+**Fade duration:** Use a single constant so it’s consistent and easy to tune. iOS typically feels best around 180–220 ms, Android around 160–200 ms; **180 ms is a good compromise.**
+
+```ts
+const TABLE_REVEAL_MS = 180;
+```
+
+Use `TABLE_REVEAL_MS` for the reveal fade duration everywhere.
+
+---
+
+## Implementation order: shell first, animation second
+
+Order matters. Doing architectural refactor and animation choreography together makes debugging messy.
+
+**Do this first:**
+
+1. Router owns **one** `TableSceneShell`.
+2. Status / Empty / Active **stop mounting shells**; they either disappear or become slot helpers only.
+3. Loading and active use the **same overall structure** (same layout; no `immersiveBoard` for loading).
+4. Slot content is driven by a pure resolver (e.g. `resolveTableSceneSlots`) keyed off `scene.mode` and the **latched** `revealed` (see “One reveal trigger + reveal latch”).
+
+Then **test**. Only after that:
+
+- Add fade-in wrapper for the main table body.
+- Add reduced motion handling.
+- Optionally add stagger (e.g. hero/bottom as a second group).
+
+---
+
+## Recommended phased plan
+
+### Phase 1: Single shell, slot content only
+
+- Router renders **one** `TableSceneShell` for connecting / idle / active.
+- Same layout for loading and table; **all regions render placeholders during loading** (see “Freeze layout during loading”) so layout size does not change on reveal.
+- Slot content comes from a single place: e.g. `resolveTableSceneSlots(scene, renderModel, actions)` returning `{ dealerBar, board, hero, bottom, opponents, ... }`.
+- No StatusTableView as a view; at most a helper that returns slots for loading/error.
+- No animation yet—just correct structure and no full-view swap. Verify no flash from tree swap.
+
+**Operational safeguard:** During Phase 1, add debug logs in the router (temporarily):
+
+```ts
+console.log("TABLE MODE", scene.mode);
+// Once Phase 2 is in place, add:
+console.log("REVEAL", revealed);
+```
+
+Use these to confirm: (1) scene state is stable (mode shouldn’t flip e.g. `connecting → active → idle → active` within a few frames), and (2) the reveal latch only fires once (`revealed` goes from false to true and stays true).
+
+### Phase 2: Fade-in on reveal
+
+- When the **latched** `revealed` becomes true: swap to real slots, then fade in the **table body** only (see “One reveal trigger + reveal latch”).
+- **Fade implementation:** Wrap only the table body—OpponentStrip, Board, Hero, ActionBar—in a **single** `Animated.View`. Leave the top bar and shell chrome (e.g. outer padding, DealerBar) outside the fade.
+
+  Example concept:
+
+  ```tsx
+  <Animated.View style={{ opacity: revealOpacity }}>
+    {tableBody}
+  </Animated.View>
+  ```
+
+  This avoids the UI feeling like the entire screen blinked.
+- Fade opacity 0 → 1 over `TABLE_REVEAL_MS` (180 ms). No stagger yet.
+- Optionally: respect `AccessibilityInfo.isReduceMotionEnabled()` (opacity 1 immediately when true).
+
+**Phase 2 implemented:** Reveal latch in `TableSceneRouter`, `TABLE_REVEAL_MS` in `table-layout.constants`, table body wrapped in `Animated.View` in `TableSceneShell`, slots driven by `revealed` in `useTableSceneSlots`, reduce-motion respected, dev log `REVEAL` in router.
+
+### Phase 3: Optional stagger (later)
+
+- If desired: a second group (e.g. opponents + hero + bottom) with one short delay then fade, or light per-region delays. Only after Phase 1 and 2 are stable.
+
+---
+
+## What to avoid
+
+- **Do not keep StatusTableView as a real view** in the table route. If it survives, it is only a helper that returns nodes/slots. Otherwise the old architecture leaks back.
+- **Do not** implement crossfade (two layers, loading + real) in v1; prefer single swap + fade-in.
+- **Do not** stage top bar, opponent strip, board, hero, action bar separately in v1; one main body fade is enough.
+- **Do not** omit shell regions during loading. Every region (OpponentStrip, BoardArea, HeroZone, ActionBarArea, etc.) must render a placeholder so layout size does not change on reveal.
 
 ---
 
@@ -107,9 +262,12 @@ Either way, the shell must be rendered once by the router (or a single parent), 
 
 | Current | Proposed |
 |--------|----------|
-| Router returns one of three full views; each view mounts its own TableSceneShell. | Router renders one TableSceneShell and only changes slot content (dealerBar, board, hero, bottom, etc.). |
-| Leaving loading = unmount StatusTableView, mount ActiveTableView → full tree swap → flash. | Leaving loading = same shell; swap slot content; optional fade-in or staged opacity. |
-| No defined loading order or animation-in. | Shell stable first; then content swap; then optional staged reveal (top bar → opponents → board → hero → action bar) with RN Animated. |
-| Status uses different layout (immersiveBoard). | Use same shell layout for connecting and table so only content changes. |
+| Router returns one of three full views; each view mounts its own TableSceneShell. | Router renders one TableSceneShell; slot content from e.g. `resolveTableSceneSlots(...)`. |
+| Leaving loading = unmount StatusTableView, mount ActiveTableView → full tree swap → flash. | Latched `revealed`; same shell; swap slots; single fade-in (`TABLE_REVEAL_MS`) for table body only. |
+| No single reveal trigger; snapshot updates can re-trigger. | Condition `hasSnapshot && !holdDelayActive`; **latch** `revealed` once, use `revealed` for slots + fade; `TABLE_REVEAL_MS = 180`. |
+| Status uses different layout (immersiveBoard). | Same shell layout for loading and table. |
+| Content from three “view” components that own shell. | Pure slot resolver; no StatusTableView as a view. |
+| Layout can change when swapping loading → table. | Freeze layout: all regions render placeholders during loading; only slot content changes. |
+| Shell may branch on scene state. | Shell is dumb: only renders slots; all conditionals in `resolveTableSceneSlots()`. |
 
-This gives the RN app a single source of truth for the table chrome, a well-defined loading order, and a path to clean, flash-free page transitions when leaving the loading page.
+Phased: (1) Shell ownership + slot resolver + layout freeze + mode + reveal debug logs, (2) Fade-in table body only (top bar/chrome outside fade), (3) Optional stagger later.

@@ -58,8 +58,6 @@ export type AnchorBounds = {
 export type AnimationPlane = "BACKGROUND" | "FOREGROUND";
 
 /** Visual primitives and asset layer. */
-export type AnimationLayerType = "FLASH" | "BURST" | "RADIAL_GLOW" | "PARTICLES" | "RING" | "TEXT" | "STREAK" | "SEAT_GLOW" | "ASSET";
-
 export type AnimationAssetType = "VIDEO" | "LOTTIE" | "SPRITE";
 
 /** Particle shape for confetti/sparks variety. */

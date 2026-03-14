@@ -110,19 +110,39 @@ vi.mock("@/components/replay/replaySceneModel", () => ({
 
 function minimalSnapshot(): TableSnapshotPayload {
   return {
+    version: 1,
     snapshotId: "snap1",
+    snapshotSeq: 1,
+    emittedAtTs: Date.now(),
     serverTimeTs: Date.now(),
-    table: { tableId: "t1", tableName: "Test", maxSeats: 6 },
+    stateHash: "statehash_snap1",
+    reason: "JOIN",
+    table: {
+      tableId: "t1",
+      tableName: "Test",
+      visibility: "PUBLIC",
+      maxSeats: 6,
+      smallBlindCents: 50,
+      bigBlindCents: 100,
+      minBuyInCents: 1000,
+      maxBuyInCents: 10000,
+      showStats: false,
+    },
     seats: [
       {
         seat: 0,
         occupied: true,
         userId: "u1",
+        isBot: false,
         name: "Hero",
         status: "WAITING",
+        committedCents: 0,
         connected: true,
+        disconnectDeadlineTs: 0,
         stackCents: 10000,
         roundBetCents: 0,
+        isDealer: true,
+        isToAct: true,
       },
     ],
     hero: {
@@ -132,10 +152,17 @@ function minimalSnapshot(): TableSnapshotPayload {
       holeCards: [],
     },
     hand: {
+      handId: "hand1",
+      handNumber: 1,
       street: "PREFLOP",
       potCents: 0,
+      sbSeat: 0,
+      bbSeat: 1,
       toActSeat: 0,
       dealerSeat: 0,
+      actionCount: 0,
+      roundCurrentBetCents: 0,
+      minRaiseCents: 100,
       board: [],
     },
   } as TableSnapshotPayload;

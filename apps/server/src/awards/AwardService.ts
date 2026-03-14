@@ -37,6 +37,10 @@ function toAwardGrant(
 }
 
 export class AwardService {
+  private isEnabled(): boolean {
+    return Boolean(process.env.DATABASE_URL);
+  }
+
   async bulkGrant(
     userId: string,
     candidates: GrantCandidate[],
@@ -223,6 +227,7 @@ export class AwardService {
     dealtUserIds: string[],
     getSessionState: (userId: string) => HandAwardSessionState
   ): Promise<void> {
+    if (!this.isEnabled()) return;
     if (dealtUserIds.length === 0) return;
     const prisma = getPrisma();
     const existingUsers = await prisma.user.findMany({

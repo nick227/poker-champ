@@ -6,6 +6,7 @@ import { CashierService } from "./economy/CashierService.js";
 import { getActionableToActSeatFindingFromState, getStateMoneyFindings } from "./invariants/churnInvariantContract.js";
 import { expectDeferredOrRemoved } from "../tests/helpers/churnBoundaryAssertions.js";
 import { getAutoActionHandCap } from "../config/seats.js";
+import { logger } from "../lib/logger.js";
 
 function makePlayer(input: {
   id: string;
@@ -926,6 +927,107 @@ describe("dealer auto-action warning regressions", () => {
     dealer.dispose();
   });
 
+  it("DRIVE-R09: empty toAct seat emits repair log and progresses within one drive cycle", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r09";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_drive_r09";
+    state.handNumber = 1;
+    state.street = "TURN";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.roundCurrentBetCents = 100;
+    state.minRaiseCents = 100;
+    state.potCents = 200;
+    state.toActSeat = 0;
+    state.seats.push("", "h2", "", "", "", "");
+
+    const h2 = makePlayer({
+      id: "h2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(h2.id, h2);
+
+    const logSpy = vi.spyOn(logger, "error");
+    const dealer = new Dealer(state);
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+
+    expect(state.toActSeat).toBe(1);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: "table_drive_r09",
+        handId: "hand_drive_r09",
+        toActSeatBefore: 0,
+        toActSeatAfter: 1,
+      }),
+      "TO_ACT_INVALID_REPAIRED",
+    );
+    dealer.dispose();
+  });
+
+  it("DRIVE-R10: ineligible toAct actor emits repair log and progresses within one drive cycle", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r10";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_drive_r10";
+    state.handNumber = 1;
+    state.street = "TURN";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.roundCurrentBetCents = 100;
+    state.minRaiseCents = 100;
+    state.potCents = 200;
+    state.toActSeat = 0;
+    state.seats.push("h1", "h2", "", "", "", "");
+
+    const h1 = makePlayer({
+      id: "h1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ABANDONED",
+      needsAction: false,
+    });
+    const h2 = makePlayer({
+      id: "h2",
+      seat: 1,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(h1.id, h1);
+    state.playersById.set(h2.id, h2);
+
+    const logSpy = vi.spyOn(logger, "error");
+    const dealer = new Dealer(state);
+    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+
+    expect(state.toActSeat).toBe(1);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: "table_drive_r10",
+        handId: "hand_drive_r10",
+        toActSeatBefore: 0,
+        toActSeatAfter: 1,
+      }),
+      "TO_ACT_INVALID_REPAIRED",
+    );
+    dealer.dispose();
+  });
+
   it("TIMER-RACE-R04: stale timeout callback from prior hand is inert after hand restart", async () => {
     const state = new PokerState();
     state.tableId = "table_timer_race_r04";
@@ -1005,6 +1107,166 @@ describe("dealer auto-action warning regressions", () => {
       expect(state.turnDeadlineMs).toBe(0);
     } finally {
       dealer.dispose();
+      vi.restoreAllMocks();
+      global.setTimeout = realSetTimeout;
+      global.clearTimeout = realClearTimeout;
+    }
+  });
+
+  it("TIMER-RACE-R05: stale human timeout from a finished hand cannot clear the next hand deadline", async () => {
+    const state = new PokerState();
+    state.tableId = "table_timer_race_r05";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 2000;
+    state.maxBuyInCents = 20000;
+
+    const realSetTimeout = global.setTimeout;
+    const realClearTimeout = global.clearTimeout;
+    const capturedTimeouts = new Map<number, () => void>();
+    let nextHandle = 1;
+
+    vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, ms?: number) => {
+      if (typeof ms === "number" && ms >= 30_000) {
+        const handle = nextHandle++;
+        capturedTimeouts.set(handle, () => cb());
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }
+      return realSetTimeout(cb as (...args: unknown[]) => void, ms);
+    }) as typeof setTimeout);
+    vi.spyOn(global, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
+      const removed = capturedTimeouts.delete(Number(id));
+      if (!removed) {
+        realClearTimeout(id as unknown as NodeJS.Timeout);
+      }
+    }) as typeof clearTimeout);
+
+    const dealer = new Dealer(state);
+    try {
+      await dealer.addPlayer("u1", "u1", 5000);
+      await dealer.addPlayer("u2", "u2", 5000);
+      await waitFor(() => state.street !== "WAITING", 4000, "active hand for timer race r05");
+
+      state.turnDeadlineMs = 0;
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      await waitFor(
+        () => capturedTimeouts.size > 0 && (state.turnDeadlineMs ?? 0) > 0,
+        4000,
+        "initial human timeout arm for prior hand",
+      );
+
+      const staleTimeoutCallback = capturedTimeouts.values().next().value as (() => void) | undefined;
+      expect(staleTimeoutCallback).toBeTruthy();
+      if (!staleTimeoutCallback) return;
+
+      const priorHandId = String(state.handId ?? "");
+      const priorActorUserId = state.seats[state.toActSeat] ?? "";
+      expect(priorActorUserId).toBeTruthy();
+      if (!priorActorUserId) return;
+
+      await dealer.handleAction(priorActorUserId, { action: "FOLD" }, `timer-r05-fold-${Date.now()}`);
+      await waitFor(() => state.street === "WAITING", 4000, "prior hand settled to waiting");
+      expect(capturedTimeouts.size).toBe(0);
+
+      await dealer.forceAdvanceToNextHandForTest();
+      await waitFor(
+        () => state.street !== "WAITING" && String(state.handId ?? "") !== priorHandId,
+        4000,
+        "next hand started after prior hand finished",
+      );
+      await waitFor(
+        () => (state.turnDeadlineMs ?? 0) > 0,
+        4000,
+        "next hand human deadline armed",
+      );
+
+      const nextHandId = String(state.handId ?? "");
+      const nextToActSeat = Number(state.toActSeat ?? -1);
+      const nextDeadline = Number(state.turnDeadlineMs ?? 0);
+      const nextHandSeq = Number(state.handActionSeq ?? 0);
+      const nextActorUserId = state.seats[state.toActSeat] ?? "";
+      const nextActorStatus = state.playersById.get(nextActorUserId)?.status;
+
+      staleTimeoutCallback();
+      await (dealer as any).actionQueue.catch(() => undefined);
+      await delay(60);
+
+      expect(String(state.handId ?? "")).toBe(nextHandId);
+      expect(Number(state.toActSeat ?? -1)).toBe(nextToActSeat);
+      expect(Number(state.handActionSeq ?? 0)).toBe(nextHandSeq);
+      expect(Number(state.turnDeadlineMs ?? 0)).toBe(nextDeadline);
+      expect(Number(state.turnDeadlineMs ?? 0)).toBeGreaterThan(0);
+      expect(state.playersById.get(nextActorUserId)?.status).toBe(nextActorStatus);
+    } finally {
+      dealer.dispose();
+      vi.restoreAllMocks();
+      global.setTimeout = realSetTimeout;
+      global.clearTimeout = realClearTimeout;
+    }
+  });
+
+  it("TIMER-RACE-R06: dealer dispose clears the pending human timeout handle", async () => {
+    const state = new PokerState();
+    state.tableId = "table_timer_race_r06";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 2000;
+    state.maxBuyInCents = 20000;
+
+    const realSetTimeout = global.setTimeout;
+    const realClearTimeout = global.clearTimeout;
+    const capturedTimeouts = new Map<number, () => void>();
+    let nextHandle = 1;
+
+    vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, ms?: number) => {
+      if (typeof ms === "number" && ms >= 30_000) {
+        const handle = nextHandle++;
+        capturedTimeouts.set(handle, () => cb());
+        return handle as unknown as ReturnType<typeof setTimeout>;
+      }
+      return realSetTimeout(cb as (...args: unknown[]) => void, ms);
+    }) as typeof setTimeout);
+    vi.spyOn(global, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
+      const removed = capturedTimeouts.delete(Number(id));
+      if (!removed) {
+        realClearTimeout(id as unknown as NodeJS.Timeout);
+      }
+    }) as typeof clearTimeout);
+
+    const dealer = new Dealer(state);
+    try {
+      await dealer.addPlayer("u1", "u1", 5000);
+      await dealer.addPlayer("u2", "u2", 5000);
+      await waitFor(() => state.street !== "WAITING", 4000, "active hand for dispose timer clear");
+
+      state.turnDeadlineMs = 0;
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      await waitFor(
+        () => capturedTimeouts.size > 0 && (state.turnDeadlineMs ?? 0) > 0,
+        4000,
+        "pending human timeout before dispose",
+      );
+
+      const staleTimeoutCallback = capturedTimeouts.values().next().value as (() => void) | undefined;
+      const statusByUserIdBefore = new Map(
+        [...state.playersById.values()].map((player) => [player.id, player.status]),
+      );
+
+      dealer.dispose();
+
+      expect(capturedTimeouts.size).toBe(0);
+      expect(Number(state.turnDeadlineMs ?? 0)).toBe(0);
+
+      staleTimeoutCallback?.();
+      await delay(40);
+
+      expect(Number(state.turnDeadlineMs ?? 0)).toBe(0);
+      for (const [userId, status] of statusByUserIdBefore) {
+        expect(state.playersById.get(userId)?.status).toBe(status);
+      }
+    } finally {
       vi.restoreAllMocks();
       global.setTimeout = realSetTimeout;
       global.clearTimeout = realClearTimeout;

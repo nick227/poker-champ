@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { View } from "react-native";
-import { Video } from "expo-av";
+import { ResizeMode, Video } from "expo-av";
 import type { AnimationAssetType } from "../animationTypes";
 import { getVideoAsset } from "@/features/table/animations/video.registry";
 
@@ -64,7 +64,7 @@ export function AssetLayer({
         style={{ flex: 1 }}
         pointerEvents="none"
         source={resolvedSource}
-        resizeMode="cover"
+        resizeMode={ResizeMode.COVER}
         isLooping={false}
         shouldPlay
         onPlaybackStatusUpdate={(status) => {

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Share, View, Image } from "react-native";
+import { AccessibilityInfo, Share, View, Image } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
-import { ActiveTableView } from "@/features/table";
-import { EmptyTableView } from "@/features/table";
-import { StatusTableView } from "@/features/table";
+import { TableSceneShell, TABLE_REVEAL_MS } from "@/features/table";
+import { useTableSceneSlots } from "./useTableSceneSlots";
 
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
@@ -73,6 +72,7 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
   const showToast = useToastStore((s) => s.show);
   const [loadingSpinHoldUntilTs, setLoadingSpinHoldUntilTs] = useState(0);
   const [holdDelayActive, setHoldDelayActive] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   const { refetch: refreshProfile, avatarUrl: profileAvatarUrl } = useProfile();
 
@@ -168,11 +168,31 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
   useEffect(() => {
     setLoadingSpinHoldUntilTs(0);
     setHoldDelayActive(false);
+    setRevealed(false);
   }, [renderModel.tableId]);
 
-  const shouldHoldRevealForSlotSpin = !shouldShowStatusWithoutHold && holdDelayActive;
+  const hasSnapshot = snapshot != null;
+  useEffect(() => {
+    if (hasSnapshot && !holdDelayActive) setRevealed(true);
+  }, [hasSnapshot, holdDelayActive]);
+
+  const shouldHoldRevealForSlotSpin = !shouldShowStatusWithoutHold && holdDelayActive && !revealed;
   const showStatusView = shouldShowStatusWithoutHold || shouldHoldRevealForSlotSpin;
   const statusViewMode = shouldShowStatusWithoutHold ? mode : "connecting";
+
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    if (typeof AccessibilityInfo.isReduceMotionEnabled !== "function") return;
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setReducedMotion(Boolean(enabled));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleLoadingSlotSpinStart = (spinDurationMs: number) => {
     const safeDurationMs = Number.isFinite(spinDurationMs) && spinDurationMs > 0 ? spinDurationMs : DEFAULT_LOADING_SPIN_HOLD_MS;
@@ -180,103 +200,36 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
     setLoadingSpinHoldUntilTs((currentUntilTs) => Math.max(currentUntilTs, nextUntilTs));
   };
 
-  if (showStatusView) {
-    return (
-      <StatusTableView
-        mode={statusViewMode}
-        scene={scene}
-        renderModel={renderModel}
-        actions={actions}
-        onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
-      />
-    );
+  const slots = useTableSceneSlots({
+    showStatusView,
+    statusViewMode,
+    snapshot: snapshot ?? null,
+    mode,
+    scene,
+    renderModel,
+    actions,
+    revealed,
+    loadingParams: {
+      onLoadingSlotSpinStart: handleLoadingSlotSpinStart,
+      reducedMotion,
+    },
+    emptyOpponentsState,
+    heroAvatarUrl: heroAvatarUrl ?? profileOrCurrentUserUrl ?? undefined,
+  });
+
+  if (__DEV__) {
+    console.log("TABLE MODE", scene.mode);
+    console.log("REVEAL", revealed);
   }
 
-  switch (mode) {
-    case "idle":
-      if (!snapshot) {
-        return (
-          <StatusTableView
-            mode="connecting"
-            scene={scene}
-            renderModel={renderModel}
-            actions={actions}
-            onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
-          />
-        );
-      }
-      return (
-        <EmptyTableView
-          snapshot={snapshot}
-          opponents={renderModel.opponents}
-          balanceCents={renderModel.balanceCents}
-          tableStatus={scene.tableStatus}
-          handResultMessage={renderModel.handResultMessage}
-          topBarRight={renderModel.tableTopBarRight}
-          onPlayerPress={actions.onPlayerPress}
-          opponentStripEmptyState={emptyOpponentsState}
-          canRebuy={renderModel.canRebuy}
-          onPressRebuy={actions.openRebuySheet}
-          onBackToLobby={actions.closeTableAndReturn}
-          onRejoin={actions.rejoinHero}
-          onJoinTable={actions.joinTableFromFallback}
-          rejoinState={renderModel.rejoinUiState}
-          rejoinErrorMessage={renderModel.rejoinErrorMessage}
-        />
-      );
-
-    case "active":
-      if (!snapshot) {
-        return (
-          <StatusTableView
-            mode="connecting"
-            scene={scene}
-            renderModel={renderModel}
-            actions={actions}
-            onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
-          />
-        );
-      }
-      return (
-        <ActiveTableView
-          snapshot={snapshot}
-          opponents={renderModel.opponents}
-          balanceCents={renderModel.balanceCents}
-          tableStatus={scene.tableStatus}
-          connectionStatus={scene.connectionStatus}
-          actionMessage={renderModel.actionMessage}
-          handResultMessage={renderModel.handResultMessage}
-          topBarRight={renderModel.tableTopBarRight}
-          onAction={actions.sendAction}
-          onToggleSittingOut={actions.toggleHeroSittingOut}
-          onRejoin={actions.rejoinHero}
-          onJoinTable={actions.joinTableFromFallback}
-          rejoinState={renderModel.rejoinUiState}
-          rejoinErrorMessage={renderModel.rejoinErrorMessage}
-          onBackToLobby={actions.closeTableAndReturn}
-          onPlayerPress={actions.onPlayerPress}
-          opponentStripEmptyState={emptyOpponentsState}
-          canRebuy={renderModel.canRebuy}
-          onPressRebuy={actions.openRebuySheet}
-          heroAvatarUrlOverride={heroAvatarUrl ?? profileOrCurrentUserUrl ?? undefined}
-          onHeroAvatarPress={pickAndUploadAvatar}
-          onBoardBounds={actions.reportBoardBounds}
-          onHeroBounds={actions.reportHeroBounds}
-          onSeatBounds={actions.reportSeatBounds}
-          onCardSlotBounds={actions.reportCardSlotBounds}
-        />
-      );
-
-    default:
-      return (
-        <StatusTableView
-          mode="connecting"
-          scene={scene}
-          renderModel={renderModel}
-          actions={actions}
-          onLoadingSlotSpinStart={handleLoadingSlotSpinStart}
-        />
-      );
-  }
+  return (
+    <TableSceneShell
+      {...slots}
+      showStatusView={showStatusView}
+      revealed={revealed}
+      revealDurationMs={TABLE_REVEAL_MS}
+      reducedMotion={reducedMotion}
+    />
+  );
 }
 

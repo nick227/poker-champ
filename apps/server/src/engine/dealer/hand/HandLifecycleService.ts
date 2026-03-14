@@ -77,7 +77,7 @@ import { shouldFailClosedMoneyPath } from "../../invariants/moneyStrictMode.js";
 // ============================================================================
 // IMPORTS - Constants & Timing
 // ============================================================================
-import { HAND_RESULT_HOLD_MS, RUNOUT_STAGE_DELAY_MS } from "../timing.js";
+import { getHandResultHoldMs, getRunoutStageDelayMs } from "../timing.js";
 
 // ============================================================================
 // IMPORTS - Type Definitions
@@ -799,7 +799,7 @@ export class HandLifecycleService {
       });
       plans.push({ kind: "TRANSITION_TO_WAITING" });
       plans.push({ kind: "RELEASE_PENDING_SEATS" });
-      plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
+      plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: getHandResultHoldMs() });
       if (this.deps.persistence.enabled && this.shouldAssertLedgerForCurrentHand()) {
         await this.deps.persistence.assertHandBalanced(state.handId);
       }
@@ -870,7 +870,7 @@ export class HandLifecycleService {
     });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
-    plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
+    plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: getHandResultHoldMs() });
     maybeAssertStateInvariants(state);
     if (this.deps.persistence.enabled && this.shouldAssertLedgerForCurrentHand()) {
       await this.deps.persistence.assertHandBalanced(state.handId);
@@ -1052,7 +1052,7 @@ export class HandLifecycleService {
     });
     plans.push({ kind: "TRANSITION_TO_WAITING" });
     plans.push({ kind: "RELEASE_PENDING_SEATS" });
-    plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: HAND_RESULT_HOLD_MS });
+    plans.push({ kind: "SCHEDULE_NEXT_HAND", reason: "HAND_END", delayMs: getHandResultHoldMs() });
     
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_FINALIZE", true);
     maybeAssertStateInvariants(state);
@@ -1130,7 +1130,7 @@ export class HandLifecycleService {
       this.dealCommunityForStreet(next);
       maybeAssertBettingState(this.deps.state);
       plans.push({ kind: "EMIT_SNAPSHOT", reason: "RUNOUT_STAGE" });
-      plans.push({ kind: "DELAY", ms: RUNOUT_STAGE_DELAY_MS });
+      plans.push({ kind: "DELAY", ms: getRunoutStageDelayMs() });
     }
     return plans;
   }

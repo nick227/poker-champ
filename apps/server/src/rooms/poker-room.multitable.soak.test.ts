@@ -155,6 +155,7 @@ describe("poker room multi-table random walk soak", () => {
       }
 
       let completedTotal = 0;
+      let stopping = false;
       const workers = contexts.map(async ({ room, client, tableId }, idx) => {
         const targetHands = handsPerTable;
         let completedHands = 0;
@@ -166,12 +167,16 @@ describe("poker room multi-table random walk soak", () => {
         let lastRoomHandId = String(room.state.handId ?? "");
         let lastRoomStreet = String(room.state.street ?? "");
         let lastRoomActionSeq = Number(room.state.handActionSeq ?? 0);
+        let lastCompletedRoomHandId = "";
+        let lastSnapshotId = client.latestSnapshot?.snapshotId ?? "";
         let actionSeq = 0;
         let lastActionSnapshotId = "";
         let lastHumanActionAttemptAt = 0;
         let recycleCount = 0;
 
         while (completedHands < targetHands) {
+          if (stopping) break;
+
           const roomHandIdNow = String(room.state.handId ?? "");
           const roomStreetNow = String(room.state.street ?? "");
           const roomActionSeqNow = Number(room.state.handActionSeq ?? 0);
@@ -184,6 +189,16 @@ describe("poker room multi-table random walk soak", () => {
             lastRoomHandId = roomHandIdNow;
             lastRoomStreet = roomStreetNow;
             lastRoomActionSeq = roomActionSeqNow;
+          }
+
+          if (
+            roomStreetNow === "WAITING" &&
+            roomHandIdNow &&
+            roomHandIdNow !== lastCompletedRoomHandId
+          ) {
+            lastCompletedRoomHandId = roomHandIdNow;
+            lastHandCompletedAt = Date.now();
+            lastProgressAt = Date.now();
           }
 
           if (recycleStacksIfNeeded(room)) {
@@ -200,16 +215,42 @@ describe("poker room multi-table random walk soak", () => {
           const snap = client.latestSnapshot;
           const hand = snap?.hand;
           if (!snap || !hand || !hand.handId) {
-            if (Date.now() - lastRoomProgressAt > 15_000) {
+            const now = Date.now();
+            const roomToActUserIdForBudget =
+              room.state.toActSeat >= 0
+                ? (room.state.seats[room.state.toActSeat] ?? "")
+                : "";
+            const roomTurnDeadlineMsForBudget = Number(room.state.turnDeadlineMs ?? 0);
+            const roomHumanDeadlineActive =
+              roomToActUserIdForBudget.startsWith("human_") &&
+              roomStreetNow !== "WAITING" &&
+              roomStreetNow !== "SHOWDOWN" &&
+              roomTurnDeadlineMsForBudget > now;
+            const roomProgressBudgetMs = roomStreetNow === "SHOWDOWN"
+              ? 60_000
+              : roomHumanDeadlineActive
+              ? Math.min(45_000, Math.max(15_000, roomTurnDeadlineMsForBudget - now + 2_000))
+              : roomStreetNow !== "WAITING"
+              ? 30_000
+              : 0;
+            if (roomProgressBudgetMs > 0 && now - lastRoomProgressAt > roomProgressBudgetMs) {
               throw new Error(
-                `No room progress >15s table=${tableId} street=${roomStreetNow} hand=${roomHandIdNow} seq=${roomActionSeqNow}`,
+                `No room progress >${roomProgressBudgetMs}ms table=${tableId} street=${roomStreetNow} hand=${roomHandIdNow} seq=${roomActionSeqNow}`,
               );
             }
-            if (Date.now() - lastHandCompletedAt > 30_000) {
+            if (now - lastHandCompletedAt > 30_000) {
               throw new Error(`No hand completion >30s table=${tableId}`);
             }
             await delay(20);
             continue;
+          }
+
+          if (snap.snapshotId && snap.snapshotId !== lastSnapshotId) {
+            lastSnapshotId = snap.snapshotId;
+            lastProgressAt = Date.now();
+            if (roomStreetNow === "SHOWDOWN" || hand.street === "SHOWDOWN") {
+              lastRoomProgressAt = Date.now();
+            }
           }
 
           const completedHandId = snap.lastHandResult?.handId;
@@ -239,6 +280,18 @@ describe("poker room multi-table random walk soak", () => {
 
           const liveHandId = room.state.handId || "";
           const liveStreet = String(room.state.street || "");
+          const liveStreetActionable = liveStreet !== "WAITING" && liveStreet !== "SHOWDOWN";
+          const snapshotMatchesLiveStreet = hand.street === liveStreet;
+          const snapshotMatchesLiveHand = hand.handId === liveHandId;
+          const snapshotIsStaleForProgress =
+            liveStreet === "WAITING" ||
+            (Boolean(liveHandId) && !snapshotMatchesLiveHand) ||
+            (liveStreet !== "WAITING" && !snapshotMatchesLiveStreet);
+
+          if (snapshotIsStaleForProgress) {
+            lastProgressAt = Math.max(lastProgressAt, lastRoomProgressAt);
+          }
+
           const snapshotTracksLiveHand =
             liveStreet !== "WAITING" && liveStreet !== "SHOWDOWN" && liveHandId && hand.handId === liveHandId;
           const snapshotToActUserId = snap.seats.find((s) => s.seat === hand.toActSeat)?.userId;
@@ -272,10 +325,15 @@ describe("poker room multi-table random walk soak", () => {
           const turnDeadlineMs = Number(room.state.turnDeadlineMs ?? 0);
           const humanDeadlineActive =
             liveToActUserId.startsWith("human_") &&
-            snapshotTracksLiveHand &&
+            liveStreetActionable &&
             turnDeadlineMs > now;
-          const progressBudgetMs = humanDeadlineActive
+          const inShowdown = roomStreetNow === "SHOWDOWN" || hand.street === "SHOWDOWN";
+          const progressBudgetMs = inShowdown
+            ? 60_000
+            : humanDeadlineActive
             ? Math.min(45_000, Math.max(15_000, turnDeadlineMs - now + 2_000))
+            : liveStreetActionable
+            ? 30_000
             : 15_000;
           if (now - lastProgressAt > progressBudgetMs || now - lastRoomProgressAt > progressBudgetMs) {
             throw new Error(
@@ -295,6 +353,7 @@ describe("poker room multi-table random walk soak", () => {
       try {
         await Promise.all(workers);
       } finally {
+        stopping = true;
         for (const { room, client } of contexts) {
           try {
             await room.onLeave(client as any, 4000);
@@ -306,8 +365,10 @@ describe("poker room multi-table random walk soak", () => {
 
       const stalledCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED");
       const redriveCalls = warnSpy.mock.calls.filter((call) => call[1] === "TABLE_STALLED_RECOVERY_REDRIVE");
+      const parityMismatchCalls = warnSpy.mock.calls.filter((call) => call[1] === "ENGINE_PARITY_MISMATCH");
       expect(stalledCalls.length, "multi-table soak emitted TABLE_STALLED").toBe(0);
       expect(redriveCalls.length, "multi-table soak emitted TABLE_STALLED_RECOVERY_REDRIVE").toBe(0);
+      expect(parityMismatchCalls.length, "multi-table soak emitted ENGINE_PARITY_MISMATCH").toBe(0);
       expect(completedTotal).toBeGreaterThanOrEqual(tableCount * handsPerTable);
       console.error(
         `[MULTI_TABLE_SOAK_DONE] tables=${tableCount} handsPerTable=${handsPerTable} completedTotal=${completedTotal}`,

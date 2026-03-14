@@ -1,5 +1,5 @@
-export const RUNOUT_STAGE_DELAY_MS = 1000;
-export const HAND_RESULT_HOLD_MS = 2500;
+const DEFAULT_RUNOUT_STAGE_DELAY_MS = 1000;
+const DEFAULT_HAND_RESULT_HOLD_MS = 2500;
 export const NEXT_HAND_DELAY_MS = 0;
 
 function readEnvMs(name: string, fallback: number): number {
@@ -8,6 +8,24 @@ function readEnvMs(name: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
+}
+
+function readEnvMsAllowZero(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
+/** Lazy so tests can override via env before first use (e.g. soak test). */
+export function getRunoutStageDelayMs(): number {
+  return readEnvMsAllowZero("RUNOUT_STAGE_DELAY_MS", DEFAULT_RUNOUT_STAGE_DELAY_MS);
+}
+
+/** Lazy so tests can override via env before first use (e.g. soak test). */
+export function getHandResultHoldMs(): number {
+  return readEnvMsAllowZero("HAND_RESULT_HOLD_MS", DEFAULT_HAND_RESULT_HOLD_MS);
 }
 
 // Bot \"thinking\" delay configuration (milliseconds)

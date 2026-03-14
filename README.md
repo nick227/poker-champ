@@ -87,4 +87,5 @@ npm run dev:web
 - `npm run test:server:core`: Run core server integration tests.
 - `npm run lint`: Run ESLint across the project.
 - `npm run verify`: Run all checks (SDK, Tests, Typecheck, Lint) before pushing.
+- `pnpm --dir C:\wamp64\www\poker-champ run multitable-soak:validate -- --runs 1 --tables 10 --hands-per-table 100 --min-hand-completion-rate 0.95 --max-rejection-rate 0.10 --prefix multitable_soak_goal_c`: Run the Goal C multi-table soak from the repo root.
 

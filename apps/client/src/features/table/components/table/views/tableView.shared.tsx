@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { BoardArea } from "../board-area";
 import type { Opponent } from "../opponent-strip";
+import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
 import { useTableSceneModel, type TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
@@ -25,7 +26,7 @@ type TableShellBaseProps = Pick<
 >;
 
 type UseTableViewShellFrameParams = {
-  snapshot: TableSnapshotPayload;
+  snapshot: TableSnapshotPayload | null;
   sceneModel?: TableSceneModel;
   handResultMessage?: HandResultMessage | null;
   connectionStatus?: ConnectionStatus;
@@ -56,9 +57,10 @@ export function useTableViewShellFrame({
   onCardSlotBounds,
   onSeatBounds,
 }: UseTableViewShellFrameParams) {
-  const resolvedModel = useTableSceneModel(snapshot, handResultMessage ?? null, connectionStatus);
+  const effectiveSnapshot = snapshot ?? DUMMY_TABLE_SNAPSHOT;
+  const resolvedModel = useTableSceneModel(effectiveSnapshot, handResultMessage ?? null, connectionStatus);
   const model = sceneModel ?? resolvedModel;
-  const { table } = snapshot;
+  const { table } = effectiveSnapshot;
   const shellBaseProps: TableShellBaseProps = {
     tableName: model.tableName,
     balanceCents,

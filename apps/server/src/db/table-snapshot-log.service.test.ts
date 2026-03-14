@@ -4,11 +4,15 @@ import * as loggerModule from "../lib/logger.js";
 import { TableSnapshotLogService } from "../engine/persistence/TableSnapshotLogService.js";
 
 describe("TableSnapshotLogService", () => {
+  const databaseUrlEnv = process.env.DATABASE_URL;
   const sampleRateEnv = process.env.SNAPSHOT_LOG_SAMPLE_RATE;
   const payloadCapEnv = process.env.SNAPSHOT_LOG_MAX_BYTES;
 
+  process.env.DATABASE_URL = process.env.DATABASE_URL || "mysql://test:test@localhost:3306/test";
+
   afterEach(() => {
     vi.restoreAllMocks();
+    process.env.DATABASE_URL = databaseUrlEnv;
     process.env.SNAPSHOT_LOG_SAMPLE_RATE = sampleRateEnv;
     process.env.SNAPSHOT_LOG_MAX_BYTES = payloadCapEnv;
   });

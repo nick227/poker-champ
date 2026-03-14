@@ -2,8 +2,9 @@
  * Single table chrome. All table states (auth, connecting, idle, active) use this shell only.
  * Do not introduce another shell (e.g. FooTableShell); see TABLE_SCENE_VIEWS_OVERVIEW.md guardrails.
  */
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { Platform, View, ScrollView, type ViewStyle } from "react-native";
+import { Animated, Platform, View, ScrollView, type ViewStyle } from "react-native";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
@@ -13,7 +14,7 @@ import { Surface } from "@/components/containers/Surface";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableLayoutDimensions } from "../hooks/useTableLayoutDimensions";
 import { layoutStyles } from "./styles";
-import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
+import { ACTION_BAR_HEIGHT, TABLE_REVEAL_MS } from "../constants/table-layout.constants";
 import { useRouter } from "expo-router";
 
 export type TableSceneShellProps = {
@@ -39,6 +40,12 @@ export type TableSceneShellProps = {
   rootClassName?: string;
   immersiveBoard?: boolean;
   hideBottomSection?: boolean;
+  /** When true, body is shown at full opacity (loading state). When false, body uses revealed + fade. */
+  showStatusView?: boolean;
+  /** Phase 2: latched reveal; when true, table body fades in. */
+  revealed?: boolean;
+  revealDurationMs?: number;
+  reducedMotion?: boolean;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -66,12 +73,35 @@ export function TableSceneShell({
   rootClassName,
   immersiveBoard = false,
   hideBottomSection = false,
+  showStatusView = false,
+  revealed = false,
+  revealDurationMs = TABLE_REVEAL_MS,
+  reducedMotion = false,
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
   const { insets, boardAreaHeight, heroZoneHeight, layoutScale } =
     useTableLayoutDimensions();
   const router = useRouter();
+  const revealOpacity = useRef(new Animated.Value(0)).current;
+
+  // Only re-run on revealed/showStatusView so the animation fires once on transition, not on every prop update.
+  useEffect(() => {
+    if (showStatusView) {
+      revealOpacity.stopAnimation();
+      revealOpacity.setValue(1);
+      return;
+    }
+    if (!revealed) {
+      revealOpacity.setValue(0);
+      return;
+    }
+    Animated.timing(revealOpacity, {
+      toValue: 1,
+      duration: reducedMotion ? 0 : revealDurationMs,
+      useNativeDriver: true,
+    }).start();
+  }, [reducedMotion, revealDurationMs, revealOpacity, revealed, showStatusView]);
 
   const heroSectionStyle: ViewStyle =
     Platform.OS === "web"
@@ -126,7 +156,7 @@ export function TableSceneShell({
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-            <>
+            <Animated.View style={{ opacity: revealOpacity }}>
               <View
                 collapsable={false}
                 style={layoutStyles.opponentStripSection}
@@ -182,11 +212,11 @@ export function TableSceneShell({
                   {bottom}
                 </Surface>
               ) : null}
-              
-                  <View collapsable={false} style={layoutStyles.dealerBar}>
-                    {dealerBar}
-                  </View>
-            </>
+            </Animated.View>
+
+            <View collapsable={false}>
+              {dealerBar}
+            </View>
           </ScrollView>
         )}
       </TableLayoutHeightProvider>

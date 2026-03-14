@@ -11,6 +11,7 @@ const UI_DIR_CANDIDATES = [
 ];
 const FILE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next", ".vite", ".turbo", ".git", "packages/sdk"]);
+const FETCH_CALL_RE = /(^|[^\w$])fetch\s*\(/m;
 
 async function walk(dir, files = []) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -50,7 +51,7 @@ async function main() {
     const files = await walk(dir);
     for (const file of files) {
       const content = await fs.readFile(file, "utf8");
-      if (content.includes("fetch(")) {
+      if (FETCH_CALL_RE.test(content)) {
         violations.push(path.relative(root, file).replaceAll("\\", "/"));
       }
     }

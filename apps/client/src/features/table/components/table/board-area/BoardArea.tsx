@@ -6,7 +6,7 @@ import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { BOARD_AREA_HEIGHT } from "../constants/table-layout.constants";
-import { useTableLayoutHeight } from "../table-layout";
+import { useTableLayoutHeight } from "../table-layout/TableLayoutHeightContext";
 import { boardAreaStyles } from "./styles";
 
 export type BoardAreaProps = {

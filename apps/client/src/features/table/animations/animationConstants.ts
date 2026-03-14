@@ -30,10 +30,10 @@ export const TEXT_ROLE_HEADLINE = "headline";
 export const TEXT_ROLE_AMOUNT = "amount";
 
 /** Default channel for definitions without per-event override. */
-export const DEFAULT_CHANNEL = "TABLE";
+const DEFAULT_CHANNEL = "TABLE";
 
 /** Default anchor for definitions. */
-export const DEFAULT_ANCHOR = "TABLE_CENTER";
+const DEFAULT_ANCHOR = "TABLE_CENTER";
 
 /** Default text size when layer omits textSize. */
 export const TEXT_SIZE_DEFAULT = "large";
@@ -78,7 +78,7 @@ export const CHOREO_HEADLINE_MS = 120;
 export const CHOREO_AMOUNT_MS = 180;
 
 /** Guardrail: max delay for cascade layers; new layers should not exceed this. */
-export const MAX_CASCADE_MS = 300;
+const MAX_CASCADE_MS = 300;
 
 /** Layer types to skip when reducedMotion is true (event and atmosphere). */
 export const REDUCED_MOTION_SKIP_TYPES = ["PARTICLES", "STREAK", "BURST"] as const;

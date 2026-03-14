@@ -46,17 +46,19 @@ Addressed with direct test coverage:
 - Follow-up on same-recipient concurrent credits
   - Covered by `atomically credits concurrent payouts for the same recipient without lost updates` in `apps/server/src/engine/persistence/LedgerService.concurrent.test.ts`.
   - `LedgerService` now uses atomic balance updates inside the transaction rather than read-then-write balance assignment.
+- P2.11 snapshot vs internal-state drift
+  - Covered for decision-critical and hand-boundary parity by `apps/server/src/engine/table-snapshot.state-parity.test.ts`.
+- P2.12 log schema drift breaks analyzers
+  - Covered by `apps/server/src/log-schema-contract.test.ts` for `TABLE_STALLED`, `TABLE_STALLED_RECOVERY_REDRIVE`, `ENGINE_DECISION`, `ENGINE_RUNTIME_STEP`, `ENGINE_PARITY`, `ENGINE_PARITY_MISMATCH`, and real lifecycle events (`POKER_ACTION_ATTEMPT`, `ACTION_ACCEPTED`, `POKER_ACTION_ACCEPTED`, `NEXT_ACTOR_SELECTED`).
+  - Existing soak-time validation in `apps/server/scripts/check-log-schema-contract.mjs` remains a secondary log-file gate for soak output.
+  - The soak gate requires presence for normal-path soak events (`ENGINE_DECISION`, `ENGINE_RUNTIME_STEP`, `ENGINE_PARITY`, `DEALER_RUNTIME_METRICS`), while fault-path event presence remains covered by the unit contract test.
 
 ## Remaining Blind Spots (Priority)
+None in the original blind-spot list are still open as untested regression risks.
 
-## P2 (important reliability and debugging)
-11. Snapshot vs internal-state drift
-- Risk: analyzers pass but runtime truth differs.
-- Test: periodic assertion that exported snapshot projections match internal state invariants.
-
-12. Log schema drift breaks analyzers
-- Risk: false green pipeline.
-- Test: schema contract test for required log fields and messages.
+## Remaining Observability Follow-ups
+- `buildSha` is still a requirement target in this document, but it is not emitted yet and is not enforced by the current contract test.
+- Dealer-owned engine logs (`ENGINE_DECISION`, `ENGINE_RUNTIME_STEP`, `ENGINE_PARITY`, `ENGINE_PARITY_MISMATCH`) still do not carry `roomId`; that is a separate observability enhancement, not a schema-drift blind spot.
 
 ## Observability Blind Spots
 Required on all critical logs:
@@ -75,10 +77,10 @@ Critical events that must remain parse-stable:
 - `ENGINE_PARITY_MISMATCH`
 
 Turn lifecycle reconstruction target:
-- `TURN_START` (or equivalent decision-to-wait)
-- `ACTION_RECEIVED`
-- `ACTION_RESOLVED`
-- `NEXT_ACTOR`
+- `POKER_ACTION_ATTEMPT`
+- `ACTION_ACCEPTED`
+- `POKER_ACTION_ACCEPTED`
+- `NEXT_ACTOR_SELECTED`
 
 If one is missing, incident triage quality degrades.
 
@@ -115,12 +117,12 @@ Acceptance:
 - log schema contract test in CI
 - analyzer fails on missing required fields/messages
 
-## Recommended Next 5 Tests (execution order)
-1. explicit log schema contract test with source-of-truth fixture
-2. snapshot vs internal-state drift
-3. required observability field contract (`buildSha`, lifecycle fields)
-4. analyzer fail-closed proof on missing required fields/messages
-5. CI lane wiring for log contract enforcement
+## Recommended Next 5 Tests / Follow-ups (execution order)
+1. required observability field contract follow-up (`buildSha`, and `roomId` where feasible)
+2. analyzer fail-closed proof on missing required fields/messages
+3. CI lane audit to ensure the new log contract test remains in required coverage
+4. hero-visibility / snapshot filtering contract as a separate concern from parity
+5. broader log fixture expansion if new parse-stable events are promoted to incident-critical status
 
 ## CI Integration Plan
 - Extend quick gate with P0 deterministic tests.
@@ -136,7 +138,5 @@ Acceptance:
 ## Notes
 - Existing regression and room-soak gates are now a strong baseline.
 - As of 2026-03-13, the original P0 and P1 items are covered by tests in-repo.
-- The remaining gap is now:
-  - P2 projection drift
-  - P2 observability/schema contract enforcement
-- The observability field list in this document is a requirement target, not an enforcement mechanism. The real gap remains a CI contract test that fails when required fields or parse-stable events drift.
+- The original regression blind spots in this document are now covered by in-repo tests.
+- The observability field list in this document is now partially enforced by tests for current emitters, but `buildSha` and dealer-level `roomId` remain follow-up enhancements rather than active contract coverage.

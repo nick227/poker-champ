@@ -15,9 +15,12 @@ export {
 } from "./components/table/table.adapter";
 export type { Opponent } from "./components/table/table.adapter";
 
+export { TableSceneShell } from "./components/table/table-layout";
+export type { TableSceneShellProps } from "./components/table/table-layout";
 export { ActiveTableView } from "./components/table/views/ActiveTableView";
-export { EmptyTableView } from "./components/table/views/EmptyTableView";
-export { StatusTableView } from "./components/table/views/StatusTableView";
+export { getLoadingSlots, getPlaceholderSlots } from "./components/table/views/tableSceneSlots";
+export { useIdleTableSlots } from "./components/table/views/useIdleTableSlots";
+export { useActiveTableSlots } from "./components/table/views/useActiveTableSlots";
 
 export {
   getActionContext,
@@ -45,6 +48,7 @@ export {
   LAYOUT_GAME_TOP_BAR_HEIGHT,
   GAME_AREA_HEIGHT,
   HERO_ZONE_HEIGHT,
+  TABLE_REVEAL_MS,
 } from "./components/table/constants/table-layout.constants";
 
 export { useResolvedBuyIn } from "./components/table/hooks/useResolvedBuyIn";
