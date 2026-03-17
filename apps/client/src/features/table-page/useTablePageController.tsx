@@ -19,7 +19,7 @@ import type { SoundEvent } from "@/sound/emitSoundEvent";
 import { MODAL } from "@/constants/copy";
 import { useResolvedBuyIn } from "@/features/table";
 import { useTableScene } from "@/features/table";
-import { useActionMessages } from "@/features/table";
+import { useTableDisplayEvents } from "@/features/table";
 import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 import { useRebuySheet } from "@/features/table";
 import { useAddBot } from "@/features/table";
@@ -37,6 +37,7 @@ import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin 
 import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
 import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
+import { getOccupiedHumanCount, resolveDisplayEventsForRender } from "./displayEventsPolicy";
 
 function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
   if (a === b) return true;
@@ -111,6 +112,7 @@ export function useTablePageController({
     dispatchRemoveBot,
     dispatchSetSittingOut,
     joinState,
+    pendingActionForTable,
     lobbyTables,
     snapshotsByTableId,
     chatMessagesForTable,
@@ -188,6 +190,9 @@ export function useTablePageController({
   const lastAllInKeyRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
   const pendingRemoveBotIdRef = useRef<string | null>(null);
+  const hasObservedActiveHandRef = useRef(false);
+  const prevOccupiedHumanCountRef = useRef<number | null>(null);
+  const hiddenWinnerHandIdRef = useRef<string | null>(null);
 
   const closeTableAndReturn = useCallback(() => {
     // Hard leave: explicit user intent to leave seat/table lifecycle.
@@ -241,21 +246,66 @@ export function useTablePageController({
     onSend: sendChat,
   });
 
-  const { actionMessage, handResultMessage } = useActionMessages(tableId, snapshot);
+  const translatedDisplayEvents = useTableDisplayEvents(tableId, snapshot);
   usePlayerJoinedSound(snapshot);
 
-  const heroName = seatContext?.heroSeat?.name;
-  const isHeroWinner = !!handResultMessage && handResultMessage.winnerName === heroName;
+  const occupiedHumanCount = useMemo(
+    () => getOccupiedHumanCount(snapshot),
+    [snapshot],
+  );
 
   useEffect(() => {
-    if (!handResultMessage || !snapshot?.lastHandResult || !isHeroWinner) return;
+    hasObservedActiveHandRef.current = false;
+    prevOccupiedHumanCountRef.current = null;
+    hiddenWinnerHandIdRef.current = null;
+  }, [tableId]);
+
+  useEffect(() => {
+    if (snapshot?.hand?.handId) {
+      hasObservedActiveHandRef.current = true;
+      hiddenWinnerHandIdRef.current = null;
+    }
+  }, [snapshot?.hand?.handId]);
+
+  const displayEvents = useMemo(
+    () =>
+      resolveDisplayEventsForRender({
+        translatedEvents: translatedDisplayEvents,
+        snapshot,
+        hasObservedActiveHand: hasObservedActiveHandRef.current,
+        previousOccupiedHumanCount: prevOccupiedHumanCountRef.current,
+        hiddenWinnerHandId: hiddenWinnerHandIdRef.current,
+      }),
+    [snapshot, translatedDisplayEvents],
+  );
+
+  useEffect(() => {
+    const previousOccupiedHumanCount = prevOccupiedHumanCountRef.current;
+    const humansLeftAndNoHand =
+      previousOccupiedHumanCount != null &&
+      occupiedHumanCount < previousOccupiedHumanCount &&
+      !snapshot?.hand;
+
+    if (humansLeftAndNoHand && snapshot?.lastHandResult?.handId) {
+      hiddenWinnerHandIdRef.current = snapshot.lastHandResult.handId;
+    }
+
+    prevOccupiedHumanCountRef.current = occupiedHumanCount;
+  }, [occupiedHumanCount, snapshot?.hand, snapshot?.lastHandResult?.handId]);
+
+  const heroName = seatContext?.heroSeat?.name;
+  const winnerBanner = displayEvents.winnerBanner;
+  const isHeroWinner = !!winnerBanner && winnerBanner.winnerName === heroName;
+
+  useEffect(() => {
+    if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
     const handId = snapshot.lastHandResult.handId;
     if (lastPotWinHandIdRef.current === handId) return;
     lastPotWinHandIdRef.current = handId;
     const potCents = snapshot.lastHandResult.potCents ?? 0;
     const tier = mapPotWinTier({
       potCents,
-      winningHandDescr: handResultMessage.winningHandDescr,
+      winningHandDescr: winnerBanner.winningHandDescr,
     });
     setAnimationRequest({
       version: TABLE_ANIMATION_REQUEST_VERSION,
@@ -263,12 +313,12 @@ export function useTablePageController({
       tier,
       payload: {
         headline: "YOU WIN",
-        amountCents: handResultMessage.amountCents,
+        amountCents: winnerBanner.amountCents,
         potCents,
         isHero: true,
       },
     });
-  }, [handResultMessage, snapshot?.lastHandResult, isHeroWinner]);
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner]);
 
   useEffect(() => {
     const lastAction = snapshot?.lastAction;
@@ -661,8 +711,8 @@ export function useTablePageController({
       balanceCents,
       snapshot,
       opponents,
-      actionMessage: actionMessage ?? undefined,
-      handResultMessage: handResultMessage ?? undefined,
+      displayEvents,
+      pendingAction: pendingActionForTable,
       canRebuy,
       tableTopBarRight,
       activeTableRows,

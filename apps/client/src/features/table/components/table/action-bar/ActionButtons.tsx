@@ -33,15 +33,13 @@ export function ActionButtons({
         className="flex-1 min-w-0"
         disabled={!permissions.canCheck && !permissions.canCall}
       />
-      {permissions.canWager ? (
-        <Button
-          variant="primary"
-          title={wager.label}
-          onPress={actions.betRaise}
-          className="flex-1 min-w-0"
-          disabled={wager.disabled}
-        />
-      ) : null}
+      <Button
+        variant="primary"
+        title={wager.label}
+        onPress={actions.betRaise}
+        className="flex-1 min-w-0"
+        disabled={!permissions.canWager || wager.disabled}
+      />
     </View>
   );
 }

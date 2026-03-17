@@ -25,6 +25,25 @@ async function recover() {
     const dir = path.resolve(contentRoot, lesson.id);
     const outPath = path.resolve(dir, "step-config.json");
 
+    const resolveSnapshotPath = async (step: any): Promise<string | undefined> => {
+      if (!step.snapshotVersion) return undefined;
+      const paddedSeq = String(step.sequence).padStart(2, "0");
+      const stepFile = path.resolve(dir, `snapshots/step_${paddedSeq}.json`);
+      try {
+        await fs.access(stepFile);
+        return `./snapshots/step_${paddedSeq}.json`;
+      } catch {
+        const mainFile = path.resolve(dir, "snapshots/main.json");
+        try {
+          await fs.access(mainFile);
+          return "./snapshots/main.json";
+        } catch {
+          console.warn(`WARNING: No snapshot file found for step ${step.id} in ${dir}/snapshots`);
+          return undefined;
+        }
+      }
+    };
+
     const config = {
       lessonId: lesson.id,
       title: lesson.title,
@@ -34,14 +53,14 @@ async function recover() {
       targetAudience: "serious online players",
       difficulty: lesson.difficulty ? lesson.difficulty.toUpperCase() : "BEGINNER",
       estimatedMinutes: lesson.estimatedMinutes,
-      steps: lesson.steps.map((step: any) => {
+      steps: await Promise.all(lesson.steps.map(async (step: any) => {
         const gradingSpec = step.gradingSpecJson as Record<string, unknown> | null;
         const out: Record<string, unknown> = {
           id: step.id,
           sequence: step.sequence,
           type: step.type,
           snapshotVersion: step.snapshotVersion,
-          snapshotPath: step.snapshotVersion ? "./snapshots/main.json" : undefined,
+          snapshotPath: await resolveSnapshotPath(step),
           gradingVersion: step.gradingVersion,
         };
         if (step.beforeMessage) out.beforeInstructorMessage = step.beforeMessage;
@@ -74,7 +93,7 @@ async function recover() {
           if (rt.displayCategory) out.displayCategory = rt.displayCategory;
         }
         return out;
-      }),
+      })),
       curriculumVersion: lesson.curriculumVersion ?? "poker_lessons_full_15_v1",
       role: lesson.role,
       repeatable: lesson.repeatable,

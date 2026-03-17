@@ -50,7 +50,7 @@ export type Wager = {
 };
 
 export type ActionBarController = {
-  statusLabel: string;
+  statusFallbackLabel: string;
   checkCallLabel: string;
   showActions: boolean;
   showReconnectingOverlay: boolean;
@@ -119,7 +119,7 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
     dispatch({ type: "SET_INPUT", display: normalizeMoneyInput(text) });
   }, []);
 
-  const statusLabel = showActions ? TABLE.yourTurn : HERO_STATUS_LABEL[heroStatus];
+  const statusFallbackLabel = showActions ? TABLE.yourTurn : HERO_STATUS_LABEL[heroStatus];
   const checkCallLabel = capabilities.canCheck
     ? TABLE.check
     : capabilities.canCall
@@ -134,7 +134,9 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
   const primaryActionVerb = wager?.primaryVerb;
   const betRaiseVerb =
     primaryActionVerb === "RAISE" ? TABLE.raise : primaryActionVerb === "BET" ? TABLE.bet : TABLE.betRaise;
-  const betRaiseLabel = `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`;
+  const betRaiseLabel = wager
+    ? `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`
+    : betRaiseVerb;
 
   const showBetInput = showActions && !!wager && permissions.canWager;
 
@@ -193,7 +195,7 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
   };
 
   const ctrl: ActionBarController = {
-    statusLabel,
+    statusFallbackLabel,
     checkCallLabel,
     showActions,
     showReconnectingOverlay: Boolean(actionContext.showReconnectingOverlay),

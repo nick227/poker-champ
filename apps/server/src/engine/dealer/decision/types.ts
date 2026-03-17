@@ -36,3 +36,21 @@ export type StallReason =
   | "TURN_TIMEOUT_OVERDUE"
   | "STREET_ADVANCE_OVERDUE"
   | "SHOWDOWN_OVERDUE";
+
+/**
+ * Explicit ownership of the next progression step in an active hand.
+ * The Dealer sets this after every state mutation so "who drives next?" is
+ * always inspectable without reasoning across multiple service layers.
+ *
+ * WAITING_FOR_HUMAN     — a connected human has been given a turn deadline
+ * WAITING_FOR_AUTOMATION — a bot or disconnected-human auto-action is scheduled
+ * RUNNING_LIFECYCLE     — a hand/street transition is actively executing
+ * BETWEEN_HANDS         — next-hand timer is counting down
+ * IDLE                  — no active hand (WAITING street or initial state)
+ */
+export type NextStepOwner =
+  | "WAITING_FOR_HUMAN"
+  | "WAITING_FOR_AUTOMATION"
+  | "RUNNING_LIFECYCLE"
+  | "BETWEEN_HANDS"
+  | "IDLE";

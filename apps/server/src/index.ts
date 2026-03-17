@@ -178,6 +178,11 @@ const gameServer = new Server({
     pingMaxRetries: 2,
   }),
   express: (colyseusApp) => {
+    // Apply CORS to all routes served by Colyseus, including /matchmake/* endpoints.
+    // The Express cors() above only covers routes forwarded to `app`; without this,
+    // client.reconnect() / joinById() HTTP matchmaking calls are CORS-blocked.
+    colyseusApp.use(cors(buildCorsOptions()));
+
     // Colyseus default routes (e.g. /matchmake/*) are registered after this callback.
     // Only forward known API paths to Express so Colyseus can handle its own endpoints.
     colyseusApp.use((req, res, next) => {

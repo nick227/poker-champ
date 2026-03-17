@@ -41,6 +41,33 @@ export class ActionService {
     getLastAction: () => TableLastAction | undefined;
   }) {}
 
+  private assignToActSeatWithTrace(state: PokerState, nextSeat: number, trigger: string): void {
+    state.toActSeat = nextSeat;
+    if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
+    if (nextSeat < 0) return;
+    const toActUserId = state.seats[nextSeat] ?? "";
+    const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || toActPlayer.needsAction) return;
+    console.error(
+      JSON.stringify({
+        level: 50,
+        tableId: state.tableId,
+        handId: state.handId,
+        street: state.street,
+        roundState: state.roundState,
+        toActSeat: nextSeat,
+        toActUserId,
+        status: toActPlayer.status,
+        needsAction: toActPlayer.needsAction,
+        roundBetCents: toActPlayer.roundBetCents,
+        committedCents: toActPlayer.committedCents,
+        trigger,
+        stack: new Error("TO_ACT_ASSIGNMENT_TRACE").stack,
+        msg: "TO_ACT_ASSIGNED_WITHOUT_NEEDS_ACTION",
+      }),
+    );
+  }
+
   private resolveHeroTraceUserId(): string | null {
     const value = process.env.HERO_TRACE_USER_ID?.trim();
     return value && value.length > 0 ? value : null;
@@ -72,6 +99,7 @@ export class ActionService {
     opts?: { skipTurnAdvance?: boolean },
   ): ActionResult {
     if (countNotFoldedPlayers(state) <= 1) {
+      this.clearTurnOwnership(state);
       return this.finish(state, { kind: "HAND_FINISHED" });
     }
 
@@ -94,8 +122,20 @@ export class ActionService {
     if (nextSeat === -1) {
       return this.finish(state, { kind: "STREET_COMPLETE" });
     }
-    state.toActSeat = nextSeat;
+    this.assignToActSeatWithTrace(state, nextSeat, "ACTION_SERVICE_RESOLVE_POST_ACTION");
     return this.finish(state, { kind: "TURN_ADVANCED", actorKind });
+  }
+
+  private clearTurnOwnership(state: PokerState): void {
+    for (const player of state.playersById.values()) {
+      player.needsAction = false;
+    }
+    const terminalAnchor = [...state.playersById.values()].find(
+      (player) => player.status !== "FOLDED" && player.status !== "OUT" && player.status !== "ABANDONED",
+    );
+    state.toActSeat = terminalAnchor?.seat ?? -1;
+    state.turnDeadlineMs = 0;
+    state.roundState = "HAND_COMPLETE";
   }
 
   private toActionStreet(street: PokerState["street"]): LastActionStreet {
@@ -491,7 +531,7 @@ export class ActionService {
     if (state.toActSeat === player.seat) {
       const nextSeat = findNextToActSeat(state, player.seat);
       if (nextSeat !== -1) {
-        state.toActSeat = nextSeat;
+        this.assignToActSeatWithTrace(state, nextSeat, "ACTION_SERVICE_FORCED_FOLD");
         skipTurnAdvance = true;
       }
     }

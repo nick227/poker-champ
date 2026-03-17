@@ -82,11 +82,11 @@ export function WagerInput({
   return (
     <View
       collapsable={false}
+      pointerEvents={visible ? "auto" : "none"}
       style={[
         actionBarStyles.betInputPlaceholder,
         {
           opacity: visible ? 1 : 0,
-          pointerEvents: visible ? "auto" : "none",
         },
       ]}
     >

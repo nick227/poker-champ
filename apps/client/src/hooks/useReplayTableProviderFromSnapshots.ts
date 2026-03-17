@@ -49,7 +49,7 @@ export function useReplayTableProviderFromSnapshots(
   const safeStep = Math.min(currentStep, totalSteps - 1);
   const currentSnapshot = snapshots[safeStep];
   const sceneModel = buildReplayDisabledSceneModel(
-    buildTableSceneModel(currentSnapshot, null, "CONNECTED"),
+    buildTableSceneModel(currentSnapshot, "CONNECTED"),
   );
 
   const tableProvider = {

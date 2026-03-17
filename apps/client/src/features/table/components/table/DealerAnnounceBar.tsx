@@ -8,6 +8,7 @@ import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HandResultMessage } from "./table.types";
 import { Surface } from "@/components/containers/Surface";
+import { buildWinnerMessageText } from "./displayMessages";
 
 type Hand = { street: string; potCents: number };
 
@@ -20,10 +21,7 @@ function deriveMessage(
   tableStatus?: string,
 ): string {
   if (handResultMessage) {
-    const line = `${handResultMessage.winnerName} ${TABLE.wins} ${formatCents(handResultMessage.amountCents)}`;
-    return handResultMessage.winningHandDescr
-      ? `${line} - ${handResultMessage.winningHandDescr}`
-      : line;
+    return buildWinnerMessageText(handResultMessage) ?? TABLE.waitingForHand;
   }
   if (hand && actionMessage) return actionMessage;
   if (hand) return `${hand.street} - Pot ${formatCents(hand.potCents)}`;

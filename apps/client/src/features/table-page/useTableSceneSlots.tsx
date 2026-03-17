@@ -6,12 +6,30 @@ import { useMemo } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import {
+  buildTableSceneModel,
+  deriveTableViewState,
   type TableSceneShellProps,
   getLoadingSlots,
   getPlaceholderSlots,
   useIdleTableSlots,
   useActiveTableSlots,
 } from "@/features/table";
+import { useLiveTableStatusStripState } from "./useLiveTableStatusStripState";
+import { deriveTableDisplayState } from "./tableDisplayState";
+
+const EMPTY_DISPLAY_STATE = {
+  phase: "betweenHands",
+  handId: null,
+  completedHandId: null,
+  heroUserId: null,
+  notice: null,
+  winnerMessage: null,
+  heroPrompt: null,
+  passiveMessage: "Waiting for next hand",
+  showTurnCue: false,
+  boardReset: false,
+  connectionLabel: null,
+} as const;
 
 export type UseTableSceneSlotsParams = {
   showStatusView: boolean;
@@ -49,6 +67,38 @@ export function useTableSceneSlots({
   emptyOpponentsState,
   heroAvatarUrl,
 }: UseTableSceneSlotsParams): TableSceneShellProps {
+  const liveViewState = useMemo(
+    () =>
+      snapshot
+        ? deriveTableViewState(snapshot, scene.connectionStatus)
+        : undefined,
+    [scene.connectionStatus, snapshot],
+  );
+  const liveSceneModel = useMemo(
+    () =>
+      snapshot
+        ? buildTableSceneModel(snapshot, scene.connectionStatus)
+        : undefined,
+    [scene.connectionStatus, snapshot],
+  );
+  const tableDisplayState = useMemo(
+    () =>
+      liveViewState
+        ? deriveTableDisplayState({
+            viewState: liveViewState,
+            actionNotice: renderModel.displayEvents.actionNotice,
+            handResultNotice: renderModel.displayEvents.winnerBanner,
+          })
+        : null,
+    [
+      liveViewState,
+      renderModel.displayEvents,
+    ],
+  );
+  const liveStatusStripState = useLiveTableStatusStripState({
+    tableId: renderModel.tableId,
+    displayState: tableDisplayState ?? EMPTY_DISPLAY_STATE,
+  });
   const loadingSlots = useMemo(
     () =>
       getLoadingSlots({
@@ -75,7 +125,17 @@ export function useTableSceneSlots({
     [renderModel.balanceCents, renderModel.tableTopBarRight],
   );
 
-  const idleSlots = useIdleTableSlots(snapshot, scene, renderModel, actions, emptyOpponentsState);
+  const idleSlots = useIdleTableSlots(
+    snapshot,
+    scene,
+    renderModel,
+    actions,
+    emptyOpponentsState,
+    {
+      sceneModel: liveSceneModel,
+      statusStrip: liveStatusStripState,
+    },
+  );
   const activeSlots = useActiveTableSlots(
     snapshot,
     scene,
@@ -83,6 +143,10 @@ export function useTableSceneSlots({
     actions,
     emptyOpponentsState,
     heroAvatarUrl,
+    {
+      sceneModel: liveSceneModel,
+      statusStrip: liveStatusStripState,
+    },
   );
 
   if (showStatusView) {

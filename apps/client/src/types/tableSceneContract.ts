@@ -5,13 +5,14 @@ import type { TableSceneMode } from "@/features/table";
 import type { Opponent } from "@/features/table";
 import type { TableAction } from "@/features/table";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
-import type { HandResultMessage, ConnectionStatus } from "@/features/table";
+import type { ConnectionStatus, TableDisplayEvents } from "@/features/table";
 import type { RejoinUiState } from "@/features/table";
 import type {
   TableAnimationRequest,
   AnchorBounds,
   Rect,
 } from "@/features/table/animations/animationTypes";
+import type { PendingAction } from "@/features/table/stores/multitable.store";
 
 export type TableSceneContract = {
   snapshot: TableSnapshotPayload;
@@ -45,8 +46,8 @@ export type TablePageController = {
     balanceCents: number;
     snapshot?: TableSnapshotPayload;
     opponents: Opponent[];
-    actionMessage?: string;
-    handResultMessage?: HandResultMessage;
+    displayEvents: TableDisplayEvents;
+    pendingAction?: PendingAction;
     canRebuy: boolean;
     tableTopBarRight: ReactNode;
     activeTableRows: ActiveTableRow[];

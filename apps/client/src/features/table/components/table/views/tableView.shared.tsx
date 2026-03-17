@@ -6,6 +6,7 @@ import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
 import { useTableSceneModel, type TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
+import type { UiCard } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { BoardBoundsReporter } from "../board-area";
 
@@ -28,7 +29,7 @@ type TableShellBaseProps = Pick<
 type UseTableViewShellFrameParams = {
   snapshot: TableSnapshotPayload | null;
   sceneModel?: TableSceneModel;
-  handResultMessage?: HandResultMessage | null;
+  winnerBanner?: HandResultMessage | null;
   connectionStatus?: ConnectionStatus;
   balanceCents: number;
   topBarRight?: ReactNode;
@@ -41,12 +42,15 @@ type UseTableViewShellFrameParams = {
   onCardSlotBounds?: (index: number, rect: Rect) => void;
   /** When set, passed to shell for SEAT-anchored FX (reportSeatBounds). */
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
+  boardCardsOverride?: UiCard[] | null;
+  potCentsOverride?: number;
+  animateBoardReset?: boolean;
 };
 
 export function useTableViewShellFrame({
   snapshot,
   sceneModel,
-  handResultMessage,
+  winnerBanner,
   connectionStatus,
   balanceCents,
   topBarRight,
@@ -56,9 +60,12 @@ export function useTableViewShellFrame({
   onBoardBounds,
   onCardSlotBounds,
   onSeatBounds,
+  boardCardsOverride,
+  potCentsOverride,
+  animateBoardReset = false,
 }: UseTableViewShellFrameParams) {
   const effectiveSnapshot = snapshot ?? DUMMY_TABLE_SNAPSHOT;
-  const resolvedModel = useTableSceneModel(effectiveSnapshot, handResultMessage ?? null, connectionStatus);
+  const resolvedModel = useTableSceneModel(effectiveSnapshot, connectionStatus);
   const model = sceneModel ?? resolvedModel;
   const { table } = effectiveSnapshot;
   const shellBaseProps: TableShellBaseProps = {
@@ -71,14 +78,15 @@ export function useTableViewShellFrame({
     topBarRight,
     opponents,
     opponentStripEmptyState,
-    winnerName: handResultMessage?.winnerName,
+    winnerName: winnerBanner?.winnerName,
     onPlayerPress,
     onSeatBounds,
   };
   const boardContent = (
     <BoardArea
-      cards={model.communityCards}
-      potCents={model.potCents}
+      cards={boardCardsOverride ?? model.communityCards}
+      potCents={potCentsOverride ?? model.potCents}
+      animateReset={animateBoardReset}
       onCardSlotBounds={onCardSlotBounds}
     />
   );

@@ -57,8 +57,8 @@ function deriveWagerBounds(
 
 /**
  * Normalize ACTION_STEP snapshot: ensure hero is to act, actionOptions exists, wager bounds set when needed, version set.
- * For version >= CANONICAL_LESSON_SNAPSHOT_VERSION: validate only, require derived fields (minRaiseTo/maxRaiseTo) when
- * expected is BET/RAISE; do not mutate. Throws with a clear message (including context) if any invariant fails.
+ * Wager bounds and callAmount are derived from game state when missing, regardless of snapshot version.
+ * Throws with a clear message (including context) if any invariant fails.
  */
 export function normalizeActionStepSnapshot(
   snapshot: TableSnapshotPayload,
@@ -83,16 +83,10 @@ export function normalizeActionStepSnapshot(
   const isCanonical = (snapshot.lessonSnapshotVersion ?? 0) >= CANONICAL_LESSON_SNAPSHOT_VERSION;
 
   if (needsWager) {
-    if (isCanonical) {
-      const minRaiseTo = actionOptions.minRaiseTo;
-      const maxRaiseTo = actionOptions.maxRaiseTo;
-      if (minRaiseTo == null || maxRaiseTo == null) {
-        throw new Error(msg(context, "Canonical snapshot (version >= 2) must have hero.actionOptions.minRaiseTo and maxRaiseTo for expected BET/RAISE."));
-      }
-      if (minRaiseTo <= 0 || maxRaiseTo < minRaiseTo) {
-        throw new Error(msg(context, `Canonical snapshot: invalid wager bounds (minRaiseTo=${minRaiseTo}, maxRaiseTo=${maxRaiseTo}).`));
-      }
-    } else {
+    const minRaiseTo = actionOptions.minRaiseTo;
+    const maxRaiseTo = actionOptions.maxRaiseTo;
+    if (minRaiseTo == null || maxRaiseTo == null) {
+      // Derive bounds from game state — applies to both legacy and canonical snapshots missing bounds.
       const { stackCents, roundBetCents } = getHeroStackAndRoundBet(snapshot);
       const bounds = deriveWagerBounds(actionOptions, snapshot, stackCents, roundBetCents);
       if (!bounds) {
@@ -102,6 +96,18 @@ export function normalizeActionStepSnapshot(
         throw new Error(msg(context, `Invariant failed: invalid wager bounds (minRaiseTo=${bounds.minRaiseTo}, maxRaiseTo=${bounds.maxRaiseTo}).`));
       }
       actionOptions = { ...actionOptions, minRaiseTo: bounds.minRaiseTo, maxRaiseTo: bounds.maxRaiseTo };
+    } else if (minRaiseTo <= 0 || maxRaiseTo < minRaiseTo) {
+      throw new Error(msg(context, `Invariant failed: invalid wager bounds (minRaiseTo=${minRaiseTo}, maxRaiseTo=${maxRaiseTo}).`));
+    }
+  }
+
+  // Repair callAmount when canCall is true but the value is missing or zero.
+  if (actionOptions.canCall && (actionOptions.callAmount ?? 0) <= 0) {
+    const { stackCents, roundBetCents } = getHeroStackAndRoundBet(snapshot);
+    const roundCurrentBetCents = hand.roundCurrentBetCents ?? 0;
+    const derived = Math.min(Math.max(0, roundCurrentBetCents - roundBetCents), stackCents);
+    if (derived > 0) {
+      actionOptions = { ...actionOptions, callAmount: derived };
     }
   }
 
@@ -116,7 +122,10 @@ export function normalizeActionStepSnapshot(
     throw new Error(msg(context, `Invariant failed: expected action ${expectedAction} is not possible from snapshot (can* flags).`));
   }
 
-  if (isCanonical) return snapshot;
+  if (isCanonical && actionOptions === snapshot.hero?.actionOptions) {
+    // No mutations were needed — return original snapshot unchanged.
+    return snapshot;
+  }
 
   return {
     ...snapshot,

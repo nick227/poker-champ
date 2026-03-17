@@ -35,6 +35,7 @@ export class HandOrchestrator {
     getCurrentHand: () => HandContext | null;
     initPreflopFlagsForHand: () => void;
     executeHandLifecyclePlans: (plans: HandLifecyclePlan[]) => Promise<void>;
+    requestDrive: (reason: string) => Promise<void>;
     enqueueSerializedStateMutation: (work: () => Promise<void>) => Promise<void>;
     sendTableSnapshotToAll: (reason: SnapshotReason, actionId?: string) => Promise<void>;
     isDisposed: () => boolean;
@@ -47,6 +48,7 @@ export class HandOrchestrator {
 
   transitionToWaiting(): void {
     this.deps.clearPendingHumanTurnTimeout();
+    this.deps.state.roundState = "HAND_COMPLETE";
     this.deps.state.street = "WAITING";
     this.deps.state.runoutMode = "NONE";
     this.deps.setCurrentHand(null);
@@ -158,7 +160,7 @@ export class HandOrchestrator {
             // (e.g. HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT) can schedule the
             // follow-up hand from inside lifecycle execution.
             this.nextHandScheduled = false;
-            await this.startHand();
+            await this.deps.requestDrive("NEXT_HAND_START_TIMER");
             return;
           }
 

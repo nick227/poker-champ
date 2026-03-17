@@ -39,6 +39,7 @@ describe("dealer snapshot lifecycle invariants", () => {
       reason: string;
       snapshotSeq: number;
       potCents?: number;
+      resolvedActionId?: string;
     }> = [];
 
     const persistence = {
@@ -57,6 +58,7 @@ describe("dealer snapshot lifecycle invariants", () => {
           reason: payload.reason,
           snapshotSeq: payload.payloadJson.snapshotSeq,
           potCents: payload.payloadJson.hand?.potCents,
+          resolvedActionId: payload.payloadJson.resolvedActionId,
         });
       },
     });
@@ -69,19 +71,28 @@ describe("dealer snapshot lifecycle invariants", () => {
     expect(firstToAct).toBeTruthy();
     const firstPlayer = state.playersById.get(firstToAct);
     const firstCallAmount = state.roundCurrentBetCents - (firstPlayer?.roundBetCents ?? 0);
-    await dealer.handleAction(String(firstToAct), { action: firstCallAmount > 0 ? "CALL" : "CHECK" });
-    const actionSnapshot = [...snapshots].reverse().find((s) => s.reason === "ACTION_ACCEPTED");
+    const firstActionId = "stream-act-1";
+    const snapshotCountBeforeFirstAction = snapshots.length;
+    await dealer.handleAction(String(firstToAct), { action: firstCallAmount > 0 ? "CALL" : "CHECK" }, firstActionId);
+    const postFirstActionSnapshots = snapshots.slice(snapshotCountBeforeFirstAction);
+    const actionSnapshot = postFirstActionSnapshots.find(
+      (s) => s.reason === "ACTION_ACCEPTED" || s.reason === "AUTO_TRANSITION",
+    );
     expect(actionSnapshot).toBeDefined();
     expect((actionSnapshot?.potCents ?? 0)).toBeGreaterThanOrEqual(potAfterBlinds);
+    expect(actionSnapshot?.resolvedActionId).toBe(firstActionId);
 
     const secondToAct = state.seats[state.toActSeat];
     expect(secondToAct).toBeTruthy();
-    await dealer.handleAction(String(secondToAct), { action: "FOLD" });
+    const secondActionId = "stream-act-2";
+    await dealer.handleAction(String(secondToAct), { action: "FOLD" }, secondActionId);
 
     const reasons = snapshots.map((s) => s.reason);
     expect(reasons).toContain("HAND_START");
     expect(reasons).toContain("HAND_END");
     expect(reasons.indexOf("HAND_START")).toBeLessThan(reasons.indexOf("HAND_END"));
+    const handEndSnapshot = [...snapshots].reverse().find((s) => s.reason === "HAND_END");
+    expect(handEndSnapshot?.resolvedActionId).toBe(secondActionId);
 
     for (let i = 1; i < snapshots.length; i++) {
       expect(
@@ -176,10 +187,13 @@ describe("dealer snapshot lifecycle invariants", () => {
       },
     } as any;
 
-    await dealer.handleAction(String(secondToAct), { action: secondAction }, "ensure-recipient-id", actorClient);
+    const actionId = "ensure-recipient-id";
+    await dealer.handleAction(String(secondToAct), { action: secondAction }, actionId, actorClient);
 
     expect(actorReceived.length).toBeGreaterThanOrEqual(1);
-    const reason = (actorReceived[0] as { reason?: string })?.reason;
+    const firstSnapshot = actorReceived[0] as { reason?: string; resolvedActionId?: string };
+    const reason = firstSnapshot?.reason;
     expect(["ACTION_ACCEPTED", "AUTO_TRANSITION"]).toContain(reason);
+    expect(firstSnapshot?.resolvedActionId).toBe(actionId);
   });
 });

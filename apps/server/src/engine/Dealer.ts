@@ -81,7 +81,7 @@ import { buildActionKey, buildClaimKey } from "./dealer/utils/actionKeys.js";
 import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
 import { HandContext } from "./dealer/HandContext.js";
 import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
-import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type StallReason } from "./dealer/decision/index.js";
+import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type NextStepOwner, type StallReason } from "./dealer/decision/index.js";
 import type { EngineQueries } from "./dealer/decision/engineQueries.js";
 import { dealerRuntimeMetrics } from "./dealer/metrics/dealerRuntimeMetrics.js";
 
@@ -198,6 +198,23 @@ export class Dealer {
     };
   }
 
+  private setNextStepOwner(owner: NextStepOwner, trigger: string): void {
+    if (this.nextStepOwner !== owner) {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          from: this.nextStepOwner,
+          to: owner,
+          trigger,
+        },
+        "NEXT_STEP_OWNER_TRANSITION",
+      );
+      this.nextStepOwner = owner;
+    }
+  }
+
   private getBotDelayMs(): number {
     const override = Number(process.env.POKER_BOT_DELAY_MS);
     if (Number.isFinite(override) && override >= 0) return Math.floor(override);
@@ -207,6 +224,68 @@ export class Dealer {
     if (max <= min) return min;
     const span = max - min + 1;
     return min + Math.floor(Math.random() * span);
+  }
+
+  /**
+   * Direct bot action scheduler — bypasses AutoActionDispatcher's stale-token queue.
+   *
+   * The previous path (enqueueInternalAction → AutoActionDispatcher) captured a turn
+   * token, waited delayMs, then silently discarded the action if the token was stale.
+   * On discard, onAutoActionDiscarded called requestDrive, but this created a timing
+   * window where a post-street-transition bot could get lost (RCA: rca-game-hang-2026-03-09).
+   *
+   * This path:
+   *  1. Captures the minimal staleness keys at schedule time.
+   *  2. Waits delayMs via setTimeout.
+   *  3. On fire: if stale, calls requestDrive explicitly (not silently).
+   *  4. If fresh: routes through handleAction → enqueuePlayerAction (serialized queue).
+   */
+  private scheduleBotAction(botId: string, payload: ActionPayload, delayMs: number): void {
+    // Mark ownership as soon as the bot action is registered, not when it fires.
+    this.setNextStepOwner("WAITING_FOR_AUTOMATION", "SCHEDULE_BOT_ACTION");
+    const capturedHandId = this.state.handId;
+    const capturedStreet = this.state.street;
+    const capturedHandActionSeq = this.state.handActionSeq;
+    const capturedToActSeat = this.state.toActSeat;
+
+    const fire = () => {
+      if (this.disposed) return;
+      const stale =
+        this.state.handId !== capturedHandId ||
+        this.state.street !== capturedStreet ||
+        this.state.handActionSeq !== capturedHandActionSeq ||
+        this.state.toActSeat !== capturedToActSeat;
+      if (stale) {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            botId,
+            capturedHandId,
+            capturedStreet,
+            capturedHandActionSeq,
+            currentHandId: this.state.handId,
+            currentStreet: this.state.street,
+            currentHandActionSeq: this.state.handActionSeq,
+          },
+          "BOT_SCHEDULED_ACTION_STALE",
+        );
+        // Explicitly re-drive rather than silently discarding.
+        // Must serialize through the queue: driveGame() can call lifecycle functions
+        // directly, and unqueued state mutations would race with the action queue.
+        void this.enqueueSerializedStateMutation(() => this.driveGame("BOT_SCHEDULED_ACTION_STALE"));
+        return;
+      }
+      // Route through the serialized queue so concurrent player actions interleave safely.
+      void this.handleAction(botId, payload);
+    };
+
+    if (delayMs <= 0) {
+      // Use setTimeout(fn, 0) even for zero delay to keep the bot action out of the
+      // current synchronous lifecycle plan execution context.
+      setTimeout(fire, 0);
+    } else {
+      setTimeout(fire, delayMs);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -221,6 +300,14 @@ export class Dealer {
   private pendingSeatReleaseUserIds: Set<string> = new Set();
   /** Displayed after hand ends during WAITING; set by HandLifecycleService callback. */
   private lastHandResult: TableSnapshotPayload["lastHandResult"] | undefined = undefined;
+  /** Latest accepted player action id exposed in snapshots for client-side reconciliation. */
+  private resolvedActionId: string | undefined = undefined;
+  /**
+   * Explicit next-step ownership: tracks which component is responsible for
+   * the next hand progression step. Set after every state mutation so
+   * "who drives next?" is always observable without cross-service reasoning.
+   */
+  private nextStepOwner: NextStepOwner = "IDLE";
   private readonly botResolver = new BotResolver();
   private readonly autoActionsByUserId: Map<string, number> = new Map();
   private readonly currentHandAutoActedUserIds: Set<string> = new Set();
@@ -239,6 +326,20 @@ export class Dealer {
   private readonly engineDecisionSampleRate = Dealer.parseSampleRate(process.env.ENGINE_DECISION_SAMPLE_RATE, 0);
   private readonly engineDecisionTableIdFilter = (process.env.ENGINE_DECISION_TABLE_ID ?? "").trim();
   private lastDecisionTraceId: string | null = null;
+  private driveInProgress = false;
+  private driveQueued = false;
+  private driveQueuedReason = "";
+  private drivePromise: Promise<void> | null = null;
+  private activeTerminalLifecycle:
+    | { handId: string; path: "LAST_STANDING" | "SHOWDOWN"; caller: string }
+    | null = null;
+  private completedTerminalLifecycle:
+    | { handId: string; path: "LAST_STANDING" | "SHOWDOWN"; caller: string }
+    | null = null;
+  private pendingExternalPlayerLifecycleBatches: Array<{
+    source: string;
+    plans: PlayerLifecyclePlan[];
+  }> = [];
 
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
@@ -292,7 +393,7 @@ export class Dealer {
       handleInternalAction: (userId, payload) => this._handleAction(userId, payload, "AUTO"),
       setPlayerSittingOutInternal: (userId, sittingOut) => this.setPlayerSittingOutInternal(userId, sittingOut),
       onAutoActionDiscarded: () => {
-        void this.requestDrive("MAYBE_ACT_FOR_BOT:AUTO_ACTION_DISCARDED");
+        void this.enqueueSerializedStateMutation(() => this.driveGame("AUTO_ACTION_DISCARDED"));
       },
     });
     // Hand-scoped getters: return currentHand's maps when a hand is active, else empty. Write paths (e.g. deal
@@ -314,7 +415,7 @@ export class Dealer {
       applyDisconnectedAutoActionCapForHand: () => this.applyDisconnectedAutoActionCapForHand(),
       setLastHandResult: (value) => { this.lastHandResult = value; },
       setLastAction: (value) => { if (this.currentHand) this.currentHand.lastAction = value; },
-      onWaitingForActionEntered: (reason) => this.onWaitingForActionEntered(reason),
+      onWaitingForActionEntered: undefined,
     });
     this.handOrchestrator = new HandOrchestrator({
       state: this.state,
@@ -324,7 +425,8 @@ export class Dealer {
       setCurrentHand: (hand) => { this.currentHand = hand; },
       getCurrentHand: () => this.currentHand,
       initPreflopFlagsForHand: () => this.initPreflopFlagsForHand(),
-      executeHandLifecyclePlans: (plans) => this.executeHandLifecyclePlans(plans),
+      executeHandLifecyclePlans: (plans) => this.executeHandLifecyclePlans(plans, "HAND_ORCHESTRATOR"),
+      requestDrive: (reason) => this.requestDrive(`HAND_ORCHESTRATOR:${reason}`),
       enqueueSerializedStateMutation: (work) => this.enqueueSerializedStateMutation(work),
       sendTableSnapshotToAll: (reason, actionId) => this.sendTableSnapshotToAll(reason, actionId),
       isDisposed: () => this.disposed,
@@ -345,6 +447,7 @@ export class Dealer {
       currentHandAutoActedUserIds: this.currentHandAutoActedUserIds,
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       enqueueAction: (userId, payload, delayMs) => this.turnManager.enqueueInternalAction(userId, payload, delayMs),
+      scheduleBotAction: (userId, payload, delayMs) => this.scheduleBotAction(userId, payload, delayMs),
       getBotDelayMs: () => this.getBotDelayMs(),
       scheduleHumanTurnTimeout: (userId) => this.scheduleHumanTurnTimeout(userId),
       onAutoSitOutReachedCap: this.onAutoSitOutReachedCap,
@@ -365,7 +468,8 @@ export class Dealer {
       hasClient: (userId) => this.clientsByUserId.has(userId),
       markReconnected: async (userId) => {
         const plans = this.playerLifecycleService.markReconnected(userId);
-        await this.executePlayerLifecyclePlans(plans);
+        this.stageExternalPlayerLifecyclePlans(plans, "DISCONNECT_SWEEP:MARK_RECONNECTED");
+        await this.requestDrive("DISCONNECT_SWEEP:MARK_RECONNECTED");
       },
       markAbandoned: (userId) => this.markAbandoned(userId),
     });
@@ -374,7 +478,7 @@ export class Dealer {
       isDisposed: () => this.disposed,
       flushSessionStatsOnly: () => this.flushSessionStatsOnly(),
       maybeActForBot: async () => {
-        await this.requestDrive("MAYBE_ACT_FOR_BOT:LIFECYCLE_EXECUTOR");
+        this.queueDrive("MAYBE_ACT_FOR_BOT:LIFECYCLE_EXECUTOR");
       },
       getLifecycleLogContext: () => ({
         tableId: this.state.tableId,
@@ -391,14 +495,15 @@ export class Dealer {
       onLifecycleDeferredRemoval: (plan) => this.emitLifecycleDeferredRemovalDiagnostic(plan.userId, plan.reason),
       startHand: () => this.startHand(),
       ensureHandAdvancingAfterPlayerRemoval: (removedSeat) => this.ensureHandAdvancingAfterPlayerRemoval(removedSeat),
-      finishHandByLastStanding: () => this.finishHandByLastStanding(),
-      advanceStreetOrShowdown: () => this.advanceStreetOrShowdown(),
+      finishHandByLastStanding: () => this.finishHandByLastStanding("LIFECYCLE_EXECUTOR:FINISH_HAND_BY_LAST_STANDING"),
+      advanceStreetOrShowdown: () => this.advanceStreetOrShowdown("LIFECYCLE_EXECUTOR:ADVANCE_STREET_OR_SHOWDOWN"),
     });
     this.snapshotService = new SnapshotService({
       state: this.state,
       clientsByUserId: this.clientsByUserId,
       getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
+      getResolvedActionId: () => this.resolvedActionId,
       getLastHandResult: () => this.lastHandResult,
       getLastAction: () => this.currentHand?.lastAction,
       getHeroSessionStats: (userId) => this.sessionStatsTracker.get(userId),
@@ -471,7 +576,7 @@ export class Dealer {
   async addBot(botId: string, name: string, buyInCents: number, catalogBotId?: string) {
     await this.enqueueSerializedStateMutation(async () => {
       const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents, catalogBotId);
-      await this.executePlayerLifecyclePlans(plans);
+      await this.applyExternalPlayerLifecyclePlans(plans, "ADD_BOT");
     });
   }
 
@@ -483,7 +588,8 @@ export class Dealer {
 
   async removePlayer(userId: string, options?: { cashOutAfterRemoval?: boolean }) {
     await this.enqueueSerializedStateMutation(async () => {
-      await this.removePlayerInternal(userId, options);
+      const plans = await this.playerLifecycleService.removePlayer(userId, options);
+      await this.applyExternalPlayerLifecyclePlans(plans, "REMOVE_PLAYER");
     });
   }
 
@@ -491,13 +597,14 @@ export class Dealer {
   async applyRebuy(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
       const plans = await this.playerLifecycleService.addChipsToSeatedPlayer(userId, amountCents, rebuyRef);
-      await this.executePlayerLifecyclePlans(plans);
+      await this.applyExternalPlayerLifecyclePlans(plans, "APPLY_REBUY");
     });
   }
 
   async handleConsentedLeave(userId: string) {
     await this.enqueueSerializedStateMutation(async () => {
-      await this.removePlayerInternal(userId, { cashOutAfterRemoval: true });
+      const plans = await this.playerLifecycleService.removePlayer(userId, { cashOutAfterRemoval: true });
+      await this.applyExternalPlayerLifecyclePlans(plans, "HANDLE_CONSENTED_LEAVE");
     });
   }
 
@@ -531,20 +638,24 @@ export class Dealer {
   async markDisconnectedSerialized(userId: string, disconnectDeadlineTs: number): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
       const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
-      await this.executePlayerLifecyclePlans(plans);
+      this.stageExternalPlayerLifecyclePlans(plans, "MARK_DISCONNECTED");
+      await this.requestDrive("MARK_DISCONNECTED");
     });
   }
 
   async markReconnectedSerialized(userId: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
       const plans = this.playerLifecycleService.markReconnected(userId);
-      await this.executePlayerLifecyclePlans(plans);
+      this.stageExternalPlayerLifecyclePlans(plans, "MARK_RECONNECTED");
+      await this.requestDrive("MARK_RECONNECTED");
     });
   }
 
   async markAbandonedSerialized(userId: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
-      await this.markAbandonedInternal(userId);
+      const plans = await this.playerLifecycleService.markAbandoned(userId);
+      this.stageExternalPlayerLifecyclePlans(plans, "MARK_ABANDONED");
+      await this.requestDrive("MARK_ABANDONED");
     });
   }
 
@@ -604,8 +715,12 @@ export class Dealer {
     this.turnManager.enqueueInternalAction(userId, payload, delayMs);
   }
   // Legacy test compatibility: tests monkey-patch this method to disable timeout automation.
-  private scheduleHumanTurnTimeout(userId: string): void {
-    this.turnManager.scheduleHumanTurnTimeout(userId);
+  private scheduleHumanTurnTimeout(userId: string): boolean {
+    const armed = this.turnManager.scheduleHumanTurnTimeout(userId);
+    if (armed) {
+      this.setNextStepOwner("WAITING_FOR_HUMAN", "SCHEDULE_HUMAN_TURN_TIMEOUT");
+    }
+    return armed;
   }
 
   /**
@@ -614,7 +729,13 @@ export class Dealer {
    * be skipped by a missed automation/redrive step.
    */
   private ensureHumanTurnTimerForCurrentActor(trigger: string): void {
-    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN" || this.state.runoutMode === "STAGED") {
+    if (
+      this.state.street === "WAITING" ||
+      this.state.street === "SHOWDOWN" ||
+      this.state.runoutMode === "STAGED" ||
+      this.state.roundState === "HAND_COMPLETE" ||
+      this.state.roundState === "RUNOUT"
+    ) {
       this.clearPendingHumanTurnTimeout();
       return;
     }
@@ -629,52 +750,14 @@ export class Dealer {
       this.clearPendingHumanTurnTimeout();
       return;
     }
+    const actionableRound = this.repairCurrentToActNeedsActionIfNeeded(trigger);
     if (!toActPlayer.needsAction) {
-      const actionableRound =
-        !bettingRoundComplete(this.state) &&
-        !noFurtherBettingPossible(this.state);
-      if (
-        actionableRound &&
-        this.state.roundState === "WAITING_FOR_ACTION" &&
-        toActPlayer.kind === "HUMAN" &&
-        toActPlayer.connected
-      ) {
-        const failFast = process.env.POKER_FAIL_FAST_INVARIANTS === "1";
-        if (failFast) {
-          throw new PokerError(
-            "BAD_STATE",
-            `WAITING actor does not require action: hand=${this.state.handId} seat=${this.state.toActSeat} street=${this.state.street}`,
-          );
-        }
-        logger.error(
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            street: this.state.street,
-            roundState: this.state.roundState,
-            toActSeat: this.state.toActSeat,
-            userId: toActUserId,
-            trigger,
-          },
-          "WAITING_ACTOR_NEEDS_ACTION_INVALID_REPAIRED",
-        );
-      }
       if (!actionableRound) {
         this.clearPendingHumanTurnTimeout();
         return;
       }
-      logger.warn(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street: this.state.street,
-          toActSeat: this.state.toActSeat,
-          userId: toActUserId,
-          trigger,
-        },
-        "TO_ACT_NEEDS_ACTION_REPAIRED_BEFORE_TIMER_ARM",
-      );
-      toActPlayer.needsAction = true;
+      this.clearPendingHumanTurnTimeout();
+      return;
     }
 
     if (toActPlayer.kind !== "HUMAN" || !toActPlayer.connected) {
@@ -683,9 +766,9 @@ export class Dealer {
     }
 
     const beforeTurnStartTs = this.turnManager.getTurnStartTs();
-    this.scheduleHumanTurnTimeout(toActUserId);
+    const armed = this.scheduleHumanTurnTimeout(toActUserId);
     const afterTurnStartTs = this.turnManager.getTurnStartTs();
-    if (afterTurnStartTs > 0 && afterTurnStartTs !== beforeTurnStartTs) {
+    if (armed && afterTurnStartTs > 0 && afterTurnStartTs !== beforeTurnStartTs) {
       logger.info(
         {
           tableId: this.state.tableId,
@@ -768,7 +851,7 @@ export class Dealer {
       },
       "TO_ACT_INVALID_REPAIRED",
     );
-    this.state.toActSeat = repairedSeat;
+    this.assignToActSeatWithTrace(repairedSeat, "SELF_HEAL_INVALID_TO_ACT_SEAT");
   }
 
   private maybeSelfHealRoundClosedNoAction(trigger: string): void {
@@ -992,6 +1075,9 @@ export class Dealer {
       },
       "ACTION_ACCEPTED",
     );
+    if (origin === "PLAYER" && actionId) {
+      this.resolvedActionId = actionId;
+    }
     await this.applyActionResult(execution.result, {
       turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
         ? "BOT_ACTION"
@@ -1037,6 +1123,7 @@ export class Dealer {
 
   /** Stats flush is done by flushSessionStatsOnly() before HAND_END snapshot; this only transitions and clears context. */
   private transitionToWaiting(): void {
+    this.setNextStepOwner("IDLE", "TRANSITION_TO_WAITING");
     this.handOrchestrator.transitionToWaiting();
   }
 
@@ -1245,74 +1332,292 @@ export class Dealer {
   // Hand initiation, street progression, and completion scenarios
 
   private async startHand() {
+    if (!this.driveInProgress) {
+      await this.requestDrive("START_HAND:EXTERNAL_ENTRY");
+      return;
+    }
+    this.resolvedActionId = undefined;
+    this.activeTerminalLifecycle = null;
+    this.completedTerminalLifecycle = null;
+    this.setNextStepOwner("RUNNING_LIFECYCLE", "START_HAND");
     await this.handOrchestrator.startHand();
     dealerRuntimeMetrics.recordHandStarted();
     this.logEngineDecisionAndRuntimeStep("START_HAND");
   }
 
-  private async advanceStreetOrShowdown() {
+  private async advanceStreetOrShowdown(caller = "ADVANCE_STREET_OR_SHOWDOWN") {
+    if (!this.driveInProgress) {
+      await this.requestDrive(`ADVANCE_STREET_OR_SHOWDOWN:EXTERNAL_ENTRY:${caller}`);
+      return;
+    }
+    this.setNextStepOwner("RUNNING_LIFECYCLE", "ADVANCE_STREET_OR_SHOWDOWN");
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        caller,
+      },
+      "TERMINAL_LIFECYCLE_CALLER",
+    );
     await this.handOrchestrator.advanceStreetOrShowdown();
     this.logEngineDecisionAndRuntimeStep("ADVANCE_STREET_OR_SHOWDOWN");
   }
 
-  private async finishHandByLastStanding() {
-    await this.handOrchestrator.finishHandByLastStanding();
+  private async finishHandByLastStanding(caller = "FINISH_HAND_LAST_STANDING") {
+    if (!this.driveInProgress) {
+      await this.requestDrive(`FINISH_HAND_LAST_STANDING:EXTERNAL_ENTRY:${caller}`);
+      return;
+    }
+    const handId = this.state.handId;
+    if (!handId) {
+      await this.handOrchestrator.finishHandByLastStanding();
+      this.logEngineDecisionAndRuntimeStep("FINISH_HAND_LAST_STANDING");
+      return;
+    }
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        caller,
+      },
+      "TERMINAL_LIFECYCLE_ENTRY",
+    );
+    if (this.activeTerminalLifecycle?.handId === handId) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          caller,
+          existingPath: this.activeTerminalLifecycle.path,
+          existingCaller: this.activeTerminalLifecycle.caller,
+        },
+        "TERMINAL_LIFECYCLE_DUPLICATE_IN_FLIGHT",
+      );
+      return;
+    }
+    if (this.completedTerminalLifecycle?.handId === handId) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          caller,
+          existingPath: this.completedTerminalLifecycle.path,
+          existingCaller: this.completedTerminalLifecycle.caller,
+        },
+        "TERMINAL_LIFECYCLE_DUPLICATE_COMPLETED",
+      );
+      return;
+    }
+    this.activeTerminalLifecycle = { handId, path: "LAST_STANDING", caller };
+    try {
+      await this.handOrchestrator.finishHandByLastStanding();
+      this.completedTerminalLifecycle = { handId, path: "LAST_STANDING", caller };
+    } finally {
+      if (this.activeTerminalLifecycle?.handId === handId) {
+        this.activeTerminalLifecycle = null;
+      }
+    }
     this.logEngineDecisionAndRuntimeStep("FINISH_HAND_LAST_STANDING");
   }
-  private async finishHandShowdownWithSidePots() {
-    await this.handOrchestrator.finishHandShowdownWithSidePots();
+  private async finishHandShowdownWithSidePots(caller = "FINISH_HAND_SHOWDOWN") {
+    if (!this.driveInProgress) {
+      await this.requestDrive(`FINISH_HAND_SHOWDOWN:EXTERNAL_ENTRY:${caller}`);
+      return;
+    }
+    const handId = this.state.handId;
+    if (!handId) {
+      await this.handOrchestrator.finishHandShowdownWithSidePots();
+      this.logEngineDecisionAndRuntimeStep("FINISH_HAND_SHOWDOWN");
+      return;
+    }
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        caller,
+      },
+      "TERMINAL_LIFECYCLE_ENTRY",
+    );
+    if (this.activeTerminalLifecycle?.handId === handId) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          caller,
+          existingPath: this.activeTerminalLifecycle.path,
+          existingCaller: this.activeTerminalLifecycle.caller,
+        },
+        "TERMINAL_LIFECYCLE_DUPLICATE_IN_FLIGHT",
+      );
+      return;
+    }
+    if (this.completedTerminalLifecycle?.handId === handId) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          caller,
+          existingPath: this.completedTerminalLifecycle.path,
+          existingCaller: this.completedTerminalLifecycle.caller,
+        },
+        "TERMINAL_LIFECYCLE_DUPLICATE_COMPLETED",
+      );
+      return;
+    }
+    this.activeTerminalLifecycle = { handId, path: "SHOWDOWN", caller };
+    try {
+      await this.handOrchestrator.finishHandShowdownWithSidePots();
+      this.completedTerminalLifecycle = { handId, path: "SHOWDOWN", caller };
+    } finally {
+      if (this.activeTerminalLifecycle?.handId === handId) {
+        this.activeTerminalLifecycle = null;
+      }
+    }
     this.logEngineDecisionAndRuntimeStep("FINISH_HAND_SHOWDOWN");
   }
 
   /**
-   * Phase-0 boundary placeholder for unified deterministic table progression.
-   * Captures time once at the boundary; later phases will make this authoritative.
+   * Single authoritative progression function.
+   *
+   * Reads current state and determines exactly what to do next — no caller knowledge required.
+   * Every path that changes game state (action accepted, lifecycle plan complete, timeout fired,
+   * stall recovery) routes here. driveGame() runs until the next *external* event is needed:
+   *   - human action       → arm human timeout and return
+   *   - bot timer          → schedule bot action and return
+   *   - next-hand timer    → scheduleNextHand() called by lifecycle plans and return
+   *
+   * The serialized action queue owns concurrency safety; driveGame() owns progression.
    */
-  private async requestDrive(reason: string, now?: number): Promise<void> {
-    const driveNow = now ?? Date.now();
-    const runDriveChecks = (trigger: string): void => {
-      this.maybeSelfHealRoundClosedNoAction(trigger);
-      this.maybeSelfHealInvalidToActSeat(trigger);
-      this.ensureHumanTurnTimerForCurrentActor(trigger);
-      this.maybeSelfHealWaitingHumanWithoutDeadline(trigger);
-      this.logEngineDecisionState(trigger);
-      this.logToActDerivationWarning(trigger);
-      this.logEngineDecisionAndRuntimeStep(trigger, driveNow);
-    };
-    try {
-      switch (reason) {
-        // Phase 7 Step D (single trigger path): keep equivalent behavior while
-        // routing progression checks through requestDrive boundary.
-        case "ACTION_RESOLVED_NEXT_ACTOR":
-          this.maybeActForBot();
-          runDriveChecks("ACTION_RESOLVED_NEXT_ACTOR");
-          return;
-        // Phase 7 Step E: second trigger path routed through requestDrive.
-        default:
-          if (reason.startsWith("START_HAND:")) {
-            await this.startHand();
-            return;
-          }
-          if (reason.startsWith("ADVANCE_STREET_OR_SHOWDOWN:")) {
-            await this.advanceStreetOrShowdown();
-            return;
-          }
-          if (reason.startsWith("FINISH_HAND_LAST_STANDING:")) {
-            await this.finishHandByLastStanding();
-            return;
-          }
-          if (reason.startsWith("MAYBE_ACT_FOR_BOT:")) {
-            this.maybeActForBot();
-            runDriveChecks(reason);
-            return;
-          }
-          if (reason.startsWith("ROUND_STATE_ENTER:")) {
-            this.maybeActForBot();
-            runDriveChecks(reason);
-            return;
-          }
-          return;
+  private async driveGame(trigger: string): Promise<void> {
+    if (this.driveInProgress) {
+      this.driveQueued = true;
+      this.driveQueuedReason = trigger;
+      await this.drivePromise;
+      return;
+    }
+
+    this.driveInProgress = true;
+    this.drivePromise = (async () => {
+      let currentTrigger = trigger;
+      try {
+        do {
+          this.driveQueued = false;
+          this.driveQueuedReason = "";
+          await this.driveGameOnce(currentTrigger);
+          currentTrigger = this.driveQueuedReason || currentTrigger;
+        } while (!this.disposed && this.driveQueued);
+      } finally {
+        this.driveInProgress = false;
+        this.driveQueuedReason = "";
+        this.drivePromise = null;
       }
+    })();
+
+    await this.drivePromise;
+  }
+
+  private async driveGameOnce(trigger: string): Promise<void> {
+    if (this.disposed) return;
+
+    const driveNow = Date.now();
+    const runChecks = (t: string): void => {
+      // maybeSelfHealRoundClosedNoAction intentionally omitted: driveGame() only
+      // reaches this path when bettingRoundComplete is false, so the self-heal
+      // guard would return immediately. advanceStreetOrShowdown() is called directly
+      // above when betting is closed.
+      this.maybeSelfHealInvalidToActSeat(t);
+      this.ensureHumanTurnTimerForCurrentActor(t);
+      this.maybeSelfHealWaitingHumanWithoutDeadline(t);
+      this.logEngineDecisionState(t);
+      this.logToActDerivationWarning(t);
+      this.logEngineDecisionAndRuntimeStep(t, driveNow);
+    };
+
+    try {
+      await this.flushExternalPlayerLifecycleBatches();
+
+      const street = this.state.street;
+      // WAITING: between-hands timer running or not enough players.
+      if (street === "WAITING") {
+        if (this.state.nextHandAtTs === 0 && countNonOutPlayers(this.state) >= 2) {
+          await this.startHand();
+        }
+        return;
+      }
+
+      // Terminal round-state must never fall through into normal actor scheduling.
+      // If terminal lifecycle is already in flight or already completed for this hand,
+      // simply return. Otherwise explicitly route into the correct terminal lifecycle.
+      if (this.state.roundState === "HAND_COMPLETE") {
+        this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:HAND_COMPLETE`);
+        if (
+          this.activeTerminalLifecycle?.handId === this.state.handId ||
+          this.completedTerminalLifecycle?.handId === this.state.handId
+        ) {
+          return;
+        }
+
+        if (countNotFoldedPlayers(this.state) <= 1) {
+          await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_LAST_PLAYER`);
+          return;
+        }
+
+        await this.finishHandShowdownWithSidePots(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_SHOWDOWN`);
+        return;
+      }
+
+      if (this.state.roundState === "RUNOUT") {
+        this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:RUNOUT`);
+        if (
+          this.activeTerminalLifecycle?.handId === this.state.handId ||
+          this.completedTerminalLifecycle?.handId === this.state.handId
+        ) {
+          return;
+        }
+
+        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:ROUND_STATE_RUNOUT`);
+        return;
+      }
+
+      // Last player standing: finish hand immediately.
+      if (countNotFoldedPlayers(this.state) <= 1) {
+        await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:LAST_PLAYER_STANDING`);
+        return;
+      }
+
+      // Showdown or all-in runout: advance to reveal cards / settle.
+      if (
+        street === "SHOWDOWN" ||
+        this.state.runoutMode === "STAGED" ||
+        allRemainingPlayersAllInOrFolded(this.state)
+      ) {
+        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:SHOWDOWN_OR_RUNOUT`);
+        return;
+      }
+
+      // Betting round closed: advance to next street.
+      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:BETTING_CLOSED`);
+        return;
+      }
+
+      // Active betting: schedule the next actor (bot, disconnected human, or arm human timer).
+      this.maybeActForBot();
+      runChecks(trigger);
     } catch (err) {
       logger.error(
         {
@@ -1320,11 +1625,149 @@ export class Dealer {
           tableId: this.state.tableId,
           handId: this.state.handId,
           street: this.state.street,
-          reason,
+          trigger,
         },
-        "REQUEST_DRIVE_FAILED",
+        "DRIVE_GAME_FAILED",
       );
     }
+  }
+
+  private repairCurrentToActNeedsActionIfNeeded(trigger: string): boolean {
+    if (
+      this.state.roundState !== "WAITING_FOR_ACTION" ||
+      this.state.street === "WAITING" ||
+      this.state.street === "SHOWDOWN" ||
+      this.state.runoutMode === "STAGED" ||
+      this.state.toActSeat < 0
+    ) {
+      return false;
+    }
+
+    const actionableRound =
+      !bettingRoundComplete(this.state) &&
+      !noFurtherBettingPossible(this.state);
+    if (!actionableRound) return false;
+
+    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || !eligibleToAct(toActPlayer) || toActPlayer.needsAction) {
+      return actionableRound;
+    }
+
+    const failFast = process.env.POKER_FAIL_FAST_INVARIANTS === "1";
+    if (failFast) {
+      throw new PokerError(
+        "BAD_STATE",
+        `WAITING actor does not require action: hand=${this.state.handId} seat=${this.state.toActSeat} street=${this.state.street}`,
+      );
+    }
+
+    logger.error(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        userId: toActUserId,
+        status: toActPlayer.status,
+        roundBetCents: toActPlayer.roundBetCents,
+        committedCents: toActPlayer.committedCents,
+        trigger,
+      },
+      "WAITING_ACTOR_NEEDS_ACTION_INVALID_REPAIRED",
+    );
+    toActPlayer.needsAction = true;
+    return actionableRound;
+  }
+
+  /**
+   * Thin wrapper kept for call-site compatibility during migration.
+   * All routing logic has moved into driveGame(); this just delegates.
+   */
+  private requestDrive(reason: string): Promise<void> {
+    return this.driveGame(reason);
+  }
+
+  private queueDrive(reason: string): void {
+    if (this.driveInProgress) {
+      this.driveQueued = true;
+      this.driveQueuedReason = reason;
+      return;
+    }
+    void this.requestDrive(reason);
+  }
+
+  private stageExternalPlayerLifecyclePlans(plans: PlayerLifecyclePlan[], source: string): void {
+    if (plans.length === 0) return;
+    this.pendingExternalPlayerLifecycleBatches.push({ source, plans });
+  }
+
+  private async applyExternalPlayerLifecyclePlans(plans: PlayerLifecyclePlan[], source: string): Promise<void> {
+    this.stageExternalPlayerLifecyclePlans(plans, source);
+    await this.requestDrive(source);
+  }
+
+  private async flushExternalPlayerLifecycleBatches(): Promise<void> {
+    while (this.pendingExternalPlayerLifecycleBatches.length > 0) {
+      const batch = this.pendingExternalPlayerLifecycleBatches.shift();
+      if (!batch) break;
+      await this.executePlayerLifecyclePlans(batch.plans, `DRIVE:${batch.source}`);
+    }
+  }
+
+  /**
+   * Reconcile next-step ownership from observable state after a lifecycle batch.
+   *
+   * Important distinction:
+   * - WAITING_FOR_HUMAN is only valid once a human deadline exists.
+   * - WAITING_FOR_AUTOMATION is only valid once automation has already claimed ownership.
+   *
+   * If lifecycle leaves the hand active but without those scheduling side effects,
+   * we deliberately fall back to RUNNING_LIFECYCLE so driveGame() can repair it.
+   */
+  private reconcileNextStepOwnerAfterLifecycle(trigger: string): void {
+    let reconciledOwner: NextStepOwner;
+
+    if (this.state.street === "WAITING") {
+      reconciledOwner = this.state.nextHandAtTs > 0 ? "BETWEEN_HANDS" : "IDLE";
+      this.setNextStepOwner(reconciledOwner, `RECONCILE_NEXT_STEP_OWNER:${trigger}`);
+      return;
+    }
+
+    if (
+      this.state.street === "SHOWDOWN" ||
+      this.state.runoutMode === "STAGED" ||
+      allRemainingPlayersAllInOrFolded(this.state) ||
+      bettingRoundComplete(this.state) ||
+      noFurtherBettingPossible(this.state)
+    ) {
+      reconciledOwner = "RUNNING_LIFECYCLE";
+      this.setNextStepOwner(reconciledOwner, `RECONCILE_NEXT_STEP_OWNER:${trigger}`);
+      return;
+    }
+
+    const toActUserId =
+      this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+
+    if (!toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction) {
+      reconciledOwner = "RUNNING_LIFECYCLE";
+      this.setNextStepOwner(reconciledOwner, `RECONCILE_NEXT_STEP_OWNER:${trigger}`);
+      return;
+    }
+
+    if (toActPlayer.kind === "HUMAN" && toActPlayer.connected) {
+      reconciledOwner = this.state.turnDeadlineMs > 0 ? "WAITING_FOR_HUMAN" : "RUNNING_LIFECYCLE";
+      this.setNextStepOwner(reconciledOwner, `RECONCILE_NEXT_STEP_OWNER:${trigger}`);
+      return;
+    }
+
+    reconciledOwner =
+      this.nextStepOwner === "WAITING_FOR_AUTOMATION"
+        ? "WAITING_FOR_AUTOMATION"
+        : "RUNNING_LIFECYCLE";
+    this.setNextStepOwner(reconciledOwner, `RECONCILE_NEXT_STEP_OWNER:${trigger}`);
   }
 
   // ---------------------------------------------------------------------------
@@ -1332,12 +1775,66 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Execute lifecycle plans from various service layers
 
-  private async executeHandLifecyclePlans(plans: HandLifecyclePlan[]): Promise<void> {
+  private async executeHandLifecyclePlans(plans: HandLifecyclePlan[], source = "UNKNOWN"): Promise<void> {
+    if (!this.driveInProgress) {
+      logger.error(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          handActionSeq: this.state.handActionSeq,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          source,
+          plans: plans.map((plan) => plan.kind),
+        },
+        "LIFECYCLE_CALLED_OUTSIDE_DRIVE",
+      );
+    }
     await this.lifecycleExecutor.executeHandLifecyclePlans(plans);
+    this.ensureHumanTurnTimerForCurrentActor("POST_HAND_LIFECYCLE_RECONCILE");
+    this.reconcileNextStepOwnerAfterLifecycle("HAND_LIFECYCLE_COMPLETE");
+    this.assertProgressionOwnershipInvariant("HAND_LIFECYCLE_COMPLETE");
+    if (this.nextStepOwner === "RUNNING_LIFECYCLE") {
+      if (this.driveInProgress) {
+        this.queueDrive("POST_HAND_LIFECYCLE_ORPHANED");
+      } else {
+        await this.driveGame("POST_HAND_LIFECYCLE_ORPHANED");
+        this.assertProgressionOwnershipInvariant("HAND_LIFECYCLE_COMPLETE:POST_DRIVE");
+      }
+    }
   }
 
-  private async executePlayerLifecyclePlans(plans: PlayerLifecyclePlan[]): Promise<void> {
+  private async executePlayerLifecyclePlans(plans: PlayerLifecyclePlan[], source = "UNKNOWN"): Promise<void> {
+    if (!this.driveInProgress) {
+      logger.error(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          handActionSeq: this.state.handActionSeq,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          source,
+          plans: plans.map((plan) => plan.kind),
+        },
+        "LIFECYCLE_CALLED_OUTSIDE_DRIVE",
+      );
+    }
     await this.lifecycleExecutor.executePlayerLifecyclePlans(plans);
+    this.ensureHumanTurnTimerForCurrentActor("POST_PLAYER_LIFECYCLE_RECONCILE");
+    this.reconcileNextStepOwnerAfterLifecycle("PLAYER_LIFECYCLE_COMPLETE");
+    this.assertProgressionOwnershipInvariant("PLAYER_LIFECYCLE_COMPLETE");
+    if (this.nextStepOwner === "RUNNING_LIFECYCLE") {
+      if (this.driveInProgress) {
+        this.queueDrive("POST_PLAYER_LIFECYCLE_ORPHANED");
+      } else {
+        await this.driveGame("POST_PLAYER_LIFECYCLE_ORPHANED");
+        this.assertProgressionOwnershipInvariant("PLAYER_LIFECYCLE_COMPLETE:POST_DRIVE");
+      }
+    }
   }
 
   private async runHandEndedAwards(
@@ -1384,6 +1881,7 @@ export class Dealer {
   }
 
   private scheduleNextHand(reason: string, delayMs = 0) {
+    this.setNextStepOwner("BETWEEN_HANDS", `SCHEDULE_NEXT_HAND:${reason}`);
     this.handOrchestrator.scheduleNextHand(reason, delayMs);
   }
 
@@ -1416,7 +1914,7 @@ export class Dealer {
 
   private async addPlayerInternal(userId: string, name: string, buyInCents: number): Promise<void> {
     const plans = await this.playerLifecycleService.addPlayer(userId, name, buyInCents);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.applyExternalPlayerLifecyclePlans(plans, "ADD_PLAYER");
   }
 
   private async restorePlayerFromSessionInternal(
@@ -1427,12 +1925,12 @@ export class Dealer {
     options?: { connected?: boolean; sittingOut?: boolean; reconnectTimeoutMs?: number },
   ): Promise<void> {
     const plans = await this.playerLifecycleService.restorePlayerFromSession(userId, name, seat, stackCents, options);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.applyExternalPlayerLifecyclePlans(plans, "RESTORE_PLAYER_FROM_SESSION");
   }
 
   private async removeBotInternal(botId: string): Promise<void> {
     const plans = await this.playerLifecycleService.removeBot(botId);
-    await this.executePlayerLifecyclePlans(plans);
+    await this.applyExternalPlayerLifecyclePlans(plans, "REMOVE_BOT");
   }
 
   private async removePlayerInternal(
@@ -1543,30 +2041,41 @@ export class Dealer {
         this.logActionResolvedNextActor();
         return;
       case "WAITING_FOR_PLAYERS":
+        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:WAITING_FOR_PLAYERS");
         await this.sendTableSnapshotToAll("AUTO_TRANSITION");
         maybeAssertBettingState(this.state);
+        this.setNextStepOwner("IDLE", "APPLY_ACTION_RESULT:WAITING_FOR_PLAYERS:DONE");
         this.logActionResolvedNextActor();
         return;
       case "HAND_FINISHED":
+        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:HAND_FINISHED");
         await this.requestDrive("FINISH_HAND_LAST_STANDING:APPLY_ACTION_RESULT_HAND_FINISHED");
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
       case "STREET_COMPLETE":
+        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:STREET_COMPLETE");
         await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
-      case "TURN_ADVANCED":
+      case "TURN_ADVANCED": {
+        const nextActorKind = result.actorKind;
+        this.setNextStepOwner(
+          nextActorKind === "BOT" ? "WAITING_FOR_AUTOMATION" : "RUNNING_LIFECYCLE",
+          "APPLY_ACTION_RESULT:TURN_ADVANCED",
+        );
         await this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
         maybeAssertBettingState(this.state);
-        this.requestDrive("MAYBE_ACT_FOR_BOT:APPLY_ACTION_RESULT:TURN_ADVANCED");
+        await this.driveGame("TURN_ADVANCED");
         this.logActionResolvedNextActor();
         return;
+      }
     }
   }
 
   private logActionResolvedNextActor(): void {
+    this.repairCurrentToActNeedsActionIfNeeded("ACTION_RESOLVED_NEXT_ACTOR");
     logger.info(
       {
         tableId: this.state.tableId,
@@ -1591,11 +2100,125 @@ export class Dealer {
           },
           "TURN_OWNER_INVARIANT_VIOLATION",
         );
-    void this.requestDrive("MAYBE_ACT_FOR_BOT:TURN_OWNER_INVARIANT_VIOLATION");
+        // Serialize recovery through the queue — driveGame() can mutate state.
+        void this.enqueueSerializedStateMutation(() => this.driveGame("TURN_OWNER_INVARIANT_VIOLATION"));
       }
     }
 
-    void this.requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+    // Progression ownership invariant: after every action resolution, assert the
+    // claimed nextStepOwner is consistent with observable state. Violations are
+    // logged as errors (not throws) so they surface in observability without crashing.
+    this.assertProgressionOwnershipInvariant("logActionResolvedNextActor");
+  }
+
+  /**
+   * Asserts that `nextStepOwner` is consistent with actual game state.
+   *
+   * Valid combinations:
+   *  - IDLE                  → street is WAITING or SHOWDOWN
+   *  - BETWEEN_HANDS         → street is WAITING (next-hand timer running)
+   *  - RUNNING_LIFECYCLE     → any street (transition in progress)
+   *  - WAITING_FOR_HUMAN     → active street, toAct is a connected human with a deadline
+   *  - WAITING_FOR_AUTOMATION → active street, toAct is a bot or disconnected human
+   *
+   * Observation only — never throws, never mutates state.
+   */
+  private assertProgressionOwnershipInvariant(trigger: string): void {
+    const street = this.state.street;
+    const owner = this.nextStepOwner;
+
+    if (owner === "IDLE") {
+      if (street === "WAITING" || street === "SHOWDOWN") return;
+      const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+      const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+      const activeUnownedTurn =
+        !!toActPlayer && eligibleToAct(toActPlayer) && toActPlayer.needsAction;
+      if (activeUnownedTurn) {
+        logger.error(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street,
+            toActSeat: this.state.toActSeat,
+            toActUserId,
+            toActKind: toActPlayer.kind,
+            toActConnected: toActPlayer.connected,
+            nextStepOwner: owner,
+            turnDeadlineMs: this.state.turnDeadlineMs,
+            trigger,
+          },
+          "UNOWNED_ACTIVE_HAND",
+        );
+      }
+      return;
+    }
+
+    // RUNNING_LIFECYCLE and BETWEEN_HANDS are permissive transitional owners.
+    if (owner === "RUNNING_LIFECYCLE" || owner === "BETWEEN_HANDS") return;
+
+    // For WAITING_FOR_HUMAN and WAITING_FOR_AUTOMATION we need an active hand.
+    if (street === "WAITING" || street === "SHOWDOWN") {
+      logger.error(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street,
+          nextStepOwner: owner,
+          trigger,
+        },
+        "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: active owner on inactive street",
+      );
+      return;
+    }
+
+    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+
+    if (!toActPlayer) {
+      // Already logged by TURN_OWNER_INVARIANT_VIOLATION above; skip duplicate.
+      return;
+    }
+
+    if (owner === "WAITING_FOR_HUMAN") {
+      const isHuman = toActPlayer.kind === "HUMAN";
+      const isConnected = toActPlayer.connected;
+      const hasDeadline = this.state.turnDeadlineMs > 0;
+      if (!isHuman || !isConnected || !hasDeadline) {
+        logger.error(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street,
+            nextStepOwner: owner,
+            toActKind: toActPlayer.kind,
+            toActConnected: toActPlayer.connected,
+            turnDeadlineMs: this.state.turnDeadlineMs,
+            trigger,
+          },
+          "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: WAITING_FOR_HUMAN but state mismatch",
+        );
+      }
+      return;
+    }
+
+    if (owner === "WAITING_FOR_AUTOMATION") {
+      const isBot = toActPlayer.kind === "BOT";
+      const isDisconnectedHuman = toActPlayer.kind === "HUMAN" && !toActPlayer.connected;
+      if (!isBot && !isDisconnectedHuman) {
+        logger.error(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street,
+            nextStepOwner: owner,
+            toActKind: toActPlayer.kind,
+            toActConnected: toActPlayer.connected,
+            trigger,
+          },
+          "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: WAITING_FOR_AUTOMATION but actor is connected human",
+        );
+      }
+    }
   }
 
   private logEngineDecisionState(trigger: string): void {
@@ -1646,6 +2269,34 @@ export class Dealer {
     );
   }
 
+  private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
+    this.state.toActSeat = nextSeat;
+    if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
+    if (nextSeat < 0) return;
+
+    const toActUserId = this.state.seats[nextSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || toActPlayer.needsAction) return;
+
+    logger.error(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: nextSeat,
+        toActUserId,
+        status: toActPlayer.status,
+        needsAction: toActPlayer.needsAction,
+        roundBetCents: toActPlayer.roundBetCents,
+        committedCents: toActPlayer.committedCents,
+        trigger,
+        stack: new Error("TO_ACT_ASSIGNMENT_TRACE").stack,
+      },
+      "TO_ACT_ASSIGNED_WITHOUT_NEEDS_ACTION",
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // PERSISTENCE LAYER INTEGRATION
   // ---------------------------------------------------------------------------
@@ -1676,12 +2327,37 @@ export class Dealer {
     this.turnAutomationService.maybeActForBot();
   }
 
+  private normalizeTerminalRoundState(trigger: string): void {
+    this.clearPendingHumanTurnTimeout();
+    for (const player of this.state.playersById.values()) {
+      player.needsAction = false;
+    }
+    if (this.state.roundState === "HAND_COMPLETE") {
+      const terminalAnchor = [...this.state.playersById.values()].find(
+        (player) => player.status !== "FOLDED" && player.status !== "OUT" && player.status !== "ABANDONED",
+      );
+      this.state.toActSeat = terminalAnchor?.seat ?? -1;
+    }
+    this.state.turnDeadlineMs = 0;
+    logger.warn(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        trigger,
+      },
+      "TERMINAL_ROUND_STATE_NORMALIZED",
+    );
+  }
+
   /**
    * Public surface for stall-recovery callers (e.g. PokerRoom stall monitor).
    * Delegates to the private maybeActForBot so the encapsulation boundary is clear.
    */
   maybeActForBotPublic(): void {
-    void this.requestDrive("MAYBE_ACT_FOR_BOT:PUBLIC");
+    void this.enqueueSerializedStateMutation(() => this.driveGame("STALL_MONITOR_RECOVERY"));
   }
 
   private async applyDisconnectedAutoActionCapForHand() {
@@ -1699,7 +2375,7 @@ export class Dealer {
     if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
       const nextSeat = findNextToActSeat(this.state, this.state.toActSeat);
       if (nextSeat === -1) return;
-      this.state.toActSeat = nextSeat;
+      this.assignToActSeatWithTrace(nextSeat, "DISCONNECTED_AUTO_ACTION_CAP");
       this.requestDrive("MAYBE_ACT_FOR_BOT:DISCONNECTED_AUTO_ACTION_CAP");
     }
   }

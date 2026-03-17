@@ -184,6 +184,7 @@ export const TableSnapshotPayloadSchema = z.object({
   stateHash: z.string().min(1),
   reason: SnapshotReasonEnum,
   actionId: z.string().min(1).optional(),
+  resolvedActionId: z.string().min(1).optional(),
   nextHandAtTs: z.number().int().nonnegative().optional(),
 
   table: z.object({

@@ -133,6 +133,32 @@ export class PlayerLifecycleService {
     forceFoldIfInHand?: ForceFoldIfInHand;
   }) {}
 
+  private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
+    this.deps.state.toActSeat = nextSeat;
+    if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
+    if (nextSeat < 0) return;
+    const toActUserId = this.deps.state.seats[nextSeat] ?? "";
+    const toActPlayer = toActUserId ? this.deps.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || toActPlayer.needsAction) return;
+    logger.error(
+      {
+        tableId: this.deps.state.tableId,
+        handId: this.deps.state.handId,
+        street: this.deps.state.street,
+        roundState: this.deps.state.roundState,
+        toActSeat: nextSeat,
+        toActUserId,
+        status: toActPlayer.status,
+        needsAction: toActPlayer.needsAction,
+        roundBetCents: toActPlayer.roundBetCents,
+        committedCents: toActPlayer.committedCents,
+        trigger,
+        stack: new Error("TO_ACT_ASSIGNMENT_TRACE").stack,
+      },
+      "TO_ACT_ASSIGNED_WITHOUT_NEEDS_ACTION",
+    );
+  }
+
   // ============================================================================
   // PLAYER LIFECYCLE METHODS
   // ============================================================================
@@ -598,7 +624,7 @@ export class PlayerLifecycleService {
           maybeAssertStateInvariants(this.deps.state);
           return plans;
         }
-        this.deps.state.toActSeat = nextSeat;
+        this.assignToActSeatWithTrace(nextSeat, "PLAYER_LIFECYCLE_MARK_ABANDONED");
         plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
       }
     } else {
@@ -667,7 +693,7 @@ export class PlayerLifecycleService {
           maybeAssertStateInvariants(this.deps.state);
           return;
         }
-        this.deps.state.toActSeat = nextSeat;
+        this.assignToActSeatWithTrace(nextSeat, "PLAYER_LIFECYCLE_DEFERRED_REMOVAL");
         plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
       }
     } else {

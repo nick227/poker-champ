@@ -28,6 +28,17 @@ type TableRealtimeInboundMessage = {
   deps: TableRealtimeMessageHandlerDeps;
 };
 
+function shouldClearPendingActionFromSnapshot(
+  snapshot: TableSnapshotPayload,
+  tableId: string,
+): boolean {
+  const pendingAction = storeRegistry.tables().pendingActionByTableId[tableId];
+  if (!pendingAction) {
+    return false;
+  }
+  return snapshot.resolvedActionId === pendingAction.actionId;
+}
+
 function getSessionIdFromPayload(payload: unknown): string | undefined {
   if (payload && typeof payload === "object" && "sessionId" in payload) {
     const v = (payload as { sessionId?: string }).sessionId;
@@ -78,7 +89,7 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
   }
   if (type === "TABLE_SNAPSHOT") {
     const snap = payload as
-      | { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; version?: number; snapshotSeq?: number }
+      | { hand?: { handId?: string; street?: string }; reason?: string; actionId?: string; resolvedActionId?: string; version?: number; snapshotSeq?: number }
       | undefined;
     deps.debugLog("INBOUND", {
       tableId,
@@ -87,6 +98,7 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
       handId: snap?.hand?.handId,
       street: snap?.hand?.street,
       actionId: snap?.actionId,
+      resolvedActionId: snap?.resolvedActionId,
       version: snap?.version,
       snapshotSeq: snap?.snapshotSeq,
     });
@@ -97,9 +109,9 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
     // current session is still receiving snapshots).
     deps.setConnectionStatus(tableId, "CONNECTED");
 
-    if (snap?.actionId) {
-      storeRegistry.tables().clearPendingActionIfMatch(tableId, snap.actionId);
-      console.log(`[TABLE_RT] Action completed: ${snap.actionId} for table ${tableId}`);
+    if (snap && shouldClearPendingActionFromSnapshot(snap as TableSnapshotPayload, tableId)) {
+      storeRegistry.tables().clearPendingActionIfMatch(tableId, snap.resolvedActionId);
+      console.log(`[TABLE_RT] Action resolved: ${snap.resolvedActionId} for table ${tableId}`);
     }
   } else if (type === "ERROR") {
     const p = payload as { code?: string; message?: string; actionId?: string; retryAfterSeconds?: number };

@@ -11,10 +11,24 @@ import { PlayerState } from "../../state/PlayerState.js";
 const isNightlySoak = process.env.SOAK_PROFILE === "nightly";
 const configuredHands = Number(process.env.SOAK_HANDS ?? "");
 const configuredProgressEvery = Number(process.env.SOAK_PROGRESS_EVERY ?? "");
+const configuredTestTimeoutMs = Number(process.env.SOAK_TEST_TIMEOUT_MS ?? "");
+const configuredActionTimeoutMs = Number(process.env.SOAK_ACTION_TIMEOUT_MS ?? "");
 const soakHeartbeatFile = (process.env.SOAK_HEARTBEAT_FILE ?? "").trim();
-const soakActionTimeoutMs = 20_000;
+const soakActionTimeoutMs = Number.isFinite(configuredActionTimeoutMs) && configuredActionTimeoutMs > 0
+  ? configuredActionTimeoutMs
+  : 45_000;
 const testPollIntervalMs = 1;
-const soakTestTimeoutMs = isNightlySoak ? 300_000 : 240_000;
+const defaultSoakHands = isNightlySoak ? 100 : 5;
+const plannedSoakHands = Number.isFinite(configuredHands) && configuredHands > 0
+  ? Math.floor(configuredHands)
+  : defaultSoakHands;
+const autoScaledSoakTimeoutMs = Math.max(
+  isNightlySoak ? 300_000 : 240_000,
+  plannedSoakHands * 60_000,
+);
+const soakTestTimeoutMs = Number.isFinite(configuredTestTimeoutMs) && configuredTestTimeoutMs > 0
+  ? configuredTestTimeoutMs
+  : autoScaledSoakTimeoutMs;
 
 async function yieldToEventLoop(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, testPollIntervalMs));
@@ -173,13 +187,9 @@ describe("dealer random walk soak", () => {
         settlementService.getCurrentHandPotDisbursedCents();
       let expectedChipMass = computeChipMass();
       (dealer as any).scheduleNextHand = () => {};
-      // This soak test drives actions explicitly.
-      (dealer as any).scheduleHumanTurnTimeout = () => {};
 
       const optionsService = new ActionOptionsService();
-      const handsToPlay = Number.isFinite(configuredHands) && configuredHands > 0
-        ? Math.floor(configuredHands)
-        : (isNightlySoak ? 100 : 5);
+      const handsToPlay = plannedSoakHands;
       const progressEvery = Number.isFinite(configuredProgressEvery) && configuredProgressEvery > 0
         ? Math.floor(configuredProgressEvery)
         : 25;
@@ -719,7 +729,7 @@ describe("dealer random walk soak", () => {
     } finally {
       dealer.dispose();
     }
-  });
+  }, soakTestTimeoutMs);
 
   it("arms a human turn deadline after preflop-to-flop transition", async () => {
     const state = new PokerState();

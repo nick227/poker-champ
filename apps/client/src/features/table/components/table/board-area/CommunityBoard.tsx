@@ -42,7 +42,7 @@ export function CommunityBoard({
       {cards.map((c, i) => {
         const key = COMMUNITY_CARD_KEYS[i] ?? `card-${i}`;
         const slotStyle = { transform: [{ scale: communityCardScale }] };
-        const slot =
+        const slotContent =
           c ? (
             <View style={slotStyle}>
               <PlayingCard rank={c.rank} suit={c.suit} packId={cardFacePackId} />
@@ -52,6 +52,11 @@ export function CommunityBoard({
               <PlayingCard faceDown />
             </View>
           );
+        const slot = (
+          <View testID={`community-card-slot-${i}-${c ? "face-up" : "face-down"}`}>
+            {slotContent}
+          </View>
+        );
         if (onCardSlotBounds) {
           return (
             <MeasuredBoundsReporter

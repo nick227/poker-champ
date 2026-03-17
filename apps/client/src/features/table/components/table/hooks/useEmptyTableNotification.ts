@@ -16,7 +16,6 @@ export interface EmptyTableNotification {
 export function useEmptyTableNotification(
   snapshot: TableSnapshotPayload,
   opponents: Opponent[],
-  onAddBot?: () => void,
   onInvitePlayer?: () => void,
   onResumeGame?: () => void,
   isHost?: boolean,
@@ -30,14 +29,6 @@ export function useEmptyTableNotification(
     // All bots busted scenario
     if (bustedBots.length > 0 && activeBots.length === 0 && activeHumans.length === 0 && heroIsSeated) {
       const actions: EmptyTableNotificationAction[] = [];
-      
-      if (onAddBot) {
-        actions.push({
-          title: "Add Bot",
-          onPress: onAddBot,
-          variant: "primary",
-        });
-      }
       
       if (onInvitePlayer) {
         actions.push({
@@ -65,15 +56,7 @@ export function useEmptyTableNotification(
     // Hero only player scenario
     if (opponents.length === 0 && heroIsSeated) {
       const actions: EmptyTableNotificationAction[] = [];
-      
-      if (onAddBot) {
-        actions.push({
-          title: "Add Bot",
-          onPress: onAddBot,
-          variant: "primary",
-        });
-      }
-      
+
       if (onInvitePlayer) {
         actions.push({
           title: "Invite Player",
@@ -100,15 +83,7 @@ export function useEmptyTableNotification(
     // Waiting for more players
     if (heroIsSeated && opponents.length < (snapshot.table.maxSeats - 1)) {
       const actions: EmptyTableNotificationAction[] = [];
-      
-      if (onAddBot) {
-        actions.push({
-          title: "Add Bot",
-          onPress: onAddBot,
-          variant: "primary",
-        });
-      }
-      
+
       if (onInvitePlayer) {
         actions.push({
           title: "Invite Player",
@@ -138,5 +113,5 @@ export function useEmptyTableNotification(
     return {
       message: "Next hand starting soon…",
     };
-  }, [snapshot, opponents, onAddBot, onInvitePlayer]);
+  }, [snapshot, opponents, onInvitePlayer]);
 }

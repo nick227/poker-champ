@@ -36,7 +36,7 @@ export function ChatOverlay({
   };
 
   return (
-    <ModalSheet visible={visible} onClose={onClose} title="Chat">
+    <ModalSheet visible={visible} onClose={onClose} title="Chat" blocking={false} snapPoints={["minimal", 0.25, 0.75, 1.0]} defaultSnapIndex={1}>
       <View className="ui-stack-2">
         <ScrollView className="max-h-64 ui-stack-2">
           {hasMore ? (

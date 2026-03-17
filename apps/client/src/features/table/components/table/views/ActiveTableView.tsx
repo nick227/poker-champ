@@ -107,7 +107,7 @@ export function ActiveTableView({
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot,
     sceneModel,
-    handResultMessage,
+    winnerBanner: handResultMessage,
     connectionStatus,
     balanceCents,
     topBarRight,

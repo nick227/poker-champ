@@ -122,7 +122,7 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
   const currentSnapshot = snapshots[currentStep];
   const totalSteps = snapshots.length;
   const sceneModel = buildReplayDisabledSceneModel(
-    buildTableSceneModel(currentSnapshot, null, "CONNECTED"),
+    buildTableSceneModel(currentSnapshot, "CONNECTED"),
   );
   const tableProvider = {
     snapshot: currentSnapshot,

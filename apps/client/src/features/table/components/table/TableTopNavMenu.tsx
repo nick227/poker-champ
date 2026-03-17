@@ -62,6 +62,7 @@ export function TableTopNavMenu({
           variant="link"
           icon={<Icon name="menu" size={20} />}
           onPress={() => (open ? closeMenu() : openMenu())}
+          badge={chatBadge}
         />
       </View>
       {open ? (
@@ -99,7 +100,7 @@ export function TableTopNavMenu({
                   shape="row"
                   size="md"
                 />
-              </View>       
+              </View>
               <View className="mb-1">
                 <Button
                   title="Discord chat"

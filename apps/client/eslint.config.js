@@ -12,6 +12,7 @@ export default [
       "node_modules/**",
       "coverage/**",
       "build/**",
+      "tauri/target",
       "tauri/target/**",
       ".expo/**",
       "expo-env.d.ts",
@@ -276,7 +277,7 @@ export default [
     },
   },
   {
-    files: ["src/components/containers/Surface.tsx"],
+    files: ["src/components/containers/Surface.tsx", "app/dev/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-syntax": "off",
     },

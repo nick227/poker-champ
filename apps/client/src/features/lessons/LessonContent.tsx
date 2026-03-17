@@ -320,7 +320,7 @@ export function LessonContent({
 
   const sceneModel = useMemo(() => {
     if (!stepSnapshot || !step) return null;
-    const base = buildTableSceneModel(stepSnapshot, null, "CONNECTED");
+    const base = buildTableSceneModel(stepSnapshot, "CONNECTED");
     if (step.type === "ACTION_STEP") return base;
     return buildReplayDisabledSceneModel(base);
   }, [stepSnapshot, step]);

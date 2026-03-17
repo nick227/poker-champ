@@ -47,6 +47,11 @@ type TurnManagerDeps = {
   onAutoActionDiscarded?: () => void;
 };
 
+type QueuedInternalWorkItem = {
+  handId: string | null;
+  execute: () => Promise<void>;
+};
+
 class TurnTokenUtil {
   static capture(state: PokerState, userId: string): QueuedTurnToken | null {
     const handId = state.handId;
@@ -143,7 +148,7 @@ class ActionQueue {
     return queued;
   }
 
-  enqueueInternalWork(work: () => Promise<void>): Promise<void> {
+  enqueueInternalWork(workItem: QueuedInternalWorkItem): Promise<void> {
     if (this.deps.isDisposed()) return Promise.resolve();
     const queued = this.queue
       .catch((err) => {
@@ -156,11 +161,11 @@ class ActionQueue {
       .then(async () => {
         if (!this.assertNotDisposed("queued_internal_work")) return;
         try {
-          await work();
+          await workItem.execute();
         } catch (err) {
           // Swallow — internal work failures must never poison the queue.
           // The dispatcher's own .catch() handles per-action error reporting.
-          logger.warn({ err }, "INTERNAL_WORK_FAILED");
+          logger.warn({ err, handId: workItem.handId }, "INTERNAL_WORK_FAILED");
         }
       });
     this.queue = queued;
@@ -198,12 +203,15 @@ class AutoActionDispatcher {
 
   enqueueInternalAction(userId: string, payload: ActionPayload, delayMs = 0): void {
     const { state } = this.deps;
+    const enqueuedHandId = state.handId;
     logger.info(
       this.deps.buildDiagnosticContext({ userId, action: payload.action, delayMs }),
       "INTERNAL_WORK_ENQUEUED",
     );
     const turnToken = TurnTokenUtil.capture(state, userId);
-    this.deps.actionQueue.enqueueInternalWork(async () => {
+    this.deps.actionQueue.enqueueInternalWork({
+      handId: enqueuedHandId ?? null,
+      execute: async () => {
       if (delayMs > 0) {
         await new Promise((r) => setTimeout(r, delayMs));
       }
@@ -211,6 +219,37 @@ class AutoActionDispatcher {
         this.deps.buildDiagnosticContext({ userId, action: payload.action }),
         "INTERNAL_WORK_STARTED",
       );
+
+      if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
+        logger.info(
+          this.deps.buildDiagnosticContext({
+            userId,
+            action: payload.action,
+            staleReason: "HAND_ID_CHANGED",
+            enqueuedHandId,
+            currentHandId: this.deps.state.handId,
+          }),
+          "AUTO_ACTION_DISCARDED",
+        );
+        this.deps.emitDiagnostic({
+          level: "warn",
+          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+          message: "Queued auto-action discarded because hand changed before execution",
+          context: this.deps.buildDiagnosticContext({
+            userId,
+            action: payload.action,
+            staleReason: "HAND_ID_CHANGED",
+            enqueuedHandId,
+            currentHandId: this.deps.state.handId,
+            token: turnToken ?? null,
+          }),
+        });
+        if (this.deps.onAutoActionDiscarded) {
+          this.deps.onAutoActionDiscarded();
+          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+        }
+        return;
+      }
 
       const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
       if (staleReason) {
@@ -306,6 +345,7 @@ class AutoActionDispatcher {
         );
         throw err;
       }
+      },
     }).catch((err) => {
       if (this.isSkippableQueuedActionError(err)) {
         logger.warn(
@@ -403,15 +443,15 @@ class TurnTimeoutScheduler {
     setPlayerSittingOutInternal: (userId: string, sittingOut: boolean) => Promise<void>;
   }) {}
 
-  scheduleHumanTurnTimeout(userId: string): void {
+  scheduleHumanTurnTimeout(userId: string): boolean {
     const token = TurnTokenUtil.capture(this.deps.state, userId);
-    if (!token || !token.handId) return;
+    if (!token || !token.handId) return false;
 
     const key = `${token.handId}:${token.street}:${token.handActionSeq}:${token.toActSeat}:${token.toActUserId}`;
     if (this.pendingHumanTurnTimeoutKey === key) {
       const deadlinePresent = (this.deps.state.turnDeadlineMs ?? 0) > 0;
       const timeoutPresent = this.pendingHumanTurnTimeoutId != null;
-      if (deadlinePresent && timeoutPresent) return;
+      if (deadlinePresent && timeoutPresent) return true;
       logger.warn(
         {
           tableId: this.deps.state.tableId,
@@ -473,6 +513,7 @@ class TurnTimeoutScheduler {
         this.clearPendingTimeoutIfCurrent(key);
       });
     }, TURN_TIMEOUT_TOTAL_MS);
+    return true;
   }
 
   getTurnStartedAt(): number {
@@ -555,8 +596,8 @@ export class TurnManager {
     this.autoActionDispatcher.enqueueInternalAction(userId, payload, delayMs);
   }
 
-  scheduleHumanTurnTimeout(userId: string): void {
-    this.turnTimeoutScheduler.scheduleHumanTurnTimeout(userId);
+  scheduleHumanTurnTimeout(userId: string): boolean {
+    return this.turnTimeoutScheduler.scheduleHumanTurnTimeout(userId);
   }
 
   clearPendingHumanTurnTimeout(): void {

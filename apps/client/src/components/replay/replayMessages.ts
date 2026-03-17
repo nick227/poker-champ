@@ -1,34 +1,9 @@
-import type { TableLastAction, TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { HandResultMessage } from "@/features/table";
-import { formatCents } from "@/lib/format";
-
-function buildActionMessage(action: TableLastAction, actorName: string): string {
-  const originSuffix =
-    action.origin === "AUTO"
-      ? " (auto)"
-      : action.origin === "FORCED"
-        ? " (forced)"
-        : "";
-
-  switch (action.action) {
-    case "FOLD":
-      return `${actorName} folds${originSuffix}`;
-    case "CHECK":
-      return `${actorName} checks${originSuffix}`;
-    case "CALL":
-      return `${actorName} calls ${formatCents(action.amountCents)}${originSuffix}`;
-    case "BET":
-      return `${actorName} bets ${formatCents(action.amountCents)}${originSuffix}`;
-    case "RAISE":
-      return action.raiseToCents != null
-        ? `${actorName} raises to ${formatCents(action.raiseToCents)}${originSuffix}`
-        : `${actorName} raises ${formatCents(action.amountCents)}${originSuffix}`;
-    case "ALL_IN":
-      return `${actorName} is all-in for ${formatCents(action.amountCents)}${originSuffix}`;
-    default:
-      return "";
-  }
-}
+import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import {
+  buildActionMessage,
+  buildWinnerBannerFromSnapshot,
+  type HandResultMessage,
+} from "@/features/table";
 
 export function getReplayActionMessage(snapshot: TableSnapshotPayload): string | undefined {
   const lastAction = snapshot.lastAction;
@@ -36,28 +11,12 @@ export function getReplayActionMessage(snapshot: TableSnapshotPayload): string |
   const actorName =
     snapshot.seats.find((seat) => seat.userId === lastAction.actorUserId)?.name ??
     (lastAction.actorKind === "BOT" ? "Bot" : "Player");
-  return buildActionMessage(lastAction, actorName);
+  return buildActionMessage(lastAction, actorName, { shortenActorName: false, includeOriginSuffix: true });
 }
 
 export function getReplayHandResultMessage(
   snapshot: TableSnapshotPayload,
 ): HandResultMessage | undefined {
-  const result = snapshot.lastHandResult;
-  if (!result) return undefined;
-
-  const winnerId = result.winnerId ?? Object.keys(result.payoutsByUserId ?? {})[0];
-  const winnerName = winnerId
-    ? snapshot.seats.find((seat) => seat.userId === winnerId)?.name ?? "Winner"
-    : "Split pot";
-  const amountCents =
-    winnerId && result.payoutsByUserId
-      ? result.payoutsByUserId[winnerId] ?? result.potCents
-      : result.potCents;
-
-  return {
-    winnerName,
-    amountCents,
-    winningHandDescr: result.winningHandDescr,
-  };
+  return buildWinnerBannerFromSnapshot(snapshot) ?? undefined;
 }
 

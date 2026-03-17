@@ -2,6 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokerState } from "../../state/PokerState.js";
 import { Dealer } from "../../engine/Dealer.js";
 import { CashierService } from "../../engine/economy/CashierService.js";
+import { ActionOptionsService } from "../../engine/dealer/index.js";
+
+async function settleHandToWaiting(dealer: Dealer, state: PokerState, maxActions = 64): Promise<void> {
+  const optionsService = new ActionOptionsService();
+  for (let guard = 0; guard < maxActions && state.street !== "WAITING"; guard += 1) {
+    const userId = state.seats[state.toActSeat];
+    if (!userId) break;
+    const options = optionsService.buildHeroActionOptions(state, userId);
+    if (options?.canCheck) await dealer.handleAction(userId, { action: "CHECK" });
+    else if (options?.canCall) await dealer.handleAction(userId, { action: "CALL" });
+    else if (options?.canFold) await dealer.handleAction(userId, { action: "FOLD" });
+    else if (options?.canAllIn) await dealer.handleAction(userId, { action: "ALL_IN" });
+    else break;
+  }
+  expect(state.street).toBe("WAITING");
+}
 
 describe("hand lifecycle", () => {
   beforeEach(() => {
@@ -111,7 +127,8 @@ describe("hand lifecycle", () => {
     expect(botAfterAdd?.status).toBe("ABANDONED");
     expect(botAfterAdd?.sittingOutUntilNextHand).toBe(true);
 
-    await expect((d as any).startHand()).resolves.toBeUndefined();
+    await settleHandToWaiting(d, s);
+    await d.forceAdvanceToNextHandForTest();
     const botOnNextHand = s.playersById.get("bot_2");
     expect(botOnNextHand?.status).toBe("ACTIVE");
     expect(botOnNextHand?.sittingOutUntilNextHand).toBe(false);
@@ -155,5 +172,30 @@ describe("hand lifecycle", () => {
           p.kind === "HAND_ENDED" && p.reason === "SHOWDOWN",
       ),
     ).toBe(true);
+  });
+
+  it("updates roundState on hand start even when the round-state feature flag is disabled", async () => {
+    const previousFlag = process.env.FEATURE_ROUND_STATE_MACHINE;
+    process.env.FEATURE_ROUND_STATE_MACHINE = "false";
+
+    try {
+      const s = new PokerState();
+      s.maxSeats = 6;
+      s.minBuyInCents = 1000;
+      s.maxBuyInCents = 10000;
+
+      const d = new Dealer(s);
+      await d.addPlayer("p1", "A", 5000);
+      await d.addPlayer("p2", "B", 5000);
+
+      expect(s.street).toBe("PREFLOP");
+      expect(s.roundState).toBe("WAITING_FOR_ACTION");
+      expect(s.turnDeadlineMs).toBeGreaterThan(0);
+
+      d.dispose();
+    } finally {
+      if (previousFlag == null) delete process.env.FEATURE_ROUND_STATE_MACHINE;
+      else process.env.FEATURE_ROUND_STATE_MACHINE = previousFlag;
+    }
   });
 });

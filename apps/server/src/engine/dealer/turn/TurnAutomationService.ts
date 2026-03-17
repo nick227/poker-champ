@@ -75,6 +75,13 @@ export class TurnAutomationService {
     currentHandAutoActedUserIds: Set<string>;
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
     enqueueAction: (userId: string, payload: ActionPayload, delayMs?: number) => void;
+    /**
+     * Direct bot scheduling path: bypasses AutoActionDispatcher's stale-token machinery.
+     * After emitting a snapshot, the Dealer schedules the bot action with a simple inline
+     * staleness check. On stale, calls requestDrive directly instead of silently discarding.
+     * This eliminates the post-street-transition bot hang (see rca-game-hang-2026-03-09.md).
+     */
+    scheduleBotAction?: (userId: string, payload: ActionPayload, delayMs: number) => void;
     getBotDelayMs: () => number;
     scheduleHumanTurnTimeout?: (userId: string) => void;
     onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
@@ -104,6 +111,19 @@ export class TurnAutomationService {
   maybeActForBot(): void {
     const state = this.deps.state;
     if (state.street === "WAITING") {
+      return;
+    }
+    if (state.roundState === "HAND_COMPLETE" || state.roundState === "RUNOUT") {
+      logger.info(
+        {
+          street: state.street,
+          roundState: state.roundState,
+          toActSeat: state.toActSeat,
+          result: "skipped",
+          reason: "TERMINAL_ROUND_STATE",
+        },
+        "MAYBE_ACT_FOR_BOT_RESULT",
+      );
       return;
     }
     if (state.runoutMode === "STAGED") {
@@ -149,6 +169,15 @@ export class TurnAutomationService {
       return;
     }
 
+    if (player.kind !== "BOT" && player.connected) {
+      // Connected human: arm the server-side turn timeout from actor identity alone.
+      // Action-options derivation is not authoritative enough to gate timeout ownership.
+      if (player.needsAction && this.deps.scheduleHumanTurnTimeout) {
+        this.deps.scheduleHumanTurnTimeout(toActId);
+      }
+      return;
+    }
+
     const options = this.deps.getHeroActionOptions(toActId);
     if (!options) {
       if (player.kind === "BOT" && player.needsAction) {
@@ -169,15 +198,6 @@ export class TurnAutomationService {
           { userId: player.id, street: state.street, result: "skipped", reason: "NO_ACTION_OPTIONS" },
           "MAYBE_ACT_FOR_BOT_RESULT",
         );
-      }
-      return;
-    }
-
-    if (player.kind !== "BOT" && player.connected) {
-      // Connected human: start (or reuse) a server-side turn timeout for this actor,
-      // but only if they still need action for this turn.
-      if (player.needsAction && this.deps.scheduleHumanTurnTimeout) {
-        this.deps.scheduleHumanTurnTimeout(toActId);
       }
       return;
     }
@@ -209,19 +229,16 @@ export class TurnAutomationService {
     const payload = this.deps.botResolver.pickAction(player, ctx);
     const delayMs = this.deps.getBotDelayMs();
     logger.info(
-      {
-        userId: toActId,
-        delayMs,
-        street: state.street,
-        action: payload.action,
-      },
-      "BOT_ACTION_ENQUEUED",
-    );
-    logger.info(
       { userId: toActId, street: state.street, action: payload.action, delayMs },
       "BOT_ACTION_SCHEDULED",
     );
-    this.deps.enqueueAction(toActId, payload, delayMs);
+    // Prefer the direct scheduler (bypasses stale-token queue machinery).
+    // Fall back to enqueueAction for backwards compatibility with tests.
+    if (this.deps.scheduleBotAction) {
+      this.deps.scheduleBotAction(toActId, payload, delayMs);
+    } else {
+      this.deps.enqueueAction(toActId, payload, delayMs);
+    }
   }
 
   // ============================================================================

@@ -8,50 +8,57 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
-import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { HeroZone } from "../hero-zone";
+import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
-import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
 import { useTableViewShellFrame } from "./tableView.shared";
-import { useEmptyTableNotification } from "../hooks/useEmptyTableNotification";
 import { getPlaceholderSlots } from "./tableSceneSlots";
+import type { LiveTableSlotState } from "./useActiveTableSlots";
 
-type IdleSlotsParams = {
-  snapshot: TableSnapshotPayload | null;
-  scene: TablePageController["scene"];
-  renderModel: TablePageController["renderModel"];
-  actions: TablePageController["actions"];
-  emptyOpponentsState: ReactNode;
-};
+function renderStatusStripPanel(
+  message: string,
+  showSpinner: boolean,
+  showTurnCue: boolean,
+) {
+  return (
+    <View
+      style={{ flex: 1, width: "100%", justifyContent: "flex-start" }}
+      className="ui-p-inline-4 pt-2"
+    >
+      <TableStatusStrip
+        message={message}
+        showSpinner={showSpinner}
+        showTurnCue={showTurnCue}
+      />
+    </View>
+  );
+}
 
 export function useIdleTableSlots(
   snapshot: TableSnapshotPayload | null,
-  scene: TablePageController["scene"],
+  _scene: TablePageController["scene"],
   renderModel: TablePageController["renderModel"],
   actions: TablePageController["actions"],
   emptyOpponentsState: ReactNode,
+  liveTableState?: LiveTableSlotState,
 ): TableSceneShellProps {
+  const statusStrip = liveTableState?.statusStrip;
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
-    handResultMessage: renderModel.handResultMessage ?? null,
+    sceneModel: liveTableState?.sceneModel,
+    winnerBanner: renderModel.displayEvents.winnerBanner,
     connectionStatus: undefined,
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,
     opponents: renderModel.opponents as Opponent[],
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
+    boardCardsOverride: statusStrip?.boardCardsOverride,
+    potCentsOverride: statusStrip?.potCentsOverride,
+    animateBoardReset: statusStrip?.statusPhase === "boardReset",
   });
-
-  const notification = useEmptyTableNotification(
-    snapshot ?? DUMMY_TABLE_SNAPSHOT,
-    (renderModel.opponents ?? []) as Opponent[],
-    actions.openAddBotPicker,
-    undefined,
-    undefined,
-    false,
-  );
 
   if (!snapshot) {
     return getPlaceholderSlots(renderModel.balanceCents, renderModel.tableTopBarRight) as TableSceneShellProps;
@@ -91,22 +98,10 @@ export function useIdleTableSlots(
       </View>
     );
   } else {
-    bottom = (
-      <View className="ui-p-inline-4 gap-y-2 bg-panel/90 rounded-lg p-4">
-        <Text className="text-center poker-notification">{notification.message}</Text>
-        {notification.actions && notification.actions.length > 0 && (
-          <View className="ui-row gap-x-2 justify-center">
-            {notification.actions.map((action, index) => (
-              <Button
-                key={index}
-                title={action.title}
-                onPress={action.onPress}
-                variant={action.variant}
-              />
-            ))}
-          </View>
-        )}
-      </View>
+    bottom = renderStatusStripPanel(
+      statusStrip?.message ?? "",
+      statusStrip?.showSpinner ?? false,
+      statusStrip?.showTurnCue ?? false,
     );
   }
 
@@ -114,14 +109,7 @@ export function useIdleTableSlots(
 
   return {
     ...shellBaseProps,
-    dealerBar: (
-      <DealerAnnounceBar
-        hand={undefined}
-        handResultMessage={renderModel.handResultMessage ?? undefined}
-        tableStatus={scene.tableStatus}
-        nextHandAtTs={snapshot.nextHandAtTs}
-      />
-    ),
+    dealerBar: null,
     board,
     hero: (
       <HeroZone

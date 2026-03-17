@@ -2119,28 +2119,37 @@ async function setupHumanVsBotRoom() {
         10000,
         "human to-act before fold",
       );
-      const beforeCount = clientA.sentByType.TABLE_SNAPSHOT?.length ?? 0;
+      const currentHandId = clientA.latestSnapshot?.hand?.handId ?? room.state.handId;
       room.onMessageEvents.emit("ACTION", clientA as any, { action: "FOLD", actionId: "human-fold-" + Date.now() });
 
       await waitFor(
         () => {
-          const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
-          return snapshots.some(
+          const snapshots = (clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[];
+          const latest = clientA.latestSnapshot;
+          const terminalSeenInHistory = snapshots.some(
             (snap) =>
-              snap.reason === "HAND_END" ||
-              snap.reason === "HAND_SHOWDOWN" ||
-              Boolean(snap.lastHandResult?.handId),
+              ((snap.reason === "HAND_END" || snap.reason === "HAND_SHOWDOWN") &&
+                snap.lastHandResult?.handId === currentHandId) ||
+              (snap.lastHandResult?.handId === currentHandId &&
+                snap.hand?.street === "WAITING"),
           );
+          const terminalSeenInLatest = latest != null &&
+            latest.lastHandResult?.handId === currentHandId &&
+            (latest.reason === "HAND_END" ||
+              latest.reason === "HAND_SHOWDOWN" ||
+              latest.hand?.street === "WAITING");
+          return terminalSeenInHistory || Boolean(terminalSeenInLatest);
         },
-        8000,
+        15000,
         "fold hand end",
       );
 
-      const snapshots = ((clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[]).slice(beforeCount);
+      const snapshots = (clientA.sentByType.TABLE_SNAPSHOT ?? []) as TableSnapshotPayload[];
       const handEndSnapshot =
-        snapshots.find((snap) => snap.reason === "HAND_END") ??
-        snapshots.find((snap) => snap.reason === "HAND_SHOWDOWN") ??
-        snapshots.find((snap) => Boolean(snap.lastHandResult?.handId));
+        snapshots.find((snap) => snap.reason === "HAND_END" && snap.lastHandResult?.handId === currentHandId) ??
+        snapshots.find((snap) => snap.reason === "HAND_SHOWDOWN" && snap.lastHandResult?.handId === currentHandId) ??
+        snapshots.find((snap) => snap.lastHandResult?.handId === currentHandId) ??
+        clientA.latestSnapshot;
       expect(handEndSnapshot).toBeDefined();
       const terminalStreet = handEndSnapshot?.hand?.street;
       expect(

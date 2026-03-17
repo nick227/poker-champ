@@ -39,6 +39,7 @@
     "expo-updates",
     "expo-system-ui",
     "@babel/runtime",
+    "react-native-worklets",
     "react-native-css-interop",
     "@types/multer",
     "bcryptjs",

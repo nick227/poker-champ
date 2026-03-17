@@ -3,32 +3,48 @@
  * When snapshot is null returns placeholder slots so hook can run unconditionally.
  */
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useRef } from "react";
+import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
+import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
-import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { HeroZone } from "../hero-zone";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
+import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA } from "../RejoinCTA";
 import { useTableViewShellFrame } from "./tableView.shared";
-import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
 
-type ActiveSlotsParams = {
-  snapshot: TableSnapshotPayload | null;
-  scene: TablePageController["scene"];
-  renderModel: TablePageController["renderModel"];
-  actions: TablePageController["actions"];
-  emptyOpponentsState: ReactNode;
-  heroAvatarUrl?: string | null;
+export type LiveTableSlotState = {
+  sceneModel?: TableSceneModel;
+  statusStrip?: LiveTableStatusStripState;
 };
+
+function renderStatusStripPanel(
+  message: string,
+  showSpinner: boolean,
+  showTurnCue: boolean,
+) {
+  return (
+    <View
+      style={{ flex: 1, width: "100%", justifyContent: "flex-start" }}
+      className="ui-p-inline-4 pt-2"
+    >
+      <TableStatusStrip
+        message={message}
+        showSpinner={showSpinner}
+        showTurnCue={showTurnCue}
+      />
+    </View>
+  );
+}
 
 export function useActiveTableSlots(
   snapshot: TableSnapshotPayload | null,
@@ -37,15 +53,17 @@ export function useActiveTableSlots(
   actions: TablePageController["actions"],
   emptyOpponentsState: ReactNode,
   heroAvatarUrl?: string | null,
+  liveTableState?: LiveTableSlotState,
 ): TableSceneShellProps {
-  const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
 
   const opponents = (renderModel.opponents ?? []) as Opponent[];
+  const statusStrip = liveTableState?.statusStrip;
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
-    handResultMessage: renderModel.handResultMessage ?? null,
+    sceneModel: liveTableState?.sceneModel,
+    winnerBanner: renderModel.displayEvents.winnerBanner,
     connectionStatus: scene.connectionStatus,
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,
@@ -55,10 +73,12 @@ export function useActiveTableSlots(
     onBoardBounds: actions.reportBoardBounds,
     onCardSlotBounds: actions.reportCardSlotBounds,
     onSeatBounds: actions.reportSeatBounds,
+    boardCardsOverride: statusStrip?.boardCardsOverride,
+    potCentsOverride: statusStrip?.potCentsOverride,
+    animateBoardReset: statusStrip?.statusPhase === "boardReset",
   });
 
   const {
-    handSummary,
     actionContext,
     canAct,
     heroStatus,
@@ -88,30 +108,17 @@ export function useActiveTableSlots(
   const activeTurnProgress = useTurnProgress(hasOpponentToAct, true, turnTimeoutTotalMs);
 
   const heroIsSeated = snapshot?.hero.youAreSeated ?? false;
-  const waitingBetweenHands = !snapshot?.hand;
-  const hasActionOptions = !!heroActionOptions;
-  const notification = useActiveTableNotification(
-    waitingBetweenHands,
-    hasActionOptions,
-    actionContext.showActions,
-    isPendingHeroAction,
-    opponents,
-    snapshot ?? ({} as TableSnapshotPayload),
-  );
+  const waitingBetweenHands = statusStrip
+    ? statusStrip.statusPhase === "betweenHands"
+    : !snapshot?.hand;
+  const showHeroActionBar = actionContext.showActions;
 
   const handleAction: ActionBarOnAction = useCallback(
     (payload) => {
-      setIsPendingHeroAction(true);
       actions.sendAction(payload);
     },
     [actions],
   );
-
-  useEffect(() => {
-    if (!actionContext.showActions || !hasActionOptions || waitingBetweenHands) {
-      setIsPendingHeroAction(false);
-    }
-  }, [actionContext.showActions, hasActionOptions, waitingBetweenHands]);
 
   useEffect(() => {
     const handId = snapshot?.hand?.handId ?? null;
@@ -175,39 +182,26 @@ export function useActiveTableSlots(
     );
   } else if (renderModel.canRebuy && actions.openRebuySheet) {
     bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
-  } else if (
-    waitingBetweenHands ||
-    !hasActionOptions ||
-    !actionContext.showActions ||
-    isPendingHeroAction
-  ) {
-    const textVariantClass = {
-      default: "text-center text-muted",
-      processing: "text-center text-info animate-pulse",
-      waiting: "text-center text-warning",
-    }[notification.variant];
-    bottom = (
-      <View className="ui-p-inline-4 gap-y-2">
-        <View className="flex-row items-center justify-center gap-x-2">
-          {notification.showLoadingIndicator && (
-            <ActivityIndicator size="small" className="opacity-70" />
-          )}
-          <Text className={textVariantClass} numberOfLines={2} ellipsizeMode="tail">
-            {notification.message}
-          </Text>
-        </View>
-      </View>
-    );
-  } else {
+  } else if (!waitingBetweenHands && showHeroActionBar) {
     bottom = (
       <ActionBar
         actionContext={actionContext}
         heroStatus={heroStatus}
         actionOptions={heroActionOptions}
         potCents={potCents}
+        statusMessage={statusStrip?.message ?? ""}
+        showStatusSpinner={statusStrip?.showSpinner}
+        showTurnCue={statusStrip?.showTurnCue}
+        hideReconnectingOverlay
         onAction={handleAction}
         forceInteractive={false}
       />
+    );
+  } else {
+    bottom = renderStatusStripPanel(
+      statusStrip?.message ?? "",
+      statusStrip?.showSpinner ?? false,
+      statusStrip?.showTurnCue ?? false,
     );
   }
 
@@ -215,7 +209,7 @@ export function useActiveTableSlots(
     <HeroZone
       cards={heroCards}
       stackCents={heroStackCents}
-      canAct={canAct}
+      canAct={statusStrip?.showTurnCue ?? canAct}
       heroStatus={heroStatus}
       equity={heroCalculations?.equityPct}
       potOdds={heroCalculations?.potOddsPct}
@@ -224,8 +218,10 @@ export function useActiveTableSlots(
       showStats={snapshot.table?.showStats ?? false}
       isWinner={isHeroWinner}
       isDealer={isHeroDealer}
-      isActiveTurn={isHeroToAct}
-      turnCountdownSeconds={turnCountdownSeconds ?? undefined}
+      isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
+      turnCountdownSeconds={
+        statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
+      }
       userName={heroName}
       avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
       potCents={potCents}
@@ -237,15 +233,7 @@ export function useActiveTableSlots(
   return {
     ...shellBaseProps,
     activeTurnProgress,
-    dealerBar: (
-      <DealerAnnounceBar
-        hand={handSummary}
-        actionMessage={renderModel.actionMessage}
-        handResultMessage={renderModel.handResultMessage ?? undefined}
-        tableStatus={scene.tableStatus}
-        nextHandAtTs={snapshot.nextHandAtTs}
-      />
-    ),
+    dealerBar: null,
     board,
     onSeatBounds: actions.reportSeatBounds,
     hero: heroNode,

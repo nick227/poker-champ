@@ -32,6 +32,7 @@ export function useTablePageStores(tableId: string | undefined) {
       dispatchRemoveBot: s.dispatchRemoveBot,
       dispatchSetSittingOut: s.dispatchSetSittingOut,
       joinState: id ? s.tableJoinById[id] : undefined,
+      pendingActionForTable: id ? s.pendingActionByTableId[id] : undefined,
     }))
   );
 

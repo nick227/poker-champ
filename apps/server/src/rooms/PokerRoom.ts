@@ -432,9 +432,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         if (activeHandForStall) {
           const stallReason = this.dealer.getStallReasonPublic(now);
           if (stallReason) {
-          // BOT_OVERDUE can be transient while lifecycle/snapshot work is still settling.
-          // Avoid false positives until silence exceeds the same stall threshold used by legacy mode.
-          if (stallReason === "BOT_OVERDUE" && snapshotSilenceMs < STALL_THRESHOLD_MS) {
+          // Decision stall reasons can be transient while lifecycle/snapshot work is still settling.
+          // Avoid false positives and premature redrive until silence exceeds the same threshold used by legacy mode.
+          if (snapshotSilenceMs < STALL_THRESHOLD_MS) {
             this.dealer.logTurnStalledIfNeeded();
             if (queueDepth >= 2) {
               logger.warn(
@@ -478,6 +478,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             this.lastStallLogAtMs = now;
             dealerRuntimeMetrics.recordTableStalled();
           }
+          // EMERGENCY RECOVERY ONLY — fires after STALL_THRESHOLD_MS of snapshot silence.
+          // Normal progression (Phase 3+: scheduleBotAction) should never reach this path.
+          // If TABLE_STALLED_RECOVERY_REDRIVE appears frequently in metrics, diagnose the
+          // primary hand loop rather than treating this as an expected recovery mechanism.
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
               logger.warn(
@@ -541,6 +545,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
             this.lastStallLogAtMs = now;
             dealerRuntimeMetrics.recordTableStalled();
           }
+          // EMERGENCY RECOVERY ONLY — see comment in decision-mode recovery path above.
           if (this.state.street !== "WAITING" && queueDepth === 0) {
             if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
               logger.warn(

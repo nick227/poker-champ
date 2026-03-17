@@ -13,7 +13,7 @@ export {
   getHeroStackCents,
   getPotCents,
 } from "./components/table/table.adapter";
-export type { Opponent } from "./components/table/table.adapter";
+export type { Opponent, UiCard } from "./components/table/table.adapter";
 
 export { TableSceneShell } from "./components/table/table-layout";
 export type { TableSceneShellProps } from "./components/table/table-layout";
@@ -37,9 +37,20 @@ export {
 export type { ActionBarProps, ActionBarOnAction, TableAction } from "./components/table/action-bar/ActionBar";
 export { ACTION_BAR_HEIGHT } from "./components/table/action-bar/ActionBar";
 
-export type { HandResultMessage, ConnectionStatus } from "./components/table/table.types";
+export type { ActionNotice, HandResultMessage, ConnectionStatus, TableDisplayEvents } from "./components/table/table.types";
+export {
+  buildActionMessage,
+  buildWinnerBannerFromSnapshot,
+  buildWinnerMessageText,
+} from "./components/table/displayMessages";
 export { buildTableSceneModel, useTableSceneModel } from "./components/table/model/useTableSceneModel";
 export type { TableSceneModel } from "./components/table/model/useTableSceneModel";
+export {
+  ALL_IN_COPY,
+  YOUR_MOVE_COPY,
+  deriveTableViewState,
+} from "./components/table/model/deriveTableViewState";
+export type { TableViewState, TableRenderPhase } from "./components/table/model/deriveTableViewState";
 export { getFeltImageSource } from "./components/table/feltImages";
 export type { FeltImageId } from "./components/table/feltImages";
 export { getCardFaceSource, keyToRankSuit, getCardBackSource } from "./components/table/cardFaceAssets";
@@ -53,7 +64,7 @@ export {
 
 export { useResolvedBuyIn } from "./components/table/hooks/useResolvedBuyIn";
 export { useTableScene } from "./components/table/hooks/useTableScene";
-export { useActionMessages } from "./components/table/hooks/useActionMessages";
+export { useTableDisplayEvents } from "./components/table/hooks/useTableDisplayEvents";
 export { useRebuySheet } from "./components/table/hooks/useRebuySheet";
 export { useAddBot } from "./components/table/hooks/useAddBot";
 export { useVoiceControllerLifecycle } from "./components/table/hooks/useVoiceControllerLifecycle";
@@ -62,3 +73,6 @@ export { useVoiceJoinPolicy } from "./components/table/hooks/useVoiceJoinPolicy"
 export { useOpenTableSync } from "./components/table/hooks/useOpenTableSync";
 export { useTableConnection } from "./components/table/hooks/useTableConnection";
 export { usePlayerJoinedSound } from "./components/table/hooks/usePlayerJoinedSound";
+export { BoardArea } from "./components/table/board-area/BoardArea";
+export { TableStatusStrip } from "./components/table/action-bar/TableStatusStrip";
+export type { TableStatusStripProps } from "./components/table/action-bar/TableStatusStrip";

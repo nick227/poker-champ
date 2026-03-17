@@ -30,6 +30,7 @@ describe("multi-table action idempotency payloads", () => {
           actionId: "",
           payload: { action: "CHECK" as TableAction } as { actionId: string; action: TableAction },
           retriesLeft: 1,
+          createdAtTs: Date.now(),
         },
       },
     });
@@ -74,6 +75,30 @@ describe("multi-table action idempotency payloads", () => {
 
     expect(ok).toBe(true);
     expect(sender).toHaveBeenCalledWith("JOIN_TABLE", { buyInCents: 5000 });
+  });
+
+  it("blocks duplicate table action dispatch while a pending action exists", () => {
+    const sender = vi.fn(() => true);
+    useMultiTableStore.getState().registerTableSender("t1", sender);
+
+    useMultiTableStore.setState({
+      pendingActionByTableId: {
+        t1: {
+          actionId: "pending-1",
+          payload: { actionId: "pending-1", action: "CALL" as TableAction },
+          retriesLeft: 3,
+          createdAtTs: Date.now(),
+        },
+      },
+    });
+
+    const ok = useMultiTableStore.getState().dispatchTableAction({
+      tableId: "t1",
+      action: "fold",
+    });
+
+    expect(ok).toBe(false);
+    expect(sender).not.toHaveBeenCalled();
   });
 });
 

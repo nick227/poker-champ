@@ -103,6 +103,9 @@ function main() {
     TURN_TIMEOUT_TOTAL_MS: process.env.TURN_TIMEOUT_TOTAL_MS ?? "30000",
     BOT_ACTION_DELAY_MIN_MS: process.env.BOT_ACTION_DELAY_MIN_MS ?? "25",
     BOT_ACTION_DELAY_MAX_MS: process.env.BOT_ACTION_DELAY_MAX_MS ?? "150",
+    // The log-schema gate below requires decision/runtime/parity events in every validation run.
+    ENGINE_DECISION_SAMPLE_RATE: process.env.ENGINE_DECISION_SAMPLE_RATE ?? "1",
+    ENGINE_DECISION_TABLE_ID: process.env.ENGINE_DECISION_TABLE_ID ?? "",
     NO_COLOR: "1",
     FORCE_COLOR: "0",
   };
@@ -165,12 +168,15 @@ function main() {
 
     const stalledCount = (jsonLines.match(/"msg":"TABLE_STALLED"/g) ?? []).length;
     const redriveCount = (jsonLines.match(/"msg":"TABLE_STALLED_RECOVERY_REDRIVE"/g) ?? []).length;
+    const unownedActiveHandCount = (jsonLines.match(/"msg":"UNOWNED_ACTIVE_HAND"/g) ?? []).length;
     const actionAcceptedCount = (jsonLines.match(/"msg":"POKER_ACTION_ACCEPTED"/g) ?? []).length;
     const actionRejectedCount = (jsonLines.match(/"msg":"POKER_ACTION_REJECTED"/g) ?? []).length;
     const actionDecisionCount = actionAcceptedCount + actionRejectedCount;
     const rejectionRate = actionDecisionCount > 0 ? actionRejectedCount / actionDecisionCount : 0;
-    if (stalledCount > 0 || redriveCount > 0) {
-      throw new Error(`${logBase}: stalled=${stalledCount} redrive=${redriveCount}`);
+    if (stalledCount > 0 || redriveCount > 0 || unownedActiveHandCount > 0) {
+      throw new Error(
+        `${logBase}: stalled=${stalledCount} redrive=${redriveCount} unownedActiveHand=${unownedActiveHandCount}`,
+      );
     }
     if (rejectionRate > args.maxRejectionRate) {
       throw new Error(
@@ -181,6 +187,7 @@ function main() {
 
     console.log(
       `[multitable-soak-validate] ${logBase} PASS | stalled=${stalledCount} redrive=${redriveCount} ` +
+        `unownedActiveHand=${unownedActiveHandCount} ` +
         `accepted=${actionAcceptedCount} rejected=${actionRejectedCount} rejectionRate=${rejectionRate.toFixed(4)} ` +
         `log=${logPath}`,
     );

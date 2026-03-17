@@ -85,6 +85,9 @@ const SNAPSHOT_INVALID_MESSAGE =
 /** Max wait for avatar fetch so snapshot emission never blocks the action queue. */
 const AVATAR_FETCH_TIMEOUT_MS = 2000;
 
+/** How long a cached avatar URL is considered fresh before a background refresh is triggered. */
+const AVATAR_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
 /** One-line searchable first failing path from Zod error (e.g. "payload.snapshotSeq"). */
 function getFirstFailingPath(err: { issues?: Array<{ path?: PropertyKey[] }> }): string | null {
   const first = err.issues?.[0];
@@ -130,26 +133,72 @@ export class SnapshotService {
   /** Last hand key for detecting hand changes */
   private lastHandKey: string | null = null;
 
+  // ---------------------------------------------------------------------------
+  // AVATAR CACHE
+  // ---------------------------------------------------------------------------
+  // Serves avatar URLs synchronously from cache to keep snapshots off the DB hot path.
+  // Cache entries expire after AVATAR_CACHE_TTL_MS; stale entries trigger a background refresh.
+
+  private readonly avatarCache = new Map<string, {
+    avatarUrl: string | null;
+    avatarVersion: number | null;
+    cachedAt: number;
+  }>();
+
   /**
-   * Fetch avatar with timeout so slow or stuck avatar lookup never blocks the game loop.
-   * Returns nulls on timeout or throw.
+   * Return avatar from cache if fresh. If stale or missing, fall back to a live fetch
+   * with AVATAR_FETCH_TIMEOUT_MS guard. When a cached (possibly stale) value is served,
+   * schedule a background refresh so the next snapshot gets an up-to-date URL.
    */
   private async getAvatarWithTimeout(userId: string): Promise<{ avatarUrl: string | null; avatarVersion: number | null }> {
     const getAvatar = this.deps.getAvatarByUserId;
     if (!getAvatar) return { avatarUrl: null, avatarVersion: null };
-    const fallback = (): { avatarUrl: string | null; avatarVersion: number | null } =>
-      ({ avatarUrl: null, avatarVersion: null });
+
+    const cached = this.avatarCache.get(userId);
+    const now = Date.now();
+
+    if (cached) {
+      const stale = now - cached.cachedAt > AVATAR_CACHE_TTL_MS;
+      if (stale) {
+        // Serve the stale cached value immediately; refresh in background.
+        this.refreshAvatarInBackground(userId, getAvatar);
+      }
+      return { avatarUrl: cached.avatarUrl, avatarVersion: cached.avatarVersion };
+    }
+
+    // Cache miss: fetch now with timeout, then populate cache.
+    const fallback = { avatarUrl: null, avatarVersion: null };
     try {
       const result = await Promise.race([
         getAvatar(userId),
         new Promise<{ avatarUrl: string | null; avatarVersion: number | null }>((resolve) =>
-          setTimeout(() => resolve(fallback()), AVATAR_FETCH_TIMEOUT_MS),
+          setTimeout(() => resolve(fallback), AVATAR_FETCH_TIMEOUT_MS),
         ),
       ]);
-      return result ?? fallback();
+      const value = result ?? fallback;
+      this.avatarCache.set(userId, { ...value, cachedAt: Date.now() });
+      return value;
     } catch {
-      return fallback();
+      return fallback;
     }
+  }
+
+  private refreshAvatarInBackground(
+    userId: string,
+    getAvatar: NonNullable<(typeof this.deps)["getAvatarByUserId"]>,
+  ): void {
+    void Promise.race([
+      getAvatar(userId),
+      new Promise<{ avatarUrl: string | null; avatarVersion: number | null }>((resolve) =>
+        setTimeout(() => resolve({ avatarUrl: null, avatarVersion: null }), AVATAR_FETCH_TIMEOUT_MS),
+      ),
+    ]).then((result) => {
+      if (result) {
+        this.avatarCache.set(userId, { ...result, cachedAt: Date.now() });
+      }
+    }).catch(() => {
+      // Background refresh failure is silent — next snapshot will try again.
+    });
   }
 
   // ============================================================================
@@ -165,6 +214,7 @@ export class SnapshotService {
     clientsByUserId: Map<string, Client>;
     getHoleCardsByPlayerId: () => Map<string, string[]>;
     getHeroActionOptions: (userId: string) => HeroActionOptions | undefined;
+    getResolvedActionId: () => string | undefined;
     getLastHandResult: () => TableSnapshotPayload["lastHandResult"] | undefined;
     getLastAction: () => TableSnapshotPayload["lastAction"] | undefined;
     getHeroSessionStats?: (userId: string) => TableSnapshotPayload["hero"]["playerStats"];
@@ -503,6 +553,7 @@ export class SnapshotService {
       serverTimeTs: nowTs,
       reason,
       actionId,
+      resolvedActionId: this.deps.getResolvedActionId(),
       nextHandAtTs: state.nextHandAtTs || undefined,
       table: {
         tableId: state.tableId,
@@ -521,7 +572,7 @@ export class SnapshotService {
       calculationsMeta: this.handCalculations.getMeta(),
       lastAction: this.deps.getLastAction(),
       lastHandResult: this.deps.getLastHandResult(),
-    };
+    } as Omit<TableSnapshotPayload, "hero" | "stateHash">;
   }
 
   private async buildHeroPatch(

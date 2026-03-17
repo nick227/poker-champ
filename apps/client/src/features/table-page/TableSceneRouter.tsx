@@ -217,11 +217,6 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
     heroAvatarUrl: heroAvatarUrl ?? profileOrCurrentUserUrl ?? undefined,
   });
 
-  if (__DEV__) {
-    console.log("TABLE MODE", scene.mode);
-    console.log("REVEAL", revealed);
-  }
-
   return (
     <TableSceneShell
       {...slots}

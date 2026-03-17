@@ -50,6 +50,7 @@ describe("HandOrchestrator", () => {
       getCurrentHand: () => null,
       initPreflopFlagsForHand: () => {},
       executeHandLifecyclePlans: async () => {},
+      requestDrive: async () => {},
       enqueueSerializedStateMutation,
       sendTableSnapshotToAll: async () => {},
       isDisposed: () => false,
@@ -90,6 +91,7 @@ describe("HandOrchestrator", () => {
       getCurrentHand: () => null,
       initPreflopFlagsForHand: () => {},
       executeHandLifecyclePlans: async () => {},
+      requestDrive: async () => {},
       enqueueSerializedStateMutation,
       sendTableSnapshotToAll,
       isDisposed: () => false,
@@ -132,6 +134,7 @@ describe("HandOrchestrator", () => {
       getCurrentHand: () => null,
       initPreflopFlagsForHand: () => {},
       executeHandLifecyclePlans: async () => {},
+      requestDrive: async () => {},
       enqueueSerializedStateMutation,
       sendTableSnapshotToAll: async () => {},
       isDisposed: () => disposed,
@@ -179,6 +182,7 @@ describe("HandOrchestrator", () => {
       getCurrentHand: () => currentHand,
       initPreflopFlagsForHand: () => {},
       executeHandLifecyclePlans,
+      requestDrive: async () => {},
       enqueueSerializedStateMutation: async (work) => work(),
       sendTableSnapshotToAll: async () => {},
       isDisposed: () => false,
@@ -194,5 +198,45 @@ describe("HandOrchestrator", () => {
     expect(clearPendingHumanTurnTimeout).toHaveBeenCalledTimes(1);
     expect(handLifecycleService.startHand).toHaveBeenCalledTimes(1);
     expect(executeHandLifecyclePlans).toHaveBeenCalledTimes(1);
+  });
+
+  it("transitionToWaiting resets roundState to HAND_COMPLETE", () => {
+    const state = createState();
+    state.street = "RIVER";
+    state.roundState = "WAITING_FOR_ACTION";
+    let currentHand: HandContext | null = new HandContext();
+
+    const orchestrator = new HandOrchestrator({
+      state,
+      handLifecycleService: {
+        startHand: async () => [],
+        advanceStreetOrShowdown: async () => [],
+        finishHandByLastStanding: async () => [],
+        finishHandShowdownWithSidePots: async () => [],
+      } as any,
+      clearPendingHumanTurnTimeout: () => {},
+      createHandContext: () => new HandContext(),
+      setCurrentHand: (hand) => {
+        currentHand = hand;
+      },
+      getCurrentHand: () => currentHand,
+      initPreflopFlagsForHand: () => {},
+      executeHandLifecyclePlans: async () => {},
+      requestDrive: async () => {},
+      enqueueSerializedStateMutation: async (work) => work(),
+      sendTableSnapshotToAll: async () => {},
+      isDisposed: () => false,
+      getLastHandResult: () => undefined,
+      getOnHandEndedAwards: () => undefined,
+      getDealtHumanUserIds: () => [],
+      recordSessionHandResult: () => {},
+      getSessionState: () => ({ sessionId: "s1", sessionHands: 0, consecutiveWins: 0 }),
+    });
+
+    orchestrator.transitionToWaiting();
+
+    expect(state.street).toBe("WAITING");
+    expect(state.roundState).toBe("HAND_COMPLETE");
+    expect(currentHand).toBeNull();
   });
 });

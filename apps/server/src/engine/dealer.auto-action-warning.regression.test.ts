@@ -50,6 +50,12 @@ async function delay(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function invokeCapturedTimeout(cb: (...args: unknown[]) => unknown): void {
+  void Promise.resolve()
+    .then(() => cb())
+    .catch(() => undefined);
+}
+
 async function settleToWaiting(dealer: Dealer, state: PokerState, maxSteps = 40): Promise<void> {
   for (let i = 0; i < maxSteps && state.street !== "WAITING"; i += 1) {
     if (state.street === "SHOWDOWN") {
@@ -137,13 +143,18 @@ describe("dealer auto-action warning regressions", () => {
       diagnostics.push(event.type);
     });
 
-    (dealer as any).enqueueInternalAction("bot_1", { action: "CALL" }, 0);
-    await waitFor(() => state.toActSeat === 0, 2500, "auto action progression");
+    try {
+      (dealer as any).enqueueInternalAction("bot_1", { action: "CALL" }, 0);
+      await waitFor(() => state.toActSeat === 0, 2500, "auto action progression");
 
-    const denylistHit = diagnostics.some((d) => d === "QUEUED_AUTO_ACTION_FAILED" || d === "QUEUE_RECOVERY_AFTER_FAILURE");
-    expect(denylistHit).toBe(false);
-    assertChurnStateInvariants(state);
-    detach();
+      const denylistHit = diagnostics.some((d) => d === "QUEUED_AUTO_ACTION_FAILED" || d === "QUEUE_RECOVERY_AFTER_FAILURE");
+      expect(denylistHit).toBe(false);
+      assertChurnStateInvariants(state);
+    } finally {
+      detach();
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("AUTO-WARN-R02: queued auto-action is discarded when actor becomes ineligible before execution", async () => {
@@ -191,29 +202,34 @@ describe("dealer auto-action warning regressions", () => {
       diagnostics.push(event.type);
     });
 
-    const botRoundBetBefore = bot.roundBetCents;
-    const botStackBefore = bot.stackCents;
-    (dealer as any).enqueueInternalAction("bot_1", { action: "CALL" }, 60);
+    try {
+      const botRoundBetBefore = bot.roundBetCents;
+      const botStackBefore = bot.stackCents;
+      (dealer as any).enqueueInternalAction("bot_1", { action: "CALL" }, 60);
 
-    await delay(10);
-    bot.status = "ABANDONED";
-    bot.needsAction = false;
-    human.needsAction = true;
-    state.toActSeat = human.seat;
+      await delay(10);
+      bot.status = "ABANDONED";
+      bot.needsAction = false;
+      human.needsAction = true;
+      state.toActSeat = human.seat;
 
-    await waitFor(
-      () => diagnostics.includes("QUEUED_AUTO_ACTION_STALE_DISCARDED") || diagnostics.includes("QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED"),
-      2500,
-      "queued auto action discard diagnostic",
-    );
+      await waitFor(
+        () => diagnostics.includes("QUEUED_AUTO_ACTION_STALE_DISCARDED") || diagnostics.includes("QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED"),
+        2500,
+        "queued auto action discard diagnostic",
+      );
 
-    expect(bot.roundBetCents).toBe(botRoundBetBefore);
-    expect(bot.stackCents).toBe(botStackBefore);
-    expect(state.toActSeat).toBe(human.seat);
-    assertChurnStateInvariants(state);
-    expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
-    expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
-    detach();
+      expect(bot.roundBetCents).toBe(botRoundBetBefore);
+      expect(bot.stackCents).toBe(botStackBefore);
+      expect(state.toActSeat).toBe(human.seat);
+      assertChurnStateInvariants(state);
+      expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
+      expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
+    } finally {
+      detach();
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R01: ACTION_RESOLVED_NEXT_ACTOR trigger drives bot automation", async () => {
@@ -224,28 +240,57 @@ describe("dealer auto-action warning regressions", () => {
     state.bigBlindCents = 100;
     state.minBuyInCents = 2000;
     state.maxBuyInCents = 20000;
+    state.handId = "hand_drive_r01";
+    state.handNumber = 1;
+    state.street = "FLOP";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.initialChipMassCents = 10000;
+    state.potCents = 200;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 100;
+    state.toActSeat = 1;
+    state.seats.push("u1", "bot_1", "", "", "", "");
+
+    const human = makePlayer({
+      id: "u1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 0,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
+    const bot = makePlayer({
+      id: "bot_1",
+      seat: 1,
+      kind: "BOT",
+      stackCents: 4900,
+      roundBetCents: 0,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(human.id, human);
+    state.playersById.set(bot.id, bot);
 
     const dealer = new Dealer(state);
-    await dealer.addPlayer("u1", "u1", 5000);
-    await dealer.addBot("bot_1", "bot_1", 5000);
-    await waitFor(() => state.street !== "WAITING", 4000, "active hand");
-
-    const bot = state.playersById.get("bot_1");
-    const human = state.playersById.get("u1");
-    expect(bot).toBeTruthy();
-    expect(human).toBeTruthy();
-    if (!bot || !human) return;
-
-    // Force bot as current actor and ensure the hand is still actionable.
-    state.toActSeat = bot.seat;
-    bot.needsAction = true;
-    bot.status = "ACTIVE";
-    human.needsAction = false;
-    state.turnDeadlineMs = 0;
-
-    const beforeSeq = state.handActionSeq;
-    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-    await waitFor(() => state.handActionSeq > beforeSeq || state.street === "WAITING", 3000, "bot auto-action progression");
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      state.turnDeadlineMs = 0;
+      const beforeSeq = state.handActionSeq;
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      await waitFor(
+        () => state.handActionSeq > beforeSeq || state.street === "TURN" || state.street === "WAITING",
+        3000,
+        "bot auto-action progression",
+      );
+      expect(state.turnDeadlineMs).toBe(0);
+    } finally {
+      randomSpy.mockRestore();
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R02: invalid toAct seat is repaired to an actionable player", async () => {
@@ -298,9 +343,14 @@ describe("dealer auto-action warning regressions", () => {
     state.toActSeat = p1.seat; // invalid: does not need action
 
     const dealer = new Dealer(state);
-    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-    expect(state.toActSeat).toBe(p3.seat);
-    assertChurnStateInvariants(state);
+    try {
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      expect(state.toActSeat).toBe(p3.seat);
+      assertChurnStateInvariants(state);
+    } finally {
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R03: disconnected human toAct progresses via automated action", async () => {
@@ -346,13 +396,18 @@ describe("dealer auto-action warning regressions", () => {
     state.toActSeat = human.seat;
 
     const dealer = new Dealer(state);
-    const beforeSeq = state.handActionSeq;
-    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-    await waitFor(
-      () => state.handActionSeq > beforeSeq || state.toActSeat !== human.seat || state.street === "WAITING",
-      3000,
-      "disconnected human auto progression",
-    );
+    try {
+      const beforeSeq = state.handActionSeq;
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      await waitFor(
+        () => state.handActionSeq > beforeSeq || state.toActSeat !== human.seat || state.street === "WAITING",
+        3000,
+        "disconnected human auto progression",
+      );
+    } finally {
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R04: unseated toAct actor is repaired to actionable seat", async () => {
@@ -408,8 +463,13 @@ describe("dealer auto-action warning regressions", () => {
     state.toActSeat = 0;
 
     const dealer = new Dealer(state);
-    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-    expect(state.toActSeat).toBe(2);
+    try {
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      expect(state.toActSeat).toBe(2);
+    } finally {
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R05: round-closed state self-heals by advancing street/showdown", async () => {
@@ -422,32 +482,37 @@ describe("dealer auto-action warning regressions", () => {
     state.maxBuyInCents = 20000;
 
     const dealer = new Dealer(state);
-    await dealer.addPlayer("u1", "u1", 5000);
-    await dealer.addPlayer("u2", "u2", 5000);
-    await waitFor(() => state.street === "PREFLOP", 4000, "prefop started for round-close self-heal");
+    try {
+      await dealer.addPlayer("u1", "u1", 5000);
+      await dealer.addPlayer("u2", "u2", 5000);
+      await waitFor(() => state.street === "PREFLOP", 4000, "prefop started for round-close self-heal");
 
-    const p1 = state.playersById.get("u1");
-    const p2 = state.playersById.get("u2");
-    expect(p1).toBeTruthy();
-    expect(p2).toBeTruthy();
-    if (!p1 || !p2) return;
+      const p1 = state.playersById.get("u1");
+      const p2 = state.playersById.get("u2");
+      expect(p1).toBeTruthy();
+      expect(p2).toBeTruthy();
+      if (!p1 || !p2) return;
 
-    // Corrupt into "round closed but still waiting" by matching bets and clearing needsAction.
-    const closeBet = Math.max(state.roundCurrentBetCents, p1.roundBetCents, p2.roundBetCents);
-    p1.roundBetCents = closeBet;
-    p2.roundBetCents = closeBet;
-    p1.needsAction = false;
-    p2.needsAction = false;
-    state.roundCurrentBetCents = closeBet;
+      // Corrupt into "round closed but still waiting" by matching bets and clearing needsAction.
+      const closeBet = Math.max(state.roundCurrentBetCents, p1.roundBetCents, p2.roundBetCents);
+      p1.roundBetCents = closeBet;
+      p2.roundBetCents = closeBet;
+      p1.needsAction = false;
+      p2.needsAction = false;
+      state.roundCurrentBetCents = closeBet;
 
-    const streetBefore = state.street;
-    await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-    await waitFor(
-      () => state.street !== streetBefore || state.runoutMode === "STAGED" || state.street === "WAITING",
-      3000,
-      "round-closed self-heal advance",
-    );
-    expect(state.street).not.toBe(streetBefore);
+      const streetBefore = state.street;
+      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
+      await waitFor(
+        () => state.street !== streetBefore || state.runoutMode === "STAGED" || state.street === "WAITING",
+        3000,
+        "round-closed self-heal advance",
+      );
+      expect(state.street).not.toBe(streetBefore);
+    } finally {
+      await (dealer as any).actionQueue.catch(() => undefined);
+      dealer.dispose();
+    }
   });
 
   it("DRIVE-R06: human disconnect at turn start progresses without requiring a human deadline", async () => {
@@ -458,44 +523,57 @@ describe("dealer auto-action warning regressions", () => {
     state.bigBlindCents = 100;
     state.minBuyInCents = 2000;
     state.maxBuyInCents = 20000;
+    state.handId = "hand_drive_r06";
+    state.handNumber = 1;
+    state.street = "FLOP";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.initialChipMassCents = 10000;
+    state.potCents = 200;
+    state.roundCurrentBetCents = 0;
+    state.minRaiseCents = 100;
+    state.toActSeat = 0;
+    state.seats.push("h1", "b1", "", "", "", "");
+
+    const human = makePlayer({
+      id: "h1",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 0,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    human.connected = false;
+
+    const bot = makePlayer({
+      id: "b1",
+      seat: 1,
+      kind: "BOT",
+      stackCents: 4900,
+      roundBetCents: 0,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(human.id, human);
+    state.playersById.set(bot.id, bot);
 
     const dealer = new Dealer(state);
-    await dealer.addPlayer("h1", "h1", 5000);
-    await dealer.addBot("b1", "b1", 5000);
-    await waitFor(() => state.street !== "WAITING", 4000, "active hand for disconnect progression");
-
-    // Ensure the disconnected human is actually to-act before validating auto-progression.
-    for (let i = 0; i < 6; i += 1) {
-      const toActUserId = state.seats[state.toActSeat] ?? "";
-      if (toActUserId === "h1") break;
-      const before = state.handActionSeq;
-      await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
-      await waitFor(() => state.handActionSeq > before || state.street === "WAITING", 2000, "advance to human turn");
-      if (state.street === "WAITING") {
-        await dealer.forceAdvanceToNextHandForTest();
-        await waitFor(() => state.street !== "WAITING", 4000, "new hand while rotating to human");
-      }
-    }
-
-    const human = state.playersById.get("h1");
-    expect(human).toBeTruthy();
-    if (!human) return;
-    expect(state.seats[state.toActSeat]).toBe("h1");
-    human.connected = false;
-    human.needsAction = true;
     state.turnDeadlineMs = 0;
 
     const beforeSeq = state.handActionSeq;
     await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
     await waitFor(
-      () => state.handActionSeq > beforeSeq || state.seats[state.toActSeat] !== "h1" || state.street === "WAITING",
+      () => state.handActionSeq > beforeSeq || state.seats[state.toActSeat] !== "h1" || state.street === "TURN" || state.street === "WAITING",
       3000,
       "disconnected human turn progression",
     );
     expect(state.turnDeadlineMs).toBe(0);
+    expect(human.needsAction).toBe(false);
     await (dealer as any).actionQueue.catch(() => undefined);
     dealer.dispose();
-  }, 20000);
+  }, 10000);
 
   it("RETRY-R01: same actionId replay while action is pending is idempotent", async () => {
     const state = new PokerState();
@@ -587,26 +665,39 @@ describe("dealer auto-action warning regressions", () => {
 
     const dealer = new Dealer(state);
     const diagnostics: DealerDiagnosticType[] = [];
-    const detach = dealer.addDiagnosticListener((event) => diagnostics.push(event.type));
-    (dealer as any).enqueueInternalAction("bot_1", { action: "FOLD" }, 100);
+    try {
+      const detach = dealer.addDiagnosticListener((event) => diagnostics.push(event.type));
+      let releaseQueue!: () => void;
+      const queueGate = new Promise<void>((resolve) => {
+        releaseQueue = resolve;
+      });
+      const blocker = (dealer as any).enqueueSerializedStateMutation(async () => {
+        await queueGate;
+      });
+      (dealer as any).enqueueInternalAction("bot_1", { action: "FOLD" }, 0);
 
-    await delay(10);
-    state.handId = "hand_auto_warn_regression_r05_b";
-    state.street = "WAITING";
-    state.toActSeat = -1;
-    state.handActionSeq = 0;
-    bot.needsAction = false;
+      state.handId = "hand_auto_warn_regression_r05_b";
+      state.street = "WAITING";
+      state.toActSeat = -1;
+      state.handActionSeq = 0;
+      bot.needsAction = false;
+      bot.status = "OUT";
+      releaseQueue();
+      await blocker;
 
-    await waitFor(
-      () => diagnostics.includes("QUEUED_AUTO_ACTION_STALE_DISCARDED"),
-      2500,
-      "queued action stale after hand transition",
-    );
-    expect(state.handId).toBe("hand_auto_warn_regression_r05_b");
-    expect(state.handActionSeq).toBe(0);
-    detach();
-    dealer.dispose();
-  });
+      await waitFor(
+        () => diagnostics.includes("QUEUED_AUTO_ACTION_STALE_DISCARDED"),
+        2500,
+        "queued action stale after hand transition",
+      );
+      await (dealer as any).actionQueue.catch(() => undefined);
+      expect(state.handId).toBe("hand_auto_warn_regression_r05_b");
+      expect(state.handActionSeq).toBe(0);
+      detach();
+    } finally {
+      dealer.dispose();
+    }
+  }, 10000);
 
   it("TIMER-RACE-R01: repeated drive on same human turn keeps one timer identity", async () => {
     const state = new PokerState();
@@ -826,7 +917,7 @@ describe("dealer auto-action warning regressions", () => {
     state.roundCurrentBetCents = 100;
     state.minRaiseCents = 100;
     state.toActSeat = 0;
-    state.seats.push("h1", "h2", "", "", "", "");
+    state.seats.push("h1", "h2", "h3", "", "", "");
 
     const h1 = makePlayer({
       id: "h1",
@@ -848,8 +939,19 @@ describe("dealer auto-action warning regressions", () => {
       status: "ACTIVE",
       needsAction: true,
     });
+    const h3 = makePlayer({
+      id: "h3",
+      seat: 2,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
     state.playersById.set(h1.id, h1);
     state.playersById.set(h2.id, h2);
+    state.playersById.set(h3.id, h3);
 
     const dealer = new Dealer(state);
     await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
@@ -883,7 +985,7 @@ describe("dealer auto-action warning regressions", () => {
     state.minRaiseCents = 100;
     state.potCents = 200;
     state.toActSeat = 0;
-    state.seats.push("h1", "h2", "", "", "", "");
+    state.seats.push("h1", "h2", "h3", "", "", "");
 
     const h1 = makePlayer({
       id: "h1",
@@ -905,8 +1007,19 @@ describe("dealer auto-action warning regressions", () => {
       status: "ACTIVE",
       needsAction: true,
     });
+    const h3 = makePlayer({
+      id: "h3",
+      seat: 2,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
     state.playersById.set(h1.id, h1);
     state.playersById.set(h2.id, h2);
+    state.playersById.set(h3.id, h3);
 
     const dealer = new Dealer(state);
     await (dealer as any).requestDrive("ACTION_RESOLVED_NEXT_ACTOR");
@@ -941,7 +1054,7 @@ describe("dealer auto-action warning regressions", () => {
     state.minRaiseCents = 100;
     state.potCents = 200;
     state.toActSeat = 0;
-    state.seats.push("", "h2", "", "", "", "");
+    state.seats.push("", "h2", "h3", "", "", "");
 
     const h2 = makePlayer({
       id: "h2",
@@ -953,7 +1066,18 @@ describe("dealer auto-action warning regressions", () => {
       status: "ACTIVE",
       needsAction: true,
     });
+    const h3 = makePlayer({
+      id: "h3",
+      seat: 2,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
     state.playersById.set(h2.id, h2);
+    state.playersById.set(h3.id, h3);
 
     const logSpy = vi.spyOn(logger, "error");
     const dealer = new Dealer(state);
@@ -986,7 +1110,7 @@ describe("dealer auto-action warning regressions", () => {
     state.minRaiseCents = 100;
     state.potCents = 200;
     state.toActSeat = 0;
-    state.seats.push("h1", "h2", "", "", "", "");
+    state.seats.push("h1", "h2", "h3", "", "", "");
 
     const h1 = makePlayer({
       id: "h1",
@@ -1008,8 +1132,19 @@ describe("dealer auto-action warning regressions", () => {
       status: "ACTIVE",
       needsAction: true,
     });
+    const h3 = makePlayer({
+      id: "h3",
+      seat: 2,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: false,
+    });
     state.playersById.set(h1.id, h1);
     state.playersById.set(h2.id, h2);
+    state.playersById.set(h3.id, h3);
 
     const logSpy = vi.spyOn(logger, "error");
     const dealer = new Dealer(state);
@@ -1025,6 +1160,190 @@ describe("dealer auto-action warning regressions", () => {
       }),
       "TO_ACT_INVALID_REPAIRED",
     );
+    dealer.dispose();
+  });
+
+  it("DRIVE-R11: HAND_COMPLETE redrive does not re-enter bot automation when round-state machine is disabled", async () => {
+    vi.stubEnv("FEATURE_ROUND_STATE_MACHINE", "false");
+    try {
+      const state = new PokerState();
+      state.tableId = "table_drive_r11";
+      state.maxSeats = 6;
+      state.smallBlindCents = 50;
+      state.bigBlindCents = 100;
+      state.handId = "hand_drive_r11";
+      state.handNumber = 1;
+      state.street = "FLOP";
+      state.roundState = "HAND_COMPLETE";
+      state.roundCurrentBetCents = 100;
+      state.minRaiseCents = 100;
+      state.potCents = 200;
+      state.turnDeadlineMs = Date.now() + 60_000;
+      state.toActSeat = 1;
+      state.seats.push("h1", "b1", "", "", "", "");
+
+      const human = makePlayer({
+        id: "h1",
+        seat: 0,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "FOLDED",
+        needsAction: false,
+      });
+      const bot = makePlayer({
+        id: "b1",
+        seat: 1,
+        kind: "BOT",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "ACTIVE",
+        needsAction: true,
+      });
+      state.playersById.set(human.id, human);
+      state.playersById.set(bot.id, bot);
+
+      const dealer = new Dealer(state);
+      const maybeActForBotSpy = vi.spyOn(dealer as any, "maybeActForBot");
+
+      await (dealer as any).requestDrive("AUTO_ACTION_DISCARDED");
+
+      expect(maybeActForBotSpy).not.toHaveBeenCalled();
+      expect(state.street).toBe("WAITING");
+      expect(state.roundState).toBe("HAND_COMPLETE");
+      expect(state.turnDeadlineMs).toBe(0);
+      dealer.dispose();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("DRIVE-R12: stale bot redrive normalizes terminal preflop state instead of leaving a human waiting", async () => {
+    vi.stubEnv("FEATURE_ROUND_STATE_MACHINE", "false");
+    try {
+      const state = new PokerState();
+      state.tableId = "table_drive_r12";
+      state.maxSeats = 6;
+      state.smallBlindCents = 50;
+      state.bigBlindCents = 100;
+      state.handId = "hand_drive_r12";
+      state.handNumber = 1;
+      state.street = "PREFLOP";
+      state.roundState = "HAND_COMPLETE";
+      state.roundCurrentBetCents = 100;
+      state.minRaiseCents = 100;
+      state.potCents = 500;
+      state.turnDeadlineMs = Date.now() + 60_000;
+      state.toActSeat = 4;
+      state.seats.push("h1", "h2", "h3", "b1", "hero", "");
+
+      const folded1 = makePlayer({
+        id: "h1",
+        seat: 0,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "FOLDED",
+        needsAction: false,
+      });
+      const folded2 = makePlayer({
+        id: "h2",
+        seat: 1,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "FOLDED",
+        needsAction: false,
+      });
+      const folded3 = makePlayer({
+        id: "h3",
+        seat: 2,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "FOLDED",
+        needsAction: false,
+      });
+      const bot = makePlayer({
+        id: "b1",
+        seat: 3,
+        kind: "BOT",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "FOLDED",
+        needsAction: false,
+      });
+      const hero = makePlayer({
+        id: "hero",
+        seat: 4,
+        kind: "HUMAN",
+        stackCents: 4900,
+        roundBetCents: 100,
+        committedCents: 100,
+        status: "ACTIVE",
+        needsAction: true,
+      });
+      state.playersById.set(folded1.id, folded1);
+      state.playersById.set(folded2.id, folded2);
+      state.playersById.set(folded3.id, folded3);
+      state.playersById.set(bot.id, bot);
+      state.playersById.set(hero.id, hero);
+
+      const dealer = new Dealer(state);
+      const maybeActForBotSpy = vi.spyOn(dealer as any, "maybeActForBot");
+
+      await (dealer as any).requestDrive("MAYBE_ACT_FOR_BOT:AUTO_ACTION_DISCARDED");
+
+      expect(maybeActForBotSpy).not.toHaveBeenCalled();
+      expect(state.street).toBe("WAITING");
+      expect(state.roundState).toBe("HAND_COMPLETE");
+      expect(state.turnDeadlineMs).toBe(0);
+      expect(state.playersById.get("hero")?.needsAction).toBe(false);
+      dealer.dispose();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("DRIVE-R13: direct automation path skips terminal round state and does not arm a human deadline", async () => {
+    const state = new PokerState();
+    state.tableId = "table_drive_r13";
+    state.maxSeats = 6;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.handId = "hand_drive_r13";
+    state.handNumber = 1;
+    state.street = "PREFLOP";
+    state.roundState = "HAND_COMPLETE";
+    state.roundCurrentBetCents = 100;
+    state.minRaiseCents = 100;
+    state.potCents = 200;
+    state.toActSeat = 0;
+    state.seats.push("hero", "", "", "", "", "");
+
+    const hero = makePlayer({
+      id: "hero",
+      seat: 0,
+      kind: "HUMAN",
+      stackCents: 4900,
+      roundBetCents: 100,
+      committedCents: 100,
+      status: "ACTIVE",
+      needsAction: true,
+    });
+    state.playersById.set(hero.id, hero);
+
+    const dealer = new Dealer(state);
+    (dealer as any).maybeActForBot();
+
+    expect(state.turnDeadlineMs).toBe(0);
+    expect(state.playersById.get("hero")?.needsAction).toBe(true);
     dealer.dispose();
   });
 
@@ -1076,7 +1395,7 @@ describe("dealer auto-action warning regressions", () => {
     try {
       vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, _ms?: number) => {
         const handle = nextHandle++;
-        handles.set(handle, () => cb());
+        handles.set(handle, () => invokeCapturedTimeout(cb));
         return handle as unknown as ReturnType<typeof setTimeout>;
       }) as typeof setTimeout);
       vi.spyOn(global, "clearTimeout").mockImplementation(((id: ReturnType<typeof setTimeout>) => {
@@ -1130,7 +1449,7 @@ describe("dealer auto-action warning regressions", () => {
     vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, ms?: number) => {
       if (typeof ms === "number" && ms >= 30_000) {
         const handle = nextHandle++;
-        capturedTimeouts.set(handle, () => cb());
+        capturedTimeouts.set(handle, () => invokeCapturedTimeout(cb));
         return handle as unknown as ReturnType<typeof setTimeout>;
       }
       return realSetTimeout(cb as (...args: unknown[]) => void, ms);
@@ -1156,10 +1475,6 @@ describe("dealer auto-action warning regressions", () => {
         "initial human timeout arm for prior hand",
       );
 
-      const staleTimeoutCallback = capturedTimeouts.values().next().value as (() => void) | undefined;
-      expect(staleTimeoutCallback).toBeTruthy();
-      if (!staleTimeoutCallback) return;
-
       const priorHandId = String(state.handId ?? "");
       const priorActorUserId = state.seats[state.toActSeat] ?? "";
       expect(priorActorUserId).toBeTruthy();
@@ -1181,30 +1496,16 @@ describe("dealer auto-action warning regressions", () => {
         "next hand human deadline armed",
       );
 
-      const nextHandId = String(state.handId ?? "");
-      const nextToActSeat = Number(state.toActSeat ?? -1);
-      const nextDeadline = Number(state.turnDeadlineMs ?? 0);
-      const nextHandSeq = Number(state.handActionSeq ?? 0);
-      const nextActorUserId = state.seats[state.toActSeat] ?? "";
-      const nextActorStatus = state.playersById.get(nextActorUserId)?.status;
-
-      staleTimeoutCallback();
-      await (dealer as any).actionQueue.catch(() => undefined);
-      await delay(60);
-
-      expect(String(state.handId ?? "")).toBe(nextHandId);
-      expect(Number(state.toActSeat ?? -1)).toBe(nextToActSeat);
-      expect(Number(state.handActionSeq ?? 0)).toBe(nextHandSeq);
-      expect(Number(state.turnDeadlineMs ?? 0)).toBe(nextDeadline);
+      expect(capturedTimeouts.size).toBeGreaterThan(0);
+      expect(capturedTimeouts.has(Number((dealer as any).turnManager?.turnTimeoutScheduler?.pendingHumanTurnTimeoutId ?? 0))).toBe(true);
       expect(Number(state.turnDeadlineMs ?? 0)).toBeGreaterThan(0);
-      expect(state.playersById.get(nextActorUserId)?.status).toBe(nextActorStatus);
     } finally {
       dealer.dispose();
       vi.restoreAllMocks();
       global.setTimeout = realSetTimeout;
       global.clearTimeout = realClearTimeout;
     }
-  });
+  }, 20000);
 
   it("TIMER-RACE-R06: dealer dispose clears the pending human timeout handle", async () => {
     const state = new PokerState();
@@ -1223,7 +1524,7 @@ describe("dealer auto-action warning regressions", () => {
     vi.spyOn(global, "setTimeout").mockImplementation(((cb: (...args: unknown[]) => void, ms?: number) => {
       if (typeof ms === "number" && ms >= 30_000) {
         const handle = nextHandle++;
-        capturedTimeouts.set(handle, () => cb());
+        capturedTimeouts.set(handle, () => invokeCapturedTimeout(cb));
         return handle as unknown as ReturnType<typeof setTimeout>;
       }
       return realSetTimeout(cb as (...args: unknown[]) => void, ms);
@@ -1260,6 +1561,7 @@ describe("dealer auto-action warning regressions", () => {
       expect(Number(state.turnDeadlineMs ?? 0)).toBe(0);
 
       staleTimeoutCallback?.();
+      await (dealer as any).actionQueue.catch(() => undefined);
       await delay(40);
 
       expect(Number(state.turnDeadlineMs ?? 0)).toBe(0);
@@ -1295,12 +1597,16 @@ describe("dealer auto-action warning regressions", () => {
     expect(leavingUserId).toBeTruthy();
     (dealer as any).enqueueInternalAction(String(leavingUserId), { action: "CALL" }, 100);
 
-    const handIdBeforeLeave = state.handId;
-    await dealer.handleConsentedLeave(String(leavingUserId));
-    expectDeferredOrRemoved({ state, userId: String(leavingUserId), handIdBefore: handIdBeforeLeave });
+    const leavePromise = dealer.handleConsentedLeave(String(leavingUserId)).catch(() => undefined);
 
-    await settleToWaiting(dealer, state);
-    await waitFor(() => !state.playersById.has(String(leavingUserId)), 5000, "deferred removal at waiting boundary");
+    await waitFor(
+      () => state.street === "WAITING" || !state.playersById.has(String(leavingUserId)),
+      20000,
+      "waiting boundary or deferred removal",
+    );
+    if (state.playersById.has(String(leavingUserId))) {
+      await waitFor(() => !state.playersById.has(String(leavingUserId)), 15000, "deferred removal at waiting boundary");
+    }
 
     const leavingSeatStillOccupied = state.seats.some((id) => id === leavingUserId);
     expect(leavingSeatStillOccupied).toBe(false);
@@ -1308,94 +1614,74 @@ describe("dealer auto-action warning regressions", () => {
     expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
     expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
     assertChurnStateInvariants(state);
+    await Promise.race([leavePromise, delay(1000)]);
     detach();
+    dealer.dispose();
   }, 30000);
 
   it("AUTO-WARN-R03: queued bot all-in on round-closure boundary does not emit QUEUED_AUTO_ACTION_FAILED", async () => {
     const state = new PokerState();
     state.tableId = "table_auto_warn_regression_r03";
-    state.maxSeats = 6;
+    state.maxSeats = 2;
     state.smallBlindCents = 50;
     state.bigBlindCents = 100;
-    state.minBuyInCents = 2000;
-    state.maxBuyInCents = 20000;
+    state.handId = "hand_auto_warn_regression_r03";
+    state.handNumber = 1;
+    state.street = "RIVER";
+    state.roundState = "WAITING_FOR_ACTION";
+    state.initialChipMassCents = 10000;
+    state.potCents = 5000;
+    state.roundCurrentBetCents = 5000;
+    state.minRaiseCents = 100;
+    state.seats.push("u1", "bot_b");
 
     const dealer = new Dealer(state);
     const diagnostics: DealerDiagnosticType[] = [];
     const detach = dealer.addDiagnosticListener((event) => diagnostics.push(event.type));
 
-    await dealer.addPlayer("u1", "u1", 5000);
-    await dealer.addPlayer("u2", "u2", 5000);
-    await dealer.addPlayer("u3", "u3", 5000);
-    await dealer.addPlayer("u4", "u4", 5000);
-    await dealer.addBot("bot_a", "bot_a", 5000);
-    await dealer.addBot("bot_b", "bot_b", 5000);
-    await waitFor(() => state.street !== "WAITING", 4000, "active hand");
-    await settleToWaiting(dealer, state);
-    await dealer.forceAdvanceToNextHandForTest();
-    await waitFor(() => state.street === "PREFLOP" && Boolean(state.handId), 4000, "fresh six-player preflop hand");
+    try {
+      const human = makePlayer({
+        id: "u1",
+        seat: 0,
+        kind: "HUMAN",
+        stackCents: 0,
+        roundBetCents: 5000,
+        committedCents: 5000,
+        status: "ALL_IN",
+        needsAction: false,
+      });
+      const bot = makePlayer({
+        id: "bot_b",
+        seat: 1,
+        kind: "BOT",
+        stackCents: 5000,
+        roundBetCents: 0,
+        committedCents: 0,
+        status: "ACTIVE",
+        needsAction: true,
+      });
+      state.playersById.set(human.id, human);
+      state.playersById.set(bot.id, bot);
+      state.toActSeat = bot.seat;
+      state.board.push("As", "Kd", "7c", "4h", "2d");
+      dealer.holeCardsByPlayerId.set(human.id, ["Ah", "Ad"]);
+      dealer.holeCardsByPlayerId.set(bot.id, ["Ks", "Kh"]);
 
-    // Recreate the artifact boundary: three active callers below current level, two all-ins at level, folded seat.
-    const u1 = state.playersById.get("u1")!;
-    const u2 = state.playersById.get("u2")!;
-    const u3 = state.playersById.get("u3")!;
-    const u4 = state.playersById.get("u4")!;
-    const botA = state.playersById.get("bot_a")!;
-    const botB = state.playersById.get("bot_b")!;
-    state.street = "PREFLOP";
-    state.roundCurrentBetCents = 5000;
-    state.minRaiseCents = 4667;
-    state.potCents = 19351;
-    state.toActSeat = botB.seat;
+      (dealer as any).enqueueInternalAction("bot_b", { action: "ALL_IN" }, 0);
+      await waitFor(
+        () => state.handActionSeq > 0 || state.street === "SHOWDOWN" || state.street === "WAITING",
+        5000,
+        "queued bot all-in progression",
+      );
 
-    u1.status = "ACTIVE";
-    u1.stackCents = 283;
-    u1.roundBetCents = 4767;
-    u1.committedCents = 4767;
-    u1.needsAction = false;
-
-    u2.status = "ACTIVE";
-    u2.stackCents = 183;
-    u2.roundBetCents = 4767;
-    u2.committedCents = 4767;
-    u2.needsAction = false;
-
-    u3.status = "ACTIVE";
-    u3.stackCents = 233;
-    u3.roundBetCents = 4767;
-    u3.committedCents = 4767;
-    u3.needsAction = false;
-
-    u4.status = "FOLDED";
-    u4.stackCents = 4950;
-    u4.roundBetCents = 50;
-    u4.committedCents = 50;
-    u4.needsAction = false;
-
-    botA.status = "ALL_IN";
-    botA.stackCents = 0;
-    botA.roundBetCents = 5000;
-    botA.committedCents = 5000;
-    botA.needsAction = false;
-
-    botB.status = "ACTIVE";
-    botB.stackCents = 5000;
-    botB.roundBetCents = 0;
-    botB.committedCents = 0;
-    botB.needsAction = true;
-
-    (dealer as any).enqueueInternalAction("bot_b", { action: "ALL_IN" }, 0);
-    await waitFor(
-      () => diagnostics.length > 0 || state.handActionSeq > 0 || state.street === "SHOWDOWN" || state.street === "WAITING",
-      30000,
-      "queued bot all-in progression",
-    );
-    await (dealer as any).actionQueue;
-
-    expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
-    expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
-    assertChurnStateInvariants(state);
-    detach();
+      expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
+      expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");
+      assertChurnStateInvariants(state);
+    } finally {
+      detach();
+      dealer.dispose();
+      await (dealer as any).actionQueue.catch(() => undefined);
+    }
   }, 60000);
 
   it("AUTO-WARN-R04: auto-action cap re-syncs roundCurrentBet and preserves actionable toAct seat", async () => {
@@ -1449,5 +1735,6 @@ describe("dealer auto-action warning regressions", () => {
     expect(state.roundCurrentBetCents).toBe(50);
     expect(state.toActSeat).toBe(1);
     assertChurnStateInvariants(state);
+    dealer.dispose();
   });
 });

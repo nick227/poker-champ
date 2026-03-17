@@ -78,6 +78,22 @@ function makeSnapshot(seq: number, tableId = "t1"): TableSnapshotPayload {
   };
 }
 
+function primePendingAction(tableId = "t1", createdAtTs = Date.now()) {
+  useMultiTableStore.setState({
+    pendingActionByTableId: {
+      [tableId]: {
+        actionId: "pending-1",
+        payload: {
+          actionId: "pending-1",
+          action: "CALL",
+        },
+        retriesLeft: 3,
+        createdAtTs,
+      },
+    },
+  });
+}
+
 function dispatchTableMessage(
   tableId: string,
   type: string,
@@ -131,6 +147,83 @@ describe("useTableRealtime behavior", () => {
 
     expect(useTableStore.getState().snapshotsByTableId["t1"]).toEqual(snap);
     expect(useTableStore.getState().lastSeqByTableId["t1"]).toBe(1);
+  });
+
+  it("clears pending action when snapshot echoes the resolvedActionId", () => {
+    const snap = {
+      ...makeSnapshot(1),
+      resolvedActionId: "pending-1",
+    };
+    primePendingAction();
+
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeUndefined();
+  });
+
+  it("keeps pending action when a snapshot ends the hand without resolvedActionId", () => {
+    const snap = {
+      ...makeSnapshot(1),
+      hand: undefined,
+      lastHandResult: {
+        handId: "h1",
+        reason: "LAST_PLAYER" as const,
+        potCents: 150,
+        payoutsByUserId: { u1: 150 },
+      },
+    };
+    primePendingAction();
+
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeDefined();
+  });
+
+  it("keeps pending action when turn moves off hero without resolvedActionId", () => {
+    const snap = {
+      ...makeSnapshot(1),
+      hand: {
+        ...makeSnapshot(1).hand!,
+        toActSeat: 1,
+      },
+      lastAction: {
+        handId: "h1",
+        seq: 2,
+        street: "PREFLOP" as const,
+        actorUserId: "u1",
+        actorKind: "HUMAN" as const,
+        action: "CALL" as const,
+        amountCents: 100,
+        potAfterCents: 250,
+        origin: "PLAYER" as const,
+        createdAtTs: Date.now(),
+      },
+    };
+    primePendingAction();
+
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeDefined();
+  });
+
+  it("keeps pending action when hero is still to act and no matching resolvedActionId arrived", () => {
+    const createdAtTs = Date.now();
+    const snap = {
+      ...makeSnapshot(1),
+      hand: {
+        ...makeSnapshot(1).hand!,
+        toActSeat: 0,
+      },
+      seats: makeSnapshot(1).seats.map((seat) => ({
+        ...seat,
+        isToAct: seat.seat === 0,
+      })),
+    };
+    primePendingAction("t1", createdAtTs);
+
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeDefined();
   });
 
   it("WELCOME NEW + seq=1 replaces stale snapshot stream", () => {

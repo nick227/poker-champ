@@ -106,6 +106,7 @@ describe("Odds Subsystem Independence", () => {
         primaryWagerAction: "NONE",
         callAmount: 250,
       }),
+      getResolvedActionId: () => undefined,
       getLastAction: () => undefined,
       getLastHandResult: () => undefined,
       getTurnTimeoutTotalMs: () => 20 * 60_000,

@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { Button } from "@/components/base/Button";
 import { ChipButton } from "@/components/base/ChipButton";
 import { TABLE } from "@/constants/copy";
 import type { Permissions, ActionHandlers } from "./actionBar.controller";
@@ -14,6 +15,21 @@ export function WagerChips({ permissions, actions }: WagerChipsProps) {
   if (!showRow) {
     return <View collapsable={false} style={[actionBarStyles.chipsRow, { width: "100%" }]} />;
   }
+
+  // When only ALL IN is available (no wager chips), render it full-size to match the main action buttons.
+  if (!permissions.canWager && permissions.canAllIn) {
+    return (
+      <View className="ui-row" style={actionBarStyles.buttonsRow}>
+        <Button
+          variant="ghost"
+          title={TABLE.allIn}
+          onPress={actions.allIn}
+          className="flex-1 min-w-0"
+        />
+      </View>
+    );
+  }
+
   return (
     <View className="ui-row justify-center" style={actionBarStyles.chipsRow}>
       {permissions.canWager ? (

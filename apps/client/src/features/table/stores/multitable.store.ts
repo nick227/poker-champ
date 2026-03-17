@@ -8,10 +8,11 @@ import { isValidTableInbound } from "@/realtime/contract.guards";
 type RealtimeSender = (type: string, payload?: unknown) => boolean;
 type TableJoinState = { buyInCents?: number; password?: string };
 
-type PendingAction = {
+export type PendingAction = {
   actionId: string;
   payload: ReturnType<typeof toServerActionPayload>;
   retriesLeft: number;
+  createdAtTs: number;
 };
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -210,12 +211,13 @@ export const useMultiTableStore = create<MultiTableState>()(
       dispatchTableAction: ({ tableId, action, amountCents }): boolean => {
         const sender = get().tableSenders[tableId];
         if (!sender) return false;
+        if (get().pendingActionByTableId[tableId]) return false;
         const payload = toServerActionPayload({ action, amountCents });
         if (!isValidTableInbound("ACTION", payload)) return false;
         set((s) => ({
           pendingActionByTableId: {
             ...s.pendingActionByTableId,
-            [tableId]: { actionId: payload.actionId, payload, retriesLeft: 3 },
+            [tableId]: { actionId: payload.actionId, payload, retriesLeft: 3, createdAtTs: Date.now() },
           },
         }));
         return sender("ACTION", payload);

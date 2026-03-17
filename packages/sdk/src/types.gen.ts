@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["rootStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/openapi.json": {
         parameters: {
             query?: never;
@@ -814,6 +830,12 @@ export interface components {
             contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | null;
             contextId?: string | null;
         };
+        RootStatus: {
+            service: string;
+            status: string;
+            health: string;
+            openapi: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -823,6 +845,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    rootStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RootStatus"];
+                };
+            };
+        };
+    };
     openapiSpec: {
         parameters: {
             query?: never;
