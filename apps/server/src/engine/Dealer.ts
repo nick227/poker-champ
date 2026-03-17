@@ -1123,6 +1123,11 @@ export class Dealer {
 
   /** Stats flush is done by flushSessionStatsOnly() before HAND_END snapshot; this only transitions and clears context. */
   private transitionToWaiting(): void {
+    this.resolvedActionId = undefined;
+    this.state.toActSeat = -1;
+    for (const p of this.state.playersById.values()) {
+      p.needsAction = false;
+    }
     this.setNextStepOwner("IDLE", "TRANSITION_TO_WAITING");
     this.handOrchestrator.transitionToWaiting();
   }
@@ -1332,11 +1337,27 @@ export class Dealer {
   // Hand initiation, street progression, and completion scenarios
 
   private async startHand() {
+    logger.info({
+      handId: this.state.handId,
+      street: this.state.street,
+      toActSeat: this.state.toActSeat,
+      resolvedActionId: this.resolvedActionId,
+      runoutMode: this.state.runoutMode,
+      roundState: this.state.roundState,
+      nextStepOwner: this.nextStepOwner,
+      driveInProgress: this.driveInProgress,
+      activeTerminalLifecycle: this.activeTerminalLifecycle,
+      completedTerminalLifecycle: this.completedTerminalLifecycle,
+      queueDepth: this.turnManager.getQueueDepth(),
+      reason: "START_HAND_TOP"
+    }, "DEBUG_START_HAND_STATE");
+
     if (!this.driveInProgress) {
       await this.requestDrive("START_HAND:EXTERNAL_ENTRY");
       return;
     }
     this.resolvedActionId = undefined;
+    this.state.toActSeat = -1;
     this.activeTerminalLifecycle = null;
     this.completedTerminalLifecycle = null;
     this.setNextStepOwner("RUNNING_LIFECYCLE", "START_HAND");
@@ -1554,6 +1575,21 @@ export class Dealer {
       // WAITING: between-hands timer running or not enough players.
       if (street === "WAITING") {
         if (this.state.nextHandAtTs === 0 && countNonOutPlayers(this.state) >= 2) {
+          logger.info({
+            handId: this.state.handId,
+            street: this.state.street,
+            toActSeat: this.state.toActSeat,
+            resolvedActionId: this.resolvedActionId,
+            runoutMode: this.state.runoutMode,
+            roundState: this.state.roundState,
+            nextStepOwner: this.nextStepOwner,
+            driveInProgress: this.driveInProgress,
+            activeTerminalLifecycle: this.activeTerminalLifecycle,
+            completedTerminalLifecycle: this.completedTerminalLifecycle,
+            queueDepth: this.turnManager.getQueueDepth(),
+            reason: "BEFORE_START_HAND_CALL"
+          }, "DEBUG_START_HAND_STATE");
+          
           await this.startHand();
         }
         return;
@@ -2048,12 +2084,14 @@ export class Dealer {
         this.logActionResolvedNextActor();
         return;
       case "HAND_FINISHED":
+        logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_HAND_FINISHED");
         this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:HAND_FINISHED");
         await this.requestDrive("FINISH_HAND_LAST_STANDING:APPLY_ACTION_RESULT_HAND_FINISHED");
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
       case "STREET_COMPLETE":
+        logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_STREET_COMPLETE");
         this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:STREET_COMPLETE");
         await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
         maybeAssertBettingState(this.state);
@@ -2124,6 +2162,13 @@ export class Dealer {
    * Observation only — never throws, never mutates state.
    */
   private assertProgressionOwnershipInvariant(trigger: string): void {
+    if (this.state.street === "WAITING") {
+      const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+      const anyPlayerNeedsAction = [...this.state.playersById.values()].some(p => p.needsAction);
+      if (this.state.toActSeat >= 0 || toActUserId !== "" || anyPlayerNeedsAction || this.state.roundState === "WAITING_FOR_ACTION" || this.nextStepOwner === "WAITING_FOR_HUMAN") {
+        logger.error({ tableId: this.state.tableId, handId: this.state.handId, toActSeat: this.state.toActSeat, toActUserId, anyPlayerNeedsAction, roundState: this.state.roundState, nextStepOwner: this.nextStepOwner, trigger }, "WAITING_STATE_INVARIANT_VIOLATION");
+      }
+    }
     const street = this.state.street;
     const owner = this.nextStepOwner;
 
@@ -2459,4 +2504,8 @@ export class Dealer {
   }
 
 }
+
+
+
+
 

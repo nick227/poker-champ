@@ -467,6 +467,7 @@ export class HandLifecycleService {
     state.board.clear();
     state.potCents = 0;
     state.handActionSeq = 0;
+    state.toActSeat = -1;
     state.actionCount = 0;
     state.initialChipMassCents = 0;
     state.nextHandAtTs = 0;
@@ -1203,3 +1204,4 @@ export class HandLifecycleService {
 
 
 }
+

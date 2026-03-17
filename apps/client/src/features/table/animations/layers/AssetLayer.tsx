@@ -61,10 +61,10 @@ export function AssetLayer({
     return (
       <Video
         ref={videoRef}
-        style={{ flex: 1 }}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
         pointerEvents="none"
         source={resolvedSource}
-        resizeMode={ResizeMode.COVER}
+        resizeMode={ResizeMode.CONTAIN}
         isLooping={false}
         shouldPlay
         onPlaybackStatusUpdate={(status) => {
