@@ -110,17 +110,32 @@ export class HandOrchestrator {
     try {
       const plans = await this.deps.handLifecycleService.startHand();
       if (this.deps.state.street === "WAITING") {
+        const readyPlayers = resolvePlayersReadyForNextHand(this.deps.state);
         logger.warn(
           {
             tableId: this.deps.state.tableId,
             handId: this.deps.state.handId,
             plans: plans.map((p) => p.kind),
+            reason: "START_HAND_ABORT_NO_PROGRESS",
+            readyPlayers: readyPlayers.map((player) => ({
+              userId: player.id,
+              seat: player.seat,
+              status: player.status,
+              connected: player.connected,
+              stackCents: player.stackCents,
+              sittingOutUntilNextHand: player.sittingOutUntilNextHand === true,
+            })),
+            readyPlayerCount: readyPlayers.length,
+            nextHandAtTs: this.deps.state.nextHandAtTs,
           },
           "START_HAND_ABORTED_RETURNED_TO_WAITING"
         );
 
         this.deps.setCurrentHand(null);
-        await this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
+        // Avoid awaiting requestDrive from inside an active drive loop.
+        // requestDrive() waits on the current drivePromise when a drive is already in progress,
+        // so awaiting it here self-deadlocks the abort path.
+        void this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
 
         return;
       }

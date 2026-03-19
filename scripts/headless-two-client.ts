@@ -141,6 +141,18 @@ async function main() {
   };
   const hasAnySeatedUserSnapshot = (): boolean =>
     (["user_a", "user_b", "user_c"] as const).some((userId) => Boolean(snapshots[userId]?.hero?.youAreSeated));
+  const resolveReadyUsersForNextHand = (): UserId[] =>
+    (["user_a", "user_b", "user_c"] as const).filter((userId) => {
+      const player = room.state?.playersById.get(userId);
+      return Boolean(
+        player &&
+        room.state?.seats?.includes(userId) &&
+        player.status !== "OUT" &&
+        player.status !== "ABANDONED" &&
+        player.stackCents > 0 &&
+        player.sittingOutUntilNextHand !== true,
+      );
+    });
   const canAct = (userId: UserId): boolean => {
     const opts = snapshots[userId]?.hero?.actionOptions;
     return Boolean(
@@ -321,12 +333,16 @@ async function main() {
     }
 
     let reconnectUserId = resolveSnapshotActorUserId();
+    if (!reconnectUserId && roomStreet() === "WAITING") {
+      reconnectUserId = resolveReadyUsersForNextHand()[0];
+    }
     if (!reconnectUserId) {
       try {
         await waitFor(() => Boolean(resolveSnapshotActorUserId()), 6000, "reconnect target actor");
       } catch {}
       reconnectUserId =
         resolveSnapshotActorUserId() ??
+        resolveReadyUsersForNextHand()[0] ??
         (snapshots.user_a?.hero.youAreSeated
           ? "user_a"
           : snapshots.user_b?.hero.youAreSeated
@@ -387,41 +403,43 @@ async function main() {
     }
 
     // Strict reconnect path: simulate transport drop and room-level reconnection grace recovery.
-    const graceUserId: UserId = reconnectUserId === "user_a" ? "user_b" : "user_a";
-    const previousClient = clients[graceUserId];
-    const restoredGraceClient = makeClient(`sess_${graceUserId}_grace_restore`, graceUserId);
-    sessionRestored[graceUserId] = false;
-    const previousSnapshotId = snapshots[graceUserId]?.snapshotId;
+    const graceUserId = resolveReadyUsersForNextHand().find((userId) => userId !== reconnectUserId);
+    if (graceUserId) {
+      const previousClient = clients[graceUserId];
+      const restoredGraceClient = makeClient(`sess_${graceUserId}_grace_restore`, graceUserId);
+      sessionRestored[graceUserId] = false;
+      const previousSnapshotId = snapshots[graceUserId]?.snapshotId;
 
-    const originalAllowReconnection = room.allowReconnection.bind(room);
-    (room as any).allowReconnection = async () => restoredGraceClient as any;
+      const originalAllowReconnection = room.allowReconnection.bind(room);
+      (room as any).allowReconnection = async () => restoredGraceClient as any;
 
-    try {
-      await room.onLeave(previousClient as any, 1006);
-    } finally {
-      (room as any).allowReconnection = originalAllowReconnection;
-    }
+      try {
+        await room.onLeave(previousClient as any, 1006);
+      } finally {
+        (room as any).allowReconnection = originalAllowReconnection;
+      }
 
-    clients[graceUserId] = restoredGraceClient;
+      clients[graceUserId] = restoredGraceClient;
 
-    await waitFor(() => Boolean(sessionRestored[graceUserId]), 5000, "grace reconnect SESSION_RESTORED");
-    await waitFor(
-      () =>
-        Boolean(snapshots[graceUserId]?.snapshotId) &&
-        snapshots[graceUserId]!.snapshotId !== previousSnapshotId,
-      5000,
-      "grace reconnect snapshot refresh",
-    );
+      await waitFor(() => Boolean(sessionRestored[graceUserId]), 5000, "grace reconnect SESSION_RESTORED");
+      await waitFor(
+        () =>
+          Boolean(snapshots[graceUserId]?.snapshotId) &&
+          snapshots[graceUserId]!.snapshotId !== previousSnapshotId,
+        5000,
+        "grace reconnect snapshot refresh",
+      );
 
-    const postGraceHand = activeHand();
-    if (postGraceHand) {
-      const actingUserId = resolveSnapshotActorUserId();
-      const options = actingUserId ? snapshots[actingUserId]?.hero?.actionOptions : undefined;
-      if (actingUserId && options && snapshots[actingUserId]?.hand?.handId === roomHandId()) {
-        if (options.canCheck) emitActionOncePerTurn(actingUserId, { action: "CHECK" });
-        else if (options.canCall) emitActionOncePerTurn(actingUserId, { action: "CALL" });
-        else if (options.canAllIn) emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
-        else emitActionOncePerTurn(actingUserId, { action: "FOLD" });
+      const postGraceHand = activeHand();
+      if (postGraceHand) {
+        const actingUserId = resolveSnapshotActorUserId();
+        const options = actingUserId ? snapshots[actingUserId]?.hero?.actionOptions : undefined;
+        if (actingUserId && options && snapshots[actingUserId]?.hand?.handId === roomHandId()) {
+          if (options.canCheck) emitActionOncePerTurn(actingUserId, { action: "CHECK" });
+          else if (options.canCall) emitActionOncePerTurn(actingUserId, { action: "CALL" });
+          else if (options.canAllIn) emitActionOncePerTurn(actingUserId, { action: "ALL_IN" });
+          else emitActionOncePerTurn(actingUserId, { action: "FOLD" });
+        }
       }
     }
 
@@ -470,7 +488,7 @@ async function main() {
 
     // eslint-disable-next-line no-console
     console.log(
-      `Headless harness OK: baseline=${firstHandId}; sidepotSignals=allIn:${seenShortAllIn},raise:${seenLargeRaise},call:${seenCallAfterRaise}; reconnectJoinUser=${reconnectUserId}; reconnectGraceUser=${graceUserId}; settlementChecks=${lastHandResultsByHandId.size}`,
+      `Headless harness OK: baseline=${firstHandId}; sidepotSignals=allIn:${seenShortAllIn},raise:${seenLargeRaise},call:${seenCallAfterRaise}; reconnectJoinUser=${reconnectUserId}; reconnectGraceUser=${graceUserId ?? "skipped"}; settlementChecks=${lastHandResultsByHandId.size}`,
     );
   } finally {
     try {
