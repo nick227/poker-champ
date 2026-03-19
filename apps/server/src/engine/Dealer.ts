@@ -212,6 +212,8 @@ export class Dealer {
     return min + Math.floor(Math.random() * span);
   }
 
+  private pendingBotActionTimeoutIds = new Set<ReturnType<typeof setTimeout>>();
+
   private setNextStepOwner(owner: NextStepOwner, trigger: string): void {
     if (this.nextStepOwner !== owner) {
       logger.info(
@@ -290,13 +292,12 @@ export class Dealer {
       })();
     };
 
-    if (delayMs <= 0) {
-      // Use setTimeout(fn, 0) even for zero delay to keep the bot action out of the
-      // current synchronous lifecycle plan execution context.
-      setTimeout(fire, 0);
-    } else {
-      setTimeout(fire, delayMs);
-    }
+    const effectiveDelayMs = delayMs <= 0 ? 0 : delayMs;
+    const timeoutId = setTimeout(() => {
+      this.pendingBotActionTimeoutIds.delete(timeoutId);
+      fire();
+    }, effectiveDelayMs);
+    this.pendingBotActionTimeoutIds.add(timeoutId);
   }
 
   // ---------------------------------------------------------------------------
@@ -2754,8 +2755,24 @@ export class Dealer {
   dispose(): void {
     this.disposed = true;
     this.handOrchestrator.dispose();
+    this.turnManager.dispose();
     this.clearPendingHumanTurnTimeout();
     this.disconnectManager.dispose();
+    for (const timeoutId of this.pendingBotActionTimeoutIds) {
+      clearTimeout(timeoutId);
+    }
+    this.pendingBotActionTimeoutIds.clear();
+    this.clientsByUserId.clear();
+    this.pendingSeatReleaseUserIds.clear();
+    this.pendingExternalPlayerLifecycleBatches.length = 0;
+    this.currentHand = null;
+    this.lastHandResult = undefined;
+    this.resolvedActionId = undefined;
+    this.activeTerminalLifecycle = null;
+    this.completedTerminalLifecycle = null;
+    this.autoActionsByUserId.clear();
+    this.currentHandAutoActedUserIds.clear();
+    this.resetSessionStats();
   }
 
   private clearPendingHumanTurnTimeout(): void {

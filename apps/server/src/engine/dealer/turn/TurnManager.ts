@@ -211,6 +211,8 @@ class ActionQueue {
 }
 
 class AutoActionDispatcher {
+  private pendingDelayTimeoutIds = new Set<ReturnType<typeof setTimeout>>();
+
   constructor(private readonly deps: {
     state: PokerState;
     actionQueue: ActionQueue;
@@ -416,11 +418,22 @@ class AutoActionDispatcher {
     };
 
     if (delayMs > 0) {
-      setTimeout(enqueueWork, delayMs);
+      const timeoutId = setTimeout(() => {
+        this.pendingDelayTimeoutIds.delete(timeoutId);
+        enqueueWork();
+      }, delayMs);
+      this.pendingDelayTimeoutIds.add(timeoutId);
       return;
     }
 
     enqueueWork();
+  }
+
+  dispose(): void {
+    for (const timeoutId of this.pendingDelayTimeoutIds) {
+      clearTimeout(timeoutId);
+    }
+    this.pendingDelayTimeoutIds.clear();
   }
 
   private getQueuedAutoActionIneligibleReason(userId: string): string | null {
@@ -642,6 +655,11 @@ export class TurnManager {
   }
 
   clearPendingHumanTurnTimeout(): void {
+    this.turnTimeoutScheduler.clearPendingHumanTurnTimeout();
+  }
+
+  dispose(): void {
+    this.autoActionDispatcher.dispose();
     this.turnTimeoutScheduler.clearPendingHumanTurnTimeout();
   }
 

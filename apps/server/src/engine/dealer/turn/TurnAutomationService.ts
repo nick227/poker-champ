@@ -143,7 +143,7 @@ export class TurnAutomationService {
         { street: state.street, toActSeat: state.toActSeat, result: "retry_scheduled" },
         "MAYBE_ACT_FOR_BOT_RESULT",
       );
-      setTimeout(() => this.maybeActForBot(), 0);
+      queueMicrotask(() => this.maybeActForBot());
       return;
     }
     if (!eligibleToAct(player) || !player.needsAction) {

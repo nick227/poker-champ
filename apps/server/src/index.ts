@@ -204,6 +204,7 @@ gameServer.define("poker", PokerRoom);
 let recoveryInterval: NodeJS.Timeout | null = null;
 let leaderboardInterval: NodeJS.Timeout | null = null;
 let eventLoopLagInterval: NodeJS.Timeout | null = null;
+let memoryLogInterval: NodeJS.Timeout | null = null;
 let shuttingDown = false;
 
 async function shutdown(reason: string, exitCode: number = 0) {
@@ -222,6 +223,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (eventLoopLagInterval) {
     clearInterval(eventLoopLagInterval);
     eventLoopLagInterval = null;
+  }
+  if (memoryLogInterval) {
+    clearInterval(memoryLogInterval);
+    memoryLogInterval = null;
   }
 
   try {
@@ -269,6 +274,23 @@ async function start() {
       logger.warn({ eventLoopLagMs: Math.round(meanMs * 100) / 100 }, "EVENT_LOOP_LAG");
     }
   }, 5000);
+
+  const memoryLogIntervalMs = Number(process.env.POKER_MEMORY_LOG_INTERVAL_MS ?? "");
+  if (Number.isFinite(memoryLogIntervalMs) && memoryLogIntervalMs >= 1_000) {
+    memoryLogInterval = setInterval(() => {
+      const memory = process.memoryUsage();
+      logger.info(
+        {
+          rssMB: Math.round(memory.rss / 1024 / 1024),
+          heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
+          heapTotalMB: Math.round(memory.heapTotal / 1024 / 1024),
+          externalMB: Math.round(memory.external / 1024 / 1024),
+          arrayBuffersMB: Math.round(memory.arrayBuffers / 1024 / 1024),
+        },
+        "MEMORY_USAGE",
+      );
+    }, memoryLogIntervalMs);
+  }
 }
 
 void start().catch((err) => {

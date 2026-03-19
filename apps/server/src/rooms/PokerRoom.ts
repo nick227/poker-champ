@@ -1050,9 +1050,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     );
     
     // Clean up dealer and session management
-    this.dealer.stopDisconnectSweep();
-    this.dealer.resetSessionStats();
+    this.dealer.dispose();
     this.unbindSessionEvent?.();
+    this.unbindSessionEvent = undefined;
     
     // Remove all player presence from lobby
     const trackedUserIds = this.controller ? this.controller.session.valuesUserIds() : this.userIdBySessionId.values();
@@ -1067,6 +1067,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       this.bindingEpochBySessionId.clear();
       this.bindingEpochByUserId.clear();
     }
+    this.lastAcceptedActionByUserId.clear();
   }
 
   /**
