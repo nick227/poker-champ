@@ -17,6 +17,10 @@ export type TableConfig = {
   creatorName: string;
   creatorAvatarUrl: string | null;
   showStats: boolean;
+  instantGameSeed?: {
+    presetId: "MULTIPLAYER_RING" | "HEADS_UP_BOT";
+    targetBotCountOverride?: number;
+  };
 };
 
 export type LobbyTableSummary = {

@@ -28,6 +28,10 @@ export async function buildTableConfig(input: {
   creatorName: string;
   creatorAvatarUrl: string | null;
   showStats: boolean;
+  instantGameSeed?: {
+    presetId: "MULTIPLAYER_RING" | "HEADS_UP_BOT";
+    targetBotCountOverride?: number;
+  };
 }): Promise<TableConfig> {
   const tableId = makeTableId();
   const createdAt = Date.now();
@@ -54,5 +58,6 @@ export async function buildTableConfig(input: {
     creatorName: input.creatorName,
     creatorAvatarUrl: input.creatorAvatarUrl,
     showStats: input.showStats,
+    instantGameSeed: input.instantGameSeed,
   };
 }

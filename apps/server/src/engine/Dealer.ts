@@ -139,6 +139,10 @@ type DealerConstructorOptions = {
   onHandEndedAwards?: HandEndedAwardsCallback;
 };
 
+type AddBotOptions = {
+  inertDuringSeed?: boolean;
+};
+
 /**
  * Dealer: table state machine and action gateway.
  *
@@ -352,6 +356,7 @@ export class Dealer {
     source: string;
     plans: PlayerLifecyclePlan[];
   }> = [];
+  private gameplayTransitionSuppressionDepth = 0;
 
   /** One hand. Created at HAND_START, cleared when transitioning to WAITING. */
   private currentHand: HandContext | null = null;
@@ -595,10 +600,59 @@ export class Dealer {
   }
 
   /** Serialized with applyRebuy so add-bot-after-rebuy sees updated state/ledger. */
-  async addBot(botId: string, name: string, buyInCents: number, catalogBotId?: string) {
+  async addBot(
+    botId: string,
+    name: string,
+    buyInCents: number,
+    catalogBotId?: string,
+    options?: AddBotOptions,
+  ) {
     await this.enqueueSerializedStateMutation(async () => {
-      const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents, catalogBotId);
+      if (process.env.POKER_INSTANT_GAME_DEBUG === "1") {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            botId,
+            inertDuringSeed: options?.inertDuringSeed === true,
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+          },
+          "DEALER_ADD_BOT_BEFORE_PLANS",
+        );
+      }
+      const plans = await this.playerLifecycleService.addBot(botId, name, buyInCents, catalogBotId, options);
+      if (process.env.POKER_INSTANT_GAME_DEBUG === "1") {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            botId,
+            plans: plans.map((plan) => plan.kind),
+            inertDuringSeed: options?.inertDuringSeed === true,
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+          },
+          "DEALER_ADD_BOT_BEFORE_APPLY_PLANS",
+        );
+      }
       await this.applyExternalPlayerLifecyclePlans(plans, "ADD_BOT");
+      if (process.env.POKER_INSTANT_GAME_DEBUG === "1") {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            botId,
+            inertDuringSeed: options?.inertDuringSeed === true,
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+          },
+          "DEALER_ADD_BOT_AFTER_APPLY_PLANS",
+        );
+      }
     });
   }
 
@@ -1921,7 +1975,23 @@ export class Dealer {
   }
 
   private async applyExternalPlayerLifecyclePlans(plans: PlayerLifecyclePlan[], source: string): Promise<void> {
+    if (plans.length === 0) return;
     this.stageExternalPlayerLifecyclePlans(plans, source);
+    if (this.gameplayTransitionSuppressionDepth > 0) {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          source,
+          plans: plans.map((plan) => plan.kind),
+          suppressionDepth: this.gameplayTransitionSuppressionDepth,
+        },
+        "GAMEPLAY_TRANSITIONS_SUPPRESSED",
+      );
+      return;
+    }
     await this.requestDrive(source);
   }
 
@@ -2703,6 +2773,50 @@ export class Dealer {
    */
   maybeActForBotPublic(): void {
     void this.enqueueSerializedStateMutation(() => this.driveGame("STALL_MONITOR_RECOVERY"));
+  }
+
+  suspendGameplayTransitions(reason: string): void {
+    this.gameplayTransitionSuppressionDepth += 1;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        reason,
+        suppressionDepth: this.gameplayTransitionSuppressionDepth,
+      },
+      "GAMEPLAY_TRANSITIONS_SUSPENDED",
+    );
+  }
+
+  resumeGameplayTransitions(reason: string): void {
+    if (this.gameplayTransitionSuppressionDepth <= 0) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          reason,
+        },
+        "GAMEPLAY_TRANSITIONS_RESUME_WITHOUT_SUPPRESSION",
+      );
+      return;
+    }
+
+    this.gameplayTransitionSuppressionDepth -= 1;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        reason,
+        suppressionDepth: this.gameplayTransitionSuppressionDepth,
+      },
+      "GAMEPLAY_TRANSITIONS_RESUMED",
+    );
   }
 
   private async applyDisconnectedAutoActionCapForHand() {

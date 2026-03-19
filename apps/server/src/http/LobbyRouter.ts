@@ -32,6 +32,21 @@ function decodeLobbyChatCursor(cursor: string | undefined): { createdAt: Date; i
   return { createdAt, id };
 }
 
+function logInstantGamePhase(phase: string, extra?: Record<string, unknown>): void {
+  if (process.env.POKER_INSTANT_GAME_DEBUG !== "1") return;
+  const memory = process.memoryUsage();
+  logger.info(
+    {
+      phase,
+      heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(memory.heapTotal / 1024 / 1024),
+      rssMB: Math.round(memory.rss / 1024 / 1024),
+      ...extra,
+    },
+    "INSTANT_GAME_HTTP_PHASE",
+  );
+}
+
 router.get("/tables", async (_req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
   const tables = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
@@ -170,6 +185,17 @@ router.post("/instant-games", requireAuth, async (req, res) => {
     creatorName,
     creatorAvatarUrl,
     showStats: createParsed.data.showStats,
+    instantGameSeed: {
+      presetId: parsedBody.data.presetId,
+      targetBotCountOverride: parsedBody.data.targetBotCount,
+    },
+  });
+
+  logInstantGamePhase("before_create_room", {
+    presetId: parsedBody.data.presetId,
+    targetBotCount: parsedBody.data.targetBotCount ?? null,
+    tableId: config.tableId,
+    maxSeats: config.maxSeats,
   });
 
   const created = await matchMaker.createRoom("poker", { tableConfig: config });
@@ -183,51 +209,22 @@ router.post("/instant-games", requireAuth, async (req, res) => {
     return;
   }
 
-  let seededBots = 0;
-  let targetBots: number | null = null;
-  try {
-    const seedResult = await matchMaker.remoteRoomCall(
-      roomId,
-      "seedInstantBots" as never,
-      [parsedBody.data.presetId, parsedBody.data.targetBotCount] as never,
-      5000,
-    ) as { ok?: boolean; added?: number; target?: number; reason?: string } | undefined;
-    if (seedResult) {
-      seededBots = seedResult.added ?? 0;
-      targetBots = typeof seedResult.target === "number" ? seedResult.target : null;
-      if (!seedResult.ok) {
-        logger.warn(
-          {
-            tableId: config.tableId,
-            roomId,
-            presetId: parsedBody.data.presetId,
-            seededBots,
-            targetBots,
-            reason: seedResult.reason,
-          },
-          "Instant game bot seeding did not reach target",
-        );
-      }
-    }
-  } catch (err) {
-    logger.warn(
-      { err, tableId: config.tableId, roomId, presetId: parsedBody.data.presetId },
-      "Failed to seed instant game bots",
-    );
-  }
+  logInstantGamePhase("after_create_room", {
+    presetId: parsedBody.data.presetId,
+    targetBotCount: parsedBody.data.targetBotCount ?? null,
+    tableId: config.tableId,
+    roomId,
+  });
 
-  try {
-    const lobbyRooms = await matchMaker.query({ name: "lobby" });
-    await Promise.allSettled(
-      lobbyRooms.map(async (r: { roomId?: string }) => {
-        const lobbyRoomId = r.roomId;
-        if (!lobbyRoomId) return;
-        await matchMaker.remoteRoomCall(lobbyRoomId, "pushTableListUpdate" as never, [], 5000);
-      }),
-    );
-  } catch (err) {
-    logger.warn({ err, tableId: config.tableId }, "Failed to push lobby table list update after instant game creation");
-  }
+  const seededBots = 0;
+  const targetBots = typeof parsedBody.data.targetBotCount === "number" ? parsedBody.data.targetBotCount : null;
+  logInstantGamePhase("before_seed_bots", {
+    presetId: parsedBody.data.presetId,
+    targetBotCount: parsedBody.data.targetBotCount ?? null,
+    tableId: config.tableId,
+    roomId,
+    seedMode: "on_create",
+  });
 
   res.status(201).json({
     tableId: config.tableId,
@@ -236,6 +233,21 @@ router.post("/instant-games", requireAuth, async (req, res) => {
     seededBots,
     targetBots,
   });
+
+  void (async () => {
+    try {
+      const lobbyRooms = await matchMaker.query({ name: "lobby" });
+      await Promise.allSettled(
+        lobbyRooms.map(async (r: { roomId?: string }) => {
+          const lobbyRoomId = r.roomId;
+          if (!lobbyRoomId) return;
+          await matchMaker.remoteRoomCall(lobbyRoomId, "pushTableListUpdate" as never, [], 5000);
+        }),
+      );
+    } catch (err) {
+      logger.warn({ err, tableId: config.tableId }, "Failed to push lobby table list update after instant game creation");
+    }
+  })();
 });
 
 router.delete("/tables/:tableId", requireAuth, async (req, res) => {

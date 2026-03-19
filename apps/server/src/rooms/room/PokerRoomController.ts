@@ -53,6 +53,7 @@ export class PokerRoomController {
       runPersistentSeatCleanup: () => room.runPersistentSeatCleanupInternal(),
       runSittingOutSweep: (options) => room.runSittingOutSweepInternal(options),
       seedInstantBots: (presetId, targetBotCountOverride) => room.seedInstantBotsInternal(presetId, targetBotCountOverride),
+      maybeStartPendingInstantGameSeed: () => room.maybeStartPendingInstantGameSeedInternal(),
       maybeRemoveBotsIfNoHumans: () => room.maybeRemoveBotsIfNoHumansInternal(),
       purgeBotsForDelete: () => room.purgeBotsForDeleteInternal(),
     };

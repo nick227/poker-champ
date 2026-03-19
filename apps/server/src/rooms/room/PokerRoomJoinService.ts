@@ -227,6 +227,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         this.session.rebindClientExclusive(userId, client);
         await this.ctx.dealer.addPlayer(userId, name, buyInCents);
         room.updateMetadataCountsInternal();
+        room.maybeStartPendingInstantGameSeedInternal();
 
         if (room.persistentSeatsEnabledInternal) {
           const seat = room.findPlayerSeatInternal(userId);

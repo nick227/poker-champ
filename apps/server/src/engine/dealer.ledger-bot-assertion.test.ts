@@ -149,4 +149,25 @@ describe("dealer ledger assertion with bot participants", () => {
 
     expect(() => assertStateInvariants(state)).not.toThrow();
   });
+
+  it("keeps gameplay transitions suspended while inert seed bots are added", async () => {
+    const state = new PokerState();
+    state.maxSeats = 6;
+    state.smallBlindCents = 100;
+    state.bigBlindCents = 200;
+    state.minBuyInCents = 1000;
+    state.maxBuyInCents = 10000;
+
+    const dealer = new Dealer(state);
+
+    dealer.suspendGameplayTransitions("TEST_INSTANT_BOT_SEED");
+    await dealer.addBot("bot_seed_1", "Bot 1", 5000, "bot_seed_1", { inertDuringSeed: true });
+    await dealer.addBot("bot_seed_2", "Bot 2", 5000, "bot_seed_2", { inertDuringSeed: true });
+    dealer.resumeGameplayTransitions("TEST_INSTANT_BOT_SEED");
+
+    expect(state.street).toBe("WAITING");
+    expect(state.handId).toBe("");
+    expect(state.playersById.size).toBe(2);
+    expect(() => assertStateInvariants(state)).not.toThrow();
+  });
 });

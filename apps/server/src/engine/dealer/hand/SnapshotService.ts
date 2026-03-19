@@ -74,6 +74,7 @@ export type SnapshotEmitHook = (args: {
  * Snapshot reason type alias for cleaner imports
  */
 export type SnapshotReason = TableSnapshotPayload["reason"];
+type SnapshotBuildMode = "full" | "lightweight_waiting";
 
 /** Schema version for ERROR payloads; must match realtime-contract. */
 const ERROR_PAYLOAD_VERSION = 1;
@@ -132,6 +133,49 @@ export class SnapshotService {
   private snapshotSeq = 0;
   /** Last hand key for detecting hand changes */
   private lastHandKey: string | null = null;
+
+  private shouldLogSnapshotDiagnostics(): boolean {
+    return process.env.POKER_SNAPSHOT_DIAGNOSTICS === "1";
+  }
+
+  private resolveBuildMode(reason: SnapshotReason): SnapshotBuildMode {
+    if (reason === "SEAT_CHANGE" && this.deps.state.street === "WAITING") {
+      return "lightweight_waiting";
+    }
+    return "full";
+  }
+
+  private logSnapshotDiagnostics(args: {
+    phase: "emit_to_all" | "emit_to_user";
+    reason: SnapshotReason;
+    snapshotSeq: number;
+    recipientCount: number;
+    baseBytes: number;
+    systemBytes: number;
+    heroBytes: number[];
+    buildMs: number;
+  }): void {
+    if (!this.shouldLogSnapshotDiagnostics()) return;
+    const memory = process.memoryUsage();
+    logger.info(
+      {
+        tableId: this.deps.state.tableId,
+        handId: this.deps.state.handId || null,
+        phase: args.phase,
+        reason: args.reason,
+        snapshotSeq: args.snapshotSeq,
+        recipientCount: args.recipientCount,
+        baseKB: Math.round(args.baseBytes / 1024),
+        systemKB: Math.round(args.systemBytes / 1024),
+        heroKBMax: args.heroBytes.length > 0 ? Math.round(Math.max(...args.heroBytes) / 1024) : 0,
+        heroKBTotal: Math.round(args.heroBytes.reduce((sum, value) => sum + value, 0) / 1024),
+        buildMs: Math.round(args.buildMs * 100) / 100,
+        heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
+        rssMB: Math.round(memory.rss / 1024 / 1024),
+      },
+      "SNAPSHOT_DIAGNOSTICS",
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // AVATAR CACHE
@@ -260,20 +304,31 @@ export class SnapshotService {
   ): Promise<void> {
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
-    this.refreshHandCalculationsIfNeeded();
-    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const buildMode = this.resolveBuildMode(reason);
+    if (buildMode === "full") {
+      this.refreshHandCalculationsIfNeeded();
+    }
+    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq, buildMode);
+    const baseBytes = this.shouldLogSnapshotDiagnostics() ? Buffer.byteLength(JSON.stringify(base), "utf8") : 0;
 
     const toActUserId = this.deps.state.street !== "WAITING"
       ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
       : null;
 
-    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId));
-    this.emitSnapshotHook(systemPayload, reason);
+    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId, buildMode), buildMode);
+    const systemBytes = this.shouldLogSnapshotDiagnostics() ? Buffer.byteLength(JSON.stringify(systemPayload), "utf8") : 0;
+    if (buildMode === "full") {
+      this.emitSnapshotHook(systemPayload, reason);
+    }
 
     const tableId = this.deps.state.tableId;
+    const heroBytes: number[] = [];
     const sendToOne = async (userId: string, client: Client): Promise<boolean> => {
-      const payload = await this.buildHeroPatch(userId, base, toActUserId);
-      const final = this.finalizePayload(payload);
+      const payload = await this.buildHeroPatch(userId, base, toActUserId, buildMode);
+      const final = this.finalizePayload(payload, buildMode);
+      if (this.shouldLogSnapshotDiagnostics()) {
+        heroBytes.push(Buffer.byteLength(JSON.stringify(final), "utf8"));
+      }
       const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
       if (!parsed.success) {
         const path = getFirstFailingPath(parsed.error);
@@ -309,7 +364,18 @@ export class SnapshotService {
       if (ensureRecipient && userId === ensureRecipient.userId) continue;
       await sendToOne(userId, client);
     }
-    snapshotMetrics.observeBuildMs(performance.now() - t0);
+    const buildMs = performance.now() - t0;
+    this.logSnapshotDiagnostics({
+      phase: "emit_to_all",
+      reason,
+      snapshotSeq,
+      recipientCount: this.deps.clientsByUserId.size + (ensureRecipient ? 1 : 0),
+      baseBytes,
+      systemBytes,
+      heroBytes,
+      buildMs,
+    });
+    snapshotMetrics.observeBuildMs(buildMs);
   }
 
   async emitToUser(userId: string, reason: SnapshotReason, actionId?: string): Promise<void> {
@@ -318,13 +384,18 @@ export class SnapshotService {
 
     const t0 = performance.now();
     const snapshotSeq = this.nextSnapshotSeq();
-    this.refreshHandCalculationsIfNeeded();
-    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq);
+    const buildMode = this.resolveBuildMode(reason);
+    if (buildMode === "full") {
+      this.refreshHandCalculationsIfNeeded();
+    }
+    const base = await this.buildBaseSnapshot(reason, actionId, snapshotSeq, buildMode);
+    const baseBytes = this.shouldLogSnapshotDiagnostics() ? Buffer.byteLength(JSON.stringify(base), "utf8") : 0;
     const toActUserId = this.deps.state.street !== "WAITING"
       ? (this.deps.state.seats[this.deps.state.toActSeat] ?? null)
       : null;
-    const payload = await this.buildHeroPatch(userId, base, toActUserId);
-    const final = this.finalizePayload(payload);
+    const payload = await this.buildHeroPatch(userId, base, toActUserId, buildMode);
+    const final = this.finalizePayload(payload, buildMode);
+    const heroBytes = this.shouldLogSnapshotDiagnostics() ? [Buffer.byteLength(JSON.stringify(final), "utf8")] : [];
 
     const parsed = TableOutboundMessageSchema.safeParse({ type: "TABLE_SNAPSHOT", payload: final });
     if (!parsed.success) {
@@ -348,9 +419,23 @@ export class SnapshotService {
     client.send("TABLE_SNAPSHOT", final);
     snapshotMetrics.emitSnapshot();
 
-    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId));
-    this.emitSnapshotHook(systemPayload, reason);
-    snapshotMetrics.observeBuildMs(performance.now() - t0);
+    const systemPayload = this.finalizePayload(await this.buildHeroPatch("SYSTEM", base, toActUserId, buildMode), buildMode);
+    const systemBytes = this.shouldLogSnapshotDiagnostics() ? Buffer.byteLength(JSON.stringify(systemPayload), "utf8") : 0;
+    if (buildMode === "full") {
+      this.emitSnapshotHook(systemPayload, reason);
+    }
+    const buildMs = performance.now() - t0;
+    this.logSnapshotDiagnostics({
+      phase: "emit_to_user",
+      reason,
+      snapshotSeq,
+      recipientCount: 1,
+      baseBytes,
+      systemBytes,
+      heroBytes,
+      buildMs,
+    });
+    snapshotMetrics.observeBuildMs(buildMs);
   }
 
   private emitSnapshotHook(payload: TableSnapshotPayload, reason: SnapshotReason): void {
@@ -486,6 +571,7 @@ export class SnapshotService {
     reason: SnapshotReason,
     actionId: string | undefined,
     snapshotSeq: number,
+    mode: SnapshotBuildMode,
   ): Promise<Omit<TableSnapshotPayload, "hero" | "stateHash">> {
     const state = this.deps.state;
     const nowTs = Date.now();
@@ -501,7 +587,7 @@ export class SnapshotService {
         }
         let avatarUrl: string | undefined;
         let avatarVersion: number | undefined;
-        if (occupantUserId && player?.kind === "HUMAN") {
+        if (mode === "full" && occupantUserId && player?.kind === "HUMAN") {
           const av = await this.getAvatarWithTimeout(occupantUserId);
           if (av.avatarUrl) avatarUrl = av.avatarUrl;
           if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
@@ -569,8 +655,8 @@ export class SnapshotService {
       },
       hand,
       seats,
-      calculationsMeta: this.handCalculations.getMeta(),
-      lastAction: this.deps.getLastAction(),
+      calculationsMeta: mode === "full" ? this.handCalculations.getMeta() : undefined,
+      lastAction: mode === "full" ? this.deps.getLastAction() : undefined,
       lastHandResult: this.deps.getLastHandResult(),
     } as Omit<TableSnapshotPayload, "hero" | "stateHash">;
   }
@@ -579,6 +665,7 @@ export class SnapshotService {
     userId: string,
     base: Omit<TableSnapshotPayload, "hero" | "stateHash">,
     toActUserId: string | null,
+    mode: SnapshotBuildMode,
   ): Promise<Omit<TableSnapshotPayload, "stateHash">> {
     const state = this.deps.state;
     const hero = state.playersById.get(userId);
@@ -588,8 +675,9 @@ export class SnapshotService {
         ? this.deps.getLastHandResult()?.showdownHoleCardsByUserId?.[userId]
         : undefined;
     const heroHoleCards = liveHoleCards ?? (revealedShowdownHoleCards ? [...revealedShowdownHoleCards] : undefined);
-    const actionOptions = userId === toActUserId ? this.deps.getHeroActionOptions(userId) : undefined;
-    const calc = this.handCalculations.getForUser(userId);
+    const actionOptions =
+      mode === "full" && userId === toActUserId ? this.deps.getHeroActionOptions(userId) : undefined;
+    const calc = mode === "full" ? this.handCalculations.getForUser(userId) : undefined;
     const callAmount = actionOptions?.callAmount ?? 0;
     const potOddsPct = callAmount > 0
       ? Math.round((callAmount / (state.potCents + callAmount)) * 100)
@@ -597,11 +685,13 @@ export class SnapshotService {
 
     let avatarUrl: string | undefined;
     let avatarVersion: number | undefined;
-    const av = await this.getAvatarWithTimeout(userId);
-    if (av.avatarUrl) avatarUrl = av.avatarUrl;
-    if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
+    if (mode === "full") {
+      const av = await this.getAvatarWithTimeout(userId);
+      if (av.avatarUrl) avatarUrl = av.avatarUrl;
+      if (av.avatarVersion != null) avatarVersion = av.avatarVersion;
+    }
 
-    const hasCalc = Boolean(calc) || potOddsPct !== undefined;
+    const hasCalc = mode === "full" && (Boolean(calc) || potOddsPct !== undefined);
     const heroSection = {
       userId,
       youAreSeated: Boolean(hero),
@@ -618,7 +708,7 @@ export class SnapshotService {
             updatedAtTs: calc?.updatedAtTs,
           }
         : undefined,
-      playerStats: this.deps.getHeroSessionStats?.(userId),
+      playerStats: mode === "full" ? this.deps.getHeroSessionStats?.(userId) : undefined,
       ...(avatarUrl != null && { avatarUrl }),
       ...(avatarVersion != null && { avatarVersion }),
     };
@@ -626,8 +716,11 @@ export class SnapshotService {
     return { ...base, hero: heroSection };
   }
 
-  private finalizePayload(payload: Omit<TableSnapshotPayload, "stateHash">): TableSnapshotPayload {
-    const stateHash = createHash("sha1").update(JSON.stringify(payload)).digest("hex");
+  private finalizePayload(payload: Omit<TableSnapshotPayload, "stateHash">, mode: SnapshotBuildMode): TableSnapshotPayload {
+    const stateHash =
+      mode === "lightweight_waiting"
+        ? `lw_${payload.table.tableId}_${payload.snapshotSeq}_${payload.reason}_${payload.seats.length}`
+        : createHash("sha1").update(JSON.stringify(payload)).digest("hex");
     return { ...payload, stateHash };
   }
 }

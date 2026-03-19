@@ -43,6 +43,7 @@ import type {
   PokerRoomMetadata,
   SittingOutSweepOptions,
   InstantGamePresetId,
+  InstantGameSeedConfig,
 } from "./room/types/PokerRoomTypes.js";
 
 
@@ -197,6 +198,26 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * new joins and handles cleanup during disposal.
    */
   private isDeleting = false;
+  private pendingInstantGameSeed: InstantGameSeedConfig | null = null;
+  private instantGameSeedInProgress = false;
+  private instantGameSeedCompleted = false;
+
+  private logInstantGameMemoryPhase(phase: string, extra?: Record<string, unknown>): void {
+    if (process.env.POKER_INSTANT_GAME_DEBUG !== "1") return;
+    const memory = process.memoryUsage();
+    logger.info(
+      {
+        roomId: this.roomId,
+        tableId: this.state.tableId,
+        phase,
+        heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(memory.heapTotal / 1024 / 1024),
+        rssMB: Math.round(memory.rss / 1024 / 1024),
+        ...extra,
+      },
+      "INSTANT_GAME_MEMORY_PHASE",
+    );
+  }
 
   /**
    * Called when the room is first created. Initializes the poker table,
@@ -325,6 +346,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.controller = new PokerRoomController(this);
     this.controller.setupLifecycle({ cfg });
     this.controller.setupMessageHandlers();
+
+    this.pendingInstantGameSeed = cfg?.instantGameSeed ?? null;
+    this.instantGameSeedInProgress = false;
+    this.instantGameSeedCompleted = false;
   }
 
   get leaveCodeSessionReplaced(): number {
@@ -670,6 +695,55 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.updateMetadataCounts();
   }
 
+  maybeStartPendingInstantGameSeedInternal(): void {
+    if (!this.pendingInstantGameSeed || this.instantGameSeedInProgress || this.instantGameSeedCompleted) return;
+
+    let humanCount = 0;
+    for (const player of this.state.playersById.values()) {
+      if (player.kind === "HUMAN" && player.status !== "OUT") humanCount += 1;
+    }
+    if (humanCount <= 0) return;
+
+    const { presetId, targetBotCountOverride } = this.pendingInstantGameSeed;
+    this.instantGameSeedInProgress = true;
+    queueMicrotask(() => {
+      this.logInstantGameMemoryPhase("before_seed_bots", {
+        presetId,
+        targetBotCountOverride: targetBotCountOverride ?? null,
+        seedMode: "first_human_join",
+      });
+      void this.seedInstantBots(presetId, targetBotCountOverride)
+        .then((result) => {
+          this.instantGameSeedCompleted = true;
+          this.pendingInstantGameSeed = null;
+          this.logInstantGameMemoryPhase("after_seed_bots", {
+            presetId,
+            targetBotCountOverride: targetBotCountOverride ?? null,
+            ok: result.ok,
+            added: result.added,
+            target: result.target,
+            reason: result.reason ?? null,
+            seedMode: "first_human_join",
+          });
+        })
+        .catch((err: unknown) => {
+          logger.warn(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              presetId,
+              targetBotCountOverride: targetBotCountOverride ?? null,
+              message: (err as Error | undefined)?.message ?? String(err),
+            },
+            "INSTANT_BOT_SEED_AFTER_JOIN_FAILED",
+          );
+        })
+        .finally(() => {
+          this.instantGameSeedInProgress = false;
+        });
+    });
+  }
+
   normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null {
     return this.normalizeActionPayload(payload);
   }
@@ -981,29 +1055,74 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         ? this.state.minBuyInCents
         : this.state.bigBlindCents * 20;
 
-    for (let i = 0; i < missing; i += 1) {
-      const summary = summaries[i % summaries.length];
-      const runtimeBotId = newBotId();
-      const botName = summary.name ?? `Bot ${summary.id}`;
-      try {
-        await this.dealer.addBot(runtimeBotId, botName, buyInCents, summary.id);
-        added += 1;
-      } catch (err: unknown) {
-        logger.warn(
-          {
-            roomId: this.roomId,
-            tableId: this.state.tableId,
+    this.logInstantGameMemoryPhase("seed_start", {
+      presetId,
+      target,
+      existingBots,
+      missing,
+    });
+
+    this.dealer.suspendGameplayTransitions("INSTANT_BOT_SEED");
+    try {
+      for (let i = 0; i < missing; i += 1) {
+        const summary = summaries[i % summaries.length];
+        const runtimeBotId = newBotId();
+        const botName = summary.name ?? `Bot ${summary.id}`;
+        try {
+          this.logInstantGameMemoryPhase("before_add_bot", {
             presetId,
-            botId: summary.id,
-            message: (err as Error | undefined)?.message ?? String(err),
-          },
-          "INSTANT_BOT_SEED_ADD_FAILED",
-        );
+            target,
+            botIndex: i,
+            botCatalogId: summary.id,
+          });
+          await this.dealer.addBot(runtimeBotId, botName, buyInCents, summary.id, { inertDuringSeed: true });
+          added += 1;
+          this.logInstantGameMemoryPhase("after_add_bot", {
+            presetId,
+            target,
+            botIndex: i,
+            botCatalogId: summary.id,
+            added,
+          });
+        } catch (err: unknown) {
+          logger.warn(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              presetId,
+              botId: summary.id,
+              message: (err as Error | undefined)?.message ?? String(err),
+            },
+            "INSTANT_BOT_SEED_ADD_FAILED",
+          );
+        }
       }
+
+      if (added > 0) {
+        this.updateMetadataCounts();
+        this.logInstantGameMemoryPhase("before_seed_snapshot", {
+          presetId,
+          target,
+          added,
+        });
+        await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+        this.logInstantGameMemoryPhase("after_seed_snapshot", {
+          presetId,
+          target,
+          added,
+        });
+      }
+    } finally {
+      this.dealer.resumeGameplayTransitions("INSTANT_BOT_SEED");
     }
 
     if (added > 0) {
-      this.updateMetadataCounts();
+      this.dealer.maybeActForBotPublic();
+      this.logInstantGameMemoryPhase("after_seed_drive_kick", {
+        presetId,
+        target,
+        added,
+      });
     }
 
     return { ok: added === missing, added, target };

@@ -84,6 +84,10 @@ export type PlayerLifecyclePlan =
   | { kind: "FINISH_HAND_BY_LAST_STANDING" }
   | { kind: "ADVANCE_STREET_OR_SHOWDOWN" };
 
+type AddBotOptions = {
+  inertDuringSeed?: boolean;
+};
+
 /**
  * Function type for forcing player folds during hand progression
  * Used by Dealer to maintain game consistency when players abandon
@@ -365,7 +369,31 @@ export class PlayerLifecycleService {
     return plans;
   }
 
-  async addBot(botId: string, name: string, buyInCents: number, catalogBotId?: string): Promise<PlayerLifecyclePlan[]> {
+  async addBot(
+    botId: string,
+    name: string,
+    buyInCents: number,
+    catalogBotId?: string,
+    options?: AddBotOptions,
+  ): Promise<PlayerLifecyclePlan[]> {
+    const logBotAddStep = (step: string, extra?: Record<string, unknown>) => {
+      if (process.env.POKER_INSTANT_GAME_DEBUG !== "1") return;
+      logger.info(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId,
+          step,
+          botId,
+          inertDuringSeed: options?.inertDuringSeed === true,
+          players: this.deps.state.playersById.size,
+          street: this.deps.state.street,
+          roundState: this.deps.state.roundState,
+          toActSeat: this.deps.state.toActSeat,
+          ...extra,
+        },
+        "BOT_ADD_STEP",
+      );
+    };
     const plans: PlayerLifecyclePlan[] = [];
     if (this.deps.state.playersById.has(botId)) return plans;
 
@@ -388,9 +416,12 @@ export class PlayerLifecycleService {
     player.committedCents = 0;
     player.needsAction = false;
     player.sittingOutUntilNextHand = this.deps.state.street !== "WAITING";
+    logBotAddStep("created_player", { seat });
 
     this.deps.state.playersById.set(botId, player);
+    logBotAddStep("added_to_playersById", { seat });
     this.deps.state.seats[seat] = botId;
+    logBotAddStep("assigned_seat", { seat });
     if (this.deps.state.street !== "WAITING" && this.deps.state.initialChipMassCents > 0) {
       this.deps.state.initialChipMassCents += buyInCents;
     }
@@ -409,21 +440,34 @@ export class PlayerLifecycleService {
       await this.deps.persistence.handHistory.ensureTableAndPlayers(roster);
     }
 
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    const inertDuringSeed = options?.inertDuringSeed === true;
+    if (!inertDuringSeed) {
+      plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    }
 
     logger.info({ botId, seat }, "bot joined");
     if (this.deps.state.street === "WAITING") {
-      if (countNonOutPlayers(this.deps.state) >= 2) {
+      if (!inertDuringSeed && countNonOutPlayers(this.deps.state) >= 2) {
         plans.push({ kind: "START_HAND" });
       }
+      logBotAddStep("before_return", {
+        seat,
+        plans: plans.map((plan) => plan.kind),
+      });
       return plans;
     }
     
     // ONLY for active hand:
     player.status = "ABANDONED";
     player.sittingOutUntilNextHand = true;
-    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    if (!inertDuringSeed) {
+      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    }
     maybeAssertStateInvariants(this.deps.state);
+    logBotAddStep("before_return", {
+      seat,
+      plans: plans.map((plan) => plan.kind),
+    });
     return plans;
   }
 

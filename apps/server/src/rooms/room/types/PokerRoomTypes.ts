@@ -21,6 +21,13 @@ export type JoinOptions = { name?: string; buyInCents?: number; password?: strin
  */
 export type AuthContext = { userId: string; sessionId: string; roles: string[]; username: string };
 
+export type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
+
+export type InstantGameSeedConfig = {
+  presetId: InstantGamePresetId;
+  targetBotCountOverride?: number;
+};
+
 /** Configuration for creating a new poker table */
 export type TableConfig = {
   tableId: string;
@@ -39,6 +46,7 @@ export type TableConfig = {
   creatorId?: string;
   creatorName: string;
   creatorAvatarUrl: string | null;
+  instantGameSeed?: InstantGameSeedConfig;
 };
 
 /** Metadata exposed to the lobby system for table discovery */
@@ -70,8 +78,6 @@ export type SittingOutSweepOptions = {
   nowTs?: number;
   abandonedPurgeMs?: number;
 };
-
-export type InstantGamePresetId = "MULTIPLAYER_RING" | "HEADS_UP_BOT";
 
 /**
  * Architectural boundary: room services depend on this facade, never on PokerRoom directly.
@@ -116,6 +122,7 @@ export interface PokerRoomFacade {
   // Additional methods used by other controller services
   sendTableMessageInternal(client: { send: (type: string, payload: unknown) => void }, type: string, payload: unknown): void;
   updateMetadataCountsInternal(): void;
+  maybeStartPendingInstantGameSeedInternal(): void;
   normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null;
   getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string } | null;
   getPlayerStackCentsInternal(userId: string): number;
@@ -160,6 +167,7 @@ export type PokerRoomContext = {
     presetId: InstantGamePresetId,
     targetBotCountOverride?: number,
   ): Promise<{ ok: boolean; added: number; target: number; reason?: string }>;
+  maybeStartPendingInstantGameSeed(): void;
   maybeRemoveBotsIfNoHumans(): Promise<void>;
   purgeBotsForDelete(): void;
 };
