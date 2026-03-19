@@ -282,6 +282,8 @@ export class TurnAutomationService {
         if (nextCount >= cap) {
           player.status = "ABANDONED";
           player.needsAction = false;
+          
+          // 🔥 CRITICAL: Let Dealer handle queue + drive for clean architecture
           if (this.deps.onAutoSitOutReachedCap) {
             await this.deps.onAutoSitOutReachedCap({ userId: player.id, stackCents: player.stackCents });
           }

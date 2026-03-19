@@ -48,11 +48,18 @@ import type { ActionPayload } from "@poker-champ/realtime-contract";
 import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import {
-  allRemainingPlayersAllInOrFolded,
-  bettingRoundComplete,
+  countNonOutPlayers,
+  countNotFoldedPlayers,
+  findNextToActSeat,
+  resolveActivePlayersForHand,
+  resolvePlayersReadyForNextHand,
+} from "./dealer/utils/TableNavigator.js";
+import {
   eligibleToAct,
+  bettingRoundComplete,
   noFurtherBettingPossible,
   syncRoundCurrentBetCents,
+  allRemainingPlayersAllInOrFolded,
 } from "./rules/BettingRound.js";
 import { PokerError } from "./errors.js";
 import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
@@ -72,11 +79,6 @@ import { LifecycleExecutor } from "./dealer/hand/LifecycleExecutor.js";
 import { HandOrchestrator } from "./dealer/hand/HandOrchestrator.js";
 import { DisconnectManager } from "./dealer/hand/DisconnectManager.js";
 import type { FrameReason } from "./replay/FrameReason.js";
-import {
-  countNonOutPlayers,
-  countNotFoldedPlayers,
-  findNextToActSeat,
-} from "./dealer/utils/TableNavigator.js";
 import { buildActionKey, buildClaimKey } from "./dealer/utils/actionKeys.js";
 import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
 import { HandContext } from "./dealer/HandContext.js";
@@ -198,23 +200,7 @@ export class Dealer {
     };
   }
 
-  private setNextStepOwner(owner: NextStepOwner, trigger: string): void {
-    if (this.nextStepOwner !== owner) {
-      logger.info(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street: this.state.street,
-          from: this.nextStepOwner,
-          to: owner,
-          trigger,
-        },
-        "NEXT_STEP_OWNER_TRANSITION",
-      );
-      this.nextStepOwner = owner;
-    }
-  }
-
+  
   private getBotDelayMs(): number {
     const override = Number(process.env.POKER_BOT_DELAY_MS);
     if (Number.isFinite(override) && override >= 0) return Math.floor(override);
@@ -224,6 +210,22 @@ export class Dealer {
     if (max <= min) return min;
     const span = max - min + 1;
     return min + Math.floor(Math.random() * span);
+  }
+
+  private setNextStepOwner(owner: NextStepOwner, trigger: string): void {
+    if (this.nextStepOwner !== owner) {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          from: this.nextStepOwner,
+          to: owner,
+          trigger,
+        },
+        "NEXT_STEP_OWNER_CHANGED",
+      );
+    }
+    this.nextStepOwner = owner;
   }
 
   /**
@@ -241,34 +243,39 @@ export class Dealer {
    *  4. If fresh: routes through handleAction → enqueuePlayerAction (serialized queue).
    */
   private scheduleBotAction(botId: string, payload: ActionPayload, delayMs: number): void {
-    // Mark ownership as soon as the bot action is registered, not when it fires.
-    this.setNextStepOwner("WAITING_FOR_AUTOMATION", "SCHEDULE_BOT_ACTION");
     const capturedHandId = this.state.handId;
     const capturedStreet = this.state.street;
     const capturedHandActionSeq = this.state.handActionSeq;
     const capturedToActSeat = this.state.toActSeat;
-
     const fire = () => {
       if (this.disposed) return;
+      if (capturedHandId && this.activeTerminalLifecycle?.handId === capturedHandId) {
+        return;
+      }
       const stale =
         this.state.handId !== capturedHandId ||
         this.state.street !== capturedStreet ||
         this.state.handActionSeq !== capturedHandActionSeq ||
         this.state.toActSeat !== capturedToActSeat;
       if (stale) {
-        logger.info(
-          {
-            tableId: this.state.tableId,
-            botId,
-            capturedHandId,
-            capturedStreet,
-            capturedHandActionSeq,
-            currentHandId: this.state.handId,
-            currentStreet: this.state.street,
-            currentHandActionSeq: this.state.handActionSeq,
-          },
-          "BOT_SCHEDULED_ACTION_STALE",
-        );
+        const crossedHandBoundary = this.state.handId !== capturedHandId;
+        const crossedStreetBoundary = this.state.street !== capturedStreet;
+        if (crossedHandBoundary || crossedStreetBoundary) {
+          logger.info(
+            {
+              tableId: this.state.tableId,
+              handId: capturedHandId,
+              botId,
+              capturedHandId,
+              capturedStreet,
+              capturedHandActionSeq,
+              currentHandId: this.state.handId,
+              currentStreet: this.state.street,
+              currentHandActionSeq: this.state.handActionSeq,
+            },
+            "BOT_SCHEDULED_ACTION_STALE",
+          );
+        }
         // Explicitly re-drive rather than silently discarding.
         // Must serialize through the queue: driveGame() can call lifecycle functions
         // directly, and unqueued state mutations would race with the action queue.
@@ -276,7 +283,11 @@ export class Dealer {
         return;
       }
       // Route through the serialized queue so concurrent player actions interleave safely.
-      void this.handleAction(botId, payload);
+      void (async () => {
+        await this.handleAction(botId, payload);
+        logger.info({ botId, action: payload.action }, "DRIVE_CALLED_AFTER_BOT_ACTION");
+        await this.driveGame("BOT_ACTION_EXECUTED");
+      })();
     };
 
     if (delayMs <= 0) {
@@ -383,7 +394,16 @@ export class Dealer {
         tableId: this.state.tableId || "table_poc",
         tableName: this.state.tableName,
       });
-    this.onAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
+    const externalOnAutoSitOutReachedCap = options?.onAutoSitOutReachedCap;
+    this.onAutoSitOutReachedCap = async (args) => {
+      if (externalOnAutoSitOutReachedCap) {
+        await externalOnAutoSitOutReachedCap(args);
+      }
+
+      // ❗ ONLY if this path is triggered from async context
+      // Since this is called from inside lifecycle/drive loop, no drive needed
+      // await this.driveGame("AUTO_ACTION_CAP_REACHED");
+    };
     this.turnManager = new TurnManager({
       state: this.state,
       maxQueueDepth: options?.maxQueueDepth ?? 50,
@@ -395,6 +415,7 @@ export class Dealer {
       onAutoActionDiscarded: () => {
         void this.enqueueSerializedStateMutation(() => this.driveGame("AUTO_ACTION_DISCARDED"));
       },
+      driveGame: (reason) => this.driveGame(reason),
     });
     // Hand-scoped getters: return currentHand's maps when a hand is active, else empty. Write paths (e.g. deal
     // in HandLifecycleService) only run when currentHand was just set (startHand) or during an active hand.
@@ -648,6 +669,7 @@ export class Dealer {
       const plans = this.playerLifecycleService.markReconnected(userId);
       this.stageExternalPlayerLifecyclePlans(plans, "MARK_RECONNECTED");
       await this.requestDrive("MARK_RECONNECTED");
+      await this.snapshotService.emitToUser(userId, "RECONNECT");
     });
   }
 
@@ -717,9 +739,9 @@ export class Dealer {
   // Legacy test compatibility: tests monkey-patch this method to disable timeout automation.
   private scheduleHumanTurnTimeout(userId: string): boolean {
     const armed = this.turnManager.scheduleHumanTurnTimeout(userId);
-    if (armed) {
-      this.setNextStepOwner("WAITING_FOR_HUMAN", "SCHEDULE_HUMAN_TURN_TIMEOUT");
-    }
+    // if (armed) {
+    //   this.setNextStepOwner("WAITING_FOR_HUMAN", "SCHEDULE_HUMAN_TURN_TIMEOUT");
+    // }
     return armed;
   }
 
@@ -1045,6 +1067,58 @@ export class Dealer {
     origin: TableLastAction["origin"],
     actionId?: string,
   ) {
+    const isTerminalActionWindow =
+      this.state.street === "SHOWDOWN" ||
+      this.state.roundState === "HAND_COMPLETE" ||
+      this.state.runoutMode === "STAGED";
+    if (isTerminalActionWindow) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          runoutMode: this.state.runoutMode,
+          userId,
+          action: msg.action,
+          origin,
+        },
+        "TERMINAL_OR_RUNOUT_ACTION_IGNORED",
+      );
+      return;
+    }
+    const isInternalAction = origin !== "PLAYER";
+    if (isInternalAction && this.activeTerminalLifecycle?.handId === this.state.handId) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          toActSeat: this.state.toActSeat,
+          potCents: this.state.potCents,
+          userId,
+          action: msg.action,
+          origin,
+        },
+        "TERMINAL_GUARD_REJECTED_ACTION",
+      );
+      return;
+    }
+    if (isInternalAction && !this.state.playersById.has(userId)) {
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          userId,
+          action: msg.action,
+          origin,
+        },
+        "STALE_INTERNAL_ACTION_IGNORED",
+      );
+      return;
+    }
     if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
       this.currentHand = new HandContext();
     }
@@ -1082,6 +1156,7 @@ export class Dealer {
       turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
         ? "BOT_ACTION"
         : "ACTION_ACCEPTED",
+      requestDriveAfterTurnAdvanced: origin === "PLAYER",
     });
   }
 
@@ -1180,7 +1255,7 @@ export class Dealer {
 
   private deriveRuntimeStep(now: number): string {
     if (this.state.street === "WAITING") {
-      return countNonOutPlayers(this.state) >= 2 ? "START_NEXT_HAND" : "NO_OP";
+      return resolvePlayersReadyForNextHand(this.state).length >= 2 ? "START_NEXT_HAND" : "NO_OP";
     }
 
     if (
@@ -1240,7 +1315,7 @@ export class Dealer {
         if (seat == null || seat < 0) return undefined;
         return state.players.find((p) => p.seat === seat);
       },
-      startNextHandDue: () => this.state.street === "WAITING" && countNonOutPlayers(this.state) >= 2,
+      startNextHandDue: () => this.state.street === "WAITING" && resolvePlayersReadyForNextHand(this.state).length >= 2,
       bettingClosed: () => bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state),
       showdownRequired: () =>
         this.state.street === "SHOWDOWN" ||
@@ -1405,7 +1480,7 @@ export class Dealer {
         roundState: this.state.roundState,
         caller,
       },
-      "TERMINAL_LIFECYCLE_ENTRY",
+      "TERMINAL_ENTER",
     );
     if (this.activeTerminalLifecycle?.handId === handId) {
       logger.warn(
@@ -1438,11 +1513,40 @@ export class Dealer {
       return;
     }
     this.activeTerminalLifecycle = { handId, path: "LAST_STANDING", caller };
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId,
+        trigger: caller,
+        path: "LAST_STANDING",
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        potCents: this.state.potCents,
+        activeTerminalLifecycle: this.activeTerminalLifecycle,
+        completedTerminalLifecycle: this.completedTerminalLifecycle,
+      },
+      "TERMINAL_PATH_SELECTED",
+    );
     try {
       await this.handOrchestrator.finishHandByLastStanding();
       this.completedTerminalLifecycle = { handId, path: "LAST_STANDING", caller };
     } finally {
       if (this.activeTerminalLifecycle?.handId === handId) {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId,
+            path: "LAST_STANDING",
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+            potCents: this.state.potCents,
+            activeTerminalLifecycle: this.activeTerminalLifecycle,
+            completedTerminalLifecycle: this.completedTerminalLifecycle,
+          },
+          "TERMINAL_EXIT",
+        );
         this.activeTerminalLifecycle = null;
       }
     }
@@ -1467,7 +1571,7 @@ export class Dealer {
         roundState: this.state.roundState,
         caller,
       },
-      "TERMINAL_LIFECYCLE_ENTRY",
+      "TERMINAL_ENTER",
     );
     if (this.activeTerminalLifecycle?.handId === handId) {
       logger.warn(
@@ -1500,11 +1604,40 @@ export class Dealer {
       return;
     }
     this.activeTerminalLifecycle = { handId, path: "SHOWDOWN", caller };
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId,
+        trigger: caller,
+        path: "SHOWDOWN",
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        potCents: this.state.potCents,
+        activeTerminalLifecycle: this.activeTerminalLifecycle,
+        completedTerminalLifecycle: this.completedTerminalLifecycle,
+      },
+      "TERMINAL_PATH_SELECTED",
+    );
     try {
       await this.handOrchestrator.finishHandShowdownWithSidePots();
       this.completedTerminalLifecycle = { handId, path: "SHOWDOWN", caller };
     } finally {
       if (this.activeTerminalLifecycle?.handId === handId) {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId,
+            path: "SHOWDOWN",
+            street: this.state.street,
+            roundState: this.state.roundState,
+            toActSeat: this.state.toActSeat,
+            potCents: this.state.potCents,
+            activeTerminalLifecycle: this.activeTerminalLifecycle,
+            completedTerminalLifecycle: this.completedTerminalLifecycle,
+          },
+          "TERMINAL_EXIT",
+        );
         this.activeTerminalLifecycle = null;
       }
     }
@@ -1557,7 +1690,7 @@ export class Dealer {
     const driveNow = Date.now();
     const runChecks = (t: string): void => {
       // maybeSelfHealRoundClosedNoAction intentionally omitted: driveGame() only
-      // reaches this path when bettingRoundComplete is false, so the self-heal
+      // reaches this path when bettingRoundComplete is false, so self-heal
       // guard would return immediately. advanceStreetOrShowdown() is called directly
       // above when betting is closed.
       this.maybeSelfHealInvalidToActSeat(t);
@@ -1571,88 +1704,135 @@ export class Dealer {
     try {
       await this.flushExternalPlayerLifecycleBatches();
 
-      const street = this.state.street;
-      // WAITING: between-hands timer running or not enough players.
-      if (street === "WAITING") {
-        if (this.state.nextHandAtTs === 0 && countNonOutPlayers(this.state) >= 2) {
-          logger.info({
-            handId: this.state.handId,
-            street: this.state.street,
-            toActSeat: this.state.toActSeat,
-            resolvedActionId: this.resolvedActionId,
-            runoutMode: this.state.runoutMode,
-            roundState: this.state.roundState,
-            nextStepOwner: this.nextStepOwner,
-            driveInProgress: this.driveInProgress,
-            activeTerminalLifecycle: this.activeTerminalLifecycle,
-            completedTerminalLifecycle: this.completedTerminalLifecycle,
-            queueDepth: this.turnManager.getQueueDepth(),
-            reason: "BEFORE_START_HAND_CALL"
-          }, "DEBUG_START_HAND_STATE");
+      // 🔥 CANONICAL LOOP: Continue driving until no more work exists
+      let safety = 0;
+      let terminalLifecycleCompletedThisDrive = false;
+      while (safety++ < 100) {
+        const street = this.state.street;
+        let madeProgress = false;
+
+        // WAITING: between-hands timer running or not enough players.
+        if (street === "WAITING") {
+          if (this.activeTerminalLifecycle) break;
+          if (terminalLifecycleCompletedThisDrive) break;
+
+          // 🔥 CRITICAL: Use same eligibility logic as startHand() to avoid mismatch
+          const activePlayers = resolvePlayersReadyForNextHand(this.state);
           
-          await this.startHand();
-        }
-        return;
-      }
+          // 🔴 SETTLEMENT BARRIER: Don't start new hand while previous hand still settling
+          const completedTerminalLifecycleId = this.completedTerminalLifecycle?.handId ?? null;
+          const handStillSettling = completedTerminalLifecycleId === this.state.handId;
+          
+          if (handStillSettling) {
+            logger.info({
+              handId: this.state.handId,
+              activeTerminalLifecycle: null,
+              completedTerminalLifecycle: completedTerminalLifecycleId,
+              reason: "HAND_STILL_SETTLING"
+            }, "WAITING_HAND_SETTLEMENT_BARRIER");
+            break; // 🔴 DO NOT START NEW HAND YET
+          }
 
-      // Terminal round-state must never fall through into normal actor scheduling.
-      // If terminal lifecycle is already in flight or already completed for this hand,
-      // simply return. Otherwise explicitly route into the correct terminal lifecycle.
-      if (this.state.roundState === "HAND_COMPLETE") {
-        this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:HAND_COMPLETE`);
-        if (
-          this.activeTerminalLifecycle?.handId === this.state.handId ||
-          this.completedTerminalLifecycle?.handId === this.state.handId
+          if (this.pendingSeatReleaseUserIds.size > 0) {
+            await this.releasePendingSeats();
+            madeProgress = true;
+            continue;
+          }
+          
+          if (this.state.nextHandAtTs === 0 && activePlayers.length >= 2) {
+            logger.info({
+              handId: this.state.handId,
+              street: this.state.street,
+              toActSeat: this.state.toActSeat,
+              resolvedActionId: this.resolvedActionId,
+              runoutMode: this.state.runoutMode,
+              roundState: this.state.roundState,
+              nextStepOwner: this.nextStepOwner,
+              driveInProgress: this.driveInProgress,
+              activeTerminalLifecycle: this.activeTerminalLifecycle,
+              completedTerminalLifecycle: this.completedTerminalLifecycle,
+              queueDepth: this.turnManager.getQueueDepth(),
+              reason: "BEFORE_START_HAND_CALL"
+            }, "DEBUG_START_HAND_STATE");
+            
+            await this.startHand();
+            madeProgress = true;
+            continue;
+          } else {
+            break; // No work to do in WAITING (timer running or not enough eligible players)
+          }
+        } else if (this.state.roundState === "HAND_COMPLETE") {
+          this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:HAND_COMPLETE`);
+          if (
+            this.activeTerminalLifecycle?.handId === this.state.handId ||
+            this.completedTerminalLifecycle?.handId === this.state.handId
+          ) {
+            break; // Terminal lifecycle already in flight
+          }
+
+          if (countNotFoldedPlayers(this.state) <= 1) {
+            await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_LAST_PLAYER`);
+            madeProgress = true;
+            if (this.state.street === "WAITING") {
+              terminalLifecycleCompletedThisDrive = true;
+            }
+            continue;
+          } else {
+            await this.finishHandShowdownWithSidePots(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_SHOWDOWN`);
+            madeProgress = true;
+            if (this.state.street === "WAITING") {
+              terminalLifecycleCompletedThisDrive = true;
+            }
+            continue;
+          }
+        } else if (this.state.roundState === "RUNOUT") {
+          this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:RUNOUT`);
+          if (
+            this.activeTerminalLifecycle?.handId === this.state.handId ||
+            this.completedTerminalLifecycle?.handId === this.state.handId
+          ) {
+            break; // Terminal lifecycle already in flight
+          }
+
+          await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:ROUND_STATE_RUNOUT`);
+          madeProgress = true;
+          terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
+          continue;
+        } else if (countNotFoldedPlayers(this.state) <= 1) {
+          await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:LAST_PLAYER_STANDING`);
+          madeProgress = true;
+          if (this.state.street === "WAITING") {
+            terminalLifecycleCompletedThisDrive = true;
+          }
+          continue;
+        } else if (
+          street === "SHOWDOWN" ||
+          this.state.runoutMode === "STAGED" ||
+          allRemainingPlayersAllInOrFolded(this.state)
         ) {
-          return;
+          await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:SHOWDOWN_OR_RUNOUT`);
+          madeProgress = true;
+          terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
+          continue;
+        } else if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+          await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:BETTING_CLOSED`);
+          madeProgress = true;
+          terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
+          continue;
+        } else {
+          // Active betting: schedule the next actor (bot, disconnected human, or arm human timer).
+          this.maybeActForBot();
+          break; // Wait for automation or human action
         }
 
-        if (countNotFoldedPlayers(this.state) <= 1) {
-          await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_LAST_PLAYER`);
-          return;
-        }
-
-        await this.finishHandShowdownWithSidePots(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_SHOWDOWN`);
-        return;
+        // If no progress was made in this iteration, stop to prevent infinite loop
+        if (!madeProgress) break;
       }
 
-      if (this.state.roundState === "RUNOUT") {
-        this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:RUNOUT`);
-        if (
-          this.activeTerminalLifecycle?.handId === this.state.handId ||
-          this.completedTerminalLifecycle?.handId === this.state.handId
-        ) {
-          return;
-        }
-
-        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:ROUND_STATE_RUNOUT`);
-        return;
+      if (safety >= 100) {
+        logger.error({ tableId: this.state.tableId, handId: this.state.handId }, "DRIVE_GAME_SAFETY_LIMIT_EXCEEDED");
       }
 
-      // Last player standing: finish hand immediately.
-      if (countNotFoldedPlayers(this.state) <= 1) {
-        await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:LAST_PLAYER_STANDING`);
-        return;
-      }
-
-      // Showdown or all-in runout: advance to reveal cards / settle.
-      if (
-        street === "SHOWDOWN" ||
-        this.state.runoutMode === "STAGED" ||
-        allRemainingPlayersAllInOrFolded(this.state)
-      ) {
-        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:SHOWDOWN_OR_RUNOUT`);
-        return;
-      }
-
-      // Betting round closed: advance to next street.
-      if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:BETTING_CLOSED`);
-        return;
-      }
-
-      // Active betting: schedule the next actor (bot, disconnected human, or arm human timer).
-      this.maybeActForBot();
       runChecks(trigger);
     } catch (err) {
       logger.error(
@@ -1885,9 +2065,9 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Support functions for hand progression, seat management, and player removal
 
-  private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number) {
+  private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
-      if (countNonOutPlayers(this.state) >= 2) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
+      if (resolvePlayersReadyForNextHand(this.state).length >= 2) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
       return;
     }
     if (this.state.runoutMode === "STAGED") return;
@@ -1908,7 +2088,7 @@ export class Dealer {
           await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_NO_NEXT_SEAT");
           return;
         }
-        this.state.toActSeat = nextSeat;
+        this.assignToActSeatWithTrace(nextSeat, "ENSURE_HAND_ADVANCE_REASSIGN_TO_ACT");
         this.requestDrive("MAYBE_ACT_FOR_BOT:ENSURE_HAND_ADVANCE:NO_ELIGIBLE_TO_ACT");
       }
     } else {
@@ -1922,10 +2102,25 @@ export class Dealer {
   }
 
   private async releasePendingSeats() {
+    if (this.state.street !== "WAITING") return;
     const nowTs = Date.now();
     const toRelease = [...this.pendingSeatReleaseUserIds];
     this.pendingSeatReleaseUserIds.clear();
     for (const userId of toRelease) {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          toActSeat: this.state.toActSeat,
+          potCents: this.state.potCents,
+          activeTerminalLifecycle: this.activeTerminalLifecycle,
+          completedTerminalLifecycle: this.completedTerminalLifecycle,
+          userId,
+        },
+        "PENDING_REMOVAL_FLUSH",
+      );
       const player = this.state.playersById.get(userId);
       if (player && !player.connected && (player.disconnectDeadlineTs ?? 0) === 0) {
         logger.warn(
@@ -1944,7 +2139,8 @@ export class Dealer {
         this.pendingSeatReleaseUserIds.add(userId);
         continue;
       }
-      await this.removePlayerInternal(userId);
+      const plans = await this.playerLifecycleService.finalizePendingRemoval(userId);
+      await this.executePlayerLifecyclePlans(plans, "RELEASE_PENDING_SEATS");
     }
   }
 
@@ -2009,25 +2205,29 @@ export class Dealer {
       }
 
       if (countNotFoldedPlayers(this.state) <= 1) {
-        await this.requestDrive("FINISH_HAND_LAST_STANDING:SIT_OUT_LAST_PLAYER");
+        // ❗ REMOVED: Let caller own progression
+        // await this.requestDrive("FINISH_HAND_LAST_STANDING:SIT_OUT_LAST_PLAYER");
         return;
       }
 
       if (this.state.toActSeat === player.seat) {
         if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_BETTING_CLOSED");
+          // ❗ REMOVED: Let caller own progression
+          // await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_BETTING_CLOSED");
           return;
         }
         const nextSeat = findNextToActSeat(this.state, player.seat);
         if (nextSeat === -1) {
-          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_NO_NEXT_SEAT");
+          // ❗ REMOVED: Let caller own progression
+          // await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:SIT_OUT_NO_NEXT_SEAT");
           return;
         }
-        this.state.toActSeat = nextSeat;
+        this.assignToActSeatWithTrace(nextSeat, "SET_PLAYER_SITTING_OUT_REASSIGN_TO_ACT");
       }
 
       await this.sendTableSnapshotToAll("SEAT_CHANGE");
-      this.requestDrive("MAYBE_ACT_FOR_BOT:SIT_OUT_SEAT_CHANGE");
+      // ❗ REMOVED: Let caller own progression
+      // this.requestDrive("MAYBE_ACT_FOR_BOT:SIT_OUT_SEAT_CHANGE");
       return;
     }
 
@@ -2044,7 +2244,7 @@ export class Dealer {
     if (this.state.street === "WAITING") {
       player.status = "ACTIVE";
       await this.sendTableSnapshotToAll("SEAT_CHANGE");
-      if (countNonOutPlayers(this.state) >= 2) {
+      if (resolvePlayersReadyForNextHand(this.state).length >= 2) {
         await this.requestDrive("START_HAND:SIT_IN_WAITING");
       }
       return;
@@ -2070,46 +2270,97 @@ export class Dealer {
 
   private async applyActionResult(
     result: ActionResult,
-    options?: { turnAdvancedReason?: SnapshotReason },
+    options?: { turnAdvancedReason?: SnapshotReason; requestDriveAfterTurnAdvanced?: boolean },
   ): Promise<void> {
+    // CRITICAL INVARIANT:
+    // Every accepted action MUST emit a snapshot before further progression.
+    // Clients and tests depend on seeing the action (especially AUTO) before
+    // subsequent state transitions (street advance, hand end, etc).
+    const acceptedActionReason = options?.turnAdvancedReason ?? "ACTION_ACCEPTED";
     switch (result.kind) {
       case "NO_OP":
         this.logActionResolvedNextActor();
         return;
       case "WAITING_FOR_PLAYERS":
-        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:WAITING_FOR_PLAYERS");
         await this.sendTableSnapshotToAll("AUTO_TRANSITION");
         maybeAssertBettingState(this.state);
-        this.setNextStepOwner("IDLE", "APPLY_ACTION_RESULT:WAITING_FOR_PLAYERS:DONE");
         this.logActionResolvedNextActor();
         return;
       case "HAND_FINISHED":
         logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_HAND_FINISHED");
-        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:HAND_FINISHED");
-        await this.requestDrive("FINISH_HAND_LAST_STANDING:APPLY_ACTION_RESULT_HAND_FINISHED");
-        maybeAssertBettingState(this.state);
+        await this.sendTableSnapshotToAll(acceptedActionReason);
+        await this.requestDrive("HAND_FINISHED:APPLY_ACTION_RESULT");
+        await this.reconcilePostActionLifecycleIfNeeded(result.kind);
         this.logActionResolvedNextActor();
         return;
       case "STREET_COMPLETE":
         logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_STREET_COMPLETE");
-        this.setNextStepOwner("RUNNING_LIFECYCLE", "APPLY_ACTION_RESULT:STREET_COMPLETE");
+        await this.sendTableSnapshotToAll(acceptedActionReason);
         await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
+        await this.reconcilePostActionLifecycleIfNeeded(result.kind);
         maybeAssertBettingState(this.state);
         this.logActionResolvedNextActor();
         return;
       case "TURN_ADVANCED": {
-        const nextActorKind = result.actorKind;
-        this.setNextStepOwner(
-          nextActorKind === "BOT" ? "WAITING_FOR_AUTOMATION" : "RUNNING_LIFECYCLE",
-          "APPLY_ACTION_RESULT:TURN_ADVANCED",
-        );
-        await this.sendTableSnapshotToAll(options?.turnAdvancedReason ?? "ACTION_ACCEPTED", `act_${this.state.handId}_${this.state.handActionSeq}`);
-        maybeAssertBettingState(this.state);
-        await this.driveGame("TURN_ADVANCED");
+        void result.actorKind;
+        await this.sendTableSnapshotToAll(acceptedActionReason);
+        if (options?.requestDriveAfterTurnAdvanced) {
+          await this.requestDrive("TURN_ADVANCED:APPLY_ACTION_RESULT");
+        }
         this.logActionResolvedNextActor();
         return;
       }
     }
+  }
+
+  private async reconcilePostActionLifecycleIfNeeded(kind: "HAND_FINISHED" | "STREET_COMPLETE"): Promise<void> {
+    if (this.state.street === "WAITING") return;
+
+    if (kind === "HAND_FINISHED") {
+      const handStillTerminal =
+        this.state.roundState === "HAND_COMPLETE" ||
+        countNotFoldedPlayers(this.state) <= 1 ||
+        this.state.street === "SHOWDOWN" ||
+        this.state.runoutMode === "STAGED";
+      if (!handStillTerminal) return;
+
+      logger.warn(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          toActSeat: this.state.toActSeat,
+        },
+        "POST_ACTION_HAND_FINISH_RECONCILE",
+      );
+
+      if (countNotFoldedPlayers(this.state) <= 1) {
+        await this.finishHandByLastStanding("POST_ACTION_HAND_FINISH_RECONCILE");
+      } else {
+        await this.finishHandShowdownWithSidePots("POST_ACTION_HAND_FINISH_RECONCILE");
+      }
+      return;
+    }
+
+    const bettingStillClosed =
+      bettingRoundComplete(this.state) ||
+      noFurtherBettingPossible(this.state) ||
+      this.state.runoutMode === "STAGED" ||
+      this.state.street === "SHOWDOWN";
+    if (!bettingStillClosed) return;
+
+    logger.warn(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+      },
+      "POST_ACTION_STREET_COMPLETE_RECONCILE",
+    );
+    await this.advanceStreetOrShowdown("POST_ACTION_STREET_COMPLETE_RECONCILE");
   }
 
   private logActionResolvedNextActor(): void {
@@ -2165,8 +2416,34 @@ export class Dealer {
     if (this.state.street === "WAITING") {
       const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
       const anyPlayerNeedsAction = [...this.state.playersById.values()].some(p => p.needsAction);
-      if (this.state.toActSeat >= 0 || toActUserId !== "" || anyPlayerNeedsAction || this.state.roundState === "WAITING_FOR_ACTION" || this.nextStepOwner === "WAITING_FOR_HUMAN") {
-        logger.error({ tableId: this.state.tableId, handId: this.state.handId, toActSeat: this.state.toActSeat, toActUserId, anyPlayerNeedsAction, roundState: this.state.roundState, nextStepOwner: this.nextStepOwner, trigger }, "WAITING_STATE_INVARIANT_VIOLATION");
+      const queueDepth = this.turnManager.getQueueDepth();
+      const isSettledWaiting =
+        !this.activeTerminalLifecycle &&
+        this.completedTerminalLifecycle === null &&
+        this.nextStepOwner === "IDLE" &&
+        !this.driveQueued &&
+        queueDepth === 0;
+      const invariantBroken =
+        anyPlayerNeedsAction ||
+        this.state.roundState === "WAITING_FOR_ACTION" ||
+        this.nextStepOwner === "WAITING_FOR_HUMAN" ||
+        this.nextStepOwner === "WAITING_FOR_AUTOMATION";
+      if (invariantBroken) {
+        logger[isSettledWaiting ? "error" : "warn"](
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            toActSeat: this.state.toActSeat,
+            toActUserId,
+            anyPlayerNeedsAction,
+            roundState: this.state.roundState,
+            nextStepOwner: this.nextStepOwner,
+            trigger,
+            queueDepth,
+            settledWaiting: isSettledWaiting,
+          },
+          "WAITING_STATE_INVARIANT_VIOLATION",
+        );
       }
     }
     const street = this.state.street;
@@ -2315,7 +2592,29 @@ export class Dealer {
   }
 
   private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
+    // CRITICAL: Prevent illegal assignment in WAITING state
+    if (this.state.street === "WAITING") {
+      logger.error(
+        { 
+          trigger, 
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          nextSeat,
+          currentToActSeat: this.state.toActSeat,
+        },
+        "ILLEGAL_TO_ACT_ASSIGNMENT_IN_WAITING"
+      );
+      return;
+    }
+    
     this.state.toActSeat = nextSeat;
+    if (nextSeat >= 0) {
+      const toActUserId = this.state.seats[nextSeat] ?? "";
+      const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+      if (toActPlayer) {
+        toActPlayer.needsAction = true;
+      }
+    }
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
 

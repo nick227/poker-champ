@@ -43,6 +43,13 @@ export class ActionService {
 
   private assignToActSeatWithTrace(state: PokerState, nextSeat: number, trigger: string): void {
     state.toActSeat = nextSeat;
+    if (nextSeat >= 0) {
+      const toActUserId = state.seats[nextSeat] ?? "";
+      const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
+      if (toActPlayer) {
+        toActPlayer.needsAction = true;
+      }
+    }
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
     const toActUserId = state.seats[nextSeat] ?? "";
@@ -235,6 +242,9 @@ export class ActionService {
     const player = state.playersById.get(userId);
     if (!player) throw new PokerError("BAD_STATE", "Unknown player.");
     if (state.street === "WAITING") throw new PokerError("HAND_NOT_STARTED", "Hand not started.");
+    if (state.street === "SHOWDOWN" || state.roundState === "HAND_COMPLETE") {
+      throw new PokerError("HAND_ALREADY_FINISHED", "Hand is already in terminal resolution.");
+    }
     if (state.runoutMode === "STAGED") throw new PokerError("INVALID_ACTION", "Runout in progress.");
     if (!eligibleToAct(player)) throw new PokerError("NOT_ELIGIBLE", "Player not eligible to act.");
     if (player.seat !== state.toActSeat) throw new PokerError("NOT_YOUR_TURN", "Not your turn.");

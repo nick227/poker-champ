@@ -4,6 +4,12 @@ import { ActionService } from "./ActionService.js";
 import { PlayerState } from "../../../state/PlayerState.js";
 import { PokerState } from "../../../state/PokerState.js";
 
+function makeActiveState(): PokerState {
+  const state = new PokerState();
+  state.roundState = "WAITING_FOR_ACTION";
+  return state;
+}
+
 function makePlayer(input: {
   id: string;
   seat: number;
@@ -29,7 +35,7 @@ function makePlayer(input: {
 
 describe("ActionService hand-finished turn ownership", () => {
   it("clears toActSeat and needsAction when a fold ends the hand", async () => {
-    const state = new PokerState();
+    const state = makeActiveState();
     state.tableId = "table_action_service_hand_finished";
     state.handId = "hand_action_service_hand_finished";
     state.street = "PREFLOP";

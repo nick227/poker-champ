@@ -19,6 +19,9 @@ export function AwardToaster({
   });
   const first = sorted[0];
   const restCount = sorted.length - 1;
+  setTimeout(() => {
+    onDismiss();
+  }, 3000)
 
   return (
     <Pressable

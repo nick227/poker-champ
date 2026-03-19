@@ -5,6 +5,7 @@ import { Dealer } from "../../engine/Dealer.js";
 import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerError } from "../../engine/errors.js";
 import { bettingRoundComplete, noFurtherBettingPossible } from "../../engine/rules/BettingRound.js";
+import { resolvePlayersReadyForNextHand } from "../../engine/dealer/utils/TableNavigator.js";
 import { PokerState } from "../../state/PokerState.js";
 import { PlayerState } from "../../state/PlayerState.js";
 
@@ -56,6 +57,25 @@ async function waitUntil(
     if (Date.now() >= deadline) throw new Error(`Timed out waiting for: ${label}`);
     await yieldToEventLoop();
   }
+}
+
+function getDealerWaitingTimeoutState(state: PokerState, dealer: Dealer): Record<string, unknown> {
+  const internalDealer = dealer as any;
+  return {
+    tableId: state.tableId,
+    handId: state.handId,
+    street: state.street,
+    roundState: state.roundState,
+    nextHandAtTs: state.nextHandAtTs,
+    completedTerminalLifecycle: internalDealer.completedTerminalLifecycle ?? null,
+    activeTerminalLifecycle: internalDealer.activeTerminalLifecycle ?? null,
+    nextStepOwner: internalDealer.nextStepOwner ?? null,
+    queueDepth: dealer.getQueueDepth?.(),
+  };
+}
+
+function dumpDealerWaitingTimeoutState(state: PokerState, dealer: Dealer): void {
+  console.error(getDealerWaitingTimeoutState(state, dealer));
 }
 
 function mulberry32(seed: number): () => number {
@@ -215,8 +235,8 @@ describe("dealer random walk soak", () => {
       let consecutiveNoDealStarts = 0;
 
       const recyclePlayersIfNeeded = (force = false) => {
-        const activeWithChips = [...state.playersById.values()].filter((p) => p.status !== "OUT" && p.stackCents > 0);
-        if (!force && activeWithChips.length >= 2) return false;
+        const readyForNextHand = resolvePlayersReadyForNextHand(state);
+        if (!force && readyForNextHand.length >= 2) return false;
 
         for (let i = 0; i < state.seats.length; i++) state.seats[i] = "";
 
@@ -255,13 +275,30 @@ describe("dealer random walk soak", () => {
         const beforeContrib = new Map(contributionsByUser);
         const beforePayout = new Map(payoutsByUser);
         const startHandPromise = (dealer as any).startHand();
-        await waitUntil(
-          () => state.handId.length > 0 || state.street !== "WAITING",
-          5_000,
-          "start hand progression from WAITING",
-        );
+        const trackedStartHandPromise = Promise.resolve(startHandPromise);
         try {
-          await withTimeout(startHandPromise, 10_000, `startHand completion hand=${h + 1}`);
+          await withTimeout(
+            Promise.race([
+              trackedStartHandPromise,
+              waitUntil(
+                () => state.handId.length > 0 || state.street !== "WAITING",
+                5_000,
+                "start hand progression from WAITING",
+              ),
+            ]),
+            5_000,
+            "start hand progression from WAITING",
+          );
+        } catch (err) {
+          const timeoutState = getDealerWaitingTimeoutState(state, dealer);
+          console.error(timeoutState);
+          if (err instanceof Error) {
+            throw new Error(`${err.message} :: ${JSON.stringify(timeoutState)}`);
+          }
+          throw err;
+        }
+        try {
+          await withTimeout(trackedStartHandPromise, 10_000, `startHand completion hand=${h + 1}`);
         } catch (err) {
           const progressed = state.handId.length > 0 || state.street !== "WAITING";
           if (!progressed) throw err;
@@ -272,6 +309,22 @@ describe("dealer random walk soak", () => {
           );
         }
         if (state.street === "WAITING") {
+          const ready = resolvePlayersReadyForNextHand(state);
+          if (ready.length >= 2) {
+            throw new Error(
+              `startHand no-op despite >=2 ready players :: ${JSON.stringify({
+                tableId: state.tableId,
+                handId: state.handId,
+                readyCount: ready.length,
+                players: ready.map((p) => ({
+                  id: p.id,
+                  status: p.status,
+                  stack: p.stackCents,
+                  sittingOut: p.sittingOutUntilNextHand,
+                })),
+              })}`,
+            );
+          }
           // Keep long soaks running across transient no-deal starts.
           // Fails fast only if no hand can start repeatedly despite recycle.
           recyclePlayersIfNeeded(true);

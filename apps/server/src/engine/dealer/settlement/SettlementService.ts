@@ -654,6 +654,13 @@ export class SettlementService {
     for (const dealtPlayerId of holeCardsByPlayerId.keys()) {
       const player = state.playersById.get(dealtPlayerId);
       if (!player || player.kind !== "BOT") continue;
+      
+      // 🔴 GUARD: Ensure player has valid ID before processing
+      if (!player?.id) {
+        logger.error({ dealtPlayerId }, "SETTLEMENT_INVALID_PLAYER_ID");
+        continue;
+      }
+      
       const characterBotId = player.botId || player.id;
       const startingStack = this.deps.getHandStartingStacksByPlayerId().get(player.id);
       if (startingStack == null) continue;

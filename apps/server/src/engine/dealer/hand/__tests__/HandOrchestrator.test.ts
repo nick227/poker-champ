@@ -10,6 +10,7 @@ function createState(): PokerState {
   const state = new PokerState();
   for (let i = 0; i < state.maxSeats; i += 1) state.seats.push("");
   state.street = "WAITING";
+  state.toActSeat = -1;
   return state;
 }
 
@@ -65,9 +66,9 @@ describe("HandOrchestrator", () => {
     orchestrator.scheduleNextHand("test", 25);
     expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(25);
-    expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
 
-    expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(1);
+    expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(2);
   });
 
   it("dispose cancels both announce and start timers", async () => {

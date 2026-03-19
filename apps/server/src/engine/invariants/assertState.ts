@@ -16,6 +16,7 @@ export function assertStateInvariants(state: PokerState): void {
   let committedSum = 0;
   let actionablePlayers = 0;
   let needsActionPlayers = 0;
+  let showdownEligiblePlayers = 0;
 
   for (const [playerId, player] of state.playersById.entries()) {
     if (player.stackCents < 0) fail(`negative stack for ${playerId}`);
@@ -43,6 +44,7 @@ export function assertStateInvariants(state: PokerState): void {
 
     maxRoundBet = Math.max(maxRoundBet, player.roundBetCents);
     if (eligibleForShowdown(player)) {
+      showdownEligiblePlayers += 1;
       maxRoundBetActiveOrAllIn = Math.max(maxRoundBetActiveOrAllIn, player.roundBetCents);
     }
     committedSum += player.committedCents;
@@ -65,6 +67,15 @@ export function assertStateInvariants(state: PokerState): void {
 
   if (state.potCents < committedSum) {
     fail("potCents is less than total committedCents");
+  }
+
+  if (
+    state.street !== "WAITING" &&
+    state.street !== "SHOWDOWN" &&
+    state.roundState === "HAND_COMPLETE" &&
+    showdownEligiblePlayers > 1
+  ) {
+    fail("action street with roundState=HAND_COMPLETE must already be terminal");
   }
 
   if (state.runoutMode === "STAGED" && needsActionPlayers > 0) {

@@ -40,6 +40,7 @@ describe("dealer snapshot lifecycle invariants", () => {
       snapshotSeq: number;
       potCents?: number;
       resolvedActionId?: string;
+      lastActionOrigin?: string;
     }> = [];
 
     const persistence = {
@@ -59,6 +60,7 @@ describe("dealer snapshot lifecycle invariants", () => {
           snapshotSeq: payload.payloadJson.snapshotSeq,
           potCents: payload.payloadJson.hand?.potCents,
           resolvedActionId: payload.payloadJson.resolvedActionId,
+          lastActionOrigin: payload.payloadJson.lastAction?.origin,
         });
       },
     });
@@ -81,6 +83,7 @@ describe("dealer snapshot lifecycle invariants", () => {
     expect(actionSnapshot).toBeDefined();
     expect((actionSnapshot?.potCents ?? 0)).toBeGreaterThanOrEqual(potAfterBlinds);
     expect(actionSnapshot?.resolvedActionId).toBe(firstActionId);
+    expect(actionSnapshot?.lastActionOrigin).toBe("PLAYER");
 
     const secondToAct = state.seats[state.toActSeat];
     expect(secondToAct).toBeTruthy();
@@ -196,4 +199,5 @@ describe("dealer snapshot lifecycle invariants", () => {
     expect(["ACTION_ACCEPTED", "AUTO_TRANSITION"]).toContain(reason);
     expect(firstSnapshot?.resolvedActionId).toBe(actionId);
   });
+
 });

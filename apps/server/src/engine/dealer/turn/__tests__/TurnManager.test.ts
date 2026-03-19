@@ -8,6 +8,7 @@ import { TurnManager } from "../TurnManager.js";
 
 function createActionableState(userId = "u1"): PokerState {
   const state = new PokerState();
+  state.roundState = "WAITING_FOR_ACTION";
   for (let i = 0; i < state.maxSeats; i += 1) state.seats.push("");
 
   const player = new PlayerState();
@@ -46,6 +47,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
     });
     const order: string[] = [];
     const releaseRef: { call: (() => void) | null } = { call: null };
@@ -82,6 +84,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
     });
 
     await turnManager.enqueuePlayerAction(work);
@@ -94,7 +97,8 @@ describe("TurnManager", () => {
     vi.useFakeTimers();
     const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
     const state = createActionableState();
-    const setPlayerSittingOutInternal = vi.fn(async () => {});
+    const setPlayerSittingOutInternal = vi.fn(async () => {}),
+      driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -103,6 +107,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal,
+      driveGame,
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -143,6 +148,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -166,7 +172,8 @@ describe("TurnManager", () => {
   it("ignores stale timeout token when state has advanced", async () => {
     vi.useFakeTimers();
     const state = createActionableState();
-    const setPlayerSittingOutInternal = vi.fn(async () => {});
+    const setPlayerSittingOutInternal = vi.fn(async () => {}),
+      driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -175,6 +182,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal,
+      driveGame,
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -193,6 +201,7 @@ describe("TurnManager", () => {
     const setPlayerSittingOutInternal = vi.fn(async () => {
       deadlineAtCallback = state.turnDeadlineMs;
     });
+    const driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -201,6 +210,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal,
+      driveGame,
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -222,6 +232,7 @@ describe("TurnManager", () => {
     const setPlayerSittingOutInternal = vi.fn(async () => {
       callbackNow = Date.now();
     });
+    const driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -230,6 +241,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal,
+      driveGame,
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -261,6 +273,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -274,6 +287,7 @@ describe("TurnManager", () => {
     vi.useFakeTimers();
     const state = createActionableState();
     const handleInternalAction = vi.fn(async () => {});
+    const driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -282,17 +296,56 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction,
       setPlayerSittingOutInternal: async () => {},
+      driveGame,
     });
 
     turnManager.enqueueInternalAction("u1", { action: "FOLD" }, 250);
 
     await vi.advanceTimersByTimeAsync(249);
     expect(handleInternalAction).not.toHaveBeenCalled();
+    expect(driveGame).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     await turnManager.getActionQueue();
 
     expect(handleInternalAction).toHaveBeenCalledTimes(1);
     expect(handleInternalAction).toHaveBeenCalledWith("u1", { action: "FOLD" });
+    expect(driveGame).toHaveBeenCalledTimes(1);
+    expect(driveGame).toHaveBeenCalledWith("AUTO_ACTION_EXECUTED");
+  });
+
+  it("continues dealer progression after human timeout auto sit-out", async () => {
+    vi.useFakeTimers();
+    const state = createActionableState();
+    const callOrder: string[] = [];
+    const setPlayerSittingOutInternal = vi.fn(async () => {
+      callOrder.push("setPlayerSittingOutInternal");
+    });
+    const driveGame = vi.fn(async (reason: string) => {
+      callOrder.push(`driveGame:${reason}`);
+    });
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction: async () => {},
+      setPlayerSittingOutInternal,
+      driveGame,
+    });
+
+    turnManager.scheduleHumanTurnTimeout("u1");
+
+    await vi.advanceTimersByTimeAsync(TURN_TIMEOUT_TOTAL_MS);
+    await turnManager.getActionQueue();
+
+    expect(setPlayerSittingOutInternal).toHaveBeenCalledTimes(1);
+    expect(driveGame).toHaveBeenCalledTimes(1);
+    expect(driveGame).toHaveBeenCalledWith("HUMAN_TIMEOUT_AUTO_SIT_OUT");
+    expect(callOrder).toEqual([
+      "setPlayerSittingOutInternal",
+      "driveGame:HUMAN_TIMEOUT_AUTO_SIT_OUT",
+    ]);
   });
 
   it("emits QUEUE_FULL, rejects overflow enqueue, and continues queue processing", async () => {
@@ -306,6 +359,7 @@ describe("TurnManager", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
     });
     const order: string[] = [];
     const releaseRef: { call: (() => void) | null } = { call: null };

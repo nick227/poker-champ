@@ -5,6 +5,7 @@ import { PokerState } from "../../../state/PokerState.js";
 
 function makeState(): PokerState {
   const state = new PokerState();
+  state.roundState = "WAITING_FOR_ACTION";
   state.street = "PREFLOP";
   state.runoutMode = "NONE";
   state.bigBlindCents = 100;

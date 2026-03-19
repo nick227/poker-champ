@@ -257,9 +257,9 @@ export default function LobbyScreen() {
               <GameTablePanelSkeleton key={`skeleton-${idx}`} />
             ))
           ) : error ? (
-            <View className="ui-stack-2 py-8">
-              <Button title={`Retry: ${error}`} onPress={refresh} />
-            </View>
+            <Text variant="danger" className="ui-stack-2 py-4">
+              {error}
+            </Text>
           ) : sortedTables.length === 0 ? (
             <EmptyState message="No games available. Create one!" />
           ) : (

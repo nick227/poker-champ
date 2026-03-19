@@ -135,6 +135,13 @@ export class PlayerLifecycleService {
 
   private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
     this.deps.state.toActSeat = nextSeat;
+    if (nextSeat >= 0) {
+      const toActUserId = this.deps.state.seats[nextSeat] ?? "";
+      const toActPlayer = toActUserId ? this.deps.state.playersById.get(toActUserId) : undefined;
+      if (toActPlayer) {
+        toActPlayer.needsAction = true;
+      }
+    }
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
     const toActUserId = this.deps.state.seats[nextSeat] ?? "";
@@ -243,15 +250,16 @@ export class PlayerLifecycleService {
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
 
     logger.info({ userId, seat }, "player joined");
-    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
-      plans.push({ kind: "START_HAND" });
-    } else {
-      if (this.deps.state.street !== "WAITING") {
-        player.status = "ABANDONED";
+    if (this.deps.state.street === "WAITING") {
+      if (countNonOutPlayers(this.deps.state) >= 2) {
+        plans.push({ kind: "START_HAND" });
       }
-      player.sittingOutUntilNextHand = true;
-      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+      return plans;
     }
+    
+    // ONLY for active hand - player is already correctly set up from lines 225,232
+    // No need to modify sittingOutUntilNextHand since it's already set correctly
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     maybeAssertStateInvariants(this.deps.state);
     return plans;
   }
@@ -344,11 +352,15 @@ export class PlayerLifecycleService {
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "RECONNECT" });
 
     logger.info({ userId, seat, stackCents: player.stackCents }, "player restored from persisted seat session");
-    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
-      plans.push({ kind: "START_HAND" });
-    } else {
-      plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
+    if (this.deps.state.street === "WAITING") {
+      if (countNonOutPlayers(this.deps.state) >= 2) {
+        plans.push({ kind: "START_HAND" });
+      }
+      return plans;
     }
+    
+    // ONLY for active hand:
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     maybeAssertStateInvariants(this.deps.state);
     return plans;
   }
@@ -398,17 +410,19 @@ export class PlayerLifecycleService {
     }
 
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
-    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
 
     logger.info({ botId, seat }, "bot joined");
-    if (countNonOutPlayers(this.deps.state) >= 2 && this.deps.state.street === "WAITING") {
-      plans.push({ kind: "START_HAND" });
-    } else {
-      if (this.deps.state.street !== "WAITING") {
-        player.status = "ABANDONED";
+    if (this.deps.state.street === "WAITING") {
+      if (countNonOutPlayers(this.deps.state) >= 2) {
+        plans.push({ kind: "START_HAND" });
       }
-      player.sittingOutUntilNextHand = true;
+      return plans;
     }
+    
+    // ONLY for active hand:
+    player.status = "ABANDONED";
+    player.sittingOutUntilNextHand = true;
+    plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     maybeAssertStateInvariants(this.deps.state);
     return plans;
   }
@@ -418,40 +432,12 @@ export class PlayerLifecycleService {
     let player = this.deps.state.playersById.get(botId);
     if (!player) return plans;
 
-    const canRemoveDuringHand =
-      player.status === "ABANDONED" ||
-      player.status === "OUT" ||
-      player.sittingOutUntilNextHand ||
-      player.stackCents === 0;
-    if (this.deps.state.street !== "WAITING" && !canRemoveDuringHand) {
+    if (this.deps.state.street !== "WAITING") {
       this.deferRemovalDuringActiveHand(player, "BOT_AUTO_REMOVE", plans);
       return plans;
     }
 
-    const seat = player.seat;
-    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
-      await this.deps.forceFoldIfInHand(botId);
-      player = this.deps.state.playersById.get(botId);
-      if (!player) return plans;
-    }
-
-    this.deps.pendingSeatReleaseUserIds.delete(botId);
-    this.deps.autoActionsByUserId.delete(botId);
-    this.deps.currentHandAutoActedUserIds.delete(botId);
-
-    this.deps.state.seats[player.seat] = "";
-    this.deps.state.playersById.delete(botId);
-    this.deps.getHoleCardsByPlayerId().delete(botId);
-    this.syncBettingStateAfterRemoval();
-    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
-      await this.deps.persistence.handHistory.removePlayer(botId);
-    }
-    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
-
-    logger.info({ botId }, "bot left");
-    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
-    maybeAssertStateInvariants(this.deps.state);
-    return plans;
+    return this.finalizeRemoval(botId, { cashOutAfterRemoval: false });
   }
 
   /**
@@ -492,42 +478,18 @@ export class PlayerLifecycleService {
         return plans;
       }
 
-      const seat = player.seat;
-      if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
-        await this.deps.forceFoldIfInHand(userId);
-        player = this.deps.state.playersById.get(userId);
-        if (!player) return plans;
-      }
-
-      const remainingStack = player.stackCents;
-      if (!options?.cashOutAfterRemoval) {
-        await this.cashOutRemainingStack(userId, remainingStack);
-      }
-
-      this.deps.pendingSeatReleaseUserIds.delete(userId);
-      this.deps.autoActionsByUserId.delete(userId);
-      this.deps.currentHandAutoActedUserIds.delete(userId);
-
-      this.deps.state.seats[player.seat] = "";
-      this.deps.state.playersById.delete(userId);
-      this.deps.getHoleCardsByPlayerId().delete(userId);
-      this.syncBettingStateAfterRemoval();
-      if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
-        await this.deps.persistence.handHistory.removePlayer(userId);
-      }
-      plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
-
-      logger.info({ userId }, "player left");
-      plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
-
-      if (options?.cashOutAfterRemoval) {
-        await this.cashOutRemainingStack(userId, remainingStack);
-      }
-      maybeAssertStateInvariants(this.deps.state);
-      return plans;
+      return await this.finalizeRemoval(userId, options);
     } finally {
       this.leaveInProgressUserIds.delete(userId);
     }
+  }
+
+  async finalizePendingRemoval(userId: string): Promise<PlayerLifecyclePlan[]> {
+    if (this.deps.state.street !== "WAITING") return [];
+    const player = this.deps.state.playersById.get(userId);
+    if (!player) return [];
+    if (!player.pendingLeave) return [];
+    return this.finalizeRemoval(userId, { cashOutAfterRemoval: false });
   }
 
   // ============================================================================
@@ -572,6 +534,15 @@ export class PlayerLifecycleService {
     this.deps.autoActionsByUserId.delete(userId);
     this.ensureToActHasNeedsActionIfNeeded(player.seat, userId);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "RECONNECT" });
+    
+    if (this.deps.state.street === "WAITING") {
+      if (countNonOutPlayers(this.deps.state) >= 2) {
+        plans.push({ kind: "START_HAND" });
+      }
+      return plans;
+    }
+    
+    // ONLY for active hand:
     plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     maybeAssertStateInvariants(this.deps.state);
     return plans;
@@ -700,6 +671,51 @@ export class PlayerLifecycleService {
       plans.push({ kind: "MAYBE_AUTOMATE_TURN" });
     }
     maybeAssertStateInvariants(this.deps.state);
+  }
+
+  private async finalizeRemoval(
+    userId: string,
+    options?: { cashOutAfterRemoval?: boolean },
+  ): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    let player = this.deps.state.playersById.get(userId);
+    if (!player) return plans;
+
+    const seat = player.seat;
+    if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
+      await this.deps.forceFoldIfInHand(userId);
+      player = this.deps.state.playersById.get(userId);
+      if (!player) return plans;
+    }
+
+    const remainingStack = player.kind === "HUMAN" ? player.stackCents : 0;
+    if (player.kind === "HUMAN" && !options?.cashOutAfterRemoval) {
+      await this.cashOutRemainingStack(userId, remainingStack);
+    }
+
+    this.deps.pendingSeatReleaseUserIds.delete(userId);
+    this.deps.autoActionsByUserId.delete(userId);
+    this.deps.currentHandAutoActedUserIds.delete(userId);
+
+    player.pendingLeave = false;
+    player.pendingRemovalReason = "";
+    this.deps.state.seats[player.seat] = "";
+    this.deps.state.playersById.delete(userId);
+    this.deps.getHoleCardsByPlayerId().delete(userId);
+    this.syncBettingStateAfterRemoval();
+    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
+      await this.deps.persistence.handHistory.removePlayer(userId);
+    }
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    logger.info({ userId, kind: player.kind }, player.kind === "BOT" ? "bot left" : "player left");
+    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
+
+    if (player.kind === "HUMAN" && options?.cashOutAfterRemoval) {
+      await this.cashOutRemainingStack(userId, remainingStack);
+    }
+    maybeAssertStateInvariants(this.deps.state);
+    return plans;
   }
 
   /**

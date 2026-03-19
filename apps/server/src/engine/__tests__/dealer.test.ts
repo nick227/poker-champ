@@ -46,4 +46,18 @@ describe("Dealer v2 smoke", () => {
     expect(disconnectDisposeSpy).toHaveBeenCalledTimes(1);
     expect(queuedWork).not.toHaveBeenCalled();
   });
+
+  it("ignores stale internal actions while preserving strict external validation", async () => {
+    const state = new PokerState();
+    state.tableId = "table_stale_internal_action";
+    state.handId = "hand_stale_internal_action";
+    state.street = "TURN";
+
+    const dealer = new Dealer(state);
+
+    await expect((dealer as any)._handleAction("bot_missing", { action: "ALL_IN" }, "AUTO")).resolves.toBeUndefined();
+    await expect((dealer as any)._handleAction("bot_missing", { action: "ALL_IN" }, "PLAYER")).rejects.toMatchObject({
+      code: "BAD_STATE",
+    });
+  });
 });

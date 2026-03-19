@@ -1,10 +1,13 @@
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
+import type { PlayerState } from "../../../state/PlayerState.js";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { HandContext } from "../HandContext.js";
 import { NEXT_HAND_DELAY_MS } from "../timing.js";
 import type { HandLifecyclePlan, HandLifecycleService } from "./HandLifecycleService.js";
 import type { SnapshotReason } from "./SnapshotService.js";
+import { resolvePlayersReadyForNextHand } from "../utils/TableNavigator.js";
+import type { NextStepOwner } from "../decision/types.js";
 
 type HandEndedAwardsCallback = (
   handSummary: {
@@ -44,29 +47,95 @@ export class HandOrchestrator {
     getDealtHumanUserIds: () => string[];
     recordSessionHandResult: (userId: string, won: boolean) => void;
     getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number };
-  }) {}
+  }) { }
+
+  private warnIfAllReadyPlayersDisconnected(readyPlayers: PlayerState[]): void {
+    if (readyPlayers.length === 0) return;
+    if (!readyPlayers.every((player) => !player.connected)) return;
+    logger.warn(
+      {
+        tableId: this.deps.state.tableId,
+        handId: this.deps.state.handId,
+        reason: "ALL_READY_PLAYERS_DISCONNECTED",
+        count: readyPlayers.length,
+      },
+      "ALL_READY_PLAYERS_DISCONNECTED",
+    );
+  }
 
   transitionToWaiting(): void {
     this.deps.clearPendingHumanTurnTimeout();
     this.deps.state.roundState = "HAND_COMPLETE";
     this.deps.state.street = "WAITING";
     this.deps.state.runoutMode = "NONE";
+    this.deps.state.handId = ""; // CRITICAL: Clear handId when transitioning to WAITING
+    this.deps.state.toActSeat = -1; // Clear turn state
+    // Clear all needsAction flags - no one should need action in WAITING
+    for (const p of this.deps.state.playersById.values()) {
+      p.needsAction = false;
+    }
     this.deps.setCurrentHand(null);
   }
 
   async startHand(): Promise<void> {
     this.deps.clearPendingHumanTurnTimeout();
+    
+    // Enforce invariant: handId must NOT exist while WAITING
+    if (this.deps.state.handId && this.deps.state.street === "WAITING") {
+      logger.error(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId,
+          street: this.deps.state.street,
+          roundState: this.deps.state.roundState,
+        },
+        "INVALID_STATE_HAND_ID_WHILE_WAITING",
+      );
+    }
+    
+    // Enforce invariant: toActSeat must be -1 in WAITING
+    if (this.deps.state.street === "WAITING" && this.deps.state.toActSeat !== -1) {
+      logger.error(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId,
+          street: this.deps.state.street,
+          toActSeat: this.deps.state.toActSeat,
+        },
+        "WAITING_HAS_TO_ACT_SEAT",
+      );
+    }
+    
     this.deps.setCurrentHand(this.deps.createHandContext());
     try {
       const plans = await this.deps.handLifecycleService.startHand();
       if (this.deps.state.street === "WAITING") {
+        logger.warn(
+          {
+            tableId: this.deps.state.tableId,
+            handId: this.deps.state.handId,
+            plans: plans.map((p) => p.kind),
+          },
+          "START_HAND_ABORTED_RETURNED_TO_WAITING"
+        );
+
         this.deps.setCurrentHand(null);
+        await this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
+
         return;
       }
       this.deps.initPreflopFlagsForHand();
       await this.deps.executeHandLifecyclePlans(plans);
     } catch (err) {
       this.deps.setCurrentHand(null);
+      logger.error(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId,
+          err,
+        },
+        "START_HAND_FAILED_WITH_ERROR",
+      );
       throw err;
     }
   }
@@ -116,6 +185,38 @@ export class HandOrchestrator {
     if (this.nextHandScheduled) return;
     this.nextHandScheduled = true;
     const countdownMs = NEXT_HAND_DELAY_MS;
+    const runImmediateNextHand = async (): Promise<void> => {
+      if (this.deps.isDisposed()) {
+        this.resetNextHandSchedule();
+        return;
+      }
+
+      this.deps.state.nextHandAtTs = 0;
+
+      const activePlayers = resolvePlayersReadyForNextHand(this.deps.state);
+      this.warnIfAllReadyPlayersDisconnected(activePlayers);
+      if (this.deps.state.street === "WAITING" && activePlayers.length >= 2) {
+        this.nextHandScheduled = false;
+        await this.deps.requestDrive("NEXT_HAND_START_IMMEDIATE");
+        return;
+      }
+
+      await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
+    };
+
+    if (delayMs <= 0 && countdownMs <= 0) {
+      void this.deps.enqueueSerializedStateMutation(runImmediateNextHand)
+        .finally(() => {
+          if (this.nextHandAnnounceTimer == null && this.nextHandStartTimer == null) {
+            this.nextHandScheduled = false;
+          }
+        })
+        .catch((err) => {
+          this.nextHandScheduled = false;
+          logger.error({ err, reason }, "Failed to immediately start next hand");
+        });
+      return;
+    }
 
     this.nextHandAnnounceTimer = setTimeout(() => {
       this.nextHandAnnounceTimer = null;
@@ -136,6 +237,20 @@ export class HandOrchestrator {
         logger.error({ err, reason }, "Failed to announce next-hand countdown");
       });
 
+      if (countdownMs <= 0) {
+        void this.deps.enqueueSerializedStateMutation(runImmediateNextHand)
+          .finally(() => {
+            if (this.nextHandAnnounceTimer == null && this.nextHandStartTimer == null) {
+              this.nextHandScheduled = false;
+            }
+          })
+          .catch((err) => {
+            this.nextHandScheduled = false;
+            logger.error({ err, reason }, "Failed to immediately start next hand after countdown");
+          });
+        return;
+      }
+
       this.nextHandStartTimer = setTimeout(() => {
         this.nextHandStartTimer = null;
         void this.deps.enqueueSerializedStateMutation(async () => {
@@ -147,15 +262,11 @@ export class HandOrchestrator {
 
           this.deps.state.nextHandAtTs = 0;
 
-          let seatedCount = 0;
-          for (const p of this.deps.state.playersById.values()) {
-            if (p.seat >= 0 && p.status !== "OUT") {
-              seatedCount += 1;
-              if (seatedCount >= 2) break;
-            }
-          }
+          // Use same active player logic as startHand to avoid readiness mismatch
+          const activePlayers = resolvePlayersReadyForNextHand(this.deps.state);
+          this.warnIfAllReadyPlayersDisconnected(activePlayers);
 
-          if (this.deps.state.street === "WAITING" && seatedCount >= 2) {
+          if (this.deps.state.street === "WAITING" && activePlayers.length >= 2) {
             // Release the guard before startHand so an immediate terminal hand
             // (e.g. HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT) can schedule the
             // follow-up hand from inside lifecycle execution.

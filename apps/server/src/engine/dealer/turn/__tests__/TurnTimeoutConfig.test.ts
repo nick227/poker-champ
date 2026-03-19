@@ -20,6 +20,7 @@ describe("Turn timeout config", () => {
     expect(TURN_TIMEOUT_TOTAL_MS).toBe(50);
 
     const state = new PokerState();
+    state.roundState = "WAITING_FOR_ACTION";
     for (let i = 0; i < state.maxSeats; i += 1) state.seats.push("");
 
     const player = new PlayerState();
@@ -39,6 +40,7 @@ describe("Turn timeout config", () => {
     state.roundCurrentBetCents = 100;
 
     const setPlayerSittingOutInternal = vi.fn(async () => {});
+    const driveGame = vi.fn(async () => {});
     const turnManager = new TurnManager({
       state,
       maxQueueDepth: 50,
@@ -47,6 +49,7 @@ describe("Turn timeout config", () => {
       buildDiagnosticContext: (context) => context ?? {},
       handleInternalAction: async () => {},
       setPlayerSittingOutInternal,
+      driveGame,
     });
 
     turnManager.scheduleHumanTurnTimeout("u1");
@@ -62,4 +65,3 @@ describe("Turn timeout config", () => {
     expect(state.turnDeadlineMs).toBe(0);
   });
 });
-

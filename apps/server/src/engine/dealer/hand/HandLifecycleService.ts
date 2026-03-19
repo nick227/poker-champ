@@ -140,6 +140,8 @@ export class HandLifecycleService {
   private currentHandIncludesBotParticipants = false;
   /** Players dealt into the current hand. Only these players may have needsAction=true during this hand. */
   private currentHandInHandIds = new Set<string>();
+  /** Financial participants snapshot captured at hand start - immutable settlement data */
+  private handParticipants = new Map<string, { committedCents: number; stackAtStart: number }>();
 
   // ============================================================================
   // CONSTRUCTOR & DEPENDENCIES
@@ -279,6 +281,13 @@ export class HandLifecycleService {
 
   private assignToActSeatWithTrace(state: PokerState, nextSeat: number, trigger: string): void {
     state.toActSeat = nextSeat;
+    if (nextSeat >= 0) {
+      const toActUserId = state.seats[nextSeat] ?? "";
+      const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
+      if (toActPlayer) {
+        toActPlayer.needsAction = true;
+      }
+    }
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
     const toActUserId = state.seats[nextSeat] ?? "";
@@ -384,6 +393,8 @@ export class HandLifecycleService {
     const totalStacksCents = this.sumStacksCents();
     const disbursedCents = settlementService.getCurrentHandPotDisbursedCents();
     const effectiveMassCents = totalStacksCents + state.potCents - disbursedCents;
+    const totalCommittedCents = [...state.playersById.values()]
+      .reduce((sum, player) => sum + (player.committedCents || 0), 0);
 
     // Compatibility fallback for tests that seed an in-progress hand directly
     // without running startHand() (which initializes initialChipMassCents).
@@ -392,6 +403,21 @@ export class HandLifecycleService {
     }
     
     // Rule 1: Total chip mass conservation
+    logger.info(
+      {
+        tableId: state.tableId,
+        handId: state.handId,
+        context,
+        requireFullySettled,
+        initialChipMassCents: state.initialChipMassCents,
+        effectiveMassCents,
+        totalStacksCents,
+        totalCommittedCents,
+        potCents: state.potCents,
+        disbursedCents,
+      },
+      "CHIP_MASS_ASSERT",
+    );
     if (effectiveMassCents !== state.initialChipMassCents) {
       throw new PokerError(
         "BAD_STATE",
@@ -492,6 +518,16 @@ export class HandLifecycleService {
 
     // Resolve active players for this hand after consuming sit-out-until-next-hand flags.
     const activePlayers = resolveActivePlayersForHand(state);
+
+    // 🔴 CRITICAL: Capture financial participants snapshot for settlement
+    // This freezes financial timeline regardless of player removal during hand
+    this.handParticipants.clear();
+    for (const player of activePlayers) {
+      this.handParticipants.set(player.id, {
+        committedCents: 0, // Will be updated as betting progresses
+        stackAtStart: player.stackCents
+      });
+    }
 
     if (activePlayers.length < 2) {
       state.street = "WAITING";
@@ -879,6 +915,18 @@ export class HandLifecycleService {
     const winner = remaining[0]!;
     this.transitionRoundState("HAND_COMPLETE", "LAST_PLAYER_STANDING");
     const payoutsByUserId: Record<string, number> = {};
+    logger.info(
+      {
+        tableId: state.tableId,
+        handId: state.handId,
+        street: state.street,
+        roundState: state.roundState,
+        potCents: state.potCents,
+        winnerIds: [winner.id],
+        payoutsByUserId,
+      },
+      "PAYOUT_BEGIN",
+    );
 
     // Step 1: Identify and return uncalled chips before touching the pot.
     // Example: A bets 1000, B (100 chips) folds → A's 900 is uncalled and must be returned.
@@ -901,6 +949,19 @@ export class HandLifecycleService {
     const creditAmount = state.potCents - disbursedCents;
     await this.deps.settlementService.creditPayoutToPlayer(winner, creditAmount);
     payoutsByUserId[winner.id] = (payoutsByUserId[winner.id] ?? 0) + creditAmount;
+    logger.info(
+      {
+        tableId: state.tableId,
+        handId: state.handId,
+        street: state.street,
+        roundState: state.roundState,
+        potCents: state.potCents,
+        disbursedCents: this.deps.settlementService.getCurrentHandPotDisbursedCents(),
+        payoutsByUserId,
+        winnerIds: [winner.id],
+      },
+      "PAYOUT_APPLIED",
+    );
 
     // Step 3: Assert 100% of the pot is cleared.
     this.assertHandMassOrThrow(state, "HAND_END_LAST_STANDING_POST_PAYOUT", true);
@@ -987,6 +1048,14 @@ export class HandLifecycleService {
       return this.finishHandByLastStanding();
     }
 
+    // 🔴 CRITICAL: Lock pot math before any lifecycle changes
+    // This ensures sum(player.committedCents) === potCents invariant holds
+    const totalCommittedCents = [...state.playersById.values()]
+      .reduce((sum, player) => sum + (player.committedCents || 0), 0);
+    if (totalCommittedCents !== state.potCents) {
+      throw new PokerError("BAD_STATE", `POT_MATH_VIOLATION: potCents(${state.potCents}) < totalCommittedCents(${totalCommittedCents})`);
+    }
+
     const pots = buildSidePots(playersAll, eligible);
     const board = [...state.board];
     const holeCards = this.getHoleCardsByPlayerIdSafe();
@@ -1001,6 +1070,17 @@ export class HandLifecycleService {
 
     const seatOrder = seatOrderLeftOfDealer(state);
     const payouts = new Map<string, number>();
+    logger.info(
+      {
+        tableId: state.tableId,
+        handId: state.handId,
+        street: state.street,
+        roundState: state.roundState,
+        potCents: state.potCents,
+        winnerIds: eligible.map((player) => player.id),
+      },
+      "PAYOUT_BEGIN",
+    );
 
     for (const pot of pots) {
       const contenders = pot.eligiblePlayerIds;
@@ -1064,12 +1144,31 @@ export class HandLifecycleService {
       throw new PokerError("BAD_STATE", "Payout sum must equal pot.");
     }
 
+    // Step 3: Finalize payouts using handParticipants snapshot (not playersById)
+    // This ensures payouts happen even if players were removed during hand
     for (const [id, amount] of payouts.entries()) {
-      const player = state.playersById.get(id);
-      if (player) {
-        await this.deps.settlementService.creditPayoutToPlayer(player, amount);
+      if (!this.handParticipants.has(id)) {
+        throw new PokerError("BAD_STATE", `SETTLEMENT_INVARIANT_VIOLATION: payout target ${id} not in handParticipants`);
       }
+      const player = state.playersById.get(id);
+      if (!player) {
+        throw new PokerError("BAD_STATE", `SETTLEMENT_INVARIANT_VIOLATION: payout target ${id} missing from playersById`);
+      }
+      await this.deps.settlementService.creditPayoutToPlayer(player, amount);
     }
+    logger.info(
+      {
+        tableId: state.tableId,
+        handId: state.handId,
+        street: state.street,
+        roundState: state.roundState,
+        potCents: state.potCents,
+        disbursedCents: this.deps.settlementService.getCurrentHandPotDisbursedCents(),
+        payoutsByUserId: Object.fromEntries(payouts.entries()),
+        winnerIds: [...payouts.keys()],
+      },
+      "PAYOUT_APPLIED",
+    );
     this.assertHandMassOrThrow(state, "HAND_END_SHOWDOWN_POST_PAYOUT_BATCH", true);
 
     const payoutsEntries = [...payouts.entries()];

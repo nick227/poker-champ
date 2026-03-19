@@ -38,7 +38,7 @@ export function TableLoadingLanding({
   const loadingTitle = useMemo(() => {
     if (mode === "auth_required") return "Login Required";
     if (mode === "auth_loading") return "Signing You In";
-    return "Joining Table";
+    return "";
   }, [mode]);
 
   const actionTitle = mode === "auth_required" ? "Go to Login" : "Return to Lobby";
@@ -63,15 +63,12 @@ export function TableLoadingLanding({
         justifyContent: "flex-start",
       }}
     >
-      <View style={{ width: "100%" }} className="gap-4 flex-1">
+      <View style={{ width: "100%" }}>
         <ScrollView className="flex-1">
           <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
             <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
             <Text variant="h2" className="mt-3 text-text">
-              {loadingTitle}
-            </Text>
-            <Text variant="muted" className="mt-2 text-text-subtle">
-              {statusMessage}
+              {loadingTitle} {statusMessage}
             </Text>
             {shouldShowAction ? (
               <View className="mt-4">

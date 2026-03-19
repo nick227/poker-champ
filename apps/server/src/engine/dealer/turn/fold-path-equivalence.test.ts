@@ -4,6 +4,12 @@ import { assertStateInvariants } from "../../invariants/assertState.js";
 import { PokerState } from "../../../state/PokerState.js";
 import { PlayerState } from "../../../state/PlayerState.js";
 
+function makeActiveState(): PokerState {
+  const state = new PokerState();
+  state.roundState = "WAITING_FOR_ACTION";
+  return state;
+}
+
 function makePlayer(input: {
   id: string;
   seat: number;
@@ -29,7 +35,7 @@ function makePlayer(input: {
 }
 
 function makeStateAndActor() {
-  const state = new PokerState();
+  const state = makeActiveState();
   state.tableId = "table_fold_equivalence";
   state.handId = "hand_fold_equivalence";
   state.street = "TURN";
@@ -139,7 +145,7 @@ describe("fold / abandon / disconnect money equivalence", () => {
   });
 
   it("keeps roundCurrentBetCents aligned when the highest bettor folds", async () => {
-    const state = new PokerState();
+    const state = makeActiveState();
     state.tableId = "table_fold_high_bet";
     state.handId = "hand_fold_high_bet";
     state.street = "TURN";

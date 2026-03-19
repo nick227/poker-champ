@@ -131,3 +131,13 @@ export function resolveActivePlayersForHand(state: PokerState): PlayerState[] {
     .sort((a, b) => a.seat - b.seat);
   return anyActive;
 }
+
+export function resolvePlayersReadyForNextHand(state: PokerState): PlayerState[] {
+  return [...iterPlayersInSeatOrder(state)].filter(
+    (p) =>
+      p.status !== "OUT" &&
+      p.status !== "ABANDONED" &&
+      p.stackCents > 0 &&
+      p.sittingOutUntilNextHand !== true,
+  );
+}

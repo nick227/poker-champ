@@ -45,6 +45,8 @@ type TurnManagerDeps = {
   setPlayerSittingOutInternal: (userId: string, sittingOut: boolean) => Promise<void>;
   /** Called when a queued auto-action is discarded so dealer can re-drive (e.g. maybeActForBot). */
   onAutoActionDiscarded?: () => void;
+  /** Called to continue engine progression after async state changes */
+  driveGame: (reason: string) => Promise<void>;
 };
 
 type QueuedInternalWorkItem = {
@@ -84,6 +86,7 @@ class TurnTokenUtil {
 class ActionQueue {
   private queue: Promise<void> = Promise.resolve();
   private pendingActionCount = 0;
+  private static readonly SLOW_TASK_MS = 2_000;
 
   getPendingCount(): number {
     return this.pendingActionCount;
@@ -121,9 +124,11 @@ class ActionQueue {
       })
       .then(async () => {
         if (!this.assertNotDisposed("player_action")) return;
+        const startedAt = Date.now();
         try {
           await work();
         } finally {
+          this.logSlowTask("player_action", startedAt);
           this.pendingActionCount--;
         }
       });
@@ -140,9 +145,14 @@ class ActionQueue {
           this.deps.emitQueueRecoveryDiagnostic("Recovering dealer queue after prior failure");
         }
       })
-      .then(() => {
+      .then(async () => {
         if (!this.assertNotDisposed("serialized_mutation")) return;
-        return work();
+        const startedAt = Date.now();
+        try {
+          return await work();
+        } finally {
+          this.logSlowTask("serialized_mutation", startedAt);
+        }
       });
     this.queue = queued;
     return queued;
@@ -160,12 +170,15 @@ class ActionQueue {
       })
       .then(async () => {
         if (!this.assertNotDisposed("queued_internal_work")) return;
+        const startedAt = Date.now();
         try {
           await workItem.execute();
         } catch (err) {
           // Swallow — internal work failures must never poison the queue.
           // The dispatcher's own .catch() handles per-action error reporting.
           logger.warn({ err, handId: workItem.handId }, "INTERNAL_WORK_FAILED");
+        } finally {
+          this.logSlowTask("queued_internal_work", startedAt, { handId: workItem.handId });
         }
       });
     this.queue = queued;
@@ -189,6 +202,12 @@ class ActionQueue {
       return false;
     }
   }
+
+  private logSlowTask(source: string, startedAt: number, context?: Record<string, unknown>): void {
+    const durationMs = Date.now() - startedAt;
+    if (durationMs <= ActionQueue.SLOW_TASK_MS) return;
+    logger.warn({ source, durationMs, ...context }, "QUEUE_SLOW_TASK");
+  }
 }
 
 class AutoActionDispatcher {
@@ -198,6 +217,7 @@ class AutoActionDispatcher {
     emitDiagnostic: (event: TurnManagerDiagnosticEvent) => void;
     buildDiagnosticContext: (context?: Record<string, unknown>) => Record<string, unknown>;
     handleInternalAction: (userId: string, payload: ActionPayload) => Promise<void>;
+    driveGame?: (reason: string) => Promise<void>;
     onAutoActionDiscarded?: () => void;
   }) {}
 
@@ -209,183 +229,198 @@ class AutoActionDispatcher {
       "INTERNAL_WORK_ENQUEUED",
     );
     const turnToken = TurnTokenUtil.capture(state, userId);
-    this.deps.actionQueue.enqueueInternalWork({
-      handId: enqueuedHandId ?? null,
-      execute: async () => {
-      if (delayMs > 0) {
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-      logger.info(
-        this.deps.buildDiagnosticContext({ userId, action: payload.action }),
-        "INTERNAL_WORK_STARTED",
-      );
+    // CRITICAL INVARIANT:
+    // Any delay for queued auto/internal work must happen before enqueueing.
+    // Sleeping inside the serialized queue starves later player actions.
+    const enqueueWork = () => {
+      this.deps.actionQueue.enqueueInternalWork({
+        handId: enqueuedHandId ?? null,
+        execute: async () => {
+          logger.info(
+            this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+            "INTERNAL_WORK_STARTED",
+          );
 
-      if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
-        logger.info(
-          this.deps.buildDiagnosticContext({
-            userId,
-            action: payload.action,
-            staleReason: "HAND_ID_CHANGED",
-            enqueuedHandId,
-            currentHandId: this.deps.state.handId,
-          }),
-          "AUTO_ACTION_DISCARDED",
-        );
-        this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
-          message: "Queued auto-action discarded because hand changed before execution",
-          context: this.deps.buildDiagnosticContext({
-            userId,
-            action: payload.action,
-            staleReason: "HAND_ID_CHANGED",
-            enqueuedHandId,
-            currentHandId: this.deps.state.handId,
-            token: turnToken ?? null,
-          }),
-        });
-        if (this.deps.onAutoActionDiscarded) {
-          this.deps.onAutoActionDiscarded();
-          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-        }
-        return;
-      }
+          if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
+            logger.info(
+              this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason: "HAND_ID_CHANGED",
+                enqueuedHandId,
+                currentHandId: this.deps.state.handId,
+              }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+              message: "Queued auto-action discarded because hand changed before execution",
+              context: this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason: "HAND_ID_CHANGED",
+                enqueuedHandId,
+                currentHandId: this.deps.state.handId,
+                token: turnToken ?? null,
+              }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return;
+          }
 
-      const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
-      if (staleReason) {
-        logger.info(
-          this.deps.buildDiagnosticContext({ userId, action: payload.action, staleReason }),
-          "AUTO_ACTION_DISCARDED",
-        );
-        this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
-          message: "Queued auto-action discarded due to stale turn token",
-          context: this.deps.buildDiagnosticContext({
-            userId,
-            action: payload.action,
-            staleReason,
-            token: turnToken ?? null,
-          }),
-        });
-        if (this.deps.onAutoActionDiscarded) {
-          this.deps.onAutoActionDiscarded();
-          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-        }
-        return;
-      }
+          const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
+          if (staleReason) {
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, staleReason }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+              message: "Queued auto-action discarded due to stale turn token",
+              context: this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason,
+                token: turnToken ?? null,
+              }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return;
+          }
 
-      const p = this.deps.state.playersById.get(userId);
-      if (p && p.kind !== "BOT" && p.connected) {
-        logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
-        logger.info(
-          this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "reconnected" }),
-          "AUTO_ACTION_DISCARDED",
-        );
-        this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
-          message: "Queued auto-action skipped because player reconnected",
-          context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
-        });
-        if (this.deps.onAutoActionDiscarded) {
-          this.deps.onAutoActionDiscarded();
-          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-        }
-        return;
-      }
+          const p = this.deps.state.playersById.get(userId);
+          if (p && p.kind !== "BOT" && p.connected) {
+            logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "reconnected" }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
+              message: "Queued auto-action skipped because player reconnected",
+              context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return;
+          }
 
-      const eligibilityError = this.getQueuedAutoActionIneligibleReason(userId);
-      if (eligibilityError) {
-        logger.info(
-          this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: eligibilityError }),
-          "AUTO_ACTION_DISCARDED",
-        );
-        this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
-          message: "Queued auto-action discarded because actor is ineligible",
-          context: this.deps.buildDiagnosticContext({
-            userId,
-            action: payload.action,
-            reason: eligibilityError,
-          }),
-        });
-        if (this.deps.onAutoActionDiscarded) {
-          this.deps.onAutoActionDiscarded();
-          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-        }
-        return;
-      }
+          const eligibilityError = this.getQueuedAutoActionIneligibleReason(userId);
+          if (eligibilityError) {
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: eligibilityError }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
+              message: "Queued auto-action discarded because actor is ineligible",
+              context: this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                reason: eligibilityError,
+              }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return;
+          }
 
-      const normalized = this.normalizeQueuedAutoAction(userId, payload);
-      if (!normalized) {
-        logger.info(
-          this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "no_legal_options" }),
-          "AUTO_ACTION_DISCARDED",
-        );
-        this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
-          message: "Queued auto-action discarded because no legal action options were available",
-          context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
-        });
-        if (this.deps.onAutoActionDiscarded) {
-          this.deps.onAutoActionDiscarded();
+          const normalized = this.normalizeQueuedAutoAction(userId, payload);
+          if (!normalized) {
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "no_legal_options" }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED",
+              message: "Queued auto-action discarded because no legal action options were available",
+              context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return;
+          }
+          try {
+            await this.deps.handleInternalAction(userId, normalized);
+            logger.info({ userId, action: payload.action }, "DRIVE_CALLED_AFTER_AUTO_ACTION");
+            if (this.deps.driveGame) {
+              void this.deps.actionQueue.enqueueSerializedStateMutation(async () => {
+                await this.deps.driveGame?.("AUTO_ACTION_EXECUTED");
+              });
+            }
+          } catch (err) {
+            logger.warn(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, err }),
+              "AUTO_ACTION_FAILED",
+            );
+            throw err;
+          }
+        },
+      }).catch((err) => {
+        if (this.isSkippableQueuedActionError(err)) {
+          logger.warn(
+            { err, userId, action: payload.action, street: this.deps.state.street },
+            "Queued auto-action skipped after state changed",
+          );
+          logger.info(
+            this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+            "AUTO_ACTION_FAILED",
+          );
+          const code = err instanceof PokerError ? err.code : undefined;
+          this.deps.emitDiagnostic({
+            level: "warn",
+            type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+            message: "Queued auto-action skipped after state changed",
+            code,
+            context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+          });
+          this.deps.onAutoActionDiscarded?.();
           logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+          return;
         }
-        return;
-      }
-      try {
-        await this.deps.handleInternalAction(userId, normalized);
-      } catch (err) {
-        logger.warn(
+        logger.error({ err, userId, action: payload.action }, "Queued auto-action failed");
+        logger.info(
           this.deps.buildDiagnosticContext({ userId, action: payload.action, err }),
-          "AUTO_ACTION_FAILED",
-        );
-        throw err;
-      }
-      },
-    }).catch((err) => {
-      if (this.isSkippableQueuedActionError(err)) {
-        logger.warn(
-          { err, userId, action: payload.action, street: this.deps.state.street },
-          "Queued auto-action skipped after state changed",
-        );
-        logger.info(
-          this.deps.buildDiagnosticContext({ userId, action: payload.action }),
           "AUTO_ACTION_FAILED",
         );
         const code = err instanceof PokerError ? err.code : undefined;
         this.deps.emitDiagnostic({
-          level: "warn",
-          type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
-          message: "Queued auto-action skipped after state changed",
+          level: "error",
+          type: "QUEUED_AUTO_ACTION_FAILED",
+          message: "Queued auto-action failed",
           code,
           context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
         });
-        this.deps.onAutoActionDiscarded?.();
-        logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-        return;
-      }
-      logger.error({ err, userId, action: payload.action }, "Queued auto-action failed");
-      logger.info(
-        this.deps.buildDiagnosticContext({ userId, action: payload.action, err }),
-        "AUTO_ACTION_FAILED",
-      );
-      const code = err instanceof PokerError ? err.code : undefined;
-      this.deps.emitDiagnostic({
-        level: "error",
-        type: "QUEUED_AUTO_ACTION_FAILED",
-        message: "Queued auto-action failed",
-        code,
-        context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+        if (this.deps.onAutoActionDiscarded) {
+          this.deps.onAutoActionDiscarded();
+          logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+        }
       });
-      if (this.deps.onAutoActionDiscarded) {
-        this.deps.onAutoActionDiscarded();
-        logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-      }
-    });
+    };
+
+    if (delayMs > 0) {
+      setTimeout(enqueueWork, delayMs);
+      return;
+    }
+
+    enqueueWork();
   }
 
   private getQueuedAutoActionIneligibleReason(userId: string): string | null {
@@ -441,6 +476,7 @@ class TurnTimeoutScheduler {
     state: PokerState;
     actionQueue: ActionQueue;
     setPlayerSittingOutInternal: (userId: string, sittingOut: boolean) => Promise<void>;
+    driveGame: (reason: string) => Promise<void>;
   }) {}
 
   scheduleHumanTurnTimeout(userId: string): boolean {
@@ -511,6 +547,9 @@ class TurnTimeoutScheduler {
         dealerRuntimeMetrics.recordTurnTimeoutFired();
         await this.deps.setPlayerSittingOutInternal(userId, true);
         this.clearPendingTimeoutIfCurrent(key);
+        
+        // 🔥 CRITICAL: Continue engine progression after timeout sit-out
+        await this.deps.driveGame("HUMAN_TIMEOUT_AUTO_SIT_OUT");
       });
     }, TURN_TIMEOUT_TOTAL_MS);
     return true;
@@ -542,7 +581,7 @@ class TurnTimeoutScheduler {
 }
 
 export class TurnManager {
-  private readonly actionQueue: ActionQueue;
+  public readonly actionQueue: ActionQueue;
   private readonly autoActionDispatcher: AutoActionDispatcher;
   private readonly turnTimeoutScheduler: TurnTimeoutScheduler;
 
@@ -575,12 +614,14 @@ export class TurnManager {
       emitDiagnostic: deps.emitDiagnostic,
       buildDiagnosticContext: deps.buildDiagnosticContext,
       handleInternalAction: deps.handleInternalAction,
+      driveGame: deps.driveGame,
       onAutoActionDiscarded: deps.onAutoActionDiscarded,
     });
     this.turnTimeoutScheduler = new TurnTimeoutScheduler({
       state: deps.state,
       actionQueue: this.actionQueue,
       setPlayerSittingOutInternal: deps.setPlayerSittingOutInternal,
+      driveGame: deps.driveGame,
     });
   }
 
