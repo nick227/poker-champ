@@ -53,6 +53,7 @@ type QueuedInternalWorkItem = {
   handId: string | null;
   source?: string;
   enqueuedBy?: string;
+  beforeStart?: () => boolean;
   execute: () => Promise<void>;
 };
 
@@ -248,6 +249,10 @@ class ActionQueue {
       })
       .then(async () => {
         if (!this.assertNotDisposed("queued_internal_work")) return;
+        if (workItem.beforeStart && workItem.beforeStart() === false) {
+          this.recordQueueTransition("completed", item);
+          return;
+        }
         const startedAt = Date.now();
         this.recordQueueTransition("started", item);
         try {
@@ -361,6 +366,84 @@ class AutoActionDispatcher {
         handId: enqueuedHandId ?? null,
         source: `AUTO_ACTION:${payload.action}`,
         enqueuedBy: userId,
+        beforeStart: () => {
+          if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
+            logger.info(
+              this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason: "HAND_ID_CHANGED",
+                enqueuedHandId,
+                currentHandId: this.deps.state.handId,
+              }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+              message: "Queued auto-action discarded because hand changed before execution",
+              context: this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason: "HAND_ID_CHANGED",
+                enqueuedHandId,
+                currentHandId: this.deps.state.handId,
+                token: turnToken ?? null,
+              }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return false;
+          }
+
+          const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
+          if (staleReason) {
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, staleReason }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
+              message: "Queued auto-action discarded due to stale turn token",
+              context: this.deps.buildDiagnosticContext({
+                userId,
+                action: payload.action,
+                staleReason,
+                token: turnToken ?? null,
+              }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return false;
+          }
+
+          const p = this.deps.state.playersById.get(userId);
+          if (p && p.kind !== "BOT" && p.connected) {
+            logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
+            logger.info(
+              this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "reconnected" }),
+              "AUTO_ACTION_DISCARDED",
+            );
+            this.deps.emitDiagnostic({
+              level: "warn",
+              type: "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
+              message: "Queued auto-action skipped because player reconnected",
+              context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
+            });
+            if (this.deps.onAutoActionDiscarded) {
+              this.deps.onAutoActionDiscarded();
+              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
+            }
+            return false;
+          }
+
+          return true;
+        },
         execute: async () => {
           logger.info(
             this.deps.buildDiagnosticContext({ userId, action: payload.action }),
