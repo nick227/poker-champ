@@ -881,6 +881,7 @@ describe("dealer random walk soak", () => {
               lastAcceptedAction: failedDealer.getLastAcceptedActionSnapshot?.(failedState.handId) ?? null,
               currentQueueItem: failedDealer.getCurrentQueueItem?.() ?? null,
               lastQueueTransition: failedDealer.getLastQueueTransition?.() ?? null,
+              lastAutoActionProbe: failedDealer.getLastAutoActionProbe?.() ?? null,
             }
           : null,
       });

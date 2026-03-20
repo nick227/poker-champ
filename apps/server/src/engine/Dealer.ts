@@ -3117,6 +3117,10 @@ export class Dealer {
     return this.turnManager.getLastQueueTransition();
   }
 
+  getLastAutoActionProbe(): Record<string, unknown> | null {
+    return this.turnManager.getLastAutoActionProbe();
+  }
+
   getLastDriveMarker(): string {
     return this.lastDriveMarker;
   }

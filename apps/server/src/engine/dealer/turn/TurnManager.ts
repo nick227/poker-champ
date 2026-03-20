@@ -57,6 +57,37 @@ type QueuedInternalWorkItem = {
   execute: () => Promise<void>;
 };
 
+type AutoActionProbeSnapshot = {
+  userId: string;
+  action: string;
+  enqueuedHandId: string | null;
+  beforeStartCalled: boolean;
+  beforeStartResult: boolean | null;
+  beforeStartCurrentHandId: string | null;
+  beforeStartToActSeat: number | null;
+  beforeStartToActUserId: string | null;
+  beforeStartNextStepOwner: string | null;
+  actorConnectedAtBeforeStart: boolean | null;
+  actorNeedsActionAtBeforeStart: boolean | null;
+  staleReasonAtBeforeStart: string | null;
+  executeTopCurrentHandId: string | null;
+  executeTopToActSeat: number | null;
+  executeTopToActUserId: string | null;
+  executeTopNextStepOwner: string | null;
+  actorConnectedAtExecuteTop: boolean | null;
+  actorNeedsActionAtExecuteTop: boolean | null;
+  staleReasonAtExecuteTop: string | null;
+  finalPhase:
+    | "enqueued"
+    | "before_start"
+    | "before_start_discarded"
+    | "started"
+    | "execute_top"
+    | "discarded"
+    | "completed";
+  ts: number;
+};
+
 type QueueWorkSource = "player_action" | "serialized_mutation" | "queued_internal_work";
 
 type QueueItemMetadata = {
@@ -339,6 +370,7 @@ class ActionQueue {
 
 class AutoActionDispatcher {
   private pendingDelayTimeoutIds = new Set<ReturnType<typeof setTimeout>>();
+  private lastAutoActionProbe: AutoActionProbeSnapshot | null = null;
 
   constructor(private readonly deps: {
     state: PokerState;
@@ -350,9 +382,106 @@ class AutoActionDispatcher {
     onAutoActionDiscarded?: () => void;
   }) {}
 
+  getLastAutoActionProbe(): Record<string, unknown> | null {
+    return this.lastAutoActionProbe ? { ...this.lastAutoActionProbe } : null;
+  }
+
+  private snapshotCurrentAutoActionState(): {
+    currentHandId: string | null;
+    toActSeat: number | null;
+    toActUserId: string | null;
+    nextStepOwner: string | null;
+    actorConnected: boolean | null;
+    actorNeedsAction: boolean | null;
+  } {
+    const { state } = this.deps;
+    const toActSeat = state.toActSeat;
+    const toActUserId = toActSeat >= 0 ? (state.seats[toActSeat] ?? null) : null;
+    const actor = toActUserId ? state.playersById.get(toActUserId) : undefined;
+    return {
+      currentHandId: state.handId ?? null,
+      toActSeat,
+      toActUserId,
+      nextStepOwner: (state as PokerState & { nextStepOwner?: string | null }).nextStepOwner ?? null,
+      actorConnected: actor?.connected ?? null,
+      actorNeedsAction: actor?.needsAction ?? null,
+    };
+  }
+
+  private captureAutoActionProbe(args: {
+    phase: AutoActionProbeSnapshot["finalPhase"];
+    userId: string;
+    action: string;
+    enqueuedHandId: string | null;
+    beforeStartCalled?: boolean;
+    beforeStartResult?: boolean | null;
+    staleReasonAtBeforeStart?: string | null;
+    staleReasonAtExecuteTop?: string | null;
+  }): void {
+    const snapshot = this.snapshotCurrentAutoActionState();
+    const existing = this.lastAutoActionProbe;
+    const next: AutoActionProbeSnapshot = existing && existing.userId === args.userId && existing.action === args.action
+      ? { ...existing }
+      : {
+          userId: args.userId,
+          action: args.action,
+          enqueuedHandId: args.enqueuedHandId,
+          beforeStartCalled: false,
+          beforeStartResult: null,
+          beforeStartCurrentHandId: null,
+          beforeStartToActSeat: null,
+          beforeStartToActUserId: null,
+          beforeStartNextStepOwner: null,
+          actorConnectedAtBeforeStart: null,
+          actorNeedsActionAtBeforeStart: null,
+          staleReasonAtBeforeStart: null,
+          executeTopCurrentHandId: null,
+          executeTopToActSeat: null,
+          executeTopToActUserId: null,
+          executeTopNextStepOwner: null,
+          actorConnectedAtExecuteTop: null,
+          actorNeedsActionAtExecuteTop: null,
+          staleReasonAtExecuteTop: null,
+          finalPhase: "enqueued",
+          ts: Date.now(),
+        };
+
+    if (args.phase === "before_start" || args.phase === "before_start_discarded") {
+      next.beforeStartCalled = args.beforeStartCalled ?? true;
+      next.beforeStartResult = args.beforeStartResult ?? null;
+      next.beforeStartCurrentHandId = snapshot.currentHandId;
+      next.beforeStartToActSeat = snapshot.toActSeat;
+      next.beforeStartToActUserId = snapshot.toActUserId;
+      next.beforeStartNextStepOwner = snapshot.nextStepOwner;
+      next.actorConnectedAtBeforeStart = snapshot.actorConnected;
+      next.actorNeedsActionAtBeforeStart = snapshot.actorNeedsAction;
+      next.staleReasonAtBeforeStart = args.staleReasonAtBeforeStart ?? null;
+    }
+
+    if (args.phase === "execute_top" || args.phase === "started" || args.phase === "discarded" || args.phase === "completed") {
+      next.executeTopCurrentHandId = snapshot.currentHandId;
+      next.executeTopToActSeat = snapshot.toActSeat;
+      next.executeTopToActUserId = snapshot.toActUserId;
+      next.executeTopNextStepOwner = snapshot.nextStepOwner;
+      next.actorConnectedAtExecuteTop = snapshot.actorConnected;
+      next.actorNeedsActionAtExecuteTop = snapshot.actorNeedsAction;
+      next.staleReasonAtExecuteTop = args.staleReasonAtExecuteTop ?? next.staleReasonAtExecuteTop;
+    }
+
+    next.finalPhase = args.phase;
+    next.ts = Date.now();
+    this.lastAutoActionProbe = next;
+  }
+
   enqueueInternalAction(userId: string, payload: ActionPayload, delayMs = 0): void {
     const { state } = this.deps;
     const enqueuedHandId = state.handId;
+    this.captureAutoActionProbe({
+      phase: "enqueued",
+      userId,
+      action: payload.action,
+      enqueuedHandId: enqueuedHandId ?? null,
+    });
     logger.info(
       this.deps.buildDiagnosticContext({ userId, action: payload.action, delayMs }),
       "INTERNAL_WORK_ENQUEUED",
@@ -367,90 +496,60 @@ class AutoActionDispatcher {
         source: `AUTO_ACTION:${payload.action}`,
         enqueuedBy: userId,
         beforeStart: () => {
-          if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
-            logger.info(
-              this.deps.buildDiagnosticContext({
-                userId,
-                action: payload.action,
-                staleReason: "HAND_ID_CHANGED",
-                enqueuedHandId,
-                currentHandId: this.deps.state.handId,
-              }),
-              "AUTO_ACTION_DISCARDED",
-            );
-            this.deps.emitDiagnostic({
-              level: "warn",
-              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
-              message: "Queued auto-action discarded because hand changed before execution",
-              context: this.deps.buildDiagnosticContext({
-                userId,
-                action: payload.action,
-                staleReason: "HAND_ID_CHANGED",
-                enqueuedHandId,
-                currentHandId: this.deps.state.handId,
-                token: turnToken ?? null,
-              }),
-            });
-            if (this.deps.onAutoActionDiscarded) {
-              this.deps.onAutoActionDiscarded();
-              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-            }
-            return false;
-          }
-
-          const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
-          if (staleReason) {
-            logger.info(
-              this.deps.buildDiagnosticContext({ userId, action: payload.action, staleReason }),
-              "AUTO_ACTION_DISCARDED",
-            );
-            this.deps.emitDiagnostic({
-              level: "warn",
-              type: "QUEUED_AUTO_ACTION_STALE_DISCARDED",
-              message: "Queued auto-action discarded due to stale turn token",
-              context: this.deps.buildDiagnosticContext({
-                userId,
-                action: payload.action,
-                staleReason,
-                token: turnToken ?? null,
-              }),
-            });
-            if (this.deps.onAutoActionDiscarded) {
-              this.deps.onAutoActionDiscarded();
-              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-            }
-            return false;
-          }
-
+          const staleReasonAtBeforeStart =
+            (enqueuedHandId && this.deps.state.handId !== enqueuedHandId)
+              ? "HAND_ID_CHANGED"
+              : TurnTokenUtil.staleReason(this.deps.state, turnToken);
           const p = this.deps.state.playersById.get(userId);
-          if (p && p.kind !== "BOT" && p.connected) {
-            logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
-            logger.info(
-              this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "reconnected" }),
-              "AUTO_ACTION_DISCARDED",
-            );
-            this.deps.emitDiagnostic({
-              level: "warn",
-              type: "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
-              message: "Queued auto-action skipped because player reconnected",
-              context: this.deps.buildDiagnosticContext({ userId, action: payload.action }),
-            });
-            if (this.deps.onAutoActionDiscarded) {
-              this.deps.onAutoActionDiscarded();
-              logger.info(this.deps.buildDiagnosticContext({ userId }), "AUTO_ACTION_REDRIVE_TRIGGERED");
-            }
-            return false;
-          }
-
-          return true;
+          const reconnected =
+            !staleReasonAtBeforeStart && !!p && p.kind !== "BOT" && p.connected;
+          const beforeStartResult = !staleReasonAtBeforeStart && !reconnected;
+          this.captureAutoActionProbe({
+            phase: beforeStartResult ? "before_start" : "before_start_discarded",
+            userId,
+            action: payload.action,
+            enqueuedHandId: enqueuedHandId ?? null,
+            beforeStartCalled: true,
+            beforeStartResult,
+            staleReasonAtBeforeStart: staleReasonAtBeforeStart ?? (reconnected ? "PLAYER_RECONNECTED" : null),
+          });
+          return beforeStartResult;
         },
         execute: async () => {
+          const staleReasonAtExecuteTop = TurnTokenUtil.staleReason(this.deps.state, turnToken);
+          this.captureAutoActionProbe({
+            phase: "execute_top",
+            userId,
+            action: payload.action,
+            enqueuedHandId: enqueuedHandId ?? null,
+            beforeStartCalled: true,
+            beforeStartResult: true,
+            staleReasonAtExecuteTop,
+          });
           logger.info(
             this.deps.buildDiagnosticContext({ userId, action: payload.action }),
             "INTERNAL_WORK_STARTED",
           );
+          this.captureAutoActionProbe({
+            phase: "started",
+            userId,
+            action: payload.action,
+            enqueuedHandId: enqueuedHandId ?? null,
+            beforeStartCalled: true,
+            beforeStartResult: true,
+            staleReasonAtExecuteTop,
+          });
 
           if (enqueuedHandId && this.deps.state.handId !== enqueuedHandId) {
+            this.captureAutoActionProbe({
+              phase: "discarded",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+              staleReasonAtExecuteTop: "HAND_ID_CHANGED",
+            });
             logger.info(
               this.deps.buildDiagnosticContext({
                 userId,
@@ -483,6 +582,15 @@ class AutoActionDispatcher {
 
           const staleReason = TurnTokenUtil.staleReason(this.deps.state, turnToken);
           if (staleReason) {
+            this.captureAutoActionProbe({
+              phase: "discarded",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+              staleReasonAtExecuteTop: staleReason,
+            });
             logger.info(
               this.deps.buildDiagnosticContext({ userId, action: payload.action, staleReason }),
               "AUTO_ACTION_DISCARDED",
@@ -507,6 +615,15 @@ class AutoActionDispatcher {
 
           const p = this.deps.state.playersById.get(userId);
           if (p && p.kind !== "BOT" && p.connected) {
+            this.captureAutoActionProbe({
+              phase: "discarded",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+              staleReasonAtExecuteTop: "PLAYER_RECONNECTED",
+            });
             logger.info({ userId, action: payload.action }, "Skipping queued auto-action; player reconnected");
             logger.info(
               this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "reconnected" }),
@@ -527,6 +644,15 @@ class AutoActionDispatcher {
 
           const eligibilityError = this.getQueuedAutoActionIneligibleReason(userId);
           if (eligibilityError) {
+            this.captureAutoActionProbe({
+              phase: "discarded",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+              staleReasonAtExecuteTop: eligibilityError,
+            });
             logger.info(
               this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: eligibilityError }),
               "AUTO_ACTION_DISCARDED",
@@ -550,6 +676,15 @@ class AutoActionDispatcher {
 
           const normalized = this.normalizeQueuedAutoAction(userId, payload);
           if (!normalized) {
+            this.captureAutoActionProbe({
+              phase: "discarded",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+              staleReasonAtExecuteTop: "NO_LEGAL_OPTIONS",
+            });
             logger.info(
               this.deps.buildDiagnosticContext({ userId, action: payload.action, reason: "no_legal_options" }),
               "AUTO_ACTION_DISCARDED",
@@ -568,6 +703,14 @@ class AutoActionDispatcher {
           }
           try {
             await this.deps.handleInternalAction(userId, normalized);
+            this.captureAutoActionProbe({
+              phase: "completed",
+              userId,
+              action: payload.action,
+              enqueuedHandId: enqueuedHandId ?? null,
+              beforeStartCalled: true,
+              beforeStartResult: true,
+            });
             logger.info({ userId, action: payload.action }, "DRIVE_CALLED_AFTER_AUTO_ACTION");
             if (this.deps.driveGame) {
               void this.deps.actionQueue.enqueueSerializedStateMutation(async () => {
@@ -881,6 +1024,10 @@ export class TurnManager {
 
   getLastQueueTransition(): Record<string, unknown> | null {
     return this.actionQueue.getLastQueueTransition();
+  }
+
+  getLastAutoActionProbe(): Record<string, unknown> | null {
+    return this.autoActionDispatcher.getLastAutoActionProbe();
   }
 
   getTurnStartTs(): number {
