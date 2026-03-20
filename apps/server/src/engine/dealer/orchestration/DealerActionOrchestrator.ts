@@ -50,6 +50,7 @@ type DealerActionOrchestratorDeps = {
   ) => void;
   sendTableSnapshotToAll: (reason: SnapshotReason) => Promise<void>;
   progression: Pick<DealerProgressionCoordinator, "requestDrive">;
+  reconcileAutomationOwnershipAfterTurnAdvancedWithoutDrive: () => void;
   reconcilePostActionLifecycleIfNeeded: (kind: "HAND_FINISHED" | "STREET_COMPLETE") => Promise<void>;
   logActionResolvedNextActor: () => void;
   recordLastAcceptedActionSnapshot: (args: {
@@ -373,6 +374,9 @@ export class DealerActionOrchestrator {
         return;
       case "TURN_ADVANCED": {
         void result.actorKind;
+        if (!options?.requestDriveAfterTurnAdvanced) {
+          this.deps.reconcileAutomationOwnershipAfterTurnAdvancedWithoutDrive();
+        }
         await this.deps.sendTableSnapshotToAll(acceptedActionReason);
         if (options?.requestDriveAfterTurnAdvanced) {
           await this.deps.progression.requestDrive("TURN_ADVANCED:APPLY_ACTION_RESULT");

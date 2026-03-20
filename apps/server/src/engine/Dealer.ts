@@ -674,6 +674,8 @@ export class Dealer {
       },
       sendTableSnapshotToAll: (reason) => this.sendTableSnapshotToAll(reason),
       progression: this.progression,
+      reconcileAutomationOwnershipAfterTurnAdvancedWithoutDrive: () =>
+        this.reconcileAutomationOwnershipAfterTurnAdvancedWithoutDrive(),
       reconcilePostActionLifecycleIfNeeded: (kind) => this.reconcilePostActionLifecycleIfNeeded(kind),
       logActionResolvedNextActor: () => this.logActionResolvedNextActor(),
       recordLastAcceptedActionSnapshot: (args) => this.recordLastAcceptedActionSnapshot(args),
@@ -2460,6 +2462,20 @@ export class Dealer {
     if (!automationClaimed) return;
 
     this.setNextStepOwner("WAITING_FOR_AUTOMATION", `AUTOMATION_CLAIMED_AFTER_LIFECYCLE:${trigger}`);
+  }
+
+  private reconcileAutomationOwnershipAfterTurnAdvancedWithoutDrive(): void {
+    if (this.nextStepOwner !== "WAITING_FOR_AUTOMATION") return;
+    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
+    if (this.state.toActSeat < 0) return;
+
+    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction) return;
+    if (toActPlayer.kind !== "HUMAN" || !toActPlayer.connected) return;
+
+    this.setNextStepOwner("WAITING_FOR_HUMAN", "TURN_ADVANCED:AUTOMATION_OWNER_RECONCILE");
+    this.ensureHumanTurnTimerForCurrentActor("TURN_ADVANCED:AUTOMATION_OWNER_RECONCILE");
   }
 
   // ---------------------------------------------------------------------------
