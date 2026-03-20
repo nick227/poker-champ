@@ -7,6 +7,7 @@
     "typecheck": "tsc -p ../../tsconfig.json --noEmit --incremental false",
     "test": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
     "test:run": "pnpm --dir ../.. exec vitest run --config vitest.config.ts",
+    "dealer:gate": "pnpm --dir ../.. exec vitest run apps/server/src/engine/dealer.action-result.reconciliation.test.ts apps/server/src/engine/dealer.to-act-needs-action.repair.test.ts",
     "test:round-state-parity": "node scripts/check-round-state-parity.mjs",
     "analyze:game-bugs": "node scripts/analyze-game-bugs-timeouts.mjs",
     "analyze:phase4": "node scripts/analyze-game-bugs-timeouts.mjs --max-issues 100",

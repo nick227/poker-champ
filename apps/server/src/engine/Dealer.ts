@@ -86,26 +86,14 @@ import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
 import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type NextStepOwner, type StallReason } from "./dealer/decision/index.js";
 import type { EngineQueries } from "./dealer/decision/engineQueries.js";
 import { dealerRuntimeMetrics } from "./dealer/metrics/dealerRuntimeMetrics.js";
-
-export type DealerDiagnosticType =
-  | "QUEUE_FULL"
-  | "QUEUE_RECOVERY_AFTER_FAILURE"
-  | "ACTION_REJECTED"
-  | "ACTION_FAILED"
-  | "LIFECYCLE_DEFERRED_REMOVAL"
-  | "STALL_NO_ELIGIBLE_ACTOR"
-  | "QUEUED_AUTO_ACTION_STALE_DISCARDED"
-  | "QUEUED_AUTO_ACTION_INELIGIBLE_DISCARDED"
-  | "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED"
-  | "QUEUED_AUTO_ACTION_FAILED";
-
-export type DealerDiagnosticEvent = {
-  level: "warn" | "error";
-  type: DealerDiagnosticType;
-  message: string;
-  code?: string;
-  context?: Record<string, unknown>;
-};
+import {
+  DealerDiagnostics,
+  type DealerDiagnosticEvent,
+} from "./dealer/orchestration/DealerDiagnostics.js";
+export type {
+  DealerDiagnosticEvent,
+  DealerDiagnosticType,
+} from "./dealer/orchestration/DealerDiagnostics.js";
 
 type HandEndedAwardsCallback = (
   handSummary: {
@@ -158,42 +146,24 @@ type AddBotOptions = {
  */
 
 export class Dealer {
-  private diagnosticListeners: Set<(event: DealerDiagnosticEvent) => void> = new Set();
+  private readonly diagnostics: DealerDiagnostics;
 
   addDiagnosticListener(
     listener: (event: DealerDiagnosticEvent) => void,
   ): () => void {
-    this.diagnosticListeners.add(listener);
-    return () => this.diagnosticListeners.delete(listener);
+    return this.diagnostics.addDiagnosticListener(listener);
   }
 
   private emitDiagnostic(event: DealerDiagnosticEvent): void {
-    for (const listener of this.diagnosticListeners) {
-      try {
-        listener(event);
-      } catch (err) {
-        void err;
-      }
-    }
+    this.diagnostics.emitDiagnostic(event);
   }
 
   private buildDiagnosticContext(context?: Record<string, unknown>): Record<string, unknown> {
-    return {
-      handId: this.state.handId ?? null,
-      street: this.state.street,
-      toActSeat: this.state.toActSeat,
-      handActionSeq: this.state.handActionSeq,
-      ...context,
-    };
+    return this.diagnostics.buildDiagnosticContext(context);
   }
 
   private emitLifecycleDeferredRemovalDiagnostic(userId: string, reason: string): void {
-    this.emitDiagnostic({
-      level: "warn",
-      type: "LIFECYCLE_DEFERRED_REMOVAL",
-      message: "Lifecycle removal deferred until safe boundary",
-      context: this.buildDiagnosticContext({ userId, reason }),
-    });
+    this.diagnostics.emitLifecycleDeferredRemovalDiagnostic(userId, reason);
   }
 
   private getSessionStateForAwards(userId: string): { sessionId: string; sessionHands: number; consecutiveWins: number } {
@@ -393,6 +363,14 @@ export class Dealer {
     options?: DealerConstructorOptions,
   ) {
     this.state = state;
+    this.diagnostics = new DealerDiagnostics({
+      state: this.state,
+      getQueueDepth: () => this.turnManager.getQueueDepth(),
+      getNextStepOwner: () => this.nextStepOwner,
+      isDriveQueued: () => this.driveQueued,
+      hasActiveTerminalLifecycle: () => this.activeTerminalLifecycle !== null,
+      hasCompletedTerminalLifecycle: () => this.completedTerminalLifecycle !== null,
+    });
     this.onHandEndedAwards = options?.onHandEndedAwards;
     this.persistence =
       persistence ??
@@ -2484,182 +2462,15 @@ export class Dealer {
    * Observation only — never throws, never mutates state.
    */
   private assertProgressionOwnershipInvariant(trigger: string): void {
-    if (this.state.street === "WAITING") {
-      const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
-      const anyPlayerNeedsAction = [...this.state.playersById.values()].some(p => p.needsAction);
-      const queueDepth = this.turnManager.getQueueDepth();
-      const isSettledWaiting =
-        !this.activeTerminalLifecycle &&
-        this.completedTerminalLifecycle === null &&
-        this.nextStepOwner === "IDLE" &&
-        !this.driveQueued &&
-        queueDepth === 0;
-      const invariantBroken =
-        anyPlayerNeedsAction ||
-        this.state.roundState === "WAITING_FOR_ACTION" ||
-        this.nextStepOwner === "WAITING_FOR_HUMAN" ||
-        this.nextStepOwner === "WAITING_FOR_AUTOMATION";
-      if (invariantBroken) {
-        logger[isSettledWaiting ? "error" : "warn"](
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            toActSeat: this.state.toActSeat,
-            toActUserId,
-            anyPlayerNeedsAction,
-            roundState: this.state.roundState,
-            nextStepOwner: this.nextStepOwner,
-            trigger,
-            queueDepth,
-            settledWaiting: isSettledWaiting,
-          },
-          "WAITING_STATE_INVARIANT_VIOLATION",
-        );
-      }
-    }
-    const street = this.state.street;
-    const owner = this.nextStepOwner;
-
-    if (owner === "IDLE") {
-      if (street === "WAITING" || street === "SHOWDOWN") return;
-      const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
-      const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
-      const activeUnownedTurn =
-        !!toActPlayer && eligibleToAct(toActPlayer) && toActPlayer.needsAction;
-      if (activeUnownedTurn) {
-        logger.error(
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            street,
-            toActSeat: this.state.toActSeat,
-            toActUserId,
-            toActKind: toActPlayer.kind,
-            toActConnected: toActPlayer.connected,
-            nextStepOwner: owner,
-            turnDeadlineMs: this.state.turnDeadlineMs,
-            trigger,
-          },
-          "UNOWNED_ACTIVE_HAND",
-        );
-      }
-      return;
-    }
-
-    // RUNNING_LIFECYCLE and BETWEEN_HANDS are permissive transitional owners.
-    if (owner === "RUNNING_LIFECYCLE" || owner === "BETWEEN_HANDS") return;
-
-    // For WAITING_FOR_HUMAN and WAITING_FOR_AUTOMATION we need an active hand.
-    if (street === "WAITING" || street === "SHOWDOWN") {
-      logger.error(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street,
-          nextStepOwner: owner,
-          trigger,
-        },
-        "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: active owner on inactive street",
-      );
-      return;
-    }
-
-    const toActUserId = this.state.seats[this.state.toActSeat] ?? "";
-    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
-
-    if (!toActPlayer) {
-      // Already logged by TURN_OWNER_INVARIANT_VIOLATION above; skip duplicate.
-      return;
-    }
-
-    if (owner === "WAITING_FOR_HUMAN") {
-      const isHuman = toActPlayer.kind === "HUMAN";
-      const isConnected = toActPlayer.connected;
-      const hasDeadline = this.state.turnDeadlineMs > 0;
-      if (!isHuman || !isConnected || !hasDeadline) {
-        logger.error(
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            street,
-            nextStepOwner: owner,
-            toActKind: toActPlayer.kind,
-            toActConnected: toActPlayer.connected,
-            turnDeadlineMs: this.state.turnDeadlineMs,
-            trigger,
-          },
-          "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: WAITING_FOR_HUMAN but state mismatch",
-        );
-      }
-      return;
-    }
-
-    if (owner === "WAITING_FOR_AUTOMATION") {
-      const isBot = toActPlayer.kind === "BOT";
-      const isDisconnectedHuman = toActPlayer.kind === "HUMAN" && !toActPlayer.connected;
-      if (!isBot && !isDisconnectedHuman) {
-        logger.error(
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            street,
-            nextStepOwner: owner,
-            toActKind: toActPlayer.kind,
-            toActConnected: toActPlayer.connected,
-            trigger,
-          },
-          "PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION: WAITING_FOR_AUTOMATION but actor is connected human",
-        );
-      }
-    }
+    this.diagnostics.assertProgressionOwnershipInvariant(trigger);
   }
 
   private logEngineDecisionState(trigger: string): void {
-    const toActUserId = this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
-    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
-    logger.info(
-      {
-        tableId: this.state.tableId,
-        handId: this.state.handId,
-        street: this.state.street,
-        roundState: this.state.roundState,
-        toActSeat: this.state.toActSeat,
-        toActUserId,
-        needsAction: toActPlayer?.needsAction ?? null,
-        actorKind: toActPlayer?.kind ?? null,
-        actorConnected: toActPlayer?.connected ?? null,
-        deadline: this.state.turnDeadlineMs,
-        runoutMode: this.state.runoutMode,
-        queueDepth: this.turnManager.getQueueDepth(),
-        trigger,
-      },
-      "ENGINE_DECISION_STATE",
-    );
+    this.diagnostics.logEngineDecisionState(trigger);
   }
 
   private logToActDerivationWarning(trigger: string): void {
-    if (this.state.street === "WAITING" || this.state.street === "SHOWDOWN") return;
-    if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) return;
-    if (this.state.maxSeats <= 0) return;
-
-    const pivot = this.state.toActSeat >= 0
-      ? ((this.state.toActSeat - 1 + this.state.maxSeats) % this.state.maxSeats)
-      : (this.state.maxSeats - 1);
-    const derivedToAct = findNextToActSeat(this.state, pivot);
-    if (derivedToAct === -1) return;
-    if (derivedToAct === this.state.toActSeat) return;
-
-    logger.warn(
-      {
-        tableId: this.state.tableId,
-        handId: this.state.handId,
-        street: this.state.street,
-        toActSeatStored: this.state.toActSeat,
-        toActSeatDerived: derivedToAct,
-        trigger,
-      },
-      "TO_ACT_DERIVATION_MISMATCH",
-    );
+    this.diagnostics.logToActDerivationWarning(trigger);
   }
 
   private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {

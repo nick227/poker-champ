@@ -47,6 +47,7 @@
     "test:coverage": "vitest run --coverage",
     "test:coverage:awards": "vitest run --config vitest.awards.config.ts --coverage",
     "test:server:lessons": "vitest run apps/server/src/http/__tests__/LessonsRouter.test.ts",
+    "dealer:gate": "pnpm -C apps/server dealer:gate",
     "test:server:join": "vitest run apps/server/src/rooms/table-join.guard.test.ts",
     "test:server:broadcast": "vitest run apps/server/src/rooms/table-action-broadcast.test.ts",
     "test:server:money-safety": "vitest run apps/server/src/engine/dealer/settlement/settlement-service.money-safety.test.ts apps/server/src/engine/dealer/turn/fold-path-equivalence.test.ts",
