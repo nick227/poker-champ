@@ -18,6 +18,7 @@ import type {
 import type { TurnManager } from "../turn/TurnManager.js";
 import { buildActionKey, buildClaimKey } from "../utils/actionKeys.js";
 import type { DealerDiagnosticEvent } from "./DealerDiagnostics.js";
+import type { DealerProgressionCoordinator } from "./DealerProgressionCoordinator.js";
 
 type DealerActionOrchestratorDeps = {
   state: PokerState;
@@ -48,7 +49,7 @@ type DealerActionOrchestratorDeps = {
     roundBetBefore: number,
   ) => void;
   sendTableSnapshotToAll: (reason: SnapshotReason) => Promise<void>;
-  requestDrive: (reason: string) => Promise<void>;
+  progression: Pick<DealerProgressionCoordinator, "requestDrive">;
   reconcilePostActionLifecycleIfNeeded: (kind: "HAND_FINISHED" | "STREET_COMPLETE") => Promise<void>;
   logActionResolvedNextActor: () => void;
   hasActiveTerminalLifecycleForCurrentHand: () => boolean;
@@ -338,7 +339,7 @@ export class DealerActionOrchestrator {
           "DEBUG_APPLY_ACTION_RESULT_HAND_FINISHED",
         );
         await this.deps.sendTableSnapshotToAll(acceptedActionReason);
-        await this.deps.requestDrive("HAND_FINISHED:APPLY_ACTION_RESULT");
+        await this.deps.progression.requestDrive("HAND_FINISHED:APPLY_ACTION_RESULT");
         await this.deps.reconcilePostActionLifecycleIfNeeded(result.kind);
         this.deps.logActionResolvedNextActor();
         return;
@@ -353,7 +354,7 @@ export class DealerActionOrchestrator {
           "DEBUG_APPLY_ACTION_RESULT_STREET_COMPLETE",
         );
         await this.deps.sendTableSnapshotToAll(acceptedActionReason);
-        await this.deps.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
+        await this.deps.progression.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
         await this.deps.reconcilePostActionLifecycleIfNeeded(result.kind);
         maybeAssertBettingState(this.deps.state);
         this.deps.logActionResolvedNextActor();
@@ -362,7 +363,7 @@ export class DealerActionOrchestrator {
         void result.actorKind;
         await this.deps.sendTableSnapshotToAll(acceptedActionReason);
         if (options?.requestDriveAfterTurnAdvanced) {
-          await this.deps.requestDrive("TURN_ADVANCED:APPLY_ACTION_RESULT");
+          await this.deps.progression.requestDrive("TURN_ADVANCED:APPLY_ACTION_RESULT");
         }
         this.deps.logActionResolvedNextActor();
         return;

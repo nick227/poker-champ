@@ -89,6 +89,7 @@ import {
   type DealerDiagnosticEvent,
 } from "./dealer/orchestration/DealerDiagnostics.js";
 import { DealerActionOrchestrator } from "./dealer/orchestration/DealerActionOrchestrator.js";
+import { DealerProgressionCoordinator } from "./dealer/orchestration/DealerProgressionCoordinator.js";
 export type {
   DealerDiagnosticEvent,
   DealerDiagnosticType,
@@ -147,6 +148,7 @@ type AddBotOptions = {
 export class Dealer {
   private readonly diagnostics: DealerDiagnostics;
   private readonly actionOrchestrator: DealerActionOrchestrator;
+  private readonly progression: DealerProgressionCoordinator;
 
   addDiagnosticListener(
     listener: (event: DealerDiagnosticEvent) => void,
@@ -521,6 +523,10 @@ export class Dealer {
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       getLastAction: () => this.currentHand?.lastAction,
     });
+    this.progression = new DealerProgressionCoordinator({
+      requestDriveImpl: (trigger) => this.requestDrive(trigger),
+      queueDriveImpl: (trigger) => this.queueDrive(trigger),
+    });
     this.actionOrchestrator = new DealerActionOrchestrator({
       state: this.state,
       turnManager: this.turnManager,
@@ -545,7 +551,7 @@ export class Dealer {
         this.updatePreflopFlagsAfterAction(userId, lastAction, roundBetBefore);
       },
       sendTableSnapshotToAll: (reason) => this.sendTableSnapshotToAll(reason),
-      requestDrive: (reason) => this.requestDrive(reason),
+      progression: this.progression,
       reconcilePostActionLifecycleIfNeeded: (kind) => this.reconcilePostActionLifecycleIfNeeded(kind),
       logActionResolvedNextActor: () => this.logActionResolvedNextActor(),
       hasActiveTerminalLifecycleForCurrentHand: () => this.activeTerminalLifecycle?.handId === this.state.handId,
