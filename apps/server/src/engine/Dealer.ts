@@ -66,7 +66,7 @@ import { PersistenceFacade } from "./persistence/PersistenceFacade.js";
 import { type TableLastAction, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { BotResolver } from "./bots/BotResolver.js";
 import { SnapshotService, type SnapshotReason } from "./dealer/hand/SnapshotService.js";
-import { ActionService, type ActionResult, type ActionServiceLastAction, type ActionDebitKind } from "./dealer/turn/ActionService.js";
+import { ActionService, type ActionResult, type ActionServiceLastAction } from "./dealer/turn/ActionService.js";
 import { SettlementService } from "./dealer/settlement/SettlementService.js";
 import { HandLifecycleService, type HandLifecyclePlan } from "./dealer/hand/HandLifecycleService.js";
 import { TurnAutomationService } from "./dealer/turn/TurnAutomationService.js";
@@ -79,10 +79,8 @@ import { LifecycleExecutor } from "./dealer/hand/LifecycleExecutor.js";
 import { HandOrchestrator } from "./dealer/hand/HandOrchestrator.js";
 import { DisconnectManager } from "./dealer/hand/DisconnectManager.js";
 import type { FrameReason } from "./replay/FrameReason.js";
-import { buildActionKey, buildClaimKey } from "./dealer/utils/actionKeys.js";
 import { buildHandHistoryRoster } from "./dealer/utils/handHistoryRoster.js";
 import { HandContext } from "./dealer/HandContext.js";
-import { maybeAssertBettingState } from "./invariants/assertBettingState.js";
 import { computeNextStep, getStallReason, projectDecisionState, type DecisionState, type NextStepOwner, type StallReason } from "./dealer/decision/index.js";
 import type { EngineQueries } from "./dealer/decision/engineQueries.js";
 import { dealerRuntimeMetrics } from "./dealer/metrics/dealerRuntimeMetrics.js";
@@ -90,6 +88,7 @@ import {
   DealerDiagnostics,
   type DealerDiagnosticEvent,
 } from "./dealer/orchestration/DealerDiagnostics.js";
+import { DealerActionOrchestrator } from "./dealer/orchestration/DealerActionOrchestrator.js";
 export type {
   DealerDiagnosticEvent,
   DealerDiagnosticType,
@@ -147,6 +146,7 @@ type AddBotOptions = {
 
 export class Dealer {
   private readonly diagnostics: DealerDiagnostics;
+  private readonly actionOrchestrator: DealerActionOrchestrator;
 
   addDiagnosticListener(
     listener: (event: DealerDiagnosticEvent) => void,
@@ -520,6 +520,35 @@ export class Dealer {
       state: this.state,
       getHeroActionOptions: (userId) => this.actionOptionsService.buildHeroActionOptions(this.state, userId),
       getLastAction: () => this.currentHand?.lastAction,
+    });
+    this.actionOrchestrator = new DealerActionOrchestrator({
+      state: this.state,
+      turnManager: this.turnManager,
+      actionService: this.actionService,
+      settlementService: this.settlementService,
+      getCurrentHand: () => this.currentHand,
+      ensureCurrentHand: () => {
+        if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
+          this.currentHand = new HandContext();
+        }
+        return this.currentHand;
+      },
+      setPendingActorRef: (value) => { this.pendingActorRef = value; },
+      setResolvedActionId: (value) => { this.resolvedActionId = value; },
+      getResolvedActionId: () => this.resolvedActionId,
+      emitDiagnostic: (event) => this.emitDiagnostic(event),
+      buildDiagnosticContext: (context) => this.buildDiagnosticContext(context),
+      handleInternalAction: (userId, msg, origin, actionId) => this._handleAction(userId, msg, origin, actionId),
+      applyActionResult: (result, options) => this.applyActionResult(result, options),
+      setLastActionFromExecution: (lastAction) => this.setLastActionFromExecution(lastAction),
+      updatePreflopFlagsAfterAction: (userId, lastAction, roundBetBefore) => {
+        this.updatePreflopFlagsAfterAction(userId, lastAction, roundBetBefore);
+      },
+      sendTableSnapshotToAll: (reason) => this.sendTableSnapshotToAll(reason),
+      requestDrive: (reason) => this.requestDrive(reason),
+      reconcilePostActionLifecycleIfNeeded: (kind) => this.reconcilePostActionLifecycleIfNeeded(kind),
+      logActionResolvedNextActor: () => this.logActionResolvedNextActor(),
+      hasActiveTerminalLifecycleForCurrentHand: () => this.activeTerminalLifecycle?.handId === this.state.handId,
     });
     this.startDisconnectSweep();
     if (this.state.seats.length === 0) {
@@ -941,147 +970,8 @@ export class Dealer {
     void this.requestDrive(`ROUND_STATE_ENTER:${reason}`);
   }
 
-  async handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client) {
-    const currentHandIdAtEnqueue = this.state.handId ?? null;
-    const queuedAt = Date.now();
-    return this.turnManager.enqueuePlayerAction(async () => {
-      const queueDelayMs = Date.now() - queuedAt;
-      if (queueDelayMs > 100) {
-        logger.warn(
-          {
-            tableId: this.state.tableId,
-            handId: this.state.handId,
-            userId,
-            action: msg.action,
-            actionId,
-            delay: queueDelayMs,
-            queueDepth: this.turnManager.getQueueDepth(),
-          },
-          "ACTION_QUEUE_DELAY",
-        );
-      }
-      try {
-        if (currentHandIdAtEnqueue && this.state.handId !== currentHandIdAtEnqueue) {
-          logger.warn(
-            {
-              tableId: this.state.tableId,
-              handId: this.state.handId,
-              userId,
-              actionId,
-              enqueuedHandId: currentHandIdAtEnqueue,
-              currentHandId: this.state.handId,
-              street: this.state.street,
-            },
-            "ACTION_DROPPED_HAND_CHANGED",
-          );
-          return;
-        }
-        if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
-          this.currentHand = new HandContext();
-        }
-        this.pendingActorRef = actorClient ? { userId, client: actorClient } : null;
-        // handContext is read at run time (this.currentHand); currentHandIdAtEnqueue is from enqueue time.
-        // If the hand changed in between, sameHand is false and we skip dedup (correct - no record in wrong hand).
-        const handContext = this.currentHand;
-        const sameHand = handContext && currentHandIdAtEnqueue && this.state.handId === currentHandIdAtEnqueue;
-        const actionKey =
-          actionId && currentHandIdAtEnqueue ? buildActionKey(currentHandIdAtEnqueue, userId, actionId) : null;
-        const claimKey =
-          actionId && currentHandIdAtEnqueue ? buildClaimKey(currentHandIdAtEnqueue, actionId) : null;
-        if (sameHand && claimKey) {
-          const claim = handContext!.recordClaimAndWarnIfCollision(claimKey, userId);
-          if (claim.collision) {
-            if (claim.shouldLog) {
-              const firstUserId = handContext!.actionIdFirstClaimByKey.get(claimKey) ?? "";
-              const firstSeat = firstUserId ? (this.state.playersById.get(firstUserId)?.seat ?? null) : null;
-              const secondSeat = this.state.playersById.get(userId)?.seat ?? null;
-              logger.warn(
-                {
-                  type: "ACTION_ID_CROSS_USER_COLLISION",
-                  handId: currentHandIdAtEnqueue,
-                  actionId,
-                  firstUserId,
-                  firstSeat,
-                  secondUserId: userId,
-                  secondSeat,
-                  userId,
-                },
-                "ACTION_ID_CROSS_USER_COLLISION",
-              );
-            }
-            logger.warn(
-              {
-                tableId: this.state.tableId,
-                handId: this.state.handId,
-                userId,
-                actionId,
-                action: msg.action,
-                reason: "ACTION_ID_CROSS_USER_COLLISION",
-              },
-              "ACTION_REJECTED",
-            );
-            this.pendingActorRef = null;
-            throw new PokerError(
-              "INVALID_ACTION",
-              "actionId already claimed by another user in this hand.",
-            );
-          }
-        }
-        if (sameHand && actionKey && handContext!.isDuplicate(actionKey)) {
-          logger.warn(
-            {
-              tableId: this.state.tableId,
-              handId: this.state.handId,
-              userId,
-              actionId,
-              action: msg.action,
-              reason: "DUPLICATE_ACTION",
-            },
-            "ACTION_REJECTED",
-          );
-          logger.info(
-            { tableId: this.state.tableId, handId: this.state.handId, userId, actionId, action: msg.action },
-            "ACTION_DUPLICATE_IGNORED",
-          );
-          this.pendingActorRef = null;
-          return;
-        }
-        const handIdBefore = this.state.handId;
-        try {
-          const actionProcessStartedAt = Date.now();
-          try {
-            await this._handleAction(userId, msg, "PLAYER", actionId);
-          } finally {
-            dealerRuntimeMetrics.observeActionProcessMs(Date.now() - actionProcessStartedAt);
-          }
-          if (handContext && actionKey && handIdBefore && this.state.handId === handIdBefore) {
-            handContext.recordProcessed(actionKey);
-          }
-        } catch (err) {
-          if (err instanceof PokerError) {
-            logger.warn({ err, userId, action: msg.action, code: err.code }, "Action rejected");
-            this.emitDiagnostic({
-              level: "warn",
-              type: "ACTION_REJECTED",
-              message: "Action rejected",
-              code: err.code,
-              context: this.buildDiagnosticContext({ userId, action: msg.action }),
-            });
-          } else {
-            logger.error({ err, userId, action: msg.action }, "Action failed");
-            this.emitDiagnostic({
-              level: "error",
-              type: "ACTION_FAILED",
-              message: "Action failed",
-              context: this.buildDiagnosticContext({ userId, action: msg.action }),
-            });
-          }
-          throw err;
-        }
-      } finally {
-        this.pendingActorRef = null;
-      }
-    });
+  handleAction(userId: string, msg: ActionPayload, actionId?: string, actorClient?: Client): Promise<void> {
+    return this.actionOrchestrator.handleAction(userId, msg, actionId, actorClient);
   }
 
   // Legacy test compatibility shim.
@@ -1094,103 +984,13 @@ export class Dealer {
   // ---------------------------------------------------------------------------
   // Core action execution, result application, and preflop statistics
 
-  private async _handleAction(
+  private _handleAction(
     userId: string,
     msg: ActionPayload,
     origin: TableLastAction["origin"],
     actionId?: string,
-  ) {
-    const isTerminalActionWindow =
-      this.state.street === "SHOWDOWN" ||
-      this.state.roundState === "HAND_COMPLETE" ||
-      this.state.runoutMode === "STAGED";
-    if (isTerminalActionWindow) {
-      logger.warn(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street: this.state.street,
-          roundState: this.state.roundState,
-          runoutMode: this.state.runoutMode,
-          userId,
-          action: msg.action,
-          origin,
-        },
-        "TERMINAL_OR_RUNOUT_ACTION_IGNORED",
-      );
-      return;
-    }
-    const isInternalAction = origin !== "PLAYER";
-    if (isInternalAction && this.activeTerminalLifecycle?.handId === this.state.handId) {
-      logger.warn(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street: this.state.street,
-          roundState: this.state.roundState,
-          toActSeat: this.state.toActSeat,
-          potCents: this.state.potCents,
-          userId,
-          action: msg.action,
-          origin,
-        },
-        "TERMINAL_GUARD_REJECTED_ACTION",
-      );
-      return;
-    }
-    if (isInternalAction && !this.state.playersById.has(userId)) {
-      logger.warn(
-        {
-          tableId: this.state.tableId,
-          handId: this.state.handId,
-          street: this.state.street,
-          userId,
-          action: msg.action,
-          origin,
-        },
-        "STALE_INTERNAL_ACTION_IGNORED",
-      );
-      return;
-    }
-    if (!this.currentHand && this.state.handId && this.state.street !== "WAITING") {
-      this.currentHand = new HandContext();
-    }
-    const roundBetBefore = this.state.street === "PREFLOP" ? this.state.roundCurrentBetCents : 0;
-    const execution = await this.actionService.execute({
-      state: this.state,
-      userId,
-      msg,
-      origin,
-      recordAcceptedAction: (args) => this.settlementService.recordAcceptedAction(args),
-      assertCanAfford: (player, amountCents) => this.settlementService.assertCanAfford(player, amountCents),
-      applyActionDebit: async (p: PlayerState, amountCents: number, action: ActionDebitKind) => {
-        await this.settlementService.applyActionDebit(p, amountCents, action);
-      },
-    });
-
-    this.setLastActionFromExecution(execution.lastAction);
-    if (this.state.street === "PREFLOP" && execution.lastAction) {
-      this.updatePreflopFlagsAfterAction(userId, execution.lastAction, roundBetBefore);
-    }
-    logger.info(
-      {
-        tableId: this.state.tableId,
-        handId: this.state.handId,
-        userId,
-        actionId,
-        action: msg.action,
-      },
-      "ACTION_ACCEPTED",
-    );
-    if (origin === "PLAYER" && actionId) {
-      this.resolvedActionId = actionId;
-    }
-    await this.applyActionResult(execution.result, {
-      turnAdvancedReason: execution.result.kind === "TURN_ADVANCED" && execution.result.actorKind === "BOT"
-        ? "BOT_ACTION"
-        : "ACTION_ACCEPTED",
-      requestDriveAfterTurnAdvanced: origin === "PLAYER",
-    });
+  ): Promise<void> {
+    return this.actionOrchestrator.handleInternalAction(userId, msg, origin, actionId);
   }
 
   private setLastActionFromExecution(lastAction: ActionServiceLastAction | undefined): void {
@@ -2317,49 +2117,11 @@ export class Dealer {
     await this.applyActionResult(execution.result, { turnAdvancedReason: "ACTION_ACCEPTED" });
   }
 
-  private async applyActionResult(
+  private applyActionResult(
     result: ActionResult,
     options?: { turnAdvancedReason?: SnapshotReason; requestDriveAfterTurnAdvanced?: boolean },
   ): Promise<void> {
-    // CRITICAL INVARIANT:
-    // Every accepted action MUST emit a snapshot before further progression.
-    // Clients and tests depend on seeing the action (especially AUTO) before
-    // subsequent state transitions (street advance, hand end, etc).
-    const acceptedActionReason = options?.turnAdvancedReason ?? "ACTION_ACCEPTED";
-    switch (result.kind) {
-      case "NO_OP":
-        this.logActionResolvedNextActor();
-        return;
-      case "WAITING_FOR_PLAYERS":
-        await this.sendTableSnapshotToAll("AUTO_TRANSITION");
-        maybeAssertBettingState(this.state);
-        this.logActionResolvedNextActor();
-        return;
-      case "HAND_FINISHED":
-        logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_HAND_FINISHED");
-        await this.sendTableSnapshotToAll(acceptedActionReason);
-        await this.requestDrive("HAND_FINISHED:APPLY_ACTION_RESULT");
-        await this.reconcilePostActionLifecycleIfNeeded(result.kind);
-        this.logActionResolvedNextActor();
-        return;
-      case "STREET_COMPLETE":
-        logger.info({ handId: this.state.handId, street: this.state.street, toActSeat: this.state.toActSeat, resolvedActionId: this.resolvedActionId }, "DEBUG_APPLY_ACTION_RESULT_STREET_COMPLETE");
-        await this.sendTableSnapshotToAll(acceptedActionReason);
-        await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:APPLY_ACTION_RESULT_STREET_COMPLETE");
-        await this.reconcilePostActionLifecycleIfNeeded(result.kind);
-        maybeAssertBettingState(this.state);
-        this.logActionResolvedNextActor();
-        return;
-      case "TURN_ADVANCED": {
-        void result.actorKind;
-        await this.sendTableSnapshotToAll(acceptedActionReason);
-        if (options?.requestDriveAfterTurnAdvanced) {
-          await this.requestDrive("TURN_ADVANCED:APPLY_ACTION_RESULT");
-        }
-        this.logActionResolvedNextActor();
-        return;
-      }
-    }
+    return this.actionOrchestrator.applyActionResult(result, options);
   }
 
   private async reconcilePostActionLifecycleIfNeeded(kind: "HAND_FINISHED" | "STREET_COMPLETE"): Promise<void> {
