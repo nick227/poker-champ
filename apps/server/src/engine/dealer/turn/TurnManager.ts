@@ -62,6 +62,8 @@ type QueueItemMetadata = {
   id: number;
   source: QueueWorkSource;
   enqueuedAt: number;
+  startedAt?: number;
+  completedAt?: number;
   handId: string | null;
   enqueuedBy: string | null;
   nextStepOwnerAtEnqueue?: string | null;
@@ -122,16 +124,35 @@ class ActionQueue {
     return {
       ...this.currentQueueItem,
       ageMs: Date.now() - this.currentQueueItem.enqueuedAt,
+      waitMs:
+        typeof this.currentQueueItem.startedAt === "number"
+          ? this.currentQueueItem.startedAt - this.currentQueueItem.enqueuedAt
+          : null,
+      runMs:
+        typeof this.currentQueueItem.startedAt === "number"
+          ? Date.now() - this.currentQueueItem.startedAt
+          : null,
     };
   }
 
   getLastQueueTransition(): Record<string, unknown> | null {
     if (!this.lastQueueTransition) return null;
+    const { item } = this.lastQueueTransition;
     return {
       phase: this.lastQueueTransition.phase,
       at: this.lastQueueTransition.at,
       ageMs: Date.now() - this.lastQueueTransition.at,
-      item: this.lastQueueTransition.item,
+      item: {
+        ...item,
+        waitMs:
+          typeof item.startedAt === "number"
+            ? item.startedAt - item.enqueuedAt
+            : null,
+        runMs:
+          typeof item.startedAt === "number"
+            ? (typeof item.completedAt === "number" ? item.completedAt : Date.now()) - item.startedAt
+            : null,
+      },
     };
   }
 
@@ -290,9 +311,15 @@ class ActionQueue {
   }
 
   private recordQueueTransition(phase: "enqueued" | "started" | "completed", item: QueueItemMetadata): void {
+    const at = Date.now();
+    if (phase === "started") {
+      item.startedAt = at;
+    } else if (phase === "completed") {
+      item.completedAt = at;
+    }
     this.lastQueueTransition = {
       phase,
-      at: Date.now(),
+      at,
       item,
     };
     if (phase === "started") {
