@@ -23,6 +23,16 @@ type HandEndedAwardsCallback = (
   getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number },
 ) => Promise<void> | void;
 
+type HandTimingEvent = {
+  handId: string;
+  street: string;
+  durationMs: number;
+  reason?: string | null;
+  branch?: string | null;
+  delayMs?: number | null;
+  countdownMs?: number | null;
+};
+
 export class HandOrchestrator {
   // Guards against duplicate countdown/start scheduling for a single hand end.
   private nextHandScheduled = false;
@@ -47,6 +57,8 @@ export class HandOrchestrator {
     getDealtHumanUserIds: () => string[];
     recordSessionHandResult: (userId: string, won: boolean) => void;
     getSessionState: (userId: string) => { sessionId: string; sessionHands: number; consecutiveWins: number };
+    onHandEndedAwardsTiming?: (event: HandTimingEvent) => void;
+    onScheduleNextHandTiming?: (event: HandTimingEvent) => void;
   }) { }
 
   private warnIfAllReadyPlayersDisconnected(readyPlayers: PlayerState[]): void {
@@ -171,6 +183,7 @@ export class HandOrchestrator {
   }
 
   async runHandEndedAwards(plan: Extract<HandLifecyclePlan, { kind: "HAND_ENDED" }>): Promise<void> {
+    const startedAt = Date.now();
     const result = this.deps.getLastHandResult();
     const currentHand = this.deps.getCurrentHand();
     if (!result || !currentHand) return;
@@ -194,6 +207,23 @@ export class HandOrchestrator {
       this.deps.recordSessionHandResult(userId, won);
     }
     await onHandEndedAwards(handSummary, dealtUserIds, this.deps.getSessionState);
+    const durationMs = Date.now() - startedAt;
+    logger.info(
+      {
+        tableId: this.deps.state.tableId,
+        handId: result.handId,
+        reason: plan.reason,
+        dealtUserCount: dealtUserIds.length,
+        durationMs,
+      },
+      "HAND_ENDED_AWARDS_TIMING",
+    );
+    this.deps.onHandEndedAwardsTiming?.({
+      handId: result.handId,
+      street: this.deps.state.street,
+      durationMs,
+      reason: plan.reason,
+    });
   }
 
   scheduleNextHand(reason: string, delayMs = 0): void {
@@ -201,6 +231,7 @@ export class HandOrchestrator {
     this.nextHandScheduled = true;
     const countdownMs = NEXT_HAND_DELAY_MS;
     const runImmediateNextHand = async (): Promise<void> => {
+      const startedAt = Date.now();
       if (this.deps.isDisposed()) {
         this.resetNextHandSchedule();
         return;
@@ -213,11 +244,66 @@ export class HandOrchestrator {
       if (this.deps.state.street === "WAITING" && activePlayers.length >= 2) {
         this.nextHandScheduled = false;
         await this.deps.requestDrive("NEXT_HAND_START_IMMEDIATE");
+        const durationMs = Date.now() - startedAt;
+        logger.info(
+          {
+            tableId: this.deps.state.tableId,
+            handId: this.deps.state.handId || null,
+            reason,
+            delayMs,
+            countdownMs,
+            branch: "request_drive",
+            durationMs,
+          },
+          "NEXT_HAND_RUN_IMMEDIATE_TIMING",
+        );
+        this.deps.onScheduleNextHandTiming?.({
+          handId: this.deps.state.handId || "",
+          street: this.deps.state.street,
+          durationMs,
+          reason,
+          branch: "request_drive",
+          delayMs,
+          countdownMs,
+        });
         return;
       }
 
       await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
+      const durationMs = Date.now() - startedAt;
+      logger.info(
+        {
+          tableId: this.deps.state.tableId,
+          handId: this.deps.state.handId || null,
+          reason,
+          delayMs,
+          countdownMs,
+          branch: "snapshot_only",
+          durationMs,
+        },
+        "NEXT_HAND_RUN_IMMEDIATE_TIMING",
+      );
+      this.deps.onScheduleNextHandTiming?.({
+        handId: this.deps.state.handId || "",
+        street: this.deps.state.street,
+        durationMs,
+        reason,
+        branch: "snapshot_only",
+        delayMs,
+        countdownMs,
+      });
     };
+
+    logger.info(
+      {
+        tableId: this.deps.state.tableId,
+        handId: this.deps.state.handId || null,
+        reason,
+        delayMs,
+        countdownMs,
+      },
+      "NEXT_HAND_SCHEDULED",
+    );
 
     if (delayMs <= 0 && countdownMs <= 0) {
       void this.deps.enqueueSerializedStateMutation(runImmediateNextHand)
@@ -234,6 +320,7 @@ export class HandOrchestrator {
     }
 
     this.nextHandAnnounceTimer = setTimeout(() => {
+      const announceStartedAt = Date.now();
       this.nextHandAnnounceTimer = null;
       void this.deps.enqueueSerializedStateMutation(async () => {
         // Room may be disposed between timer fire and queue execution.
@@ -243,6 +330,17 @@ export class HandOrchestrator {
         }
         this.deps.state.nextHandAtTs = Date.now() + countdownMs;
         await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
+        logger.info(
+          {
+            tableId: this.deps.state.tableId,
+            handId: this.deps.state.handId || null,
+            reason,
+            delayMs,
+            countdownMs,
+            durationMs: Date.now() - announceStartedAt,
+          },
+          "NEXT_HAND_ANNOUNCE_TIMING",
+        );
       }).catch((err) => {
         this.nextHandScheduled = false;
         if (this.nextHandStartTimer != null) {
@@ -267,6 +365,7 @@ export class HandOrchestrator {
       }
 
       this.nextHandStartTimer = setTimeout(() => {
+        const startTimerStartedAt = Date.now();
         this.nextHandStartTimer = null;
         void this.deps.enqueueSerializedStateMutation(async () => {
           // Room may be disposed between timer fire and queue execution.
@@ -287,10 +386,34 @@ export class HandOrchestrator {
             // follow-up hand from inside lifecycle execution.
             this.nextHandScheduled = false;
             await this.deps.requestDrive("NEXT_HAND_START_TIMER");
+            logger.info(
+              {
+                tableId: this.deps.state.tableId,
+                handId: this.deps.state.handId || null,
+                reason,
+                delayMs,
+                countdownMs,
+                branch: "request_drive",
+                durationMs: Date.now() - startTimerStartedAt,
+              },
+              "NEXT_HAND_START_TIMER_TIMING",
+            );
             return;
           }
 
           await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
+          logger.info(
+            {
+              tableId: this.deps.state.tableId,
+              handId: this.deps.state.handId || null,
+              reason,
+              delayMs,
+              countdownMs,
+              branch: "snapshot_only",
+              durationMs: Date.now() - startTimerStartedAt,
+            },
+            "NEXT_HAND_START_TIMER_TIMING",
+          );
         }).finally(() => {
           // Keep the guard latched when a nested schedule has already armed
           // the next announce/start timers during lifecycle execution.

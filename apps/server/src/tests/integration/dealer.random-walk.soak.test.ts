@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ActionPayload } from "@poker-champ/realtime-contract";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Dealer } from "../../engine/Dealer.js";
 import { ActionOptionsService } from "../../engine/dealer/index.js";
 import { PokerError } from "../../engine/errors.js";
@@ -15,6 +17,10 @@ const configuredProgressEvery = Number(process.env.SOAK_PROGRESS_EVERY ?? "");
 const configuredTestTimeoutMs = Number(process.env.SOAK_TEST_TIMEOUT_MS ?? "");
 const configuredActionTimeoutMs = Number(process.env.SOAK_ACTION_TIMEOUT_MS ?? "");
 const soakHeartbeatFile = (process.env.SOAK_HEARTBEAT_FILE ?? "").trim();
+const soakEventLogFile = (
+  process.env.SOAK_EVENT_LOG_FILE ??
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../var/logs/dealer-soak-events.log")
+).trim();
 const soakActionTimeoutMs = Number.isFinite(configuredActionTimeoutMs) && configuredActionTimeoutMs > 0
   ? configuredActionTimeoutMs
   : 45_000;
@@ -24,8 +30,8 @@ const plannedSoakHands = Number.isFinite(configuredHands) && configuredHands > 0
   ? Math.floor(configuredHands)
   : defaultSoakHands;
 const autoScaledSoakTimeoutMs = Math.max(
-  isNightlySoak ? 300_000 : 240_000,
-  plannedSoakHands * 60_000,
+  isNightlySoak ? 600_000 : 150_000,
+  plannedSoakHands * (isNightlySoak ? 6_000 : 3_000),
 );
 const soakTestTimeoutMs = Number.isFinite(configuredTestTimeoutMs) && configuredTestTimeoutMs > 0
   ? configuredTestTimeoutMs
@@ -151,6 +157,16 @@ function getDealerWaitingTimeoutState(state: PokerState, dealer: Dealer): Record
   };
 }
 
+function writeSoakEvent(kind: string, payload: Record<string, unknown>): void {
+  if (!soakEventLogFile) return;
+  mkdirSync(dirname(soakEventLogFile), { recursive: true });
+  appendFileSync(
+    soakEventLogFile,
+    `${JSON.stringify({ ts: new Date().toISOString(), kind, ...payload })}\n`,
+    "utf8",
+  );
+}
+
 function dumpDealerWaitingTimeoutState(state: PokerState, dealer: Dealer): void {
   console.error(getDealerWaitingTimeoutState(state, dealer));
 }
@@ -228,9 +244,20 @@ describe("dealer random walk soak", () => {
     vi.stubEnv("RUNOUT_STAGE_DELAY_MS", "0");
     vi.stubEnv("HAND_RESULT_HOLD_MS", "0");
     let dealer: Dealer | undefined;
+    let failureState: PokerState | undefined;
+    let currentTrace: string[] = [];
+    let handsStarted = 0;
+    let handsCompleted = 0;
 
     try {
       const state = new PokerState();
+      failureState = state;
+      writeSoakEvent("SOAK_START", {
+        profile: isNightlySoak ? "nightly" : "default",
+        hands: plannedSoakHands,
+        actionTimeoutMs: soakActionTimeoutMs,
+        testTimeoutMs: soakTestTimeoutMs,
+      });
       state.tableId = "table_soak_random_walk";
       state.maxSeats = 3;
       state.smallBlindCents = 50;
@@ -274,6 +301,9 @@ describe("dealer random walk soak", () => {
         onTableSnapshotEmitted: ({ payloadJson }) => {
           snapshots.push(payloadJson.snapshotSeq);
         },
+        onSoakTimingEvent: (event) => {
+          writeSoakEvent(event.kind, event);
+        },
       });
       const settlementService = (dealer as any).settlementService as {
         getCurrentHandPotDisbursedCents: () => number;
@@ -300,8 +330,6 @@ describe("dealer random walk soak", () => {
         };
         appendFileSync(soakHeartbeatFile, `${JSON.stringify(event)}\n`, "utf8");
       };
-      let handsStarted = 0;
-      let handsCompleted = 0;
       let maxStepsPerHand = 0;
       const initialSeatByUserId = new Map<string, number>(
         [...state.playersById.values()].map((p) => [p.id, p.seat]),
@@ -369,6 +397,7 @@ describe("dealer random walk soak", () => {
         } catch (err) {
           const timeoutState = getDealerWaitingTimeoutState(state, dealer);
           console.error(timeoutState);
+          writeSoakEvent("SOAK_START_HAND_TIMEOUT_STATE", timeoutState);
           if (err instanceof Error) {
             throw new Error(`${err.message} :: ${JSON.stringify(timeoutState)}`);
           }
@@ -384,6 +413,12 @@ describe("dealer random walk soak", () => {
           console.error(
             `[SOAK_WARN] late startHand completion tolerated hand=${h + 1} handId=${state.handId} street=${state.street}`,
           );
+          writeSoakEvent("SOAK_WARN", {
+            kind: "late_start_hand_completion",
+            hand: h + 1,
+            handId: state.handId,
+            street: state.street,
+          });
         }
         if (state.street === "WAITING") {
           const ready = resolvePlayersReadyForNextHand(state);
@@ -431,12 +466,22 @@ describe("dealer random walk soak", () => {
             handId: state.handId,
             street: state.street,
           });
+          writeSoakEvent("SOAK_PROGRESS", {
+            started: handsStarted,
+            target: handsToPlay,
+            completed: handsCompleted,
+            hps: Number(handsPerSec.toFixed(4)),
+            etaSec,
+            handId: state.handId,
+            street: state.street,
+          });
         }
 
         expect(["PREFLOP", "FLOP", "TURN", "RIVER", "SHOWDOWN"]).toContain(String(state.street));
         if (state.street === "PREFLOP") expect(state.board.length).toBe(0);
 
         const trace: string[] = [`hand=${h + 1}`, `handId=${state.handId}`];
+        currentTrace = trace;
         let guard = 0;
         let stableStallKey = "";
         let stableStallCount = 0;
@@ -462,6 +507,16 @@ describe("dealer random walk soak", () => {
           } else if (Date.now() - lastProgressAt > wallClockStallMs) {
             console.error("[STALL_FINGERPRINT]", getStallFingerprint(state, dealer));
             console.error("[STALL_CORRELATION]", getStallCorrelation(state, dealer!));
+            writeSoakEvent("STALL_FINGERPRINT", {
+              hand: h + 1,
+              trace,
+              fingerprint: getStallFingerprint(state, dealer),
+            });
+            writeSoakEvent("STALL_CORRELATION", {
+              hand: h + 1,
+              trace,
+              correlation: getStallCorrelation(state, dealer!),
+            });
             throw new Error(
               `Wall-clock stall: no state progress for >${wallClockStallMs}ms key=${progressKey} ${trace.join("|")} ${stallDetail()}`,
             );
@@ -476,6 +531,11 @@ describe("dealer random walk soak", () => {
             if (blockerKey !== lastSingleBlockerSnapshotKey) {
               lastSingleBlockerSnapshotKey = blockerKey;
               console.error("[QUEUE_SINGLE_BLOCKER_SNAPSHOT]", blockerSnapshot);
+              writeSoakEvent("QUEUE_SINGLE_BLOCKER_SNAPSHOT", {
+                hand: h + 1,
+                trace,
+                snapshot: blockerSnapshot,
+              });
             }
           } else {
             lastSingleBlockerSnapshotKey = "";
@@ -693,6 +753,15 @@ describe("dealer random walk soak", () => {
                 console.error(
                   `[SOAK_WARN] handleAction timeout but state progressed hand=${h + 1} handId=${state.handId} street=${state.street} ${toActId}:${action.action}`,
                 );
+                writeSoakEvent("SOAK_WARN", {
+                  kind: "handle_action_timeout_progressed",
+                  hand: h + 1,
+                  handId: state.handId,
+                  street: state.street,
+                  userId: toActId,
+                  action: action.action,
+                  trace,
+                });
                 trace.push("handleAction_timeout_progressed");
                 // Fall through to after/progressed/expect(computeChipMass) with current state.
               } else {
@@ -700,6 +769,11 @@ describe("dealer random walk soak", () => {
                   "[HANDLE_ACTION_TIMEOUT_CORRELATION]",
                   getHandleActionTimeoutCorrelation(state, dealer!, toActId, action),
                 );
+                writeSoakEvent("HANDLE_ACTION_TIMEOUT_CORRELATION", {
+                  hand: h + 1,
+                  trace,
+                  correlation: getHandleActionTimeoutCorrelation(state, dealer!, toActId, action),
+                });
                 throw err;
               }
             } else {
@@ -744,6 +818,12 @@ describe("dealer random walk soak", () => {
       console.error(
         `[SOAK_DONE] started=${handsStarted} completed=${handsCompleted} totalSec=${totalElapsedSec} avgHandsPerSec=${(handsCompleted / totalElapsedSec).toFixed(2)}`,
       );
+      writeSoakEvent("SOAK_DONE", {
+        started: handsStarted,
+        completed: handsCompleted,
+        totalSec: totalElapsedSec,
+        avgHandsPerSec: Number((handsCompleted / totalElapsedSec).toFixed(4)),
+      });
       writeHeartbeat("done", {
         started: handsStarted,
         completed: handsCompleted,
@@ -758,6 +838,53 @@ describe("dealer random walk soak", () => {
       for (const p of state.playersById.values()) {
         expect(p.stackCents).toBeGreaterThanOrEqual(0);
       }
+    } catch (err) {
+      const failedState = failureState;
+      const failedDealer = dealer;
+      writeSoakEvent("SOAK_FAILURE", {
+        message: err instanceof Error ? err.message : String(err),
+        handsStarted,
+        handsCompleted,
+        traceTail: currentTrace.slice(-20),
+        state: failedState
+          ? {
+              tableId: failedState.tableId,
+              handId: failedState.handId,
+              street: failedState.street,
+              roundState: failedState.roundState,
+              toActSeat: failedState.toActSeat,
+              toActUserId: failedState.seats[failedState.toActSeat] ?? null,
+              potCents: failedState.potCents,
+              handActionSeq: failedState.handActionSeq,
+              seats: failedState.seats.map((userId, seat) => {
+                const player = userId ? failedState.playersById.get(userId) : undefined;
+                return {
+                  seat,
+                  userId: userId || null,
+                  kind: player?.kind ?? null,
+                  connected: player?.connected ?? null,
+                  status: player?.status ?? null,
+                  needsAction: player?.needsAction ?? null,
+                  stackCents: player?.stackCents ?? null,
+                  roundBetCents: player?.roundBetCents ?? null,
+                  committedCents: player?.committedCents ?? null,
+                };
+              }),
+            }
+          : null,
+        dealer: failedDealer && failedState
+          ? {
+              lastMarker: failedDealer.getLastDriveMarker?.(),
+              queueDepth: failedDealer.getQueueDepth?.(),
+              pendingSeatReleases: failedDealer.getPendingSeatReleaseCount?.(),
+              actorSnapshot: failedDealer.getActorSnapshotForHand?.(failedState.handId) ?? null,
+              lastAcceptedAction: failedDealer.getLastAcceptedActionSnapshot?.(failedState.handId) ?? null,
+              currentQueueItem: failedDealer.getCurrentQueueItem?.() ?? null,
+              lastQueueTransition: failedDealer.getLastQueueTransition?.() ?? null,
+            }
+          : null,
+      });
+      throw err;
     } finally {
       dealer?.dispose();
       vi.unstubAllEnvs();

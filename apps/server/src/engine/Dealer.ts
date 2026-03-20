@@ -125,7 +125,30 @@ type DealerConstructorOptions = {
   getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
   maxQueueDepth?: number;
   onHandEndedAwards?: HandEndedAwardsCallback;
+  onSoakTimingEvent?: (args: {
+    kind:
+      | "LIFECYCLE_PLAN_EMIT_SNAPSHOT_MS"
+      | "LIFECYCLE_PLAN_HAND_ENDED_MS"
+      | "LIFECYCLE_PLAN_DELAY_MS"
+      | "LIFECYCLE_PLAN_SCHEDULE_NEXT_HAND_MS"
+      | "HAND_ENDED_AWARDS_MS";
+    handId: string;
+    street: string;
+    durationMs: number;
+    queueItem: ReturnType<Dealer["getCurrentQueueItem"]> | null;
+    reason?: string | null;
+    actionId?: string | null;
+    branch?: string | null;
+    delayMs?: number | null;
+    countdownMs?: number | null;
+    potCents?: number | null;
+  }) => void;
 };
+
+type DealerSoakTimingEvent = Omit<
+  Parameters<NonNullable<DealerConstructorOptions["onSoakTimingEvent"]>>[0],
+  "queueItem"
+>;
 
 type AddBotOptions = {
   inertDuringSeed?: boolean;
@@ -351,6 +374,7 @@ export class Dealer {
   private readonly turnManager: TurnManager;
   private disposed = false;
   private readonly onHandEndedAwards?: HandEndedAwardsCallback;
+  private readonly onSoakTimingEvent?: DealerConstructorOptions["onSoakTimingEvent"];
 
   private static parseSampleRate(raw: string | undefined, defaultValue: number): number {
     const parsed = Number(raw ?? "");
@@ -389,6 +413,7 @@ export class Dealer {
       hasCompletedTerminalLifecycle: () => this.completedTerminalLifecycle !== null,
     });
     this.onHandEndedAwards = options?.onHandEndedAwards;
+    this.onSoakTimingEvent = options?.onSoakTimingEvent;
     this.persistence =
       persistence ??
       new PersistenceFacade({
@@ -460,6 +485,27 @@ export class Dealer {
           : [],
       recordSessionHandResult: (userId, won) => this.sessionStatsTracker.recordHandResult(userId, won),
       getSessionState: (userId) => this.getSessionStateForAwards(userId),
+      onHandEndedAwardsTiming: (event) => {
+        this.emitSoakTimingEvent({
+          kind: "HAND_ENDED_AWARDS_MS",
+          handId: event.handId,
+          street: event.street,
+          durationMs: event.durationMs,
+          reason: event.reason ?? null,
+        });
+      },
+      onScheduleNextHandTiming: (event) => {
+        this.emitSoakTimingEvent({
+          kind: "LIFECYCLE_PLAN_SCHEDULE_NEXT_HAND_MS",
+          handId: event.handId,
+          street: event.street,
+          durationMs: event.durationMs,
+          reason: event.reason ?? null,
+          branch: event.branch ?? null,
+          delayMs: event.delayMs ?? null,
+          countdownMs: event.countdownMs ?? null,
+        });
+      },
     });
     this.turnAutomationService = new TurnAutomationService({
       state: this.state,
@@ -533,6 +579,41 @@ export class Dealer {
         handId: this.state.handId ?? "",
         street: this.state.street,
       }),
+      onLifecyclePlanCompleted: ({ scope, plan, context }) =>
+        this.logLifecycleOwnershipLeakIfNeeded(scope, plan, context),
+      onLifecyclePlanTiming: ({ handId, street, plan, durationMs, reason, actionId, potCents, delayMs }) => {
+        if (plan === "EMIT_SNAPSHOT") {
+          this.emitSoakTimingEvent({
+            kind: "LIFECYCLE_PLAN_EMIT_SNAPSHOT_MS",
+            handId,
+            street,
+            durationMs,
+            reason: reason ?? null,
+            actionId: actionId ?? null,
+          });
+          return;
+        }
+        if (plan === "HAND_ENDED") {
+          this.emitSoakTimingEvent({
+            kind: "LIFECYCLE_PLAN_HAND_ENDED_MS",
+            handId,
+            street,
+            durationMs,
+            reason: reason ?? null,
+            potCents: potCents ?? null,
+          });
+          return;
+        }
+        if (plan === "DELAY") {
+          this.emitSoakTimingEvent({
+            kind: "LIFECYCLE_PLAN_DELAY_MS",
+            handId,
+            street,
+            durationMs,
+            delayMs: delayMs ?? null,
+          });
+        }
+      },
       transitionToWaiting: () => this.transitionToWaiting(),
       releasePendingSeats: () => this.releasePendingSeats(),
       scheduleNextHand: (reason, delayMs) => this.scheduleNextHand(reason, delayMs),
@@ -602,6 +683,17 @@ export class Dealer {
     if (this.state.seats.length === 0) {
       for (let i = 0; i < (this.state.maxSeats || 9); i++) this.state.seats.push("");
     }
+  }
+
+  private emitSoakTimingEvent(
+    event: DealerSoakTimingEvent,
+  ): void {
+    const queueItem = this.getCurrentQueueItem();
+    if (!queueItem || queueItem.handId !== event.handId) return;
+    this.onSoakTimingEvent?.({
+      ...event,
+      queueItem,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -2210,6 +2302,7 @@ export class Dealer {
     await this.lifecycleExecutor.executeHandLifecyclePlans(plans);
     this.ensureHumanTurnTimerForCurrentActor("POST_HAND_LIFECYCLE_RECONCILE");
     this.reconcileNextStepOwnerAfterLifecycle("HAND_LIFECYCLE_COMPLETE");
+    this.tryClaimAutomationOwnershipAfterLifecycle("HAND_LIFECYCLE_COMPLETE");
     this.assertProgressionOwnershipInvariant("HAND_LIFECYCLE_COMPLETE");
     if (this.nextStepOwner === "RUNNING_LIFECYCLE") {
       if (this.driveInProgress) {
@@ -2267,6 +2360,7 @@ export class Dealer {
     );
     this.ensureHumanTurnTimerForCurrentActor("POST_PLAYER_LIFECYCLE_RECONCILE");
     this.reconcileNextStepOwnerAfterLifecycle("PLAYER_LIFECYCLE_COMPLETE");
+    this.tryClaimAutomationOwnershipAfterLifecycle("PLAYER_LIFECYCLE_COMPLETE");
     this.assertProgressionOwnershipInvariant("PLAYER_LIFECYCLE_COMPLETE");
     if (this.nextStepOwner === "RUNNING_LIFECYCLE") {
       if (this.driveInProgress) {
@@ -2283,6 +2377,89 @@ export class Dealer {
   ): Promise<void> {
     dealerRuntimeMetrics.recordHandCompleted();
     await this.handOrchestrator.runHandEndedAwards(plan);
+  }
+
+  private logLifecycleOwnershipLeakIfNeeded(
+    scope: "hand" | "player",
+    plan: HandLifecyclePlan["kind"] | PlayerLifecyclePlan["kind"],
+    context: { tableId: string; handId: string; street: string },
+  ): void {
+    const currentQueueItem = this.getCurrentQueueItem();
+    if (
+      this.nextStepOwner !== "RUNNING_LIFECYCLE" ||
+      this.getQueueDepth() !== 0 ||
+      currentQueueItem != null
+    ) {
+      return;
+    }
+
+    const toActSeat = this.state.toActSeat;
+    const toActUserId = toActSeat >= 0 ? (this.state.seats[toActSeat] ?? "") : "";
+    const actor = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    logger.error(
+      {
+        ...context,
+        scope,
+        plan,
+        roundState: this.state.roundState,
+        toActSeat,
+        toActUserId,
+        actorKind: actor?.kind ?? null,
+        actorConnected: actor?.connected ?? null,
+        actorNeedsAction: actor?.needsAction ?? null,
+        actorStatus: actor?.status ?? null,
+        turnDeadlineMs: this.state.turnDeadlineMs,
+        nextStepOwner: this.nextStepOwner,
+        queueDepth: this.getQueueDepth(),
+        currentQueueItem,
+        lastQueueTransition: this.getLastQueueTransition(),
+      },
+      "LIFECYCLE_OWNERSHIP_LEAK",
+    );
+  }
+
+  private tryClaimAutomationOwnershipAfterLifecycle(trigger: string): void {
+    if (this.nextStepOwner !== "RUNNING_LIFECYCLE") return;
+    if (this.state.street === "WAITING" || this.state.roundState === "HAND_COMPLETE" || this.state.runoutMode === "STAGED") {
+      return;
+    }
+
+    const toActSeat = this.state.toActSeat;
+    const toActUserId = toActSeat >= 0 ? (this.state.seats[toActSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    if (!toActPlayer || !eligibleToAct(toActPlayer) || !toActPlayer.needsAction) return;
+    if (toActPlayer.kind === "HUMAN" && toActPlayer.connected) return;
+
+    const beforeTransition = this.getLastQueueTransition() as
+      | { phase?: string; item?: { id?: number; source?: string; handId?: string | null; toActUserIdAtEnqueue?: string | null } }
+      | null;
+    const beforeTransitionId = beforeTransition?.item?.id ?? null;
+
+    this.maybeActForBot();
+
+    const currentQueueItem = this.getCurrentQueueItem() as
+      | { id?: number; source?: string; handId?: string | null; toActUserIdAtEnqueue?: string | null }
+      | null;
+    const lastQueueTransition = this.getLastQueueTransition() as
+      | { phase?: string; item?: { id?: number; source?: string; handId?: string | null; toActUserIdAtEnqueue?: string | null } }
+      | null;
+
+    const matchesActor = (item: { source?: string; handId?: string | null; toActUserIdAtEnqueue?: string | null } | null | undefined): boolean =>
+      item?.source === "queued_internal_work" &&
+      item.handId === this.state.handId &&
+      item.toActUserIdAtEnqueue === toActUserId;
+
+    const automationClaimed =
+      matchesActor(currentQueueItem) ||
+      (
+        lastQueueTransition?.phase === "enqueued" &&
+        lastQueueTransition.item?.id !== beforeTransitionId &&
+        matchesActor(lastQueueTransition.item)
+      );
+
+    if (!automationClaimed) return;
+
+    this.setNextStepOwner("WAITING_FOR_AUTOMATION", `AUTOMATION_CLAIMED_AFTER_LIFECYCLE:${trigger}`);
   }
 
   // ---------------------------------------------------------------------------
