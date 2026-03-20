@@ -496,25 +496,67 @@ class AutoActionDispatcher {
         source: `AUTO_ACTION:${payload.action}`,
         enqueuedBy: userId,
         beforeStart: () => {
-          const staleReasonAtBeforeStart =
-            (enqueuedHandId && this.deps.state.handId !== enqueuedHandId)
-              ? "HAND_ID_CHANGED"
-              : TurnTokenUtil.staleReason(this.deps.state, turnToken);
-          const p = this.deps.state.playersById.get(userId);
-          const reconnected =
-            !staleReasonAtBeforeStart && !!p && p.kind !== "BOT" && p.connected;
-          const beforeStartResult = !staleReasonAtBeforeStart && !reconnected;
-          this.captureAutoActionProbe({
-            phase: beforeStartResult ? "before_start" : "before_start_discarded",
-            userId,
-            action: payload.action,
-            enqueuedHandId: enqueuedHandId ?? null,
-            beforeStartCalled: true,
-            beforeStartResult,
-            staleReasonAtBeforeStart: staleReasonAtBeforeStart ?? (reconnected ? "PLAYER_RECONNECTED" : null),
-          });
-          return beforeStartResult;
-        },
+  const staleReasonAtBeforeStart =
+    (enqueuedHandId && this.deps.state.handId !== enqueuedHandId)
+      ? "HAND_ID_CHANGED"
+      : TurnTokenUtil.staleReason(this.deps.state, turnToken);
+
+  const p = this.deps.state.playersById.get(userId);
+  const reconnected =
+    !staleReasonAtBeforeStart && !!p && p.kind !== "BOT" && p.connected;
+
+  const beforeStartResult = !staleReasonAtBeforeStart && !reconnected;
+
+  const discardReason =
+    staleReasonAtBeforeStart ?? (reconnected ? "PLAYER_RECONNECTED" : null);
+
+  // probe first (keep this)
+  this.captureAutoActionProbe({
+    phase: beforeStartResult ? "before_start" : "before_start_discarded",
+    userId,
+    action: payload.action,
+    enqueuedHandId: enqueuedHandId ?? null,
+    beforeStartCalled: true,
+    beforeStartResult,
+    staleReasonAtBeforeStart: discardReason,
+  });
+
+  // 🔥 NOW emit discard side effects
+  if (!beforeStartResult) {
+    logger.info(
+      this.deps.buildDiagnosticContext({
+        userId,
+        action: payload.action,
+        staleReason: discardReason,
+      }),
+      "AUTO_ACTION_DISCARDED",
+    );
+
+    this.deps.emitDiagnostic({
+      level: "warn",
+      type: staleReasonAtBeforeStart
+        ? "QUEUED_AUTO_ACTION_STALE_DISCARDED"
+        : "QUEUED_AUTO_ACTION_SKIPPED_RECONNECTED",
+      message: "Queued auto-action discarded before start",
+      context: this.deps.buildDiagnosticContext({
+        userId,
+        action: payload.action,
+        staleReason: discardReason,
+        token: turnToken ?? null,
+      }),
+    });
+
+    if (this.deps.onAutoActionDiscarded) {
+      this.deps.onAutoActionDiscarded();
+      logger.info(
+        this.deps.buildDiagnosticContext({ userId }),
+        "AUTO_ACTION_REDRIVE_TRIGGERED",
+      );
+    }
+  }
+
+  return beforeStartResult;
+},
         execute: async () => {
           const staleReasonAtExecuteTop = TurnTokenUtil.staleReason(this.deps.state, turnToken);
           this.captureAutoActionProbe({
