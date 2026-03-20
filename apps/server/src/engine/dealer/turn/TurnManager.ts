@@ -51,7 +51,23 @@ type TurnManagerDeps = {
 
 type QueuedInternalWorkItem = {
   handId: string | null;
+  source?: string;
+  enqueuedBy?: string;
   execute: () => Promise<void>;
+};
+
+type QueueWorkSource = "player_action" | "serialized_mutation" | "queued_internal_work";
+
+type QueueItemMetadata = {
+  id: number;
+  source: QueueWorkSource;
+  enqueuedAt: number;
+  handId: string | null;
+  enqueuedBy: string | null;
+  nextStepOwnerAtEnqueue?: string | null;
+  streetAtEnqueue?: PokerState["street"] | null;
+  toActSeatAtEnqueue?: number | null;
+  toActUserIdAtEnqueue?: string | null;
 };
 
 class TurnTokenUtil {
@@ -87,12 +103,40 @@ class ActionQueue {
   private queue: Promise<void> = Promise.resolve();
   private pendingActionCount = 0;
   private static readonly SLOW_TASK_MS = 2_000;
+  private nextQueueItemId = 1;
+  private currentQueueItem: QueueItemMetadata | null = null;
+  private lastQueueTransition:
+    | {
+        phase: "enqueued" | "started" | "completed";
+        at: number;
+        item: QueueItemMetadata;
+      }
+    | null = null;
 
   getPendingCount(): number {
     return this.pendingActionCount;
   }
 
+  getCurrentQueueItem(): Record<string, unknown> | null {
+    if (!this.currentQueueItem) return null;
+    return {
+      ...this.currentQueueItem,
+      ageMs: Date.now() - this.currentQueueItem.enqueuedAt,
+    };
+  }
+
+  getLastQueueTransition(): Record<string, unknown> | null {
+    if (!this.lastQueueTransition) return null;
+    return {
+      phase: this.lastQueueTransition.phase,
+      at: this.lastQueueTransition.at,
+      ageMs: Date.now() - this.lastQueueTransition.at,
+      item: this.lastQueueTransition.item,
+    };
+  }
+
   constructor(private readonly deps: {
+    state: PokerState;
     maxQueueDepth: number;
     isDisposed: () => boolean;
     shouldEmitQueueRecoveryDiagnostic: (err: unknown) => boolean;
@@ -115,6 +159,8 @@ class ActionQueue {
     }
 
     this.pendingActionCount++;
+    const item = this.createQueueItem("player_action", {});
+    this.recordQueueTransition("enqueued", item);
     const queued = this.queue
       .catch((err) => {
         if (this.deps.shouldEmitQueueRecoveryDiagnostic(err)) {
@@ -125,11 +171,13 @@ class ActionQueue {
       .then(async () => {
         if (!this.assertNotDisposed("player_action")) return;
         const startedAt = Date.now();
+        this.recordQueueTransition("started", item);
         try {
           await work();
         } finally {
           this.logSlowTask("player_action", startedAt);
           this.pendingActionCount--;
+          this.recordQueueTransition("completed", item);
         }
       });
     this.queue = queued;
@@ -138,6 +186,8 @@ class ActionQueue {
 
   enqueueSerializedStateMutation(work: () => Promise<void>): Promise<void> {
     if (this.deps.isDisposed()) return Promise.resolve();
+    const item = this.createQueueItem("serialized_mutation", {});
+    this.recordQueueTransition("enqueued", item);
     const queued = this.queue
       .catch((err) => {
         if (this.deps.shouldEmitQueueRecoveryDiagnostic(err)) {
@@ -148,10 +198,12 @@ class ActionQueue {
       .then(async () => {
         if (!this.assertNotDisposed("serialized_mutation")) return;
         const startedAt = Date.now();
+        this.recordQueueTransition("started", item);
         try {
           return await work();
         } finally {
           this.logSlowTask("serialized_mutation", startedAt);
+          this.recordQueueTransition("completed", item);
         }
       });
     this.queue = queued;
@@ -160,6 +212,11 @@ class ActionQueue {
 
   enqueueInternalWork(workItem: QueuedInternalWorkItem): Promise<void> {
     if (this.deps.isDisposed()) return Promise.resolve();
+    const item = this.createQueueItem("queued_internal_work", {
+      handId: workItem.handId,
+      enqueuedBy: workItem.enqueuedBy ?? null,
+    });
+    this.recordQueueTransition("enqueued", item);
     const queued = this.queue
       .catch((err) => {
         logger.info({ err }, "INTERNAL_WORK_RECOVERED_QUEUE_CONTINUES");
@@ -171,6 +228,7 @@ class ActionQueue {
       .then(async () => {
         if (!this.assertNotDisposed("queued_internal_work")) return;
         const startedAt = Date.now();
+        this.recordQueueTransition("started", item);
         try {
           await workItem.execute();
         } catch (err) {
@@ -179,6 +237,7 @@ class ActionQueue {
           logger.warn({ err, handId: workItem.handId }, "INTERNAL_WORK_FAILED");
         } finally {
           this.logSlowTask("queued_internal_work", startedAt, { handId: workItem.handId });
+          this.recordQueueTransition("completed", item);
         }
       });
     this.queue = queued;
@@ -207,6 +266,42 @@ class ActionQueue {
     const durationMs = Date.now() - startedAt;
     if (durationMs <= ActionQueue.SLOW_TASK_MS) return;
     logger.warn({ source, durationMs, ...context }, "QUEUE_SLOW_TASK");
+  }
+
+  private createQueueItem(
+    source: QueueWorkSource,
+    overrides?: {
+      handId?: string | null;
+      enqueuedBy?: string | null;
+    },
+  ): QueueItemMetadata {
+    const toActSeat = this.deps.state.toActSeat;
+    const toActUserId = toActSeat >= 0 ? (this.deps.state.seats[toActSeat] ?? null) : null;
+    return {
+      id: this.nextQueueItemId++,
+      source,
+      enqueuedAt: Date.now(),
+      handId: overrides?.handId ?? this.deps.state.handId ?? null,
+      enqueuedBy: overrides?.enqueuedBy ?? null,
+      streetAtEnqueue: this.deps.state.street,
+      toActSeatAtEnqueue: toActSeat,
+      toActUserIdAtEnqueue: toActUserId,
+    };
+  }
+
+  private recordQueueTransition(phase: "enqueued" | "started" | "completed", item: QueueItemMetadata): void {
+    this.lastQueueTransition = {
+      phase,
+      at: Date.now(),
+      item,
+    };
+    if (phase === "started") {
+      this.currentQueueItem = item;
+      return;
+    }
+    if (phase === "completed" && this.currentQueueItem?.id === item.id) {
+      this.currentQueueItem = null;
+    }
   }
 }
 
@@ -237,6 +332,8 @@ class AutoActionDispatcher {
     const enqueueWork = () => {
       this.deps.actionQueue.enqueueInternalWork({
         handId: enqueuedHandId ?? null,
+        source: `AUTO_ACTION:${payload.action}`,
+        enqueuedBy: userId,
         execute: async () => {
           logger.info(
             this.deps.buildDiagnosticContext({ userId, action: payload.action }),
@@ -600,6 +697,7 @@ export class TurnManager {
 
   constructor(private readonly deps: TurnManagerDeps) {
     this.actionQueue = new ActionQueue({
+      state: deps.state,
       maxQueueDepth: deps.maxQueueDepth,
       isDisposed: deps.isDisposed,
       shouldEmitQueueRecoveryDiagnostic: (err) => this.shouldEmitQueueRecoveryDiagnostic(err),
@@ -665,6 +763,14 @@ export class TurnManager {
 
   getQueueDepth(): number {
     return this.actionQueue.getPendingCount();
+  }
+
+  getCurrentQueueItem(): Record<string, unknown> | null {
+    return this.actionQueue.getCurrentQueueItem();
+  }
+
+  getLastQueueTransition(): Record<string, unknown> | null {
+    return this.actionQueue.getLastQueueTransition();
   }
 
   getTurnStartTs(): number {

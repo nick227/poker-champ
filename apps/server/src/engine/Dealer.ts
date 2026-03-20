@@ -286,6 +286,21 @@ export class Dealer {
   private readonly clientsByUserId: Map<string, Client> = new Map();
 
   private pendingSeatReleaseUserIds: Set<string> = new Set();
+  private lastDriveMarker = "INIT";
+  private readonly lastAcceptedActionSnapshotByHandId = new Map<
+    string,
+    {
+      handId: string;
+      userId: string;
+      action: string;
+      amountCents: number | null;
+      resultingToActSeat: number;
+      resultingRoundState: string;
+      resultingStreet: string;
+      resultingResolvedActionId: string | undefined;
+      lastAction: TableLastAction | null;
+    }
+  >();
   /** Displayed after hand ends during WAITING; set by HandLifecycleService callback. */
   private lastHandResult: TableSnapshotPayload["lastHandResult"] | undefined = undefined;
   /** Latest accepted player action id exposed in snapshots for client-side reconciliation. */
@@ -474,9 +489,35 @@ export class Dealer {
       enqueueSerializedStateMutation: (work) => this.enqueueSerializedStateMutation(work),
       hasClient: (userId) => this.clientsByUserId.has(userId),
       markReconnected: async (userId) => {
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street: this.state.street,
+            userId,
+            nextStepOwner: this.nextStepOwner,
+            queueDepth: this.getQueueDepth(),
+            currentQueueItem: this.getCurrentQueueItem(),
+            lastQueueTransition: this.getLastQueueTransition(),
+          },
+          "DISCONNECT_SWEEP_RECONNECT_START",
+        );
         const plans = this.playerLifecycleService.markReconnected(userId);
         this.stageExternalPlayerLifecyclePlans(plans, "DISCONNECT_SWEEP:MARK_RECONNECTED");
         await this.requestDrive("DISCONNECT_SWEEP:MARK_RECONNECTED");
+        logger.info(
+          {
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            street: this.state.street,
+            userId,
+            nextStepOwner: this.nextStepOwner,
+            queueDepth: this.getQueueDepth(),
+            currentQueueItem: this.getCurrentQueueItem(),
+            lastQueueTransition: this.getLastQueueTransition(),
+          },
+          "DISCONNECT_SWEEP_RECONNECT_COMPLETE",
+        );
       },
       markAbandoned: (userId) => this.markAbandoned(userId),
     });
@@ -554,6 +595,7 @@ export class Dealer {
       progression: this.progression,
       reconcilePostActionLifecycleIfNeeded: (kind) => this.reconcilePostActionLifecycleIfNeeded(kind),
       logActionResolvedNextActor: () => this.logActionResolvedNextActor(),
+      recordLastAcceptedActionSnapshot: (args) => this.recordLastAcceptedActionSnapshot(args),
       hasActiveTerminalLifecycleForCurrentHand: () => this.activeTerminalLifecycle?.handId === this.state.handId,
     });
     this.startDisconnectSweep();
@@ -725,19 +767,99 @@ export class Dealer {
   }
 
   async markDisconnectedSerialized(userId: string, disconnectDeadlineTs: number): Promise<void> {
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        userId,
+        disconnectDeadlineTs,
+        nextStepOwner: this.nextStepOwner,
+        queueDepth: this.getQueueDepth(),
+        currentQueueItem: this.getCurrentQueueItem(),
+        lastQueueTransition: this.getLastQueueTransition(),
+      },
+      "DISCONNECT_QUEUE_ENQUEUE",
+    );
     await this.enqueueSerializedStateMutation(async () => {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          userId,
+          disconnectDeadlineTs,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          currentQueueItem: this.getCurrentQueueItem(),
+          lastQueueTransition: this.getLastQueueTransition(),
+        },
+        "DISCONNECT_QUEUE_START",
+      );
       const plans = this.playerLifecycleService.markDisconnected(userId, disconnectDeadlineTs);
       this.stageExternalPlayerLifecyclePlans(plans, "MARK_DISCONNECTED");
       await this.requestDrive("MARK_DISCONNECTED");
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          userId,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          currentQueueItem: this.getCurrentQueueItem(),
+          lastQueueTransition: this.getLastQueueTransition(),
+        },
+        "DISCONNECT_QUEUE_COMPLETE",
+      );
     });
   }
 
   async markReconnectedSerialized(userId: string): Promise<void> {
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        userId,
+        nextStepOwner: this.nextStepOwner,
+        queueDepth: this.getQueueDepth(),
+        currentQueueItem: this.getCurrentQueueItem(),
+        lastQueueTransition: this.getLastQueueTransition(),
+      },
+      "RECONNECT_QUEUE_ENQUEUE",
+    );
     await this.enqueueSerializedStateMutation(async () => {
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          userId,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          currentQueueItem: this.getCurrentQueueItem(),
+          lastQueueTransition: this.getLastQueueTransition(),
+        },
+        "RECONNECT_QUEUE_START",
+      );
       const plans = this.playerLifecycleService.markReconnected(userId);
       this.stageExternalPlayerLifecyclePlans(plans, "MARK_RECONNECTED");
       await this.requestDrive("MARK_RECONNECTED");
       await this.snapshotService.emitToUser(userId, "RECONNECT");
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          userId,
+          nextStepOwner: this.nextStepOwner,
+          queueDepth: this.getQueueDepth(),
+          currentQueueItem: this.getCurrentQueueItem(),
+          lastQueueTransition: this.getLastQueueTransition(),
+        },
+        "RECONNECT_QUEUE_COMPLETE",
+      );
     });
   }
 
@@ -806,7 +928,22 @@ export class Dealer {
   }
   // Legacy test compatibility: tests monkey-patch this method to disable timeout automation.
   private scheduleHumanTurnTimeout(userId: string): boolean {
+    this.lastDriveMarker = `schedule_human_turn_timeout:before:${userId}`;
     const armed = this.turnManager.scheduleHumanTurnTimeout(userId);
+    this.lastDriveMarker = `schedule_human_turn_timeout:after:${userId}:${armed ? "armed" : "skipped"}`;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        toActSeat: this.state.toActSeat,
+        userId,
+        armed,
+        turnDeadlineMs: this.state.turnDeadlineMs,
+        nextStepOwner: this.nextStepOwner,
+      },
+      "SCHEDULE_HUMAN_TURN_TIMEOUT_RESULT",
+    );
     // if (armed) {
     //   this.setNextStepOwner("WAITING_FOR_HUMAN", "SCHEDULE_HUMAN_TURN_TIMEOUT");
     // }
@@ -819,6 +956,7 @@ export class Dealer {
    * be skipped by a missed automation/redrive step.
    */
   private ensureHumanTurnTimerForCurrentActor(trigger: string): void {
+    this.lastDriveMarker = `ensure_human_turn_timer:enter:${trigger}`;
     if (
       this.state.street === "WAITING" ||
       this.state.street === "SHOWDOWN" ||
@@ -858,6 +996,23 @@ export class Dealer {
     const beforeTurnStartTs = this.turnManager.getTurnStartTs();
     const armed = this.scheduleHumanTurnTimeout(toActUserId);
     const afterTurnStartTs = this.turnManager.getTurnStartTs();
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        trigger,
+        toActSeat: this.state.toActSeat,
+        toActUserId,
+        connected: toActPlayer.connected,
+        armed,
+        beforeTurnStartTs,
+        afterTurnStartTs,
+        turnDeadlineMs: this.state.turnDeadlineMs,
+        nextStepOwner: this.nextStepOwner,
+      },
+      "ENSURE_HUMAN_TURN_TIMER_RESULT",
+    );
     if (armed && afterTurnStartTs > 0 && afterTurnStartTs !== beforeTurnStartTs) {
       logger.info(
         {
@@ -1007,6 +1162,25 @@ export class Dealer {
       ...lastAction,
       seq: nextSeq,
     };
+  }
+
+  private recordLastAcceptedActionSnapshot(args: {
+    handId: string;
+    userId: string;
+    action: string;
+    amountCents: number | null;
+  }): void {
+    this.lastAcceptedActionSnapshotByHandId.set(args.handId, {
+      handId: args.handId,
+      userId: args.userId,
+      action: args.action,
+      amountCents: args.amountCents,
+      resultingToActSeat: this.state.toActSeat,
+      resultingRoundState: this.state.roundState,
+      resultingStreet: this.state.street,
+      resultingResolvedActionId: this.resolvedActionId,
+      lastAction: this.currentHand?.lastAction ?? null,
+    });
   }
 
   /** Call at HAND_START after hand is started so dealt-in players have flags. */
@@ -1527,31 +1701,93 @@ export class Dealer {
     if (this.disposed) return;
 
     const driveNow = Date.now();
+    const mark = (marker: string): void => {
+      this.lastDriveMarker = marker;
+    };
     const runChecks = (t: string): void => {
       // maybeSelfHealRoundClosedNoAction intentionally omitted: driveGame() only
       // reaches this path when bettingRoundComplete is false, so self-heal
       // guard would return immediately. advanceStreetOrShowdown() is called directly
       // above when betting is closed.
+      mark("runChecks:before_self_heal_invalid");
       this.maybeSelfHealInvalidToActSeat(t);
+      mark("runChecks:after_self_heal_invalid");
+      mark("runChecks:before_ensure_human_timer");
       this.ensureHumanTurnTimerForCurrentActor(t);
+      mark("runChecks:after_ensure_human_timer");
+      mark("runChecks:before_self_heal_waiting_human");
       this.maybeSelfHealWaitingHumanWithoutDeadline(t);
+      mark("runChecks:after_self_heal_waiting_human");
+      if (this.state.roundState === "WAITING_FOR_ACTION" && this.state.toActSeat >= 0) {
+        const toActPlayer = [...this.state.playersById.values()].find((player) => player.seat === this.state.toActSeat);
+        if (toActPlayer && !toActPlayer.needsAction) {
+          logger.error(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              toActSeat: this.state.toActSeat,
+              toActUserId: toActPlayer.id,
+              trigger: t,
+              lastMarker: this.lastDriveMarker,
+            },
+            "INVALID_ACTOR_STATE",
+          );
+        }
+      }
+      mark("runChecks:before_log_engine_decision_state");
       this.logEngineDecisionState(t);
+      mark("runChecks:after_log_engine_decision_state");
+      mark("runChecks:before_log_to_act_derivation_warning");
       this.logToActDerivationWarning(t);
+      mark("runChecks:after_log_to_act_derivation_warning");
+      mark("runChecks:before_log_runtime_step");
       this.logEngineDecisionAndRuntimeStep(t, driveNow);
+      mark("runChecks:after_log_runtime_step");
     };
 
     try {
+      mark("drive:before_flush_external_player_lifecycle_batches");
       await this.flushExternalPlayerLifecycleBatches();
+      mark("drive:after_flush_external_player_lifecycle_batches");
+      if (this.state.roundState === "WAITING_FOR_ACTION") {
+        const toActUserId =
+          this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+        const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+        if (
+          toActPlayer &&
+          eligibleToAct(toActPlayer) &&
+          toActPlayer.needsAction &&
+          this.getQueueDepth() === 0
+        ) {
+          logger.error(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              toActSeat: this.state.toActSeat,
+              toActUserId,
+              nextStepOwner: this.nextStepOwner,
+              queueDepth: this.getQueueDepth(),
+              pendingSeatReleases: this.pendingSeatReleaseUserIds.size,
+              lastMarker: this.lastDriveMarker,
+            },
+            "FLUSH_RETURNED_WITH_ACTIONABLE_IDLE_STATE",
+          );
+        }
+      }
 
       // 🔥 CANONICAL LOOP: Continue driving until no more work exists
       let safety = 0;
       let terminalLifecycleCompletedThisDrive = false;
       while (safety++ < 100) {
+        mark("loop:top");
         const street = this.state.street;
         let madeProgress = false;
 
         // WAITING: between-hands timer running or not enough players.
         if (street === "WAITING") {
+          mark("loop:waiting_branch");
           if (this.activeTerminalLifecycle) break;
           if (terminalLifecycleCompletedThisDrive) break;
 
@@ -1573,7 +1809,9 @@ export class Dealer {
           }
 
           if (this.pendingSeatReleaseUserIds.size > 0) {
+            mark("loop:waiting_before_release_pending_seats");
             await this.releasePendingSeats();
+            mark("loop:waiting_after_release_pending_seats");
             madeProgress = true;
             continue;
           }
@@ -1594,13 +1832,16 @@ export class Dealer {
               reason: "BEFORE_START_HAND_CALL"
             }, "DEBUG_START_HAND_STATE");
             
+            mark("loop:waiting_before_start_hand");
             await this.startHand();
+            mark("loop:waiting_after_start_hand");
             madeProgress = true;
             continue;
           } else {
             break; // No work to do in WAITING (timer running or not enough eligible players)
           }
         } else if (this.state.roundState === "HAND_COMPLETE") {
+          mark("loop:hand_complete_branch");
           this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:HAND_COMPLETE`);
           if (
             this.activeTerminalLifecycle?.handId === this.state.handId ||
@@ -1610,14 +1851,18 @@ export class Dealer {
           }
 
           if (countNotFoldedPlayers(this.state) <= 1) {
+            mark("loop:hand_complete_before_finish_last_standing");
             await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_LAST_PLAYER`);
+            mark("loop:hand_complete_after_finish_last_standing");
             madeProgress = true;
             if (this.state.street === "WAITING") {
               terminalLifecycleCompletedThisDrive = true;
             }
             continue;
           } else {
+            mark("loop:hand_complete_before_finish_showdown");
             await this.finishHandShowdownWithSidePots(`DRIVE_GAME:${trigger}:ROUND_STATE_HAND_COMPLETE_SHOWDOWN`);
+            mark("loop:hand_complete_after_finish_showdown");
             madeProgress = true;
             if (this.state.street === "WAITING") {
               terminalLifecycleCompletedThisDrive = true;
@@ -1625,6 +1870,7 @@ export class Dealer {
             continue;
           }
         } else if (this.state.roundState === "RUNOUT") {
+          mark("loop:runout_branch");
           this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:RUNOUT`);
           if (
             this.activeTerminalLifecycle?.handId === this.state.handId ||
@@ -1633,12 +1879,16 @@ export class Dealer {
             break; // Terminal lifecycle already in flight
           }
 
+          mark("loop:runout_before_advance_street_or_showdown");
           await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:ROUND_STATE_RUNOUT`);
+          mark("loop:runout_after_advance_street_or_showdown");
           madeProgress = true;
           terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
           continue;
         } else if (countNotFoldedPlayers(this.state) <= 1) {
+          mark("loop:last_player_before_finish_last_standing");
           await this.finishHandByLastStanding(`DRIVE_GAME:${trigger}:LAST_PLAYER_STANDING`);
+          mark("loop:last_player_after_finish_last_standing");
           madeProgress = true;
           if (this.state.street === "WAITING") {
             terminalLifecycleCompletedThisDrive = true;
@@ -1649,18 +1899,24 @@ export class Dealer {
           this.state.runoutMode === "STAGED" ||
           allRemainingPlayersAllInOrFolded(this.state)
         ) {
+          mark("loop:showdown_or_runout_before_advance");
           await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:SHOWDOWN_OR_RUNOUT`);
+          mark("loop:showdown_or_runout_after_advance");
           madeProgress = true;
           terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
           continue;
         } else if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
+          mark("loop:betting_closed_before_advance");
           await this.advanceStreetOrShowdown(`DRIVE_GAME:${trigger}:BETTING_CLOSED`);
+          mark("loop:betting_closed_after_advance");
           madeProgress = true;
           terminalLifecycleCompletedThisDrive = terminalLifecycleCompletedThisDrive || this.state.street === "WAITING";
           continue;
         } else {
           // Active betting: schedule the next actor (bot, disconnected human, or arm human timer).
+          mark("loop:active_betting_before_maybe_act_for_bot");
           this.maybeActForBot();
+          mark("loop:active_betting_after_maybe_act_for_bot");
           break; // Wait for automation or human action
         }
 
@@ -1669,10 +1925,63 @@ export class Dealer {
       }
 
       if (safety >= 100) {
-        logger.error({ tableId: this.state.tableId, handId: this.state.handId }, "DRIVE_GAME_SAFETY_LIMIT_EXCEEDED");
+        logger.error(
+          { tableId: this.state.tableId, handId: this.state.handId, lastMarker: this.lastDriveMarker },
+          "DRIVE_GAME_SAFETY_LIMIT_EXCEEDED",
+        );
       }
 
+      mark("drive:before_run_checks");
       runChecks(trigger);
+      mark("drive:after_run_checks");
+      if (this.state.roundState === "WAITING_FOR_ACTION") {
+        const toActUserId =
+          this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+        const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+        if (
+          toActPlayer &&
+          eligibleToAct(toActPlayer) &&
+          toActPlayer.needsAction &&
+          this.getQueueDepth() === 0
+        ) {
+          logger.error(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              trigger,
+              toActSeat: this.state.toActSeat,
+              toActUserId,
+              actorKind: toActPlayer.kind,
+              connected: toActPlayer.connected,
+              turnDeadlineMs: this.state.turnDeadlineMs,
+              nextStepOwner: this.nextStepOwner,
+              shouldWaitForHuman: toActPlayer.kind === "HUMAN" && toActPlayer.connected,
+              shouldWaitForAutomation: toActPlayer.kind !== "HUMAN" || !toActPlayer.connected,
+              queueDepth: this.getQueueDepth(),
+              pendingSeatReleases: this.pendingSeatReleaseUserIds.size,
+              lastMarker: this.lastDriveMarker,
+            },
+            "POST_RUNCHECKS_ACTIONABLE_IDLE_STATE",
+          );
+          if (toActPlayer.kind === "HUMAN" && toActPlayer.connected && this.state.turnDeadlineMs <= 0) {
+            logger.error(
+              {
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                street: this.state.street,
+                trigger,
+                toActSeat: this.state.toActSeat,
+                toActUserId,
+                nextStepOwner: this.nextStepOwner,
+                queueDepth: this.getQueueDepth(),
+                lastMarker: this.lastDriveMarker,
+              },
+              "POST_RUNCHECKS_CONNECTED_HUMAN_WITHOUT_DEADLINE",
+            );
+          }
+        }
+      }
     } catch (err) {
       logger.error(
         {
@@ -1681,6 +1990,7 @@ export class Dealer {
           handId: this.state.handId,
           street: this.state.street,
           trigger,
+          lastMarker: this.lastDriveMarker,
         },
         "DRIVE_GAME_FAILED",
       );
@@ -1726,13 +2036,29 @@ export class Dealer {
         toActSeat: this.state.toActSeat,
         userId: toActUserId,
         status: toActPlayer.status,
+        needsActionBefore: toActPlayer.needsAction,
         roundBetCents: toActPlayer.roundBetCents,
         committedCents: toActPlayer.committedCents,
         trigger,
+        resolvedActionId: this.resolvedActionId,
+        lastAcceptedAction: this.getLastAcceptedActionSnapshot(this.state.handId),
       },
       "WAITING_ACTOR_NEEDS_ACTION_INVALID_REPAIRED",
     );
     toActPlayer.needsAction = true;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        userId: toActUserId,
+        needsActionAfter: toActPlayer.needsAction,
+        trigger,
+      },
+      "WAITING_ACTOR_NEEDS_ACTION_REPAIR_APPLIED",
+    );
     return actionableRound;
   }
 
@@ -1780,11 +2106,29 @@ export class Dealer {
   }
 
   private async flushExternalPlayerLifecycleBatches(): Promise<void> {
+    this.lastDriveMarker = "flush:enter";
     while (this.pendingExternalPlayerLifecycleBatches.length > 0) {
+      this.lastDriveMarker = "flush:before_shift";
       const batch = this.pendingExternalPlayerLifecycleBatches.shift();
       if (!batch) break;
+      this.lastDriveMarker = `flush:after_shift:${batch.source}`;
+      logger.info(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          toActSeat: this.state.toActSeat,
+          source: batch.source,
+          planKinds: batch.plans.map((plan) => plan.kind),
+          remainingBatchCount: this.pendingExternalPlayerLifecycleBatches.length,
+        },
+        "FLUSH_EXTERNAL_PLAYER_LIFECYCLE_BATCH",
+      );
+      this.lastDriveMarker = `flush:before_execute:${batch.source}`;
       await this.executePlayerLifecyclePlans(batch.plans, `DRIVE:${batch.source}`);
+      this.lastDriveMarker = `flush:after_execute:${batch.source}`;
     }
+    this.lastDriveMarker = "flush:exit";
   }
 
   /**
@@ -1894,7 +2238,33 @@ export class Dealer {
         "LIFECYCLE_CALLED_OUTSIDE_DRIVE",
       );
     }
+    this.lastDriveMarker = `player_lifecycle:before_executor:${source}`;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        toActSeat: this.state.toActSeat,
+        source,
+        planKinds: plans.map((plan) => plan.kind),
+      },
+      "PLAYER_LIFECYCLE_EXECUTOR_ENTER",
+    );
     await this.lifecycleExecutor.executePlayerLifecyclePlans(plans);
+    this.lastDriveMarker = `player_lifecycle:after_executor:${source}`;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        toActSeat: this.state.toActSeat,
+        source,
+        planKinds: plans.map((plan) => plan.kind),
+        nextStepOwner: this.nextStepOwner,
+        queueDepth: this.getQueueDepth(),
+      },
+      "PLAYER_LIFECYCLE_EXECUTOR_EXIT",
+    );
     this.ensureHumanTurnTimerForCurrentActor("POST_PLAYER_LIFECYCLE_RECONCILE");
     this.reconcileNextStepOwnerAfterLifecycle("PLAYER_LIFECYCLE_COMPLETE");
     this.assertProgressionOwnershipInvariant("PLAYER_LIFECYCLE_COMPLETE");
@@ -2181,13 +2551,27 @@ export class Dealer {
   }
 
   private logActionResolvedNextActor(): void {
+    const beforeSeat = this.state.toActSeat;
+    const beforeUserId = beforeSeat >= 0 ? (this.state.seats[beforeSeat] ?? "") : "";
+    const beforePlayer = beforeUserId ? this.state.playersById.get(beforeUserId) : undefined;
     this.repairCurrentToActNeedsActionIfNeeded("ACTION_RESOLVED_NEXT_ACTOR");
+    const afterSeat = this.state.toActSeat;
+    const afterUserId = afterSeat >= 0 ? (this.state.seats[afterSeat] ?? "") : "";
+    const afterPlayer = afterUserId ? this.state.playersById.get(afterUserId) : undefined;
     logger.info(
       {
         tableId: this.state.tableId,
         handId: this.state.handId,
         street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeatBefore: beforeSeat,
+        toActUserIdBefore: beforeUserId,
+        needsActionBefore: beforePlayer?.needsAction ?? null,
         nextSeat: this.state.toActSeat,
+        nextUserId: afterUserId,
+        needsActionAfter: afterPlayer?.needsAction ?? null,
+        resolvedActionId: this.resolvedActionId,
+        lastAcceptedAction: this.getLastAcceptedActionSnapshot(this.state.handId),
       },
       "ACTION_RESOLVED_NEXT_ACTOR",
     );
@@ -2242,6 +2626,9 @@ export class Dealer {
   }
 
   private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
+    const previousSeat = this.state.toActSeat;
+    const previousUserId = previousSeat >= 0 ? (this.state.seats[previousSeat] ?? "") : "";
+    const previousPlayer = previousUserId ? this.state.playersById.get(previousUserId) : undefined;
     // CRITICAL: Prevent illegal assignment in WAITING state
     if (this.state.street === "WAITING") {
       logger.error(
@@ -2258,18 +2645,50 @@ export class Dealer {
     }
     
     this.state.toActSeat = nextSeat;
+    const toActUserId = nextSeat >= 0 ? (this.state.seats[nextSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
     if (nextSeat >= 0) {
-      const toActUserId = this.state.seats[nextSeat] ?? "";
-      const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
       if (toActPlayer) {
         toActPlayer.needsAction = true;
       }
     }
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        trigger,
+        toActSeatBefore: previousSeat,
+        toActUserIdBefore: previousUserId,
+        needsActionBefore: previousPlayer?.needsAction ?? null,
+        toActSeatAfter: nextSeat,
+        toActUserIdAfter: toActUserId,
+        needsActionAfter: toActPlayer?.needsAction ?? null,
+        resolvedActionId: this.resolvedActionId,
+        lastAcceptedAction: this.getLastAcceptedActionSnapshot(this.state.handId),
+      },
+      "DEALER_TO_ACT_ASSIGNMENT",
+    );
+    if (toActPlayer && !toActPlayer.needsAction) {
+      logger.error(
+        {
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          roundState: this.state.roundState,
+          trigger,
+          toActSeat: nextSeat,
+          toActUserId,
+          status: toActPlayer.status,
+          resolvedActionId: this.resolvedActionId,
+          lastAcceptedAction: this.getLastAcceptedActionSnapshot(this.state.handId),
+        },
+        "TO_ACT_ASSIGNED_TO_NON_ACTIONABLE_PLAYER",
+      );
+    }
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
-
-    const toActUserId = this.state.seats[nextSeat] ?? "";
-    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
     if (!toActPlayer || toActPlayer.needsAction) return;
 
     logger.error(
@@ -2318,7 +2737,28 @@ export class Dealer {
    * - disconnected humans auto-check when legal, otherwise auto-fold
    */
   private maybeActForBot(): void {
+    const toActUserId =
+      this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    this.lastDriveMarker = `maybe_act_for_bot:before:${toActUserId || "none"}`;
+    logger.info(
+      {
+        tableId: this.state.tableId,
+        handId: this.state.handId,
+        street: this.state.street,
+        roundState: this.state.roundState,
+        toActSeat: this.state.toActSeat,
+        toActUserId,
+        actorKind: toActPlayer?.kind ?? null,
+        connected: toActPlayer?.connected ?? null,
+        needsAction: toActPlayer?.needsAction ?? null,
+        turnDeadlineMs: this.state.turnDeadlineMs,
+        nextStepOwner: this.nextStepOwner,
+      },
+      "MAYBE_ACT_FOR_BOT_ENTER",
+    );
     this.turnAutomationService.maybeActForBot();
+    this.lastDriveMarker = `maybe_act_for_bot:after:${toActUserId || "none"}`;
   }
 
   private normalizeTerminalRoundState(trigger: string): void {
@@ -2474,6 +2914,49 @@ export class Dealer {
 
   getQueueDepth(): number {
     return this.turnManager.getQueueDepth();
+  }
+
+  getCurrentQueueItem(): Record<string, unknown> | null {
+    return this.turnManager.getCurrentQueueItem();
+  }
+
+  getLastQueueTransition(): Record<string, unknown> | null {
+    return this.turnManager.getLastQueueTransition();
+  }
+
+  getLastDriveMarker(): string {
+    return this.lastDriveMarker;
+  }
+
+  getPendingSeatReleaseCount(): number {
+    return this.pendingSeatReleaseUserIds.size;
+  }
+
+  getLastAcceptedActionSnapshot(handId: string): Record<string, unknown> | null {
+    return this.lastAcceptedActionSnapshotByHandId.get(handId) ?? null;
+  }
+
+  getActorSnapshotForHand(handId: string): Record<string, unknown> | null {
+    if (this.state.handId !== handId) return null;
+    const toActUserId =
+      this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? this.state.playersById.get(toActUserId) : undefined;
+    return {
+      handId,
+      street: this.state.street,
+      roundState: this.state.roundState,
+      toActSeat: this.state.toActSeat,
+      toActUserId,
+      actorKind: toActPlayer?.kind ?? null,
+      actorConnected: toActPlayer?.connected ?? null,
+      actorNeedsAction: toActPlayer?.needsAction ?? null,
+      actorStatus: toActPlayer?.status ?? null,
+      turnDeadlineMs: this.state.turnDeadlineMs,
+      nextStepOwner: this.nextStepOwner,
+      resolvedActionId: this.resolvedActionId,
+      lastAction: this.currentHand?.lastAction ?? null,
+      lastMarker: this.lastDriveMarker,
+    };
   }
 
   /**

@@ -36,11 +36,19 @@ async function yieldToEventLoop(): Promise<void> {
 }
 
 /** Real timeout: does not depend on polling or fake timers. */
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+  detail?: () => string,
+): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timed out waiting for: ${label}`)), timeoutMs),
+      setTimeout(() => {
+        const suffix = detail ? ` ${detail()}` : "";
+        reject(new Error(`Timed out waiting for: ${label}${suffix}`));
+      }, timeoutMs),
     ),
   ]);
 }
@@ -51,12 +59,81 @@ async function waitUntil(
   condition: () => boolean,
   timeoutMs: number,
   label: string,
+  detail?: () => string,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!condition()) {
-    if (Date.now() >= deadline) throw new Error(`Timed out waiting for: ${label}`);
+    if (Date.now() >= deadline) {
+      const suffix = detail ? ` ${detail()}` : "";
+      throw new Error(`Timed out waiting for: ${label}${suffix}`);
+    }
     await yieldToEventLoop();
   }
+}
+
+function getStallFingerprint(state: PokerState, dealer: Dealer): Record<string, unknown> {
+  const toActPlayer = [...state.playersById.values()].find((player) => player.seat === state.toActSeat) ?? null;
+  return {
+    handId: state.handId,
+    street: state.street,
+    toAct: state.toActSeat,
+    needsAction: toActPlayer?.needsAction ?? null,
+    lastMarker: dealer.getLastDriveMarker?.(),
+    queueDepth: dealer.getQueueDepth?.(),
+    pendingSeatReleases: dealer.getPendingSeatReleaseCount?.(),
+  };
+}
+
+function getStallCorrelation(state: PokerState, dealer: Dealer): Record<string, unknown> {
+  return {
+    actorSnapshot: dealer.getActorSnapshotForHand?.(state.handId) ?? null,
+    lastAcceptedAction: dealer.getLastAcceptedActionSnapshot?.(state.handId) ?? null,
+    currentQueueItem: dealer.getCurrentQueueItem?.() ?? null,
+    lastQueueTransition: dealer.getLastQueueTransition?.() ?? null,
+  };
+}
+
+function getHandleActionTimeoutCorrelation(
+  state: PokerState,
+  dealer: Dealer,
+  userId: string,
+  action: ActionPayload,
+): Record<string, unknown> {
+  const toActPlayer = [...state.playersById.values()].find((player) => player.seat === state.toActSeat) ?? null;
+  const internalDealer = dealer as any;
+  return {
+    timedOutUserId: userId,
+    timedOutAction: action.action,
+    tableId: state.tableId,
+    handId: state.handId,
+    street: state.street,
+    roundState: state.roundState,
+    toActSeat: state.toActSeat,
+    toActUserId: state.seats[state.toActSeat] ?? null,
+    actorNeedsAction: toActPlayer?.needsAction ?? null,
+    nextStepOwner: internalDealer.nextStepOwner ?? null,
+    queueDepth: dealer.getQueueDepth?.() ?? null,
+    currentQueueItem: dealer.getCurrentQueueItem?.() ?? null,
+    lastQueueTransition: dealer.getLastQueueTransition?.() ?? null,
+    lastMarker: dealer.getLastDriveMarker?.() ?? null,
+  };
+}
+
+function getQueueSingleBlockerSnapshot(state: PokerState, dealer: Dealer): Record<string, unknown> {
+  const internalDealer = dealer as any;
+  return {
+    tableId: state.tableId,
+    handId: state.handId,
+    street: state.street,
+    roundState: state.roundState,
+    toActSeat: state.toActSeat,
+    toActUserId: state.seats[state.toActSeat] ?? null,
+    nextStepOwner: internalDealer.nextStepOwner ?? null,
+    queueDepth: dealer.getQueueDepth?.() ?? null,
+    currentQueueItem: dealer.getCurrentQueueItem?.() ?? null,
+    lastQueueTransition: dealer.getLastQueueTransition?.() ?? null,
+    lastMarker: dealer.getLastDriveMarker?.() ?? null,
+  };
 }
 
 function getDealerWaitingTimeoutState(state: PokerState, dealer: Dealer): Record<string, unknown> {
@@ -365,10 +442,12 @@ describe("dealer random walk soak", () => {
         let stableStallCount = 0;
         let stableNoOptionsKey = "";
         let stableNoOptionsCount = 0;
+        let lastSingleBlockerSnapshotKey = "";
         const traceCap = 400;
         const wallClockStallMs = 5_000;
         let lastProgressKey = "";
         let lastProgressAt = Date.now();
+        const stallDetail = () => `fingerprint=${JSON.stringify(getStallFingerprint(state, dealer!))}`;
         while (state.street !== "WAITING") {
           guard += 1;
           if (guard >= 800) {
@@ -381,12 +460,25 @@ describe("dealer random walk soak", () => {
             lastProgressKey = progressKey;
             lastProgressAt = Date.now();
           } else if (Date.now() - lastProgressAt > wallClockStallMs) {
+            console.error("[STALL_FINGERPRINT]", getStallFingerprint(state, dealer));
+            console.error("[STALL_CORRELATION]", getStallCorrelation(state, dealer!));
             throw new Error(
-              `Wall-clock stall: no state progress for >${wallClockStallMs}ms key=${progressKey} ${trace.join("|")}`,
+              `Wall-clock stall: no state progress for >${wallClockStallMs}ms key=${progressKey} ${trace.join("|")} ${stallDetail()}`,
             );
           }
           if (trace.length > traceCap) {
             throw new Error(`Trace cap exceeded (livelock): ${trace.slice(-20).join("|")}`);
+          }
+
+          if (dealer.getQueueDepth?.() === 1) {
+            const blockerSnapshot = getQueueSingleBlockerSnapshot(state, dealer);
+            const blockerKey = JSON.stringify(blockerSnapshot);
+            if (blockerKey !== lastSingleBlockerSnapshotKey) {
+              lastSingleBlockerSnapshotKey = blockerKey;
+              console.error("[QUEUE_SINGLE_BLOCKER_SNAPSHOT]", blockerSnapshot);
+            }
+          } else {
+            lastSingleBlockerSnapshotKey = "";
           }
 
           // Core money safety invariants: no negative chip state.
@@ -425,6 +517,7 @@ describe("dealer random walk soak", () => {
               Promise.resolve((dealer as any).requestDrive("random_walk_tick")),
               2_000,
               `requestDrive random_walk_tick ${trace.join("|")}`,
+              stallDetail,
             );
           }
           if (rng() < 0.05) {
@@ -433,11 +526,13 @@ describe("dealer random walk soak", () => {
               Promise.resolve((dealer as any).requestDrive("double_tick_1")),
               2_000,
               `requestDrive double_tick_1 ${trace.join("|")}`,
+              stallDetail,
             );
             await withTimeout(
               Promise.resolve((dealer as any).requestDrive("double_tick_2")),
               2_000,
               `requestDrive double_tick_2 ${trace.join("|")}`,
+              stallDetail,
             );
           }
 
@@ -451,6 +546,7 @@ describe("dealer random walk soak", () => {
                   dealer.markDisconnectedSerialized(p.id, Date.now() + 30_000),
                   5_000,
                   `markDisconnectedSerialized ${p.id} ${trace.join("|")}`,
+                  stallDetail,
                 );
               } catch {
                 trace.push(`disconnect_timeout:${p.id}`);
@@ -467,6 +563,7 @@ describe("dealer random walk soak", () => {
                   dealer.markReconnectedSerialized(p.id),
                   5_000,
                   `markReconnectedSerialized ${p.id} ${trace.join("|")}`,
+                  stallDetail,
                 );
               } catch {
                 trace.push(`reconnect_timeout:${p.id}`);
@@ -493,6 +590,7 @@ describe("dealer random walk soak", () => {
               Promise.resolve((dealer as any).requestDrive("round_state_tick")),
               2_000,
               `requestDrive round_state_tick ${state.roundState} ${trace.join("|")}`,
+              stallDetail,
             );
             continue;
           }
@@ -542,6 +640,7 @@ describe("dealer random walk soak", () => {
               Promise.resolve((dealer as any).requestDrive("no_options_tick")),
               2_000,
               `requestDrive no_options_tick ${trace.join("|")}`,
+              stallDetail,
             );
             continue;
           }
@@ -562,6 +661,7 @@ describe("dealer random walk soak", () => {
               dealer.handleAction(toActId, action),
               soakActionTimeoutMs,
               `handleAction ${toActId}:${action.action} ${trace.join("|")}`,
+              stallDetail,
             );
           } catch (err) {
             if (
@@ -596,6 +696,10 @@ describe("dealer random walk soak", () => {
                 trace.push("handleAction_timeout_progressed");
                 // Fall through to after/progressed/expect(computeChipMass) with current state.
               } else {
+                console.error(
+                  "[HANDLE_ACTION_TIMEOUT_CORRELATION]",
+                  getHandleActionTimeoutCorrelation(state, dealer!, toActId, action),
+                );
                 throw err;
               }
             } else {

@@ -2,6 +2,7 @@ import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { PlayerState } from "../../../state/PlayerState.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import type { HeroActionOptions, TableLastAction } from "@poker-champ/realtime-contract";
+import { logger } from "../../../lib/logger.js";
 import { PokerError } from "../../errors.js";
 import {
   allRemainingPlayersAllInOrFolded,
@@ -41,38 +42,71 @@ export class ActionService {
     getLastAction: () => TableLastAction | undefined;
   }) {}
 
+  private logNeedsActionClear(state: PokerState, player: PlayerState, trigger: string): void {
+    const toActUserId = state.toActSeat >= 0 ? (state.seats[state.toActSeat] ?? "") : "";
+    logger.info({
+      tableId: state.tableId,
+      handId: state.handId,
+      street: state.street,
+      roundState: state.roundState,
+      trigger,
+      userId: player.id,
+      seat: player.seat,
+      wasCurrentToAct: state.toActSeat === player.seat,
+      isNextActorCandidate: player.seat >= 0 && findNextToActSeat(state, player.seat) >= 0,
+      connected: player.connected,
+      status: player.status,
+      needsActionBefore: player.needsAction,
+      resolvedLastAction: this.deps.getLastAction() ?? null,
+      currentToActSeat: state.toActSeat,
+      currentToActUserId: toActUserId,
+    }, "NEEDS_ACTION_CLEARED");
+  }
+
   private assignToActSeatWithTrace(state: PokerState, nextSeat: number, trigger: string): void {
+    const prevSeat = state.toActSeat;
+    const prevUserId = prevSeat >= 0 ? (state.seats[prevSeat] ?? "") : "";
+    const prevPlayer = prevUserId ? state.playersById.get(prevUserId) : undefined;
     state.toActSeat = nextSeat;
+    const toActUserId = nextSeat >= 0 ? (state.seats[nextSeat] ?? "") : "";
+    const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
     if (nextSeat >= 0) {
-      const toActUserId = state.seats[nextSeat] ?? "";
-      const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
       if (toActPlayer) {
         toActPlayer.needsAction = true;
       }
     }
+    logger.info({
+      tableId: state.tableId,
+      handId: state.handId,
+      street: state.street,
+      roundState: state.roundState,
+      trigger,
+      toActSeatBefore: prevSeat,
+      toActUserIdBefore: prevUserId,
+      needsActionBefore: prevPlayer?.needsAction ?? null,
+      toActSeatAfter: nextSeat,
+      toActUserIdAfter: toActUserId,
+      needsActionAfter: toActPlayer?.needsAction ?? null,
+      resolvedLastAction: this.deps.getLastAction() ?? null,
+    }, "TO_ACT_ASSIGNMENT");
     if (process.env.POKER_TRACE_TO_ACT_ASSIGNMENTS !== "1") return;
     if (nextSeat < 0) return;
-    const toActUserId = state.seats[nextSeat] ?? "";
-    const toActPlayer = toActUserId ? state.playersById.get(toActUserId) : undefined;
     if (!toActPlayer || toActPlayer.needsAction) return;
-    console.error(
-      JSON.stringify({
-        level: 50,
-        tableId: state.tableId,
-        handId: state.handId,
-        street: state.street,
-        roundState: state.roundState,
-        toActSeat: nextSeat,
-        toActUserId,
-        status: toActPlayer.status,
-        needsAction: toActPlayer.needsAction,
-        roundBetCents: toActPlayer.roundBetCents,
-        committedCents: toActPlayer.committedCents,
-        trigger,
-        stack: new Error("TO_ACT_ASSIGNMENT_TRACE").stack,
-        msg: "TO_ACT_ASSIGNED_WITHOUT_NEEDS_ACTION",
-      }),
-    );
+    logger.error({
+      tableId: state.tableId,
+      handId: state.handId,
+      street: state.street,
+      roundState: state.roundState,
+      toActSeat: nextSeat,
+      toActUserId,
+      status: toActPlayer.status,
+      needsAction: toActPlayer.needsAction,
+      roundBetCents: toActPlayer.roundBetCents,
+      committedCents: toActPlayer.committedCents,
+      trigger,
+      resolvedLastAction: this.deps.getLastAction() ?? null,
+      stack: new Error("TO_ACT_ASSIGNMENT_TRACE").stack,
+    }, "TO_ACT_ASSIGNED_TO_NON_ACTIONABLE_PLAYER");
   }
 
   private resolveHeroTraceUserId(): string | null {
@@ -112,7 +146,10 @@ export class ActionService {
 
     // All-in runout takes precedence over normal street completion.
     if (allRemainingPlayersAllInOrFolded(state)) {
-      for (const p of state.playersById.values()) clearPlayerNeedsAction(p);
+      for (const p of state.playersById.values()) {
+        this.logNeedsActionClear(state, p, "ACTION_SERVICE_ALL_REMAINING_ALL_IN_OR_FOLDED");
+        clearPlayerNeedsAction(p);
+      }
       state.runoutMode = "STAGED";
       return this.finish(state, { kind: "STREET_COMPLETE" });
     }
@@ -135,6 +172,7 @@ export class ActionService {
 
   private clearTurnOwnership(state: PokerState): void {
     for (const player of state.playersById.values()) {
+      this.logNeedsActionClear(state, player, "ACTION_SERVICE_CLEAR_TURN_OWNERSHIP");
       player.needsAction = false;
     }
     const terminalAnchor = [...state.playersById.values()].find(
@@ -197,6 +235,7 @@ export class ActionService {
       potAfterCents: potBeforeCents,
     });
     player.status = "FOLDED";
+    this.logNeedsActionClear(state, player, "ACTION_SERVICE_APPLY_FOLD");
     clearPlayerNeedsAction(player);
     syncRoundCurrentBetCents(state);
     return this.buildLastAction({
@@ -283,6 +322,7 @@ export class ActionService {
           potBeforeCents: potBefore,
           potAfterCents: potBefore,
         });
+        this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_CHECK");
         clearPlayerNeedsAction(player);
         syncRoundCurrentBetCents(state);
         lastAction = this.buildLastAction({
@@ -319,6 +359,7 @@ export class ActionService {
           potAfterCents: potBefore + effectiveCallCents,
           origin,
         });
+        this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_CALL");
         clearPlayerNeedsAction(player);
         syncRoundCurrentBetCents(state);
         break;
@@ -463,9 +504,11 @@ export class ActionService {
           } else {
             // Short all-in does not meet minRaise, so action is not reopened for players
             // who already acted at the current bet level (correct poker rules).
+            this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_ALL_IN_MATCHED");
             clearPlayerNeedsAction(player);
           }
         } else {
+          this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_ALL_IN_NONRAISING");
           clearPlayerNeedsAction(player);
         }
         break;

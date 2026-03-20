@@ -115,7 +115,26 @@ Each PR should be either:
 
 Do not mix them.
 
-### 5. Plan for tournaments by keeping the engine policy-light
+### 5. Treat `driveGameOnce` as a measured boundary
+
+Progression extraction is not just a code-organization problem.
+
+In this codebase, `driveGameOnce` is a timing-critical synchronization loop. Multiple soak-backed probes showed that even delegation-only changes inside `driveGameOnce` can change behavior:
+
+- extracting `driveGameOnce` as a whole stalled soak
+- extracting only the `runChecks` tail stalled soak
+- delegating individual `runChecks` lines, including log-only calls, stalled soak
+
+That means call-boundary changes alone are enough to perturb:
+
+- actor turn timing
+- repair timing
+- queue draining
+- handle-action completion timing
+
+Until instrumentation proves otherwise, anything that runs inside `driveGameOnce` stays in `Dealer.ts`.
+
+### 6. Plan for tournaments by keeping the engine policy-light
 
 Future tournament support should influence this refactor, but only as a boundary constraint.
 
@@ -200,28 +219,25 @@ Why first:
 
 Owns:
 
-- `driveGame`
-- `driveGameOnce`
 - `requestDrive`
 - `queueDrive`
-- next-step ownership reconciliation
-- progression self-heal hooks
-- decision logging bridge
+- progression transport only
 
 Dependencies:
 
-- `PokerState`
 - `TurnManager`
-- `HandOrchestrator`
-- `TurnAutomationService`
-- `HandLifecycleService`
-- `SettlementService`
-- decision helpers
 
-Why second:
+Why limited:
 
-- it isolates the most important orchestration rule in the system: who drives next
-- it removes the densest cluster of state-machine code from `Dealer.ts`
+- it isolates the safe progression transport seam
+- it does not cross the measured timing boundary inside `driveGameOnce`
+
+Explicit non-goal for now:
+
+- do not move `driveGame`
+- do not move `driveGameOnce`
+- do not move `runChecks`
+- do not move ownership reconciliation or self-heal logic that executes inside the core drive loop
 
 ### `DealerPlayerCommandGateway`
 
@@ -408,27 +424,38 @@ Expected result:
 
 - `Dealer.ts` only forwards action requests and exposes the public boundary
 
-### Phase 3. Extract Progression Driving
+### Phase 3. Stop At The Progression Transport Boundary
 
-Move the drive loop and recovery logic into `DealerProgressionCoordinator`.
+Keep the core progression loop in `Dealer.ts`.
 
 Scope:
 
-- `driveGame`
-- `driveGameOnce`
 - `requestDrive`
 - `queueDrive`
-- repair hooks that exist only to support progression
-- `nextStepOwner` reconciliation
+- no further progression extraction without in-place instrumentation evidence
 
 Guardrail:
 
+- anything that runs inside `driveGameOnce` stays local
+- instrumentation is allowed; delegation refactors are not
 - do not change the current meaning of `nextStepOwner`
-- do not move decision projection logic out of `dealer/decision/*`
 
 Expected result:
 
-- the most state-machine-heavy code is no longer in `Dealer.ts`
+- `DealerProgressionCoordinator` remains a narrow transport seam
+- the timing-critical progression core stays intentionally monolithic
+
+### Phase 3A. Instrument The Core Loop If More Reduction Is Needed
+
+If future DX work still targets the progression loop, do measurement first.
+
+Preferred method:
+
+- add temporary in-place markers around `runChecks` lines and key `driveGameOnce` branches
+- identify the last successful marker before a soak stall
+- classify the exact hot line before attempting any movement
+
+Do not attempt more progression extraction until a line or block is proven cold by soak-backed instrumentation.
 
 ### Phase 4. Extract Player Command Internals
 
@@ -511,7 +538,8 @@ The refactor is successful when all of these are true:
 - `Dealer.ts` is short enough to read in one pass
 - the top of the file describes the orchestration flow clearly
 - public room-facing methods are thin
-- drive-loop code is not mixed with player lifecycle plumbing
+- non-progression orchestration is extracted out of `Dealer.ts`
+- the `driveGameOnce` loop is documented as an intentional timing-critical exception
 - diagnostics are not interleaved with core mutation code
 - existing integration and soak coverage stays green
 
@@ -534,7 +562,8 @@ It is:
 
 1. keep `Dealer` as the public engine facade
 2. keep existing domain services in place
-3. extract the remaining orchestration-heavy method clusters into small collaborators
-4. thin the file only after the boundaries prove themselves
+3. extract the orchestration-heavy method clusters that are actually safe to move
+4. keep `driveGameOnce` in `Dealer.ts` unless instrumentation proves a colder internal seam
+5. thin the file only after the boundaries prove themselves
 
 That path gets `Dealer.ts` to a real DX orchestration layer without destabilizing the current engine.

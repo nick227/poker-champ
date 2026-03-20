@@ -52,6 +52,12 @@ type DealerActionOrchestratorDeps = {
   progression: Pick<DealerProgressionCoordinator, "requestDrive">;
   reconcilePostActionLifecycleIfNeeded: (kind: "HAND_FINISHED" | "STREET_COMPLETE") => Promise<void>;
   logActionResolvedNextActor: () => void;
+  recordLastAcceptedActionSnapshot: (args: {
+    handId: string;
+    userId: string;
+    action: string;
+    amountCents: number | null;
+  }) => void;
   hasActiveTerminalLifecycleForCurrentHand: () => boolean;
 };
 
@@ -307,6 +313,12 @@ export class DealerActionOrchestrator {
         ? "BOT_ACTION"
         : "ACTION_ACCEPTED",
       requestDriveAfterTurnAdvanced: origin === "PLAYER",
+    });
+    this.deps.recordLastAcceptedActionSnapshot({
+      handId: this.deps.state.handId,
+      userId,
+      action: msg.action,
+      amountCents: "amountCents" in msg && typeof msg.amountCents === "number" ? msg.amountCents : null,
     });
   }
 
