@@ -270,6 +270,13 @@
             "type": "integer",
             "nullable": true
           },
+          "createdByUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCreator": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"

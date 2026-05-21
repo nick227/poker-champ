@@ -119,6 +119,14 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
 }
 
 /** Lobby browse: scheduled and live only (no finished/cancelled). */
+export function canCreatorDeleteTournament(tournament: TournamentSummary): boolean {
+  return (
+    tournament.isCreator === true &&
+    tournament.status === "REGISTERING" &&
+    tournament.registeredCount === 0
+  );
+}
+
 export function filterTournamentsForPublicLobby(tournaments: TournamentSummary[]): TournamentSummary[] {
   return tournaments.filter((t) => PUBLIC_LOBBY_STATUSES.has(t.status));
 }
@@ -194,6 +202,10 @@ export function mapTournamentErrorMessage(code: string): string {
       return "You are not registered for this tournament.";
     case "TOURNAMENT_NOT_CANCELLABLE":
       return "Only registering tournaments can be cancelled.";
+    case "TOURNAMENT_CANCEL_FORBIDDEN":
+      return "You can only delete tournaments you created.";
+    case "TOURNAMENT_HAS_REGISTRATIONS":
+      return "Cannot delete a tournament after players have registered.";
     case "TOURNAMENT_JOIN_CLOSED":
       return "This tournament is not open for table joins.";
     case "TOURNAMENT_SPECTATOR_READONLY":

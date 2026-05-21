@@ -9,7 +9,7 @@ import { GameListHeader } from "@/features/lobby";
 import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
 import { JoinedTournamentsSection, TournamentsSection } from "@/features/lobby";
-import { TournamentJoinModal, TournamentRegisterModal, TournamentStandingsModal } from "@/features/lobby";
+import { TournamentCreateModal, TournamentJoinModal, TournamentRegisterModal, TournamentStandingsModal } from "@/features/lobby";
 import { GameTablePanel } from "@/features/lobby";
 import { GameTablePanelSkeleton } from "@/features/lobby";
 import { EmptyState } from "@/features/lobby";
@@ -32,7 +32,8 @@ import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
 import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import { useAuthStore } from "@/stores/auth.store";
-import { useMeRole } from "@/hooks/useMeRole";
+import { serviceRegistry } from "@/registry/service.registry";
+import { mapTournamentApiError } from "@/lib/tournament.utils";
 import {
   buildInstantCreateTableConfig,
   getInstantGamePreset,
@@ -85,7 +86,6 @@ export default function LobbyScreen() {
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
-  const { role: meRole } = useMeRole();
   const showToast = useToastStore((s) => s.show);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -101,6 +101,8 @@ export default function LobbyScreen() {
   const [registerBusy, setRegisterBusy] = useState(false);
   const [standingsModal, setStandingsModal] = useState<{ id: string; name: string } | null>(null);
   const [tournamentActionBusy, setTournamentActionBusy] = useState(false);
+  const [tournamentCreateModalVisible, setTournamentCreateModalVisible] = useState(false);
+  const [tournamentDeleteId, setTournamentDeleteId] = useState<string | null>(null);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
   const {
     latestHandId,
@@ -233,17 +235,28 @@ export default function LobbyScreen() {
   }, [requestOnlinePlayers]);
 
   const handleCreateTournament = useCallback(() => {
-    const adminPath = "/admin?tab=tournaments";
     if (!authToken) {
-      router.push(loginPathWithNext(adminPath));
+      router.push(loginPathWithNext("/lobby"));
       return;
     }
-    if (meRole !== "ADMIN") {
-      showToast("Admin access required to create tournaments", "danger");
-      return;
-    }
-    router.push(adminPath);
-  }, [authToken, meRole, router, showToast]);
+    setTournamentCreateModalVisible(true);
+  }, [authToken, router]);
+
+  const handleDeleteTournament = useCallback(
+    async (tournament: TournamentSummary) => {
+      setTournamentDeleteId(tournament.id);
+      const res = await serviceRegistry.post.tournamentCancel(tournament.id);
+      if (!res.ok) {
+        showToast(mapTournamentApiError(res.error.message || "Delete failed", res.error.code), "danger");
+        setTournamentDeleteId(null);
+        return;
+      }
+      showToast("Tournament deleted", "success");
+      void refreshTournaments();
+      setTournamentDeleteId(null);
+    },
+    [refreshTournaments, showToast],
+  );
 
   const handleOpenTournamentDetail = useCallback(
     (tournament: TournamentSummary) => {
@@ -358,6 +371,8 @@ export default function LobbyScreen() {
           actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
           onOpenTournamentDetail={handleOpenTournamentDetail}
+          onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+          deleteInFlightId={tournamentDeleteId}
         />
         <TournamentsSection
           tournaments={tournamentList}
@@ -369,6 +384,8 @@ export default function LobbyScreen() {
           onOpenTournamentDetail={handleOpenTournamentDetail}
           onRetry={() => { void refreshTournaments(); }}
           onCreateTournament={handleCreateTournament}
+          onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+          deleteInFlightId={tournamentDeleteId}
         />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
           <GameListHeader
@@ -418,6 +435,11 @@ export default function LobbyScreen() {
         </View>
       </ScrollView>
       <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
+      <TournamentCreateModal
+        visible={tournamentCreateModalVisible}
+        onClose={() => setTournamentCreateModalVisible(false)}
+        onCreated={() => { void refreshTournaments(); }}
+      />
       <TournamentRegisterModal
         visible={registerModalTournament != null}
         tournament={registerModalTournament}

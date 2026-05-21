@@ -4,6 +4,7 @@ import { Text } from "@/components/base/Text";
 import { Surface } from "@/components/containers/Surface";
 import { formatCents } from "@/lib/format";
 import {
+  canCreatorDeleteTournament,
   formatTournamentStartLocal,
   formatTournamentStatus,
   resolveTournamentCta,
@@ -17,6 +18,8 @@ type TournamentCardProps = {
   statusHint?: string;
   onOpenDetail: (tournament: TournamentSummary) => void;
   onAction: (tournament: TournamentSummary) => void;
+  onDelete?: (tournament: TournamentSummary) => void;
+  deleteInFlight?: boolean;
 };
 
 export function TournamentCard({
@@ -26,9 +29,12 @@ export function TournamentCard({
   statusHint,
   onOpenDetail,
   onAction,
+  onDelete,
+  deleteInFlight,
 }: TournamentCardProps) {
   const cta = resolveTournamentCta(tournament, { authenticated });
   const disabled = cta.disabled || actionInFlight;
+  const showDelete = onDelete != null && canCreatorDeleteTournament(tournament);
 
   return (
     <Surface styleId="surface.list.panel">
@@ -55,7 +61,7 @@ export function TournamentCard({
             </View>
           </View>
           <Pressable onPress={() => onOpenDetail(tournament)} accessibilityRole="button">
-            <Text variant="label" className="text-brand">
+            <Text variant="body" className="text-brand w-full text-center py-2">
               About
             </Text>
           </Pressable>
@@ -67,6 +73,17 @@ export function TournamentCard({
           disabled={disabled}
           onPress={() => onAction(tournament)}
         />
+        {showDelete ? (
+          <Button
+            title={deleteInFlight ? "Deleting…" : "Delete tournament"}
+            intent="danger"
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            disabled={deleteInFlight || actionInFlight}
+            onPress={() => onDelete(tournament)}
+          />
+        ) : null}
       </View>
     </Surface>
   );

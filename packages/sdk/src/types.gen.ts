@@ -790,6 +790,8 @@ export interface components {
             tableLive?: boolean;
             fillBotsAtStart: boolean;
             fillBotCount?: number | null;
+            createdByUserId?: string | null;
+            isCreator?: boolean;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */

@@ -115,19 +115,67 @@ describe("Tournament M13 release audit", () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it("rejects tournament create for non-admin users", async () => {
+  it("allows any authenticated user to create tournaments", async () => {
     currentUserId = testUsers.player;
     currentUserRole = "USER";
     const res = await post("/api/tournaments", {
-      name: "Blocked Create",
+      name: "Player Created",
       entryFeeCents: 1000,
       startTime: new Date(Date.now() + 3600_000).toISOString(),
       maxPlayers: 2,
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
+    const created = await res.json();
+    tournamentIds.push(created.id);
+    expect(created.createdByUserId).toBe(testUsers.player);
+    expect(created.isCreator).toBe(true);
   });
 
-  it("rejects tournament cancel for non-admin users", async () => {
+  it("allows creator to delete empty registering tournament", async () => {
+    currentUserId = testUsers.player;
+    currentUserRole = "USER";
+    const createRes = await post("/api/tournaments", {
+      name: "Creator Delete",
+      entryFeeCents: 1000,
+      startTime: new Date(Date.now() + 3600_000).toISOString(),
+      maxPlayers: 2,
+    });
+    expect(createRes.status).toBe(201);
+    const created = await createRes.json();
+    tournamentIds.push(created.id);
+
+    const cancelRes = await post(`/api/tournaments/${created.id}/cancel`);
+    expect(cancelRes.status).toBe(200);
+    const body = await cancelRes.json();
+    expect(body.refundedCount).toBe(0);
+  });
+
+  it("rejects creator delete when registrations exist", async () => {
+    currentUserId = testUsers.player;
+    currentUserRole = "USER";
+    const createRes = await post("/api/tournaments", {
+      name: "Creator Blocked Delete",
+      entryFeeCents: 1000,
+      startTime: new Date(Date.now() + 3600_000).toISOString(),
+      maxPlayers: 4,
+    });
+    expect(createRes.status).toBe(201);
+    const created = await createRes.json();
+    tournamentIds.push(created.id);
+
+    currentUserId = testUsers.admin;
+    currentUserRole = "ADMIN";
+    await post(`/api/tournaments/${created.id}/register`);
+
+    currentUserId = testUsers.player;
+    currentUserRole = "USER";
+    const cancelRes = await post(`/api/tournaments/${created.id}/cancel`);
+    expect(cancelRes.status).toBe(400);
+    const body = await cancelRes.json();
+    expect(body.error).toBe("TOURNAMENT_HAS_REGISTRATIONS");
+  });
+
+  it("rejects tournament cancel for non-creator non-admin users", async () => {
     currentUserId = testUsers.admin;
     currentUserRole = "ADMIN";
     const createRes = await post("/api/tournaments", {

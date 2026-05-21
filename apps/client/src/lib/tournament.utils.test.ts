@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canCreatorDeleteTournament,
   filterTournamentsForBrowseLobby,
   filterTournamentsForPublicLobby,
   formatJoinedTournamentHint,
@@ -156,6 +157,26 @@ describe("groupTournamentsForLobby", () => {
     ]);
     expect(groups.upcoming.map((t) => t.id)).toEqual(["a"]);
     expect(groups.running.map((t) => t.id)).toEqual(["b"]);
+  });
+});
+
+describe("canCreatorDeleteTournament", () => {
+  it("allows delete only for creator with zero registrations while registering", () => {
+    expect(
+      canCreatorDeleteTournament(
+        baseTournament({ isCreator: true, status: "REGISTERING", registeredCount: 0 }),
+      ),
+    ).toBe(true);
+    expect(
+      canCreatorDeleteTournament(
+        baseTournament({ isCreator: true, status: "REGISTERING", registeredCount: 1 }),
+      ),
+    ).toBe(false);
+    expect(
+      canCreatorDeleteTournament(
+        baseTournament({ isCreator: false, status: "REGISTERING", registeredCount: 0 }),
+      ),
+    ).toBe(false);
   });
 });
 

@@ -278,6 +278,7 @@ model User {
   handCount            UserHandCount?
   tournamentStats      UserTournamentStats?
   tournamentResults    TournamentPlayerResult[]
+  createdTournaments   Tournament[]             @relation("TournamentCreator")
 
   // Monetization
   membership Membership?
@@ -342,9 +343,14 @@ model Tournament {
   roomId     String?
   finishedAt DateTime?
 
+  createdByUserId String?
+  createdBy       User?   @relation("TournamentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
   registrations TournamentRegistration[]
   transactions  BalanceTransaction[]
   playerResults TournamentPlayerResult[]
+
+  @@index([createdByUserId])
 }
 
 model TournamentPlayerResult {

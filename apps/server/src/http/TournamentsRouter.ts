@@ -1,7 +1,6 @@
 import express from "express";
 import { z } from "zod";
 import { attachAuthIfPresent, requireAuth } from "../engine/auth/RequireAuth.js";
-import { requireAdmin } from "../engine/auth/AdminMiddleware.js";
 import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../engine/economy/CashierService.js";
 import {
@@ -12,8 +11,12 @@ import {
   tournamentEntryExternalRef,
   tournamentRefundExternalRef,
 } from "../tournaments/tournament.constants.js";
-import { TOURNAMENT_CLIENT_ERRORS } from "../tournaments/tournament.errors.js";
+import {
+  TOURNAMENT_CANCEL_FORBIDDEN,
+  TOURNAMENT_CLIENT_ERRORS,
+} from "../tournaments/tournament.errors.js";
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "../tournaments/tournament-room-live.js";
+import { assertTournamentCancelAllowed } from "../tournaments/tournament-cancel-auth.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
@@ -72,6 +75,7 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
     tournaments: tournaments.map((t) =>
       toTournamentResponse(t, {
         isRegistered: req.user ? registeredIds.has(t.id) : undefined,
+        isCreator: req.user ? t.createdByUserId === req.user.id : undefined,
         tableLive:
           t.status === "STARTING" || t.status === "RUNNING"
             ? isTournamentRoomLive(t.roomId, liveRoomIds)
@@ -128,6 +132,7 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
   res.json(
     toTournamentResponse(tournament, {
       isRegistered,
+      isCreator: req.user ? tournament.createdByUserId === req.user.id : undefined,
       tableLive:
         tournament.status === "STARTING" || tournament.status === "RUNNING"
           ? isTournamentRoomLive(tournament.roomId, liveRoomIds)
@@ -136,7 +141,7 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
   );
 });
 
-router.post("/", requireAuth, requireAdmin, async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   const parsed = CreateTournamentSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid tournament payload", details: parsed.error.flatten() });
@@ -156,10 +161,13 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       fillBotsAtStart: parsed.data.fillBotsAtStart,
       fillBotCount: parsed.data.fillBotCount ?? null,
       status: "REGISTERING",
+      createdByUserId: req.user!.id,
     },
     include: tournamentInclude,
   });
-  res.status(201).json(toTournamentResponse(tournament));
+  res.status(201).json(
+    toTournamentResponse(tournament, { isCreator: true }),
+  );
 });
 
 router.post("/:id/register", requireAuth, async (req, res) => {
@@ -218,7 +226,7 @@ router.post("/:id/unregister", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/:id/cancel", requireAuth, requireAdmin, async (req, res) => {
+router.post("/:id/cancel", requireAuth, async (req, res) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   if (!id) {
     res.status(400).json({ error: "Tournament id is required" });
@@ -226,9 +234,28 @@ router.post("/:id/cancel", requireAuth, requireAdmin, async (req, res) => {
   }
 
   const prisma = getPrisma();
-  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  const tournament = await prisma.tournament.findUnique({
+    where: { id },
+    include: tournamentInclude,
+  });
   if (!tournament) {
     res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  const registeredCount = tournament._count?.registrations ?? 0;
+
+  try {
+    assertTournamentCancelAllowed({
+      tournament,
+      registeredCount,
+      userId: req.user!.id,
+      userRole: req.user!.role,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament cancel forbidden";
+    const status = message === TOURNAMENT_CANCEL_FORBIDDEN ? 403 : 400;
+    res.status(status).json({ error: message });
     return;
   }
 

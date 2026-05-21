@@ -10,6 +10,8 @@ type JoinedTournamentsSectionProps = {
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
+  onDeleteTournament?: (tournament: TournamentSummary) => void;
+  deleteInFlightId?: string | null;
 };
 
 export function JoinedTournamentsSection({
@@ -18,6 +20,8 @@ export function JoinedTournamentsSection({
   actionInFlight,
   onTournamentAction,
   onOpenTournamentDetail,
+  onDeleteTournament,
+  deleteInFlightId,
 }: JoinedTournamentsSectionProps) {
   if (!authenticated) return null;
 
@@ -42,6 +46,8 @@ export function JoinedTournamentsSection({
             statusHint={formatJoinedTournamentHint(t)}
             onOpenDetail={onOpenTournamentDetail}
             onAction={onTournamentAction}
+            onDelete={onDeleteTournament}
+            deleteInFlight={deleteInFlightId === t.id}
           />
         ))}
       </View>

@@ -21,6 +21,8 @@ type TournamentsSectionProps = {
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onRetry?: () => void;
   onCreateTournament?: () => void;
+  onDeleteTournament?: (tournament: TournamentSummary) => void;
+  deleteInFlightId?: string | null;
 };
 
 function SectionBlock({
@@ -30,6 +32,8 @@ function SectionBlock({
   actionInFlight,
   onTournamentAction,
   onOpenTournamentDetail,
+  onDeleteTournament,
+  deleteInFlightId,
 }: {
   title: string;
   items: TournamentSummary[];
@@ -37,6 +41,8 @@ function SectionBlock({
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
+  onDeleteTournament?: (tournament: TournamentSummary) => void;
+  deleteInFlightId?: string | null;
 }) {
   if (items.length === 0) return null;
   return (
@@ -52,6 +58,8 @@ function SectionBlock({
           actionInFlight={actionInFlight}
           onOpenDetail={onOpenTournamentDetail}
           onAction={onTournamentAction}
+          onDelete={onDeleteTournament}
+          deleteInFlight={deleteInFlightId === t.id}
         />
       ))}
     </View>
@@ -68,6 +76,8 @@ export function TournamentsSection({
   onOpenTournamentDetail,
   onRetry,
   onCreateTournament,
+  onDeleteTournament,
+  deleteInFlightId,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
   const hasBrowse = groups.upcoming.length > 0 || groups.running.length > 0;
@@ -100,6 +110,8 @@ export function TournamentsSection({
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
             onOpenTournamentDetail={onOpenTournamentDetail}
+            onDeleteTournament={onDeleteTournament}
+            deleteInFlightId={deleteInFlightId}
           />
           <SectionBlock
             title="Running"
@@ -108,6 +120,8 @@ export function TournamentsSection({
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
             onOpenTournamentDetail={onOpenTournamentDetail}
+            onDeleteTournament={onDeleteTournament}
+            deleteInFlightId={deleteInFlightId}
           />
         </>
       ) : null}
