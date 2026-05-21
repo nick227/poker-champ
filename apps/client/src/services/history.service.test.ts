@@ -30,23 +30,29 @@ describe("history.service getHands", () => {
 
     const result = await historyService.getHands({ token: "t" });
 
-    expect(result.hands).toHaveLength(1);
-    expect(result.hands[0].id).toBe("hand_1");
-    expect(result.hands[0].playedAt).toBeInstanceOf(Date);
-    expect(result.hands[0].playedAt.toISOString()).toBe(iso);
-    expect(result.nextCursor).toBe("cursor_abc");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.hands).toHaveLength(1);
+    expect(result.data.hands[0].id).toBe("hand_1");
+    expect(result.data.hands[0].playedAt).toBeInstanceOf(Date);
+    expect(result.data.hands[0].playedAt.toISOString()).toBe(iso);
+    expect(result.data.nextCursor).toBe("cursor_abc");
   });
 
   it("returns empty hands when API returns hands: null or missing (defensive)", async () => {
     vi.mocked(request).mockResolvedValue({ nextCursor: null });
     const result = await historyService.getHands({ token: "t" });
-    expect(result.hands).toEqual([]);
-    expect(result.nextCursor).toBeNull();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.hands).toEqual([]);
+    expect(result.data.nextCursor).toBeNull();
   });
 
   it("returns empty hands when API returns wrong key (e.g. data.hands)", async () => {
     vi.mocked(request).mockResolvedValue({ data: { hands: [{ id: "hand_1" }] }, nextCursor: null });
     const result = await historyService.getHands({ token: "t" });
-    expect(result.hands).toEqual([]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.hands).toEqual([]);
   });
 });

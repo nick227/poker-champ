@@ -10,7 +10,7 @@ import { getReplayActionMessage, getReplayHandResultMessage } from "./replayMess
  * Container controls height; do not use flex:1 on root.
  */
 
-export function goBack() {
+function goBack() {
   if (typeof window === "undefined") return;
 
   if (window.history.length > 1) {

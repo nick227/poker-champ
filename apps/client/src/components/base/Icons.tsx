@@ -1,6 +1,6 @@
 import { Text } from "./Text";
 
-export const ICONS = {
+const ICONS = {
   menu: "≡",
   settings: "⚙",
   chat: "💬",
@@ -18,7 +18,7 @@ export const ICONS = {
   share: "🔗",
 } as const;
 
-export const SUITS = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;
+const SUITS = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;
 
 export type IconName = keyof typeof ICONS;
 

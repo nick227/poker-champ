@@ -26,7 +26,8 @@ export function AwardsSection() {
     setError(null);
     try {
       const res = await getMyAwards();
-      setItems(res.items ?? []);
+      if (!res.ok) throw new Error(res.error.message);
+      setItems(res.data.items ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load awards");
     } finally {

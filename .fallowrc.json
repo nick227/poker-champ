@@ -1,0 +1,242 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "apps/client/index.ts",
+    "apps/server/src/index.ts",
+    "packages/*/src/index.ts"
+  ],
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ]
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/.expo/**",
+    "**/build/**",
+    "**/out/**",
+    "**/artifacts/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/e2e/**",
+    "**/scripts/**",
+    "**/tools/**",
+    "**/var/**",
+    "**/.tmp-*.log",
+    "**/*.log"
+  ],
+  "ignoreDependencies": [
+    "@types/*",
+    "typescript",
+    "eslint",
+    "vitest",
+    "@vitest/*",
+    "playwright",
+    "@playwright/test",
+    "prettier",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss",
+    "expo",
+    "expo-*",
+    "react-native-*",
+    "nativewind",
+    "@babel/runtime",
+    "react-native-css-interop",
+    "react-native-worklets",
+    "react-native-web",
+    "@poker-champ/realtime-contract"
+  ],
+  "ignoreExports": [
+    {
+      "file": "apps/client/src/content/blog/articles/3bet-or-fold-stop-flat-calling.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/content/blog/articles/building-preflop-opening-range.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/content/blog/articles/how-to-use-hand-replay.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/content/blog/articles/pot-odds-plain-english.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/content/blog/articles/practice-to-tables.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/content/blog/articles/why-position-matters-6max.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/invariants/churnInvariantContract.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lobby/schemas.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/dealer/utils/TableNavigator.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lobby/PresenceIndex.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/voice/contracts/voice-signals.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/replay/FrameReason.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/awards/AwardService.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lessons/minimalHandSpec.types.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lessons/validateMinimalSpec.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/dealer/decision/index.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/invariants/assertState.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/invariants/moneyStrictMode.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/engine/rules/BettingRound.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lobby/TableManager.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/server/src/lessons/utils/objectHelpers.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/sound/emitSoundEvent.ts",
+      "exports": ["__resetSoundEventStateForTests"]
+    },
+    {
+      "file": "apps/client/src/voice/contracts/voice-signals.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/registry/realtime-channel.registry.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/surfaces/surfaceRegistry.ts",
+      "exports": ["*"]
+    },
+    {
+      "file": "apps/client/src/features/table-page/useLiveTableStatusStripState.ts",
+      "exports": ["TERMINAL_TIMEOUT_MS"]
+    },
+    {
+      "file": "apps/client/src/features/table-page/tableDisplayState.ts",
+      "exports": ["DISCONNECTED_COPY", "RECONNECTING_COPY"]
+    },
+    {
+      "file": "apps/client/src/features/table/animations/anchorResolution.ts",
+      "exports": ["resolveAnchorToRect"]
+    },
+    {
+      "file": "apps/client/src/features/table/animations/animationRegistry/index.ts",
+      "exports": ["resolveAnimation", "TABLE_ANIMATIONS"]
+    },
+    {
+      "file": "apps/client/src/features/table/animations/animationTheme.ts",
+      "exports": ["ANIMATION_THEME_VERSION"]
+    },
+    {
+      "file": "apps/client/src/assets/cards/packs.ts",
+      "exports": ["isCardFacePackId"]
+    },
+    {
+      "file": "apps/client/src/features/table/components/table/tableScene.orchestration.ts",
+      "exports": ["shouldKeepOverlaysMountedAcrossModeChange"]
+    },
+    {
+      "file": "apps/client/src/realtime/useRealtimeChannel.ts",
+      "exports": ["canStartRealtimeSession"]
+    },
+    {
+      "file": "apps/client/src/registry/table-action.registry.ts",
+      "exports": ["executeTableAction", "tableActionRegistry"]
+    },
+    {
+      "file": "apps/client/src/assets/cards/cardBackProcedural.ts",
+      "exports": ["DEFAULT_CARD_BACK_PATTERN_ID"]
+    },
+    {
+      "file": "apps/client/src/theme/surfaceTokens.ts",
+      "exports": ["SURFACE_RHYTHM"]
+    },
+    {
+      "file": "apps/client/src/theme/backgrounds/background.web.ts",
+      "exports": ["APP_PAGE_SELECTOR"]
+    },
+    {
+      "file": "apps/client/src/features/lobby/components/lobby/createGame.constants.ts",
+      "exports": ["MIN_BB", "MAX_BB", "formatDollars"]
+    },
+    {
+      "file": "apps/server/src/engine/bots/BotCatalog.ts",
+      "exports": ["BOT_CATALOG"]
+    },
+    {
+      "file": "apps/server/src/engine/invariants/assertBettingState.ts",
+      "exports": ["assertBettingState"]
+    },
+    {
+      "file": "apps/server/src/lessons/normalizeActionStepSnapshot.ts",
+      "exports": ["normalizeActionStepSnapshot"]
+    }
+  ],
+  "duplicates": {
+    "minOccurrences": 3,
+    "ignore": [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/coverage/**"
+    ]
+  },
+  "rules": {
+    "unused-files": "warn",
+    "unused-exports": "warn",
+    "unused-types": "warn",
+    "unused-dependencies": "warn",
+    "circular-dependencies": "warn"
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15,
+    "maxCrap": 30
+  }
+}

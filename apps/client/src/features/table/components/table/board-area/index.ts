@@ -5,6 +5,4 @@ export {
   type BoardBoundsReporterProps,
   type MeasuredBoundsReporterProps,
 } from "./BoardBoundsReporter";
-export { CommunityBoard } from "./CommunityBoard";
-export { FeltBackground, type FeltBackgroundProps } from "./FeltBackground";
-export { CARDS } from "./layout";
+export { type FeltBackgroundProps } from "./FeltBackground";

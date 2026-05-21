@@ -14,7 +14,6 @@ import { useTableLayoutHeight } from "../table-layout";
 import { heroZoneStyles as s } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
 
-export { HERO_ZONE_HEIGHT };
 
 export type HeroZoneProps = {
   cards: UiCard[];

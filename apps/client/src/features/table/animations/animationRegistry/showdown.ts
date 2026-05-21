@@ -12,7 +12,7 @@ const DURATIONS_MS: Record<ShowdownTier, number> = {
   4: 2200,
 };
 
-export function buildShowdownTier(tier: ShowdownTier): TableAnimationDefinition {
+function buildShowdownTier(tier: ShowdownTier): TableAnimationDefinition {
   const presetName = `TIER_${tier}` as "TIER_0" | "TIER_1" | "TIER_2" | "TIER_3" | "TIER_4";
   return defFromPreset(FX_EVENT.SHOWDOWN, tier, presetName, DURATIONS_MS[tier]);
 }

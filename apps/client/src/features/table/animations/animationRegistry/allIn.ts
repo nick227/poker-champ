@@ -20,7 +20,7 @@ const PRESET_BY_TIER: Record<AllInTier, "TIER_0" | "TIER_1" | "TIER_2" | "TIER_3
   4: "ALL_IN_TIER_4",
 };
 
-export function buildAllInTier(tier: AllInTier): TableAnimationDefinition {
+function buildAllInTier(tier: AllInTier): TableAnimationDefinition {
   return defFromPreset(FX_EVENT.ALL_IN, tier, PRESET_BY_TIER[tier], DURATIONS_MS[tier]);
 }
 

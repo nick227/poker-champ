@@ -27,7 +27,7 @@ const errorOrdered: ErrorDefinition[] = [
   errorByKey.INVALID_RESPONSE,
 ];
 
-export const errorRegistry = {
+const errorRegistry = {
   byKey: errorByKey,
   ordered: errorOrdered,
 } as const;

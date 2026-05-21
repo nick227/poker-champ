@@ -9,7 +9,7 @@ export type SeatContext = {
   nameByUserId: Map<string, string>;
 };
 
-export function decodeCard(card: string | undefined): UiCard {
+function decodeCard(card: string | undefined): UiCard {
   if (!card || card.length < 2) return null;
   const raw = String(card).trim();
   if (raw.length < 2) return null;

@@ -5,7 +5,7 @@ export const BASE_CARD_WIDTH = 70;
 export const BASE_CARD_HEIGHT = 90;
 
 /** Standard card scales used throughout the app (frozen to prevent mutation). */
-export const CARD_SCALES = Object.freeze({
+const CARD_SCALES = Object.freeze({
   MINI: 0.6,
   SMALL: 0.8,
   NORMAL: 1.0,
@@ -14,7 +14,7 @@ export const CARD_SCALES = Object.freeze({
 } as const);
 
 /** Helper function to get card dimensions with scale multiplier */
-export function getCardDimensions(scale: number = 1.0) {
+function getCardDimensions(scale: number = 1.0) {
   return {
     width: BASE_CARD_WIDTH * scale,
     height: BASE_CARD_HEIGHT * scale,

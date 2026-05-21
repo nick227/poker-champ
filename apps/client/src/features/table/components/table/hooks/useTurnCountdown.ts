@@ -5,7 +5,7 @@ import { emitSoundEvent } from "@/sound/emitSoundEvent";
 const FALLBACK_TURN_TIMEOUT_MS = 20 * 60_000;
 
 /** Countdown is shown for the last this many ms so user gets at least 10s warning. */
-export const MIN_COUNTDOWN_WARNING_MS = 10_000;
+const MIN_COUNTDOWN_WARNING_MS = 10_000;
 
 export function useTurnProgress(
   isToAct: boolean,

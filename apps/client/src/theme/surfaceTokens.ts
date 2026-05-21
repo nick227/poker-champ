@@ -16,7 +16,7 @@ export const SURFACE_SPACING = {
   stack: SURFACE_RHYTHM.stackGap,
 } as const;
 
-export const SURFACE_RADIUS = {
+const SURFACE_RADIUS = {
   none: "rounded-none",
   sm: "rounded-sm",
   md: "rounded-md",

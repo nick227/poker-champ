@@ -128,7 +128,7 @@ export function PlayingCard({
   );
 }
 
-export function CardBack() {
+function CardBack() {
   const cardBackPackId = usePreferencesStore((state) => state.cardBackPackId);
   const cardBackPattern = usePreferencesStore((state) => state.cardBackPattern);
 

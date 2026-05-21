@@ -39,27 +39,30 @@ describe("useLatestReplayHand", () => {
   it("returns the latest replayable hand id", async () => {
     useAuthStore.setState({ token: "token-1", hydrated: true });
     getHandsMock.mockResolvedValueOnce({
-      hands: [
-        {
-          id: "h1",
-          playedAt: new Date("2026-01-01T00:00:00.000Z"),
-          tableName: "Table A",
-          netResultCents: 100,
-          bigBlindCents: 100,
-          heroWonCents: 500,
-          hasReplay: false,
-        },
-        {
-          id: "h2",
-          playedAt: new Date("2026-01-01T00:01:00.000Z"),
-          tableName: "Table A",
-          netResultCents: 200,
-          bigBlindCents: 100,
-          heroWonCents: 600,
-          hasReplay: true,
-        },
-      ],
-      nextCursor: null,
+      ok: true,
+      data: {
+        hands: [
+          {
+            id: "h1",
+            playedAt: new Date("2026-01-01T00:00:00.000Z"),
+            tableName: "Table A",
+            netResultCents: 100,
+            bigBlindCents: 100,
+            heroWonCents: 500,
+            hasReplay: false,
+          },
+          {
+            id: "h2",
+            playedAt: new Date("2026-01-01T00:01:00.000Z"),
+            tableName: "Table A",
+            netResultCents: 200,
+            bigBlindCents: 100,
+            heroWonCents: 600,
+            hasReplay: true,
+          },
+        ],
+        nextCursor: null,
+      },
     });
     const { result } = renderHook(() => useLatestReplayHand());
 
@@ -75,21 +78,25 @@ describe("useLatestReplayHand", () => {
   it("finds replayable hand even when hasReplay flag is missing", async () => {
     useAuthStore.setState({ token: "token-1", hydrated: true });
     getHandsMock.mockResolvedValueOnce({
-      hands: [
-        {
-          id: "h100",
-          playedAt: new Date("2026-01-01T00:00:00.000Z"),
-          tableName: "Table A",
-          netResultCents: 100,
-          bigBlindCents: 100,
-          heroWonCents: 500,
-          hasReplay: undefined,
-        },
-      ],
-      nextCursor: null,
+      ok: true,
+      data: {
+        hands: [
+          {
+            id: "h100",
+            playedAt: new Date("2026-01-01T00:00:00.000Z"),
+            tableName: "Table A",
+            netResultCents: 100,
+            bigBlindCents: 100,
+            heroWonCents: 500,
+            hasReplay: undefined,
+          },
+        ],
+        nextCursor: null,
+      },
     });
     getHandDetailMock.mockResolvedValueOnce({
-      snapshots: [{ snapshotId: "s100" }],
+      ok: true,
+      data: { snapshots: [{ snapshotId: "s100" }] },
     });
 
     const { result } = renderHook(() => useLatestReplayHand());
@@ -102,20 +109,23 @@ describe("useLatestReplayHand", () => {
   it("sets informative error when hands exist but none have snapshots", async () => {
     useAuthStore.setState({ token: "token-1", hydrated: true });
     getHandsMock.mockResolvedValueOnce({
-      hands: [
-        {
-          id: "h200",
-          playedAt: new Date("2026-01-01T00:00:00.000Z"),
-          tableName: "Table A",
-          netResultCents: 100,
-          bigBlindCents: 100,
-          heroWonCents: 500,
-          hasReplay: undefined,
-        },
-      ],
-      nextCursor: null,
+      ok: true,
+      data: {
+        hands: [
+          {
+            id: "h200",
+            playedAt: new Date("2026-01-01T00:00:00.000Z"),
+            tableName: "Table A",
+            netResultCents: 100,
+            bigBlindCents: 100,
+            heroWonCents: 500,
+            hasReplay: undefined,
+          },
+        ],
+        nextCursor: null,
+      },
     });
-    getHandDetailMock.mockResolvedValueOnce({ snapshots: [] });
+    getHandDetailMock.mockResolvedValueOnce({ ok: true, data: { snapshots: [] } });
 
     const { result } = renderHook(() => useLatestReplayHand());
 

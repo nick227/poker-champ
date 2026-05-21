@@ -338,7 +338,7 @@ const COMMUNITY_HANDS = [
   },
 ] as const satisfies readonly CommunityHand[];
 
-export const COMMUNITY_HAND_DEFAULT_ID = COMMUNITY_HANDS[0].id;
+const COMMUNITY_HAND_DEFAULT_ID = COMMUNITY_HANDS[0].id;
 
 export function getCommunityHandById(id: string): CommunityHand | null {
   return COMMUNITY_HANDS.find((hand) => hand.id === id) ?? null;

@@ -7,7 +7,7 @@ export type PotWinTierContext = {
 const POT_SIZE_TIERS_CENTS = [500, 2000, 10000, 50000] as const;
 
 /** Amount (cents) above which all-in is treated as "big bet" for tier boost. */
-export const BIG_BET_CENTS_THRESHOLD = 5000;
+const BIG_BET_CENTS_THRESHOLD = 5000;
 
 const HAND_STRENGTH_BOOST: Record<string, number> = {
   "high card": 0,

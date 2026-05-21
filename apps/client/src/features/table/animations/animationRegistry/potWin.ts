@@ -29,7 +29,7 @@ const POT_WIN_ANCHORED_LAYERS = [
 /** Sound 40ms after flash mimics response time and feels more satisfying. */
 const POT_WIN_SOUND_DELAY_MS = 40;
 
-export function buildPotWinTier(tier: PotWinTier): TableAnimationDefinition {
+function buildPotWinTier(tier: PotWinTier): TableAnimationDefinition {
   const sounds = tier >= 1 ? [{ sound: "table.potWin" as const, delayMs: POT_WIN_SOUND_DELAY_MS }] : undefined;
   const appendLayers = tier >= 1 ? POT_WIN_ANCHORED_LAYERS : undefined;
   return defFromPreset(FX_EVENT.POT_WIN, tier, PRESET_BY_TIER[tier], DURATIONS_MS[tier], { sounds, appendLayers });

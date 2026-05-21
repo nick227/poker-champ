@@ -35,7 +35,7 @@ export type PresetName =
   | "ATMOSPHERE_WARM_GLOW";
 
 /** Preset name → layer stack. Do not mutate; tier builders spread or append. */
-export const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
+const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
   TIER_0: [
     { type: "TEXT", textRole: "headline", textSize: "medium", durationMs: 800, delayMs: CHOREO_HEADLINE_MS },
   ],

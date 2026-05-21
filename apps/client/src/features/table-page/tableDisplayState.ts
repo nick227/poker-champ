@@ -28,7 +28,7 @@ export type TableDisplayState = {
 export const RECONNECTING_COPY = "Reconnecting...";
 export const DISCONNECTED_COPY = "Disconnected...";
 
-export function buildWinnerMessage(
+function buildWinnerMessage(
   handResultNotice: HandResultMessage | null,
 ): string | null {
   return buildWinnerMessageText(handResultNotice);

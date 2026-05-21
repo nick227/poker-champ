@@ -50,7 +50,7 @@ export function playSound(key: SoundKey): void {
   if (player) void player.play(key, def, finalVolume);
 }
 
-export function usePlaySound(): (key: SoundKey) => void {
+function usePlaySound(): (key: SoundKey) => void {
   const { soundEnabled, masterVolume } = usePreferencesStore((s) => ({
     soundEnabled: s.soundEnabled,
     masterVolume: s.masterVolume,
@@ -73,7 +73,7 @@ export function preloadSounds(keys: SoundKey[]): void {
   void player.preload(keys);
 }
 
-export function disposeSounds(): void {
+function disposeSounds(): void {
   if (!player?.disposeAll) return;
   void player.disposeAll();
 }

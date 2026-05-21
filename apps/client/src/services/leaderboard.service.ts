@@ -1,4 +1,6 @@
 import { request } from "@poker-champ/sdk";
+import { withApiError } from "./_helpers/withApiError";
+import type { ServiceResult } from "./_helpers/serviceTypes";
 
 export type LeaderboardPeriod = "daily" | "weekly" | "all_time";
 export type LeaderboardCategory =
@@ -34,15 +36,17 @@ class LeaderboardService {
     period?: LeaderboardPeriod;
     category: LeaderboardCategory;
     limit?: number;
-  }): Promise<LeaderboardResponse> {
-    return request<LeaderboardResponse>("GET", "/api/leaderboard", undefined, {
-      token: input.token,
-      query: {
-        period: input.period ?? "weekly",
-        category: input.category,
-        limit: input.limit ?? 20,
-      },
-    });
+  }): Promise<ServiceResult<LeaderboardResponse>> {
+    return withApiError(() =>
+      request<LeaderboardResponse>("GET", "/api/leaderboard", undefined, {
+        token: input.token,
+        query: {
+          period: input.period ?? "weekly",
+          category: input.category,
+          limit: input.limit ?? 20,
+        },
+      }),
+    );
   }
 }
 

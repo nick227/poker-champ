@@ -108,15 +108,16 @@ export default function LeaderboardScreen() {
     }
     setError(null);
     try {
-      const response = await leaderboardService.getLeaderboard({
+      const res = await leaderboardService.getLeaderboard({
         token,
         period: "weekly",
         category,
         limit: 20,
       });
-      setEntries(response.entries);
-      setComputedAt(response.computedAt);
-      hasEntriesRef.current = response.entries.length > 0;
+      if (!res.ok) throw new Error(res.error.message);
+      setEntries(res.data.entries);
+      setComputedAt(res.data.computedAt);
+      hasEntriesRef.current = res.data.entries.length > 0;
     } catch (err) {
       setEntries([]);
       setComputedAt(null);

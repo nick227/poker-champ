@@ -1,4 +1,6 @@
 import { request } from "@poker-champ/sdk";
+import { withApiError } from "./_helpers/withApiError";
+import type { ServiceResult } from "./_helpers/serviceTypes";
 
 export type UserAwardItem = {
   awardId: string;
@@ -16,8 +18,8 @@ export type UserAwardItem = {
   contextId: string | null;
 };
 
-export async function getMyAwards(): Promise<{ items: UserAwardItem[] }> {
-  return request<{ items: UserAwardItem[] }>("GET", "/api/awards/me");
+export async function getMyAwards(): Promise<ServiceResult<{ items: UserAwardItem[] }>> {
+  return withApiError(() => request<{ items: UserAwardItem[] }>("GET", "/api/awards/me"));
 }
 
 function parseGraphic(graphic: string): string {

@@ -29,10 +29,12 @@ export function useLatestReplayHand(): UseLatestReplayHandResult {
     setLoading(true);
     setError(null);
     try {
-      const response = await historyService.getHands({
+      const handsRes = await historyService.getHands({
         token,
         limit: LATEST_REPLAY_LOOKUP_LIMIT,
       });
+      if (!handsRes.ok) throw new Error(handsRes.error.message);
+      const response = handsRes.data;
 
       const serverFlagged = response.hands.find((hand) => hand.hasReplay === true) ?? null;
       if (serverFlagged) {
@@ -51,17 +53,14 @@ export function useLatestReplayHand(): UseLatestReplayHandResult {
 
       let resolvedHandId: string | null = null;
       for (const candidate of uniqueCandidates.slice(0, DETAIL_PROBE_LIMIT)) {
-        try {
-          const detail = await historyService.getHandDetail({
-            token,
-            handId: candidate.id,
-          });
-          if ((detail.snapshots?.length ?? 0) > 0) {
-            resolvedHandId = candidate.id;
-            break;
-          }
-        } catch {
-          // Ignore single-candidate detail failures; continue probing.
+        const detailRes = await historyService.getHandDetail({
+          token,
+          handId: candidate.id,
+        });
+        if (!detailRes.ok) continue; // Ignore single-candidate failures; continue probing.
+        if ((detailRes.data.snapshots?.length ?? 0) > 0) {
+          resolvedHandId = candidate.id;
+          break;
         }
       }
 

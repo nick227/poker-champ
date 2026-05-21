@@ -81,7 +81,7 @@ export const CHOREO_AMOUNT_MS = 180;
 const MAX_CASCADE_MS = 300;
 
 /** Layer types to skip when reducedMotion is true (event and atmosphere). */
-export const REDUCED_MOTION_SKIP_TYPES = ["PARTICLES", "STREAK", "BURST"] as const;
+const REDUCED_MOTION_SKIP_TYPES = ["PARTICLES", "STREAK", "BURST"] as const;
 
 /** Filter out reduced-motion layer types; use for both event and atmosphere pipelines. */
 export function filterReducedMotionLayers<T extends { type: string }>(layers: T[]): T[] {

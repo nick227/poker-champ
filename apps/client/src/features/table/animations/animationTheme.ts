@@ -122,7 +122,7 @@ const DEFAULT_TEXT_SCALE: AnimationThemeTextScale = {
   hero: 72,
 };
 
-export const defaultAnimationTheme: AnimationTheme = {
+const defaultAnimationTheme: AnimationTheme = {
   version: ANIMATION_THEME_VERSION,
   palette: DEFAULT_PALETTE,
   timing: DEFAULT_TIMING,

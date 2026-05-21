@@ -176,6 +176,93 @@
           "user"
         ]
       },
+      "TournamentSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "entryFeeCents": {
+            "type": "integer"
+          },
+          "prizePoolCents": {
+            "type": "integer"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "maxPlayers": {
+            "type": "integer"
+          },
+          "startingStackCents": {
+            "type": "integer"
+          },
+          "blindStructureId": {
+            "type": "string"
+          },
+          "lateRegMinutes": {
+            "type": "integer"
+          },
+          "currentLevel": {
+            "type": "integer"
+          },
+          "nextLevelAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tableId": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomId": {
+            "type": "string",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "registeredCount": {
+            "type": "integer"
+          },
+          "isRegistered": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "entryFeeCents",
+          "prizePoolCents",
+          "startTime",
+          "maxPlayers",
+          "startingStackCents",
+          "blindStructureId",
+          "lateRegMinutes",
+          "currentLevel",
+          "registeredCount",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "LobbyTableSummary": {
         "type": "object",
         "properties": {
@@ -2076,8 +2163,7 @@
                     "tournaments": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "additionalProperties": true
+                        "$ref": "#/components/schemas/TournamentSummary"
                       }
                     }
                   },
@@ -2116,12 +2202,33 @@
                   "startTime": {
                     "type": "string",
                     "format": "date-time"
+                  },
+                  "maxPlayers": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 9
+                  },
+                  "startingStackCents": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "blindStructureId": {
+                    "type": "string",
+                    "enum": [
+                      "standard_8min"
+                    ]
+                  },
+                  "lateRegMinutes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 120
                   }
                 },
                 "required": [
                   "name",
                   "entryFeeCents",
-                  "startTime"
+                  "startTime",
+                  "maxPlayers"
                 ]
               }
             }
@@ -2133,14 +2240,91 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/TournamentSummary"
                 }
               }
             }
           },
           "403": {
             "description": "Admin required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tournaments/{id}/standings": {
+      "get": {
+        "tags": [
+          "tournaments"
+        ],
+        "operationId": "tournamentsStandings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tournament standings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "standings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "finishPlace": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "eliminatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "payoutCents": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "userId",
+                          "displayName",
+                          "finishPlace",
+                          "eliminatedAt",
+                          "payoutCents"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "standings"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -2174,8 +2358,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/TournamentSummary"
                 }
               }
             }
@@ -2235,6 +2418,126 @@
           },
           "400": {
             "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tournaments/{id}/unregister": {
+      "post": {
+        "tags": [
+          "tournaments"
+        ],
+        "operationId": "tournamentsUnregister",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unregistered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tournaments/{id}/cancel": {
+      "post": {
+        "tags": [
+          "tournaments"
+        ],
+        "operationId": "tournamentsCancel",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "refundedCount": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "refundedCount"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Admin required",
             "content": {
               "application/json": {
                 "schema": {

@@ -46,8 +46,8 @@ export const TABLE_ANIMATIONS: Record<TableAnimationEvent, TableAnimationDefinit
   SHOWDOWN: SHOWDOWN_TIERS,
 };
 
-export { buildDefinitionId, DEFAULT_LAYER_PARAMS, type PreloadSource };
-export { resolveLayerWithPreset, LAYER_PRESETS, type LayerPresetDefaults } from "./layerPresets";
+export { DEFAULT_LAYER_PARAMS, type PreloadSource };
+export { resolveLayerWithPreset, type LayerPresetDefaults } from "./layerPresets";
 
 // Helpers
 function getAllDefinitions(): TableAnimationDefinition[] {
@@ -150,7 +150,7 @@ function validateLayer(layer: AnimationLayerDefinition, event: string, tier: num
 }
 
 /** Validates registry at startup. Throws if invalid. Logs dev warnings for unknown sound keys. */
-export function validateDefinitions(definitions: TableAnimationDefinition[]): void {
+function validateDefinitions(definitions: TableAnimationDefinition[]): void {
   const seen = new Set<string>();
   const validSounds = new Set(Object.keys(SOUND_EVENT_MAP));
   for (const d of definitions) {

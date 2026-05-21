@@ -34,7 +34,7 @@ export type RealtimeSession = {
   getNativeRoom?: () => unknown;
 };
 
-export const transportCapabilities = {
+const transportCapabilities = {
   supportsRooms: true,
   supportsPresence: true,
   supportsBinary: false,

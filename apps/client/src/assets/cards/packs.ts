@@ -20,7 +20,7 @@ export function isCardFacePackId(value: unknown): value is CardFacePackId {
     BUILTIN_CARD_FACE_PACK_IDS.includes(value as (typeof BUILTIN_CARD_FACE_PACK_IDS)[number]) ||
     Object.prototype.hasOwnProperty.call(CARD_FACE_PACKS, value)
   );
-}
+};
 
 export function getValidCardFacePackId(value: unknown): CardFacePackId {
   return isCardFacePackId(value) ? value : DEFAULT_CARD_FACE_PACK_ID;

@@ -18,7 +18,7 @@ export function buildDefinitionId(event: TableAnimationEvent, tier: number): str
   return `${event}_TIER_${tier}`;
 }
 
-export function def(
+function def(
   event: TableAnimationEvent,
   tier: number,
   durationMs: number,

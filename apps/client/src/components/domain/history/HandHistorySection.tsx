@@ -53,11 +53,8 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
 
   const loadOverview = useCallback(async () => {
     if (!token) return;
-    try {
-      setOverview(await historyService.getOverview({ token }));
-    } catch {
-      setOverview(null);
-    }
+    const res = await historyService.getOverview({ token });
+    setOverview(res.ok ? res.data : null);
   }, [token]);
 
   const loadHands = useCallback(
@@ -67,14 +64,11 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
       try {
         store.setIsLoading(true);
         store.setError(null);
-        const res = await historyService.getHands({
-          token,
-          cursor,
-          limit: 50,
-        });
-        cursor ? store.appendHands(res.hands) : store.setHands(res.hands);
-        store.setCursor(res.nextCursor);
-        store.setHasMore(res.nextCursor !== null);
+        const res = await historyService.getHands({ token, cursor, limit: 50 });
+        if (!res.ok) throw new Error(res.error.message);
+        cursor ? store.appendHands(res.data.hands) : store.setHands(res.data.hands);
+        store.setCursor(res.data.nextCursor);
+        store.setHasMore(res.data.nextCursor !== null);
       } catch {
         store.setError("Failed to load hands");
       } finally {
@@ -104,8 +98,9 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
       try {
         store.setIsLoadingDetail(true);
         store.setDetailError(null);
-        const hand = await historyService.getHandDetail({ token, handId });
-        store.setSelectedHand(hand);
+        const res = await historyService.getHandDetail({ token, handId });
+        if (!res.ok) throw new Error(res.error.message);
+        store.setSelectedHand(res.data);
         setSelectedHandId(handId);
       } catch {
         store.setDetailError("Failed to load hand details");

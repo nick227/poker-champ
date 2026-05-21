@@ -17,7 +17,7 @@ export type LayerPresetDefaults = Partial<
   Omit<ProceduralLayerDefinition, "type" | "preset" | "anchor" | "seatIndexFromPayload">
 >;
 
-export const LAYER_PRESETS: Record<string, LayerPresetDefaults> = {
+const LAYER_PRESETS: Record<string, LayerPresetDefaults> = {
   impact: { durationMs: 500, delayMs: CHOREO_FLASH_MS },
   winBurst: { durationMs: 600, rays: 16, delayMs: IMPACT_CHOREO_BURST_MS },
   goldBurst: { durationMs: 800, particleCount: 20, particleSpread: 70, delayMs: IMPACT_CHOREO_PARTICLES_MS },

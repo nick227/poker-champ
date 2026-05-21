@@ -1,5 +1,5 @@
 import type { BackgroundImageId } from "./background.types";
-import { getFeltImageSource } from "@/features/table";
+import { getFeltImageSource } from "@/features/table/components/table/feltImages";
 
 /**
  * Returns a URL for the given background image id, for use in web CSS (e.g. background-image: url(...)).

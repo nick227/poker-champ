@@ -68,7 +68,7 @@ const ACTIONS = [
  * Generate a funny random table name
  * @returns A randomly generated funny table name
  */
-export function generateFunnyTableName(): string {
+function generateFunnyTableName(): string {
   const getRandomElement = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   
   const patterns: (() => string)[] = [

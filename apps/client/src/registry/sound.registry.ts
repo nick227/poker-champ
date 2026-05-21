@@ -114,14 +114,13 @@ const SOUND_MAP = {
   donk: { asset: NOTIFICATION_DONK_ASSET, category: "notification", cooldownMs: 500, maxInstances: 1 },
 } satisfies Record<SoundKey, SoundDefinition>;
 
-export { SOUND_MAP };
 
-export const SOUND_KEYS: SoundKey[] = Object.keys(SOUND_MAP) as SoundKey[];
+const SOUND_KEYS: SoundKey[] = Object.keys(SOUND_MAP) as SoundKey[];
 
 export function getSound(key: SoundKey): SoundDefinition {
   return SOUND_MAP[key];
 }
 
-export function getSoundsByCategory(category: SoundCategory): SoundKey[] {
+function getSoundsByCategory(category: SoundCategory): SoundKey[] {
   return SOUND_KEYS.filter((k) => SOUND_MAP[k].category === category);
 }

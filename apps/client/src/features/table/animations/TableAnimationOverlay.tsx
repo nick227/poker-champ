@@ -63,7 +63,7 @@ const LAYER_WRAPPER_STYLE = {
 type ActiveSlot = { request: TableAnimationRequest; def: TableAnimationDefinition };
 
 /** Set to true to log animation start (event, tier, id, layers, duration). Tuning only. */
-export const ANIMATION_DEBUG = false;
+const ANIMATION_DEBUG = false;
 
 // Helpers
 function scheduleSoundCues(sounds: SoundCue[]): (() => void) {

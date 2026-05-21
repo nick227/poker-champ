@@ -88,12 +88,12 @@ const transportByKey: Record<RealtimeTransportMode, TransportDefinition> = {
 
 const transportOrdered: TransportDefinition[] = [transportByKey.ws, transportByKey.colyseus];
 
-export const transportRegistry = {
+const transportRegistry = {
   byKey: transportByKey,
   ordered: transportOrdered,
 } as const;
 
-export function getRealtimeTransportMode(): RealtimeTransportMode {
+function getRealtimeTransportMode(): RealtimeTransportMode {
   const mode = (process.env.EXPO_PUBLIC_REALTIME_TRANSPORT as RealtimeTransportMode | undefined) ?? "colyseus";
   const safeMode = mode in transportRegistry.byKey ? mode : "colyseus";
   if (safeMode === "ws" && process.env.EXPO_PUBLIC_ENABLE_EXPERIMENTAL_WS !== "true") {

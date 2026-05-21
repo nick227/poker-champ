@@ -1,7 +1,7 @@
 import { createMMKV } from "react-native-mmkv";
 import type { StateStorage } from "zustand/middleware";
 
-export const storage = createMMKV({
+const storage = createMMKV({
   id: "poker-champ-storage",
 });
 

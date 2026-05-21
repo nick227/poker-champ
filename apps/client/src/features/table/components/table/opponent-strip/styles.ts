@@ -12,7 +12,7 @@ export const tileSlotFlex: ViewStyle = {
 };
 
 /** Use when item is inside a slot wrapper (e.g. MeasuredBoundsReporter) so it fills the slot. */
-export const tileSlotFill: ViewStyle = {
+const tileSlotFill: ViewStyle = {
   width: "100%",
   flexBasis: "100%",
   flexGrow: 1,

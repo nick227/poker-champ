@@ -28,7 +28,9 @@ export function useTableAwardsToast(isAtTable: boolean) {
 
   /** Watermark = max(lastEarnedAt); new = items where lastEarnedAt > watermark. Not count-based (avoids double-toast). */
   const fetchAndShowNew = useCallback(async () => {
-    const { items } = await getMyAwards();
+    const res = await getMyAwards();
+    if (!res.ok) return;
+    const { items } = res.data;
     if (cancelledRef.current) return;
     const maxTs = Math.max(0, ...items.map((i) => new Date(i.lastEarnedAt).getTime()));
     if (!firstFetchDone.current) {

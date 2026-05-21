@@ -1,5 +1,5 @@
 
-export const nfUSD = new Intl.NumberFormat("en-US", {
+const nfUSD = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   minimumFractionDigits: 2,

@@ -1,1 +1,1 @@
-export { HeroZone, type HeroZoneProps, HERO_ZONE_HEIGHT } from "./HeroZone";
+export { HeroZone, type HeroZoneProps } from "./HeroZone";

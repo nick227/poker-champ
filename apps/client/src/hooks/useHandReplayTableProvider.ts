@@ -56,10 +56,12 @@ export function useHandReplayTableProvider(handId: string): HandReplayResult {
           throw new Error("Authentication required");
         }
 
-        const handDetail = await historyService.getHandDetail({
+        const res = await historyService.getHandDetail({
           token: profile.token,
           handId,
         });
+        if (!res.ok) throw new Error(res.error.message);
+        const handDetail = res.data;
 
         if (!handDetail.snapshots || handDetail.snapshots.length === 0) {
           setError("No replay data for this hand.");

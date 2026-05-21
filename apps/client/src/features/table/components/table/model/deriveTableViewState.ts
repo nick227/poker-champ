@@ -63,8 +63,8 @@ export type TableViewState = {
 
 export const YOUR_MOVE_COPY = "Your move";
 export const ALL_IN_COPY = "All-in";
-export const RECONNECTING_COPY = "Reconnecting...";
-export const DISCONNECTED_COPY = "Disconnected...";
+const RECONNECTING_COPY = "Reconnecting...";
+const DISCONNECTED_COPY = "Disconnected...";
 
 function mergeCallWithStack(
   actionOptions: HeroActionOptions | undefined,

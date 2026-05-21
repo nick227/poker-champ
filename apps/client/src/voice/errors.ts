@@ -1,6 +1,6 @@
 import { useToastStore } from "@/stores/toast.store";
 
-export function isMicrophonePermissionError(err: unknown): boolean {
+function isMicrophonePermissionError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err ?? "");
   if (message.includes("MIC_PERMISSION_DENIED")) return true;
   if (message.includes("NotAllowedError")) return true;

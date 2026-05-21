@@ -104,7 +104,7 @@ export function LessonsHeroCard({
   );
 }
 
-export function ContinueSection({
+function ContinueSection({
   vm,
   onOpenLesson,
 }: {

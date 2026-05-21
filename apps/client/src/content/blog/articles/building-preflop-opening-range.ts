@@ -1,5 +1,7 @@
+// fallow-ignore-next-line duplicate-exports
 import type { BlogArticleMeta } from "../blog.types";
 
+// fallow-ignore-next-line duplicate-exports
 export const meta: BlogArticleMeta = {
   slug: "building-preflop-opening-range",
   title: "Building a Preflop Opening Range (6-Max)",

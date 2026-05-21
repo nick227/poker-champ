@@ -229,7 +229,7 @@ const generatedCardFacePacks: Record<CardFacePackId, CardFacePack> = isTestEnv
     };
 
 export const CARD_FACE_PACKS = generatedCardFacePacks;
-export const DEFAULT_CARD_FACE_PACK_ID: CardFacePackId = "default";
+const DEFAULT_CARD_FACE_PACK_ID: CardFacePackId = "default";
 
 export type CardBackPackId = "red" | "special" | "standard" | "normal" | "vintage";
 const generatedCardBackPacks: Record<CardBackPackId, ImageSourcePropType> = isTestEnv

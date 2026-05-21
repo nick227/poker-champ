@@ -18,7 +18,7 @@ export function lobbyPath(): string {
   return screenRegistry.byKey.lobby.path;
 }
 
-export function loginPath(): string {
+function loginPath(): string {
   return screenRegistry.byKey.login.path;
 }
 

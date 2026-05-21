@@ -2,7 +2,7 @@
  * MVP Rule: Single helper for modulo normalization to prevent reel position desync
  */
 
-export function normalizeReelPosition(position: number, reelLength: number): number {
+function normalizeReelPosition(position: number, reelLength: number): number {
   // Ensure positive modulo to prevent negative positions
   return ((position % reelLength) + reelLength) % reelLength;
 }

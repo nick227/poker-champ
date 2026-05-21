@@ -1,6 +1,8 @@
 import { request } from "@poker-champ/sdk";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { DEFAULT_HISTORY_LIMIT } from "@/constants";
+import { withApiError } from "./_helpers/withApiError";
+import type { ServiceResult } from "./_helpers/serviceTypes";
 
 // Types for hand history API responses
 export interface HandHistoryListItem {
@@ -83,50 +85,53 @@ export interface HistoryOverview {
 }
 
 export interface HistoryService {
-  getOverview: (input: { token: string }) => Promise<HistoryOverview>;
-  getHands: (input: { token: string; cursor?: string; limit?: number }) => Promise<HandsResponse>;
-  getHandDetail: (input: { token: string; handId: string }) => Promise<HandHistoryDetail>;
+  getOverview: (input: { token: string }) => Promise<ServiceResult<HistoryOverview>>;
+  getHands: (input: { token: string; cursor?: string; limit?: number }) => Promise<ServiceResult<HandsResponse>>;
+  getHandDetail: (input: { token: string; handId: string }) => Promise<ServiceResult<HandHistoryDetail>>;
 }
 
 class HistoryServiceImpl implements HistoryService {
-  async getOverview(input: { token: string }): Promise<HistoryOverview> {
-    return request<HistoryOverview>("GET", "/api/history/overview", undefined, {
-      token: input.token,
+  async getOverview(input: { token: string }): Promise<ServiceResult<HistoryOverview>> {
+    return withApiError(() =>
+      request<HistoryOverview>("GET", "/api/history/overview", undefined, {
+        token: input.token,
+      }),
+    );
+  }
+
+  async getHands(input: { token: string; cursor?: string; limit?: number }): Promise<ServiceResult<HandsResponse>> {
+    return withApiError(async () => {
+      const data = await request<{
+        hands?: Array<Omit<HandHistoryListItem, "playedAt"> & { playedAt: string }>;
+        nextCursor?: string | null;
+      }>("GET", "/api/history/hands", undefined, {
+        token: input.token,
+        query: {
+          cursor: input.cursor,
+          limit: input.limit ?? DEFAULT_HISTORY_LIMIT,
+        },
+      });
+
+      const rawHands = Array.isArray(data.hands) ? data.hands : [];
+      if (!Array.isArray(data.hands) && data.hands != null) {
+        console.warn("[history] getHands: unexpected response shape, hands not an array", data);
+      }
+
+      const hands = rawHands.map((hand) => ({
+        ...hand,
+        playedAt: new Date(hand.playedAt),
+      }));
+
+      return { hands, nextCursor: data.nextCursor ?? null };
     });
   }
 
-  async getHands(input: { token: string; cursor?: string; limit?: number }): Promise<HandsResponse> {
-    const data = await request<{
-      hands?: Array<Omit<HandHistoryListItem, "playedAt"> & { playedAt: string }>;
-      nextCursor?: string | null;
-    }>("GET", "/api/history/hands", undefined, {
-      token: input.token,
-      query: {
-        cursor: input.cursor,
-        limit: input.limit ?? DEFAULT_HISTORY_LIMIT,
-      },
-    });
-
-    const rawHands = Array.isArray(data.hands) ? data.hands : [];
-    if (!Array.isArray(data.hands) && data.hands != null) {
-      console.warn("[history] getHands: unexpected response shape, hands not an array", data);
-    }
-
-    const hands = rawHands.map((hand) => ({
-      ...hand,
-      playedAt: new Date(hand.playedAt),
-    }));
-
-    return {
-      hands,
-      nextCursor: data.nextCursor ?? null,
-    };
-  }
-
-  async getHandDetail(input: { token: string; handId: string }): Promise<HandHistoryDetail> {
-    return request<HandHistoryDetail>("GET", `/api/history/hands/${encodeURIComponent(input.handId)}`, undefined, {
-      token: input.token,
-    });
+  async getHandDetail(input: { token: string; handId: string }): Promise<ServiceResult<HandHistoryDetail>> {
+    return withApiError(() =>
+      request<HandHistoryDetail>("GET", `/api/history/hands/${encodeURIComponent(input.handId)}`, undefined, {
+        token: input.token,
+      }),
+    );
   }
 }
 
