@@ -18,10 +18,15 @@ export type TournamentReconcileContext = {
   emitSnapshot?: () => Promise<void>;
 };
 
-function countPlayersWithChips(state: PokerState): string[] {
+/** Players still in the freezeout (humans and bots). */
+export function countTournamentSurvivorsWithChips(state: PokerState): string[] {
   const ids: string[] = [];
   for (const player of state.playersById.values()) {
-    if (player.kind === "HUMAN" && player.stackCents > 0) {
+    if (
+      player.stackCents > 0 &&
+      player.status !== "OUT" &&
+      player.status !== "ABANDONED"
+    ) {
       ids.push(player.id);
     }
   }
@@ -101,7 +106,7 @@ export class TournamentTableReconciler {
     const refreshed = await prisma.tournament.findUnique({ where: { id: ctx.tournamentId } });
     if (!refreshed || refreshed.status !== "RUNNING") return;
 
-    const survivors = countPlayersWithChips(ctx.state);
+    const survivors = countTournamentSurvivorsWithChips(ctx.state);
     if (survivors.length === 1) {
       const winnerId = survivors[0];
       await prisma.tournamentRegistration.update({
