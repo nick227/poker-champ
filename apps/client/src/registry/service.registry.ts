@@ -1,6 +1,7 @@
 import { auth, economy, lobby, request, tournaments } from "@poker-champ/sdk";
 import { withApiError } from "@/services/_helpers/withApiError";
 import type { ServiceResult } from "@/services/_helpers/serviceTypes";
+import type { CreateTournamentInput } from "@/services/post/tournaments.post";
 import { DEFAULT_PAGE_SIZE } from "@/constants";
 
 const serviceByKey = {
@@ -117,15 +118,8 @@ const serviceByKey = {
       withApiError(() => tournaments.register({ id: tournamentId })),
     tournamentUnregister: (tournamentId: string) =>
       withApiError(() => tournaments.unregister({ id: tournamentId })),
-    tournamentCreate: (input: {
-      name: string;
-      entryFeeCents: number;
-      startTime: string;
-      maxPlayers: number;
-      startingStackCents?: number;
-      blindStructureId?: "standard_8min";
-      lateRegMinutes?: number;
-    }) => withApiError(() => tournaments.create(input)),
+    tournamentCreate: (input: CreateTournamentInput) =>
+      withApiError(() => tournaments.create(input)),
     tournamentCancel: (tournamentId: string) =>
       withApiError(() => tournaments.cancel({ id: tournamentId })),
   },

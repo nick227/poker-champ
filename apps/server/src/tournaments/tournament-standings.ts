@@ -30,7 +30,7 @@ export async function loadTournamentStandings(tournamentId: string): Promise<Tou
   return registrations
     .map((reg) => ({
       userId: reg.userId,
-      displayName: reg.isBot ? `${reg.user.displayName} (Bot)` : reg.user.displayName,
+      displayName: reg.user.displayName,
       finishPlace: reg.finishPlace,
       eliminatedAt: reg.eliminatedAt?.toISOString() ?? null,
       payoutCents: payoutByUser.get(reg.userId) ?? 0,

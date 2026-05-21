@@ -22,6 +22,7 @@ function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummar
     lateRegMinutes: 0,
     currentLevel: 1,
     registeredCount: 0,
+    fillBotsAtStart: false,
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     ...overrides,

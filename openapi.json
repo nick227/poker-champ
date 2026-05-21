@@ -237,6 +237,13 @@
           "isRegistered": {
             "type": "boolean"
           },
+          "fillBotsAtStart": {
+            "type": "boolean"
+          },
+          "fillBotCount": {
+            "type": "integer",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -259,6 +266,7 @@
           "lateRegMinutes",
           "currentLevel",
           "registeredCount",
+          "fillBotsAtStart",
           "createdAt",
           "updatedAt"
         ]
@@ -2222,6 +2230,14 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 120
+                  },
+                  "fillBotsAtStart": {
+                    "type": "boolean"
+                  },
+                  "fillBotCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
                   }
                 },
                 "required": [
@@ -2304,6 +2320,9 @@
                           },
                           "payoutCents": {
                             "type": "integer"
+                          },
+                          "isBot": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -2311,7 +2330,8 @@
                           "displayName",
                           "finishPlace",
                           "eliminatedAt",
-                          "payoutCents"
+                          "payoutCents",
+                          "isBot"
                         ]
                       }
                     }

@@ -4,6 +4,7 @@ import { Surface } from "@/components/containers/Surface";
 import { formatCents } from "@/lib/format";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
 import type { TournamentStandingRow } from "@/services/tournaments.types";
+import { TournamentBotLabel } from "./TournamentBotLabel";
 
 type TournamentStandingsSectionProps = {
   title?: string;
@@ -35,11 +36,12 @@ export function TournamentStandingsSection({
                 key={row.userId}
                 className="ui-row items-center justify-between border-b border-border py-2"
               >
-                <View className="flex-1 min-w-0 pr-2">
-                  <Text variant="body" numberOfLines={1}>
+                <View className="flex-1 min-w-0 pr-2 ui-row items-center gap-2">
+                  <Text variant="body" numberOfLines={1} className="flex-1 min-w-0">
                     {row.finishPlace != null ? `#${row.finishPlace} ` : "• "}
                     {row.displayName}
                   </Text>
+                  {row.isBot ? <TournamentBotLabel /> : null}
                 </View>
                 {showPayouts ? (
                   <Text variant="body" className="text-brand shrink-0">

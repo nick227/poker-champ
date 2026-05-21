@@ -216,7 +216,7 @@ describe("Tournament M11 bot-filled QA tournaments", () => {
     const standings = await loadTournamentStandings(tournamentId);
     const botRow = standings.find((row) => row.isBot);
     const humanRow = standings.find((row) => row.userId === testUsers.human);
-    expect(botRow?.displayName).toContain("(Bot)");
+    expect(botRow?.isBot).toBe(true);
     expect(humanRow?.finishPlace).toBe(1);
     expect(humanRow?.payoutCents).toBe(4000);
     expect(botRow?.payoutCents).toBe(0);

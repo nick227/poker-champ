@@ -8,7 +8,7 @@ export type TournamentStandingRow = {
   finishPlace: number | null;
   eliminatedAt: string | null;
   payoutCents: number;
-  isBot?: boolean;
+  isBot: boolean;
 };
 
 export type TournamentCtaAction = "register" | "unregister" | "join" | "standings" | "none";

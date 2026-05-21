@@ -12,6 +12,7 @@ import {
   parseDollarsToCents,
   parsePositiveInt,
 } from "@/lib/admin-tournament-form";
+import { BOT_DEMO_HELPER_COPY, BOT_DEMO_PRESET, formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import { formatCents } from "@/lib/format";
 import { formatTournamentStartLocal, formatTournamentStatus, mapTournamentApiError } from "@/lib/tournament.utils";
 import { TournamentListFeedback } from "@/features/lobby/components/lobby/TournamentListFeedback";
@@ -29,6 +30,7 @@ function AdminTournamentRow({
   onCancel: (id: string) => void;
 }) {
   const canCancel = tournament.status === "REGISTERING";
+  const botFillSummary = formatTournamentBotFillSummary(tournament);
 
   return (
     <Surface styleId="surface.list.panel">
@@ -51,6 +53,7 @@ function AdminTournamentRow({
           </Text>
           <Text variant="body">Stack {tournament.startingStackCents.toLocaleString()}</Text>
         </View>
+        {botFillSummary ? <Text variant="muted">{botFillSummary}</Text> : null}
         {tournament.tableId || tournament.roomId ? (
           <View className="ui-stack-1">
             {tournament.tableId ? (
@@ -139,6 +142,18 @@ export function AdminTournamentsPanel() {
     [loadTournaments, showToast],
   );
 
+  const applyBotDemoPreset = useCallback(() => {
+    const parts = defaultAdminTournamentStartParts(new Date(), BOT_DEMO_PRESET.startsInMinutes);
+    setName(BOT_DEMO_PRESET.name);
+    setEntryFeeDollars(BOT_DEMO_PRESET.entryFeeDollars);
+    setMaxPlayers(BOT_DEMO_PRESET.maxPlayers);
+    setStartingStack(BOT_DEMO_PRESET.startingStack);
+    setStartDate(parts.date);
+    setStartTime(parts.time);
+    setFillBotsAtStart(true);
+    setFillBotCount(BOT_DEMO_PRESET.fillBotCount);
+  }, []);
+
   const handleCreate = useCallback(async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -213,6 +228,17 @@ export function AdminTournamentsPanel() {
         <View className="ui-stack-3 p-4">
           <Text variant="h2">Create tournament</Text>
           <Text variant="muted">Start date and time use your device local timezone.</Text>
+          <View className="rounded-lg border border-border-subtle bg-panel-elevated px-3 py-2 ui-stack-2">
+            <Text variant="label">Bot-filled demo preset</Text>
+            <Text variant="muted">{BOT_DEMO_HELPER_COPY}</Text>
+            <Button
+              title="Apply bot demo preset"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onPress={applyBotDemoPreset}
+            />
+          </View>
           <Input label="Name" value={name} onChangeText={setName} placeholder="Friday Night MTT" />
           <Input
             label="Entry fee (USD)"
@@ -251,13 +277,18 @@ export function AdminTournamentsPanel() {
             onPress={() => setFillBotsAtStart((value) => !value)}
           />
           {fillBotsAtStart ? (
-            <Input
-              label="Bot count (optional)"
-              value={fillBotCount}
-              onChangeText={setFillBotCount}
-              keyboardType="number-pad"
-              placeholder="Defaults to fill table"
-            />
+            <>
+              <Text variant="muted">
+                At start, open seats fill with catalog bots (no entry fee). Payouts use human entrants only.
+              </Text>
+              <Input
+                label="Bot count (optional)"
+                value={fillBotCount}
+                onChangeText={setFillBotCount}
+                keyboardType="number-pad"
+                placeholder="Defaults to fill open seats"
+              />
+            </>
           ) : null}
           <Button title="Create tournament" loading={createBusy} className="w-full" onPress={() => { void handleCreate(); }} />
         </View>

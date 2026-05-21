@@ -781,6 +781,8 @@ export interface components {
             finishedAt?: string | null;
             registeredCount: number;
             isRegistered?: boolean;
+            fillBotsAtStart: boolean;
+            fillBotCount?: number | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1736,6 +1738,8 @@ export interface operations {
                     /** @enum {string} */
                     blindStructureId?: "standard_8min";
                     lateRegMinutes?: number;
+                    fillBotsAtStart?: boolean;
+                    fillBotCount?: number;
                 };
             };
         };
@@ -1785,6 +1789,7 @@ export interface operations {
                             /** Format: date-time */
                             eliminatedAt: string | null;
                             payoutCents: number;
+                            isBot: boolean;
                         }[];
                     };
                 };

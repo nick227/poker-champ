@@ -2,8 +2,11 @@ export const ADMIN_BLIND_STRUCTURE_ID = "standard_8min" as const;
 
 export const DEFAULT_ADMIN_STARTING_STACK_CENTS = 10_000;
 
-export function defaultAdminTournamentStartParts(now = new Date()): { date: string; time: string } {
-  const start = new Date(now.getTime() + 60 * 60 * 1000);
+export function defaultAdminTournamentStartParts(
+  now = new Date(),
+  offsetMinutes = 60,
+): { date: string; time: string } {
+  const start = new Date(now.getTime() + offsetMinutes * 60_000);
   const y = start.getFullYear();
   const m = String(start.getMonth() + 1).padStart(2, "0");
   const d = String(start.getDate()).padStart(2, "0");

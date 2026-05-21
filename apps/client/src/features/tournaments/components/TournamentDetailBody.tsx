@@ -8,6 +8,7 @@ import {
   buildPayoutSummaryLines,
   buildTournamentTimeline,
 } from "@/lib/tournament-detail";
+import { formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import {
   formatTournamentStartLocal,
   formatTournamentStatus,
@@ -59,6 +60,7 @@ export function TournamentDetailBody({
   const showFinishedStandings = tournament.status === "FINISHED";
   const showRoster =
     tournament.registeredCount > 0 && (tournament.status === "REGISTERING" || showFinishedStandings);
+  const botFillSummary = formatTournamentBotFillSummary(tournament);
 
   return (
     <View className="ui-stack-4 px-4 pb-8">
@@ -81,6 +83,7 @@ export function TournamentDetailBody({
           <InfoRow label="Starting stack" value={tournament.startingStackCents.toLocaleString()} />
           <InfoRow label="Blind preset" value={tournament.blindStructureId} />
           <InfoRow label="Prize pool" value={formatCents(tournament.prizePoolCents)} />
+          {botFillSummary ? <InfoRow label="Bot fill" value={botFillSummary} /> : null}
           {tournament.tableId ? <InfoRow label="Table" value={tournament.tableId} /> : null}
           {tournament.roomId ? <InfoRow label="Room" value={tournament.roomId} /> : null}
           <Button
