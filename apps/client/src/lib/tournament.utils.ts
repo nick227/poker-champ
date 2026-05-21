@@ -60,16 +60,16 @@ export function resolveTournamentCta(
   if (tournament.status === "STARTING" || tournament.status === "RUNNING") {
     const joinReady = canJoinTournament(tournament);
     if (!joinReady) {
-      if (authenticated && tournament.isRegistered && tournament.tableId && tournament.tableLive === false) {
+      if (!authenticated) {
+        return { label: "Log in to join", action: "join", disabled: true };
+      }
+      if (tournament.isRegistered !== true) {
+        return { label: "Not registered", action: "none", disabled: true };
+      }
+      if (tournament.tableLive === false) {
         return { label: "Table ended", action: "join", disabled: true };
       }
-      const waitingLabel =
-        authenticated && tournament.isRegistered
-          ? tournament.tableId && tournament.roomId
-            ? "Join Table"
-            : "Starting soon…"
-          : "Log in to join";
-      return { label: waitingLabel, action: "join", disabled: true };
+      return { label: "Starting soon…", action: "join", disabled: true };
     }
     return {
       label: "Join Table",

@@ -58,6 +58,8 @@ const SORT_CYCLE: Record<SortKey, SortKey> = { name: "players", players: "blinds
 export default function LobbyScreen() {
   const router = useRouter();
   const authToken = useAuthStore((s) => s.token);
+  const authHydrated = useAuthStore((s) => s.hydrated);
+  const authenticated = authHydrated && Boolean(authToken);
   const { fromLesson } = useLocalSearchParams<{ fromLesson?: string }>();
   const [fromLessonDismissed, setFromLessonDismissed] = useState(false);
   const showFromLessonNudge = Boolean(fromLesson && !fromLessonDismissed);
@@ -104,16 +106,24 @@ export default function LobbyScreen() {
   } = useLatestReplayHand();
 
   useEffect(() => {
+    if (!authHydrated) return;
     void refresh();
     void refreshTournaments();
-  }, [refresh, refreshTournaments]);
+  }, [authHydrated, refresh, refreshTournaments]);
+
   useEffect(() => {
+    if (!authHydrated) return;
+    void refreshTournaments();
+  }, [authHydrated, authToken, refreshTournaments]);
+
+  useEffect(() => {
+    if (!authHydrated) return;
     const timer = setInterval(() => {
       void refresh({ background: true });
       void refreshTournaments({ background: true });
     }, 30_000);
     return () => clearInterval(timer);
-  }, [refresh, refreshTournaments]);
+  }, [authHydrated, refresh, refreshTournaments]);
 
   const sortedTables = useMemo(() => {
     const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));
@@ -232,7 +242,7 @@ export default function LobbyScreen() {
     (tournament: TournamentSummary) => {
       dispatchTournamentCta(tournament, {
         router,
-        authenticated: Boolean(authToken),
+        authenticated,
         actionInFlight: tournamentActionBusy || registerBusy,
         setActionInFlight: setTournamentActionBusy,
         showToast,
@@ -248,6 +258,7 @@ export default function LobbyScreen() {
     },
     [
       authToken,
+      authenticated,
       openTable,
       refreshBankroll,
       refreshTournaments,
@@ -329,7 +340,7 @@ export default function LobbyScreen() {
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
         <JoinedTournamentsSection
           tournaments={tournamentList}
-          authenticated={Boolean(authToken)}
+          authenticated={authenticated}
           actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
           onOpenTournamentDetail={handleOpenTournamentDetail}
@@ -338,7 +349,7 @@ export default function LobbyScreen() {
           tournaments={tournamentList}
           busy={tournamentsBusy}
           error={tournamentsError}
-          authenticated={Boolean(authToken)}
+          authenticated={authenticated}
           actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
           onOpenTournamentDetail={handleOpenTournamentDetail}

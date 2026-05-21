@@ -61,6 +61,33 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Starting soon…", action: "join", disabled: true });
   });
 
+  it("shows not registered for live tournament when logged in but not enrolled", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: false,
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+      { authenticated: true },
+    );
+    expect(cta).toEqual({ label: "Not registered", action: "none", disabled: true });
+  });
+
+  it("shows log in to join only when unauthenticated", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+      { authenticated: false },
+    );
+    expect(cta.label).toBe("Log in to join");
+  });
+
   it("enables join for registered running tournament with live table", () => {
     const cta = resolveTournamentCta(
       baseTournament({
