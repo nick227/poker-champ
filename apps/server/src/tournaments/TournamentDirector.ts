@@ -3,7 +3,7 @@ import { getPrisma } from "@poker-champ/db";
 import type { Tournament } from "@prisma/client";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
-import { computeNextLevelAt, getBlindLevel } from "./blind-structure.js";
+import { computeNextLevelAt, getBlindLevel, getBlindLevels } from "./blind-structure.js";
 import { tournamentCancelExternalRef } from "./tournament.constants.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
 
@@ -21,6 +21,11 @@ function resolveRoomId(created: unknown): string | undefined {
 }
 
 export class TournamentDirector {
+  async tick(now: Date = new Date()): Promise<void> {
+    await this.processDueTournaments(now);
+    await this.advanceDueBlindLevels(now);
+  }
+
   async processDueTournaments(now: Date = new Date()): Promise<void> {
     const prisma = getPrisma();
     const due = await prisma.tournament.findMany({
@@ -151,6 +156,79 @@ export class TournamentDirector {
         registeredCount: tournament.registrations.length,
       },
       "TOURNAMENT_STARTED",
+    );
+  }
+
+  async advanceDueBlindLevels(now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const due = await prisma.tournament.findMany({
+      where: {
+        status: "RUNNING",
+        nextLevelAt: { lte: now },
+        roomId: { not: null },
+      },
+      take: 20,
+    });
+
+    for (const tournament of due) {
+      try {
+        await this.advanceBlindLevel(tournament.id, now);
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: tournament.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_BLIND_ADVANCE_FAILED",
+        );
+      }
+    }
+  }
+
+  async advanceBlindLevel(tournamentId: string, now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+    if (!tournament || tournament.status !== "RUNNING" || !tournament.roomId) return;
+
+    const levels = getBlindLevels(tournament.blindStructureId);
+    const maxLevel = levels[levels.length - 1].level;
+    const nextLevel = Math.min(tournament.currentLevel + 1, maxLevel);
+    const level = getBlindLevel(tournament.blindStructureId, nextLevel);
+    const nextLevelAt = computeNextLevelAt(now, level);
+
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: {
+        currentLevel: nextLevel,
+        nextLevelAt,
+      },
+    });
+
+    const applied = (await matchMaker.remoteRoomCall(
+      tournament.roomId,
+      "applyTournamentBlinds" as never,
+      [
+        {
+          currentLevel: nextLevel,
+          smallBlindCents: level.smallBlindCents,
+          bigBlindCents: level.bigBlindCents,
+          anteCents: level.anteCents,
+          nextLevelAtTs: nextLevelAt.getTime(),
+          status: tournament.status,
+        },
+      ],
+      10_000,
+    )) as { applied?: boolean } | undefined;
+
+    logger.info(
+      {
+        tournamentId,
+        roomId: tournament.roomId,
+        currentLevel: nextLevel,
+        applied: applied?.applied ?? false,
+      },
+      "TOURNAMENT_BLIND_LEVEL_ADVANCED",
     );
   }
 }

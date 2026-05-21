@@ -14,6 +14,7 @@ import {
 } from "../tournaments/tournament.constants.js";
 import { TOURNAMENT_CLIENT_ERRORS } from "../tournaments/tournament.errors.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
+import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
 const router = express.Router();
 
@@ -48,6 +49,24 @@ router.get("/", async (req, res) => {
     include: tournamentInclude,
   });
   res.json({ tournaments: tournaments.map(toTournamentResponse) });
+});
+
+router.get("/:id/standings", async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const prisma = getPrisma();
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  const standings = await loadTournamentStandings(id);
+  res.json({ standings });
 });
 
 router.get("/:id", async (req, res) => {

@@ -1185,6 +1185,46 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/tournaments/{id}/standings": {
+      get: {
+        tags: ["tournaments"],
+        operationId: "tournamentsStandings",
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Tournament standings",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    standings: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          userId: { type: "string" },
+                          displayName: { type: "string" },
+                          finishPlace: { type: "integer", nullable: true },
+                          eliminatedAt: { type: "string", format: "date-time", nullable: true },
+                          payoutCents: { type: "integer" },
+                        },
+                        required: ["userId", "displayName", "finishPlace", "eliminatedAt", "payoutCents"],
+                      },
+                    },
+                  },
+                  required: ["standings"],
+                },
+              },
+            },
+          },
+          "404": {
+            description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
     "/api/tournaments/{id}": {
       get: {
         tags: ["tournaments"],

@@ -33,6 +33,9 @@ import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 import { listEnabledBotSummaries } from "../engine/bots/BotCatalog.js";
 import { getPrisma } from "@poker-champ/db";
 import { tournamentSeatGrantExternalRef } from "../tournaments/tournament.constants.js";
+import { getBlindLevel } from "../tournaments/blind-structure.js";
+import type { TournamentTableOverlay } from "../tournaments/tournament-overlay.js";
+import { tournamentTableReconciler } from "../tournaments/TournamentTableReconciler.js";
 import { awardService } from "../awards/index.js";
 import { PokerRoomController } from "./room/PokerRoomController.js";
 import { dealerRuntimeMetrics } from "../engine/dealer/metrics/dealerRuntimeMetrics.js";
@@ -96,6 +99,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private controller!: PokerRoomController;
   private tournamentId?: string;
   private tournamentStartingStackCents?: number;
+  private tournamentOverlay: TournamentTableOverlay | null = null;
+  private tournamentPlayEnded = false;
   // Back-compat bridge for tests and legacy paths; SessionManager is the owner of mutations.
   readonly userIdBySessionId: Map<string, string> = new Map();
   readonly bindingEpochByUserId: Map<string, number> = new Map();
@@ -349,7 +354,35 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       onHandEndedAwards: async (handSummary, dealtUserIds, getSessionState) => {
         await awardService.processHandEndAwards(handSummary, dealtUserIds, getSessionState);
       },
+      onTournamentWaitingAfterHand: async () => {
+        if (!this.tournamentId) return;
+        await tournamentTableReconciler.reconcileAfterHand({
+          tournamentId: this.tournamentId,
+          tableId: this.state.tableId,
+          roomId: this.roomId,
+          state: this.state,
+          tableName: this.state.tableName,
+          removeBustedPlayer: async (userId) => {
+            await this.removeTournamentBustedPlayer(userId);
+          },
+          onOverlayUpdated: (overlay) => {
+            this.tournamentOverlay = overlay;
+          },
+          onPlayEnded: () => {
+            this.tournamentPlayEnded = true;
+          },
+          emitSnapshot: async () => {
+            await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+          },
+        });
+      },
+      isNextHandBlocked: () => this.tournamentPlayEnded,
+      getTournamentTableOverlay: () => this.tournamentOverlay,
     });
+
+    if (this.tournamentId) {
+      void this.refreshTournamentOverlayFromDb();
+    }
 
     this.controller = new PokerRoomController(this);
     this.controller.setupLifecycle({ cfg });
@@ -430,6 +463,54 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
   getTournamentStartingStackCentsInternal(): number | undefined {
     return this.tournamentStartingStackCents;
+  }
+
+  async removeTournamentBustedPlayer(userId: string): Promise<void> {
+    await this.dealer.removePlayer(userId, { cashOutAfterRemoval: false });
+  }
+
+  private async refreshTournamentOverlayFromDb(): Promise<void> {
+    if (!this.tournamentId) return;
+    const tournament = await getPrisma().tournament.findUnique({
+      where: { id: this.tournamentId },
+    });
+    if (!tournament) return;
+    const level = getBlindLevel(tournament.blindStructureId, tournament.currentLevel);
+    this.tournamentOverlay = {
+      tournamentId: tournament.id,
+      status: tournament.status,
+      currentLevel: tournament.currentLevel,
+      smallBlindCents: level.smallBlindCents,
+      bigBlindCents: level.bigBlindCents,
+      anteCents: level.anteCents,
+      nextLevelAtTs: tournament.nextLevelAt?.getTime() ?? null,
+    };
+  }
+
+  async applyTournamentBlinds(payload: {
+    currentLevel: number;
+    smallBlindCents: number;
+    bigBlindCents: number;
+    anteCents: number;
+    nextLevelAtTs: number;
+    status: string;
+  }): Promise<{ applied: boolean }> {
+    if (!this.tournamentId) return { applied: false };
+    if (this.state.street !== "WAITING") return { applied: false };
+
+    this.state.smallBlindCents = payload.smallBlindCents;
+    this.state.bigBlindCents = payload.bigBlindCents;
+    this.tournamentOverlay = {
+      tournamentId: this.tournamentId,
+      status: payload.status,
+      currentLevel: payload.currentLevel,
+      smallBlindCents: payload.smallBlindCents,
+      bigBlindCents: payload.bigBlindCents,
+      anteCents: payload.anteCents,
+      nextLevelAtTs: payload.nextLevelAtTs,
+    };
+    await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+    return { applied: true };
   }
 
   startStallMonitorInternal(): void {

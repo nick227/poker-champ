@@ -125,6 +125,9 @@ type DealerConstructorOptions = {
   getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
   maxQueueDepth?: number;
   onHandEndedAwards?: HandEndedAwardsCallback;
+  onTournamentWaitingAfterHand?: () => Promise<void> | void;
+  isNextHandBlocked?: () => boolean;
+  getTournamentTableOverlay?: () => import("../tournaments/tournament-overlay.js").TournamentTableOverlay | null;
   onSoakTimingEvent?: (args: {
     kind:
       | "LIFECYCLE_PLAN_EMIT_SNAPSHOT_MS"
@@ -374,6 +377,9 @@ export class Dealer {
   private readonly turnManager: TurnManager;
   private disposed = false;
   private readonly onHandEndedAwards?: HandEndedAwardsCallback;
+  private readonly onTournamentWaitingAfterHand?: DealerConstructorOptions["onTournamentWaitingAfterHand"];
+  private readonly isNextHandBlocked?: DealerConstructorOptions["isNextHandBlocked"];
+  private readonly getTournamentTableOverlay?: DealerConstructorOptions["getTournamentTableOverlay"];
   private readonly onSoakTimingEvent?: DealerConstructorOptions["onSoakTimingEvent"];
 
   private static parseSampleRate(raw: string | undefined, defaultValue: number): number {
@@ -413,6 +419,9 @@ export class Dealer {
       hasCompletedTerminalLifecycle: () => this.completedTerminalLifecycle !== null,
     });
     this.onHandEndedAwards = options?.onHandEndedAwards;
+    this.onTournamentWaitingAfterHand = options?.onTournamentWaitingAfterHand;
+    this.isNextHandBlocked = options?.isNextHandBlocked;
+    this.getTournamentTableOverlay = options?.getTournamentTableOverlay;
     this.onSoakTimingEvent = options?.onSoakTimingEvent;
     this.persistence =
       persistence ??
@@ -639,6 +648,7 @@ export class Dealer {
       emitHook: options?.onTableSnapshotEmitted,
       getAvatarByUserId: options?.getAvatarByUserId,
       getTurnTimeoutTotalMs: () => TURN_TIMEOUT_TOTAL_MS,
+      getTournamentTableOverlay: () => this.getTournamentTableOverlay?.() ?? null,
     });
     this.actionService = new ActionService({
       state: this.state,
@@ -1927,6 +1937,17 @@ export class Dealer {
             mark("loop:waiting_after_release_pending_seats");
             madeProgress = true;
             continue;
+          }
+
+          if (this.onTournamentWaitingAfterHand) {
+            mark("loop:waiting_tournament_reconcile");
+            await this.onTournamentWaitingAfterHand();
+            mark("loop:waiting_tournament_reconcile_done");
+            madeProgress = true;
+          }
+
+          if (this.isNextHandBlocked?.()) {
+            break;
           }
           
           if (this.state.nextHandAtTs === 0 && activePlayers.length >= 2) {

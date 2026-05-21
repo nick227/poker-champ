@@ -198,6 +198,17 @@ export const TableSnapshotPayloadSchema = z.object({
     minBuyInCents: z.number().int().positive(),
     maxBuyInCents: z.number().int().positive(),
     showStats: z.boolean().default(false),
+    tournament: z
+      .object({
+        tournamentId: z.string().min(1),
+        status: z.string().min(1),
+        currentLevel: z.number().int().positive(),
+        smallBlindCents: z.number().int().positive(),
+        bigBlindCents: z.number().int().positive(),
+        anteCents: z.number().int().nonnegative(),
+        nextLevelAtTs: z.number().int().nonnegative().optional(),
+      })
+      .optional(),
   }),
 
   hand: z.object({

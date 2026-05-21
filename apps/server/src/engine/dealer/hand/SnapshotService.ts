@@ -48,6 +48,7 @@ import { snapshotMetrics } from "../metrics/snapshotMetrics.js";
 // IMPORTS - Type Definitions
 // ============================================================================
 import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import type { TournamentTableOverlay } from "../../../tournaments/tournament-overlay.js";
 
 // ============================================================================
 // TYPE DEFINITIONS & CONSTANTS
@@ -268,6 +269,7 @@ export class SnapshotService {
     getAvatarByUserId?: (userId: string) => Promise<{ avatarUrl: string | null; avatarVersion: number | null }>;
     /** Turn timeout duration (ms) so client can stay in sync. */
     getTurnTimeoutTotalMs: () => number;
+    getTournamentTableOverlay?: () => TournamentTableOverlay | null;
   }) {}
 
   // ============================================================================
@@ -652,6 +654,7 @@ export class SnapshotService {
         minBuyInCents: state.minBuyInCents,
         maxBuyInCents: state.maxBuyInCents,
         showStats: state.showStats,
+        ...(this.buildTournamentTableSection()),
       },
       hand,
       seats,
@@ -659,6 +662,22 @@ export class SnapshotService {
       lastAction: mode === "full" ? this.deps.getLastAction() : undefined,
       lastHandResult: this.deps.getLastHandResult(),
     } as Omit<TableSnapshotPayload, "hero" | "stateHash">;
+  }
+
+  private buildTournamentTableSection(): { tournament: NonNullable<TableSnapshotPayload["table"]["tournament"]> } | Record<string, never> {
+    const overlay = this.deps.getTournamentTableOverlay?.();
+    if (!overlay) return {};
+    return {
+      tournament: {
+        tournamentId: overlay.tournamentId,
+        status: overlay.status,
+        currentLevel: overlay.currentLevel,
+        smallBlindCents: overlay.smallBlindCents,
+        bigBlindCents: overlay.bigBlindCents,
+        anteCents: overlay.anteCents,
+        ...(overlay.nextLevelAtTs != null ? { nextLevelAtTs: overlay.nextLevelAtTs } : {}),
+      },
+    };
   }
 
   private async buildHeroPatch(

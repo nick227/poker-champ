@@ -1,6 +1,10 @@
 import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
 import {
+  computePayoutAmountsByPlace,
+  tournamentPayoutExternalRef,
+} from "../../tournaments/tournament-payouts.js";
+import {
   INSUFFICIENT_BANKROLL,
   NOT_REGISTERED,
   TOURNAMENT_CLOSED,
@@ -446,6 +450,115 @@ export class CashierService {
       });
 
       return { success: true, refundedCount: registrations.length };
+    });
+  }
+
+  /**
+   * Zero tournament table chips after bust without crediting bankroll.
+   */
+  static async forfeitTournamentTableBalance(params: {
+    userId: string;
+    tableId: string;
+    tournamentId: string;
+    externalRef: string;
+    tableMeta: { name: string };
+  }): Promise<{ success: boolean }> {
+    const prisma = getPrisma();
+    const { userId, tableId, tournamentId, externalRef, tableMeta } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingRef) return { success: true };
+
+      await CashierService.ensureTableExists(tx, tableId, tableMeta);
+
+      await tx.playerBalance.updateMany({
+        where: { tableId, userId },
+        data: { balanceCents: 0, status: "CASHED_OUT" },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          tableId,
+          tournamentId,
+          type: "TOURNAMENT_BUST",
+          amountCents: 0,
+          externalRef,
+        },
+      });
+
+      return { success: true };
+    });
+  }
+
+  /**
+   * Distribute prize pool to finishing places per MVP payout table.
+   */
+  static async processTournamentPayouts(params: {
+    tournamentId: string;
+    entrantCount: number;
+  }): Promise<{ success: boolean; paidCount: number }> {
+    const prisma = getPrisma();
+    const { tournamentId, entrantCount } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+
+      let prizePoolCents = tourney.prizePoolCents;
+      if (prizePoolCents <= 0) {
+        const paidSum = await tx.balanceTransaction.aggregate({
+          where: { tournamentId, type: "TOURNAMENT_PAYOUT" },
+          _sum: { amountCents: true },
+        });
+        prizePoolCents = paidSum._sum.amountCents ?? 0;
+      }
+
+      const amountsByPlace = computePayoutAmountsByPlace(prizePoolCents, entrantCount);
+      const paidPlaces = [...amountsByPlace.entries()].filter(([, cents]) => cents > 0);
+
+      const registrations = await tx.tournamentRegistration.findMany({
+        where: { tournamentId, finishPlace: { not: null } },
+      });
+
+      let paidCount = 0;
+      for (const [place, amountCents] of paidPlaces) {
+        const reg = registrations.find((r: { finishPlace: number | null }) => r.finishPlace === place);
+        if (!reg || amountCents <= 0) continue;
+
+        const externalRef = tournamentPayoutExternalRef(tournamentId, place, reg.userId);
+        const existing = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+        if (existing) {
+          paidCount += 1;
+          continue;
+        }
+
+        await tx.user.update({
+          where: { id: reg.userId },
+          data: { bankrollCents: { increment: amountCents } },
+        });
+
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId: reg.userId,
+            tournamentId,
+            type: "TOURNAMENT_PAYOUT",
+            amountCents,
+            externalRef,
+          },
+        });
+
+        paidCount += 1;
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: 0 },
+      });
+
+      return { success: true, paidCount };
     });
   }
 }

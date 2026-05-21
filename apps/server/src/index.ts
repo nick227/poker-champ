@@ -267,9 +267,9 @@ async function start() {
 
   const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "15000");
   if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {
-    void tournamentDirector.processDueTournaments();
+    void tournamentDirector.tick();
     tournamentDirectorInterval = setInterval(() => {
-      void tournamentDirector.processDueTournaments();
+      void tournamentDirector.tick();
     }, tournamentPollMs);
   }
 
