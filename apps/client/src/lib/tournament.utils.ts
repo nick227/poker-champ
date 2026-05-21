@@ -55,10 +55,19 @@ export function resolveTournamentCta(
 
   if (tournament.status === "STARTING" || tournament.status === "RUNNING") {
     const joinReady = canJoinTournament(tournament);
+    if (!joinReady) {
+      const waitingLabel =
+        authenticated && tournament.isRegistered
+          ? tournament.tableId && tournament.roomId
+            ? "Join Table"
+            : "Starting soon…"
+          : "Join Table";
+      return { label: waitingLabel, action: "join", disabled: true };
+    }
     return {
       label: "Join Table",
       action: "join",
-      disabled: !authenticated || !joinReady,
+      disabled: !authenticated,
     };
   }
 

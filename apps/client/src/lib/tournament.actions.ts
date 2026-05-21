@@ -11,12 +11,31 @@ export type TournamentActionHandlers = {
   setActionInFlight: (busy: boolean) => void;
   showToast: (message: string, tone: "success" | "danger") => void;
   onRequestRegister: (tournament: TournamentSummary) => void;
+  onRequestJoin: (tournament: TournamentSummary) => void;
   onRequestStandings?: (tournament: TournamentSummary) => void;
-  openTable: (tableId: string) => void;
+  openTable: (tableId: string, joinState?: { buyInCents: number }) => void;
+  setRoomForTable: (tableId: string, roomId: string) => void;
   refreshTournament: () => void;
   refreshBankroll: () => void;
   loginReturnPath: string;
 };
+
+export function confirmTournamentTableJoin(
+  tournament: TournamentSummary,
+  handlers: Pick<TournamentActionHandlers, "openTable" | "router" | "setRoomForTable" | "showToast">,
+): boolean {
+  const tableId = tournament.tableId;
+  const roomId = tournament.roomId;
+  if (!tableId || !roomId) {
+    handlers.showToast("Tournament table is not available. Refresh the lobby and try again.", "danger");
+    return false;
+  }
+  const buyInCents = tournament.startingStackCents;
+  handlers.setRoomForTable(tableId, roomId);
+  handlers.openTable(tableId, { buyInCents });
+  handlers.router.push(tablePath(tableId, { buyInCents }));
+  return true;
+}
 
 export async function confirmTournamentRegister(
   tournamentId: string,
@@ -70,9 +89,8 @@ export function dispatchTournamentCta(
     return;
   }
 
-  if (cta.action === "join" && tournament.tableId) {
-    handlers.openTable(tournament.tableId);
-    handlers.router.push(tablePath(tournament.tableId));
+  if (cta.action === "join") {
+    handlers.onRequestJoin(tournament);
     return;
   }
 

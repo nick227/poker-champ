@@ -8,6 +8,7 @@ import { tournamentCancelExternalRef } from "./tournament.constants.js";
 import { fillTournamentBotRegistrations } from "./tournament-bot-fill.js";
 import { parseTournamentBotCatalogId } from "./tournament-bot-users.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
+import { processTournamentFinishResults } from "./tournament-result-processor.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
@@ -26,7 +27,50 @@ export class TournamentDirector {
   async tick(now: Date = new Date()): Promise<void> {
     await this.processDueTournaments(now);
     await this.resumeStuckStartingTournaments(now);
+    await this.reconcileOrphanRunningTournaments();
     await this.advanceDueBlindLevels(now);
+  }
+
+  /** Close RUNNING/STARTING tournaments whose Colyseus room no longer exists (e.g. after server restart). */
+  async reconcileOrphanRunningTournaments(): Promise<void> {
+    const prisma = getPrisma();
+    const open = await prisma.tournament.findMany({
+      where: {
+        status: { in: ["STARTING", "RUNNING"] },
+        roomId: { not: null },
+      },
+      take: 50,
+    });
+    if (open.length === 0) return;
+
+    type PokerRoomRef = { roomId?: string };
+    const rooms = (await matchMaker.query({ name: "poker" })) as PokerRoomRef[];
+    const liveRoomIds = new Set(
+      rooms.map((r) => r.roomId).filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+
+    for (const tournament of open) {
+      const roomId = tournament.roomId;
+      if (!roomId || liveRoomIds.has(roomId)) continue;
+
+      await prisma.tournament.update({
+        where: { id: tournament.id },
+        data: { status: "FINISHED", finishedAt: new Date() },
+      });
+      try {
+        await processTournamentFinishResults(tournament.id);
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: tournament.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_ORPHAN_FINISH_RESULTS_FAILED",
+        );
+      }
+      logger.info({ tournamentId: tournament.id, roomId }, "TOURNAMENT_ORPHAN_CLOSED");
+    }
   }
 
   async processDueTournaments(now: Date = new Date()): Promise<void> {

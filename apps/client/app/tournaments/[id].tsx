@@ -9,9 +9,13 @@ import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { BottomBar } from "@/components/containers/BottomBar";
-import { TournamentRegisterModal } from "@/features/lobby";
+import { TournamentJoinModal, TournamentRegisterModal } from "@/features/lobby";
 import { TournamentDetailBody } from "@/features/tournaments";
-import { confirmTournamentRegister, dispatchTournamentCta } from "@/lib/tournament.actions";
+import {
+  confirmTournamentRegister,
+  confirmTournamentTableJoin,
+  dispatchTournamentCta,
+} from "@/lib/tournament.actions";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
 import { tournamentPath } from "@/lib/nav";
 import { getTournament, getTournamentStandings } from "@/services/get/tournaments.get";
@@ -31,12 +35,14 @@ export default function TournamentDetailScreen() {
   const profile = useProfile();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
+  const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
 
   const [tournament, setTournament] = useState<TournamentSummary | null>(null);
   const [loadBusy, setLoadBusy] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionInFlight, setActionInFlight] = useState(false);
   const [registerModalTournament, setRegisterModalTournament] = useState<TournamentSummary | null>(null);
+  const [joinModalTournament, setJoinModalTournament] = useState<TournamentSummary | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [rosterRows, setRosterRows] = useState<TournamentStandingRow[]>([]);
   const [rosterBusy, setRosterBusy] = useState(false);
@@ -117,7 +123,9 @@ export default function TournamentDetailScreen() {
       setActionInFlight,
       showToast,
       onRequestRegister: setRegisterModalTournament,
+      onRequestJoin: setJoinModalTournament,
       openTable,
+      setRoomForTable,
       refreshTournament: refreshAll,
       refreshBankroll: () => { void refreshBankroll(); },
       loginReturnPath: tournamentPath(tournamentId),
@@ -130,10 +138,24 @@ export default function TournamentDetailScreen() {
       refreshBankroll,
       registerBusy,
       router,
+      setRoomForTable,
       showToast,
       tournamentId,
     ],
   );
+
+  const handleConfirmTournamentJoin = useCallback(() => {
+    if (!joinModalTournament) return;
+    setActionInFlight(true);
+    const ok = confirmTournamentTableJoin(joinModalTournament, {
+      openTable,
+      router,
+      setRoomForTable,
+      showToast,
+    });
+    if (ok) setJoinModalTournament(null);
+    setActionInFlight(false);
+  }, [joinModalTournament, openTable, router, setRoomForTable, showToast]);
 
   const handlePrimaryAction = useCallback(() => {
     if (!tournament) return;
@@ -197,6 +219,13 @@ export default function TournamentDetailScreen() {
         busy={registerBusy}
         onClose={() => setRegisterModalTournament(null)}
         onConfirm={() => { void handleConfirmRegister(); }}
+      />
+      <TournamentJoinModal
+        visible={joinModalTournament != null}
+        tournament={joinModalTournament}
+        busy={actionInFlight}
+        onClose={() => setJoinModalTournament(null)}
+        onConfirm={handleConfirmTournamentJoin}
       />
 
       <BottomBar active="lobby" />

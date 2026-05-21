@@ -9,8 +9,7 @@ import { GameListHeader } from "@/features/lobby";
 import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
 import { TournamentsSection } from "@/features/lobby";
-import { TournamentRegisterModal } from "@/features/lobby";
-import { TournamentStandingsModal } from "@/features/lobby";
+import { TournamentJoinModal, TournamentRegisterModal, TournamentStandingsModal } from "@/features/lobby";
 import { GameTablePanel } from "@/features/lobby";
 import { GameTablePanelSkeleton } from "@/features/lobby";
 import { EmptyState } from "@/features/lobby";
@@ -38,7 +37,11 @@ import {
   getInstantGamePreset,
   type InstantGamePresetId,
 } from "@/features/lobby";
-import { confirmTournamentRegister, dispatchTournamentCta } from "@/lib/tournament.actions";
+import {
+  confirmTournamentRegister,
+  confirmTournamentTableJoin,
+  dispatchTournamentCta,
+} from "@/lib/tournament.actions";
 import { tournamentPath } from "@/lib/nav";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -75,6 +78,7 @@ export default function LobbyScreen() {
     refresh: refreshTournaments,
   } = storeRegistry.use.tournaments();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
+  const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
@@ -88,6 +92,7 @@ export default function LobbyScreen() {
   } | null>(null);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
   const [registerModalTournament, setRegisterModalTournament] = useState<TournamentSummary | null>(null);
+  const [joinModalTournament, setJoinModalTournament] = useState<TournamentSummary | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [standingsModal, setStandingsModal] = useState<{ id: string; name: string } | null>(null);
   const [tournamentActionBusy, setTournamentActionBusy] = useState(false);
@@ -232,8 +237,10 @@ export default function LobbyScreen() {
         setActionInFlight: setTournamentActionBusy,
         showToast,
         onRequestRegister: setRegisterModalTournament,
+        onRequestJoin: setJoinModalTournament,
         onRequestStandings: (t) => setStandingsModal({ id: t.id, name: t.name }),
         openTable,
+        setRoomForTable,
         refreshTournament: () => { void refreshTournaments(); },
         refreshBankroll: () => { void refreshBankroll(); },
         loginReturnPath: "/lobby",
@@ -246,10 +253,24 @@ export default function LobbyScreen() {
       refreshTournaments,
       registerBusy,
       router,
+      setRoomForTable,
       showToast,
       tournamentActionBusy,
     ],
   );
+
+  const handleConfirmTournamentJoin = useCallback(() => {
+    if (!joinModalTournament) return;
+    setTournamentActionBusy(true);
+    const ok = confirmTournamentTableJoin(joinModalTournament, {
+      openTable,
+      router,
+      setRoomForTable,
+      showToast,
+    });
+    if (ok) setJoinModalTournament(null);
+    setTournamentActionBusy(false);
+  }, [joinModalTournament, openTable, router, setRoomForTable, showToast]);
 
   const handleConfirmTournamentRegister = useCallback(async () => {
     if (!registerModalTournament) return;
@@ -371,6 +392,13 @@ export default function LobbyScreen() {
         busy={registerBusy}
         onClose={() => setRegisterModalTournament(null)}
         onConfirm={() => void handleConfirmTournamentRegister()}
+      />
+      <TournamentJoinModal
+        visible={joinModalTournament != null}
+        tournament={joinModalTournament}
+        busy={tournamentActionBusy}
+        onClose={() => setJoinModalTournament(null)}
+        onConfirm={handleConfirmTournamentJoin}
       />
       <TournamentStandingsModal
         visible={standingsModal != null}

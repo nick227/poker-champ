@@ -47,6 +47,17 @@ describe("resolveTournamentCta", () => {
     expect(cta.disabled).toBe(true);
   });
 
+  it("shows starting soon when registered but table not ready", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: true,
+      }),
+      { authenticated: true },
+    );
+    expect(cta).toEqual({ label: "Starting soon…", action: "join", disabled: true });
+  });
+
   it("enables join for registered running tournament", () => {
     const cta = resolveTournamentCta(
       baseTournament({

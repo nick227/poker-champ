@@ -9,6 +9,7 @@ export { EmptyState } from "./components/lobby/EmptyState";
 export { CreateGameModal } from "./components/lobby/CreateGameModal";
 export { ChooseTableModal } from "./components/lobby/ChooseTableModal";
 export { TournamentsSection } from "./components/lobby/TournamentsSection";
+export { TournamentJoinModal } from "./components/lobby/TournamentJoinModal";
 export { TournamentRegisterModal } from "./components/lobby/TournamentRegisterModal";
 export { TournamentStandingsModal } from "./components/lobby/TournamentStandingsModal";
 export * from "./components/lobby/createGame.constants";
