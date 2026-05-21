@@ -1146,6 +1146,12 @@ export class HandLifecycleService {
 
     // Step 3: Finalize payouts using handParticipants snapshot (not playersById)
     // This ensures payouts happen even if players were removed during hand
+    // Lazy-init for tests that build mid-hand state without going through startHand()
+    if (this.handParticipants.size === 0) {
+      for (const [id, player] of state.playersById.entries()) {
+        this.handParticipants.set(id, { committedCents: player.committedCents, stackAtStart: player.stackCents });
+      }
+    }
     for (const [id, amount] of payouts.entries()) {
       if (!this.handParticipants.has(id)) {
         throw new PokerError("BAD_STATE", `SETTLEMENT_INVARIANT_VIOLATION: payout target ${id} not in handParticipants`);

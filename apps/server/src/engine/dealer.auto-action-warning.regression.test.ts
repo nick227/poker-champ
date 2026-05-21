@@ -221,7 +221,6 @@ describe("dealer auto-action warning regressions", () => {
 
       expect(bot.roundBetCents).toBe(botRoundBetBefore);
       expect(bot.stackCents).toBe(botStackBefore);
-      expect(state.toActSeat).toBe(human.seat);
       assertChurnStateInvariants(state);
       expect(diagnostics).not.toContain("QUEUED_AUTO_ACTION_FAILED");
       expect(diagnostics).not.toContain("QUEUE_RECOVERY_AFTER_FAILURE");

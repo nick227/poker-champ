@@ -1301,13 +1301,15 @@ export class Dealer {
   }
 
   private setLastActionFromExecution(lastAction: ActionServiceLastAction | undefined): void {
-    if (!lastAction || !this.currentHand) return;
+    if (!lastAction) return;
     const nextSeq = this.state.handActionSeq + 1;
     this.state.handActionSeq = nextSeq;
-    this.currentHand.lastAction = {
-      ...lastAction,
-      seq: nextSeq,
-    };
+    if (this.currentHand) {
+      this.currentHand.lastAction = {
+        ...lastAction,
+        seq: nextSeq,
+      };
+    }
   }
 
   private recordLastAcceptedActionSnapshot(args: {
