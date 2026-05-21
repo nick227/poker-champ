@@ -222,17 +222,17 @@ export class CashierService {
         throw new Error(INSUFFICIENT_BANKROLL);
       }
 
-      await tx.tournament.update({
-        where: { id: tournamentId },
-        data: { prizePoolCents: { increment: entryFeeCents } },
-      });
-
       await tx.tournamentRegistration.create({
         data: {
           userId,
           tournamentId,
           entryTxId: externalRef,
         },
+      });
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: { increment: entryFeeCents } },
       });
 
       await tx.balanceTransaction.create({
@@ -332,7 +332,7 @@ export class CashierService {
         where: { tournamentId_userId: { tournamentId, userId } },
       });
       if (!registration) {
-        throw new Error(NOT_REGISTERED);
+        return { success: true };
       }
 
       await tx.tournamentRegistration.delete({

@@ -157,6 +157,7 @@ export function useTablePageController({
   const [voicePrefReady, setVoicePrefReady] = useState(false);
   const [rejoinUiState, setRejoinUiState] = useState<RejoinUiState>("idle");
   const [rejoinErrorMessage, setRejoinErrorMessage] = useState<string | null>(null);
+  const [tournamentStandingsVisible, setTournamentStandingsVisible] = useState(false);
   const [animationRequest, setAnimationRequest] = useState<TableAnimationRequest | null>(null);
   const [anchorBounds, setAnchorBounds] = useState<AnchorBounds>({});
   const anchorPendingRef = useRef<Partial<AnchorBounds>>({});
@@ -347,7 +348,7 @@ export function useTablePageController({
     hasAuthToken: Boolean(authToken),
     hasSnapshot: Boolean(snapshot),
     hasActiveHand: Boolean(snapshot?.hand),
-    canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents),
+    canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents && !snapshot?.table?.tournament),
   });
 
   const {
@@ -722,6 +723,7 @@ export function useTablePageController({
       rejoinUiState,
       rejoinErrorMessage,
       animationRequest,
+      tournamentStandingsVisible,
     },
     uiState: {
       activeTablesDropdownVisible,
@@ -790,6 +792,8 @@ export function useTablePageController({
         },
         [flushAnchorBounds]
       ),
+      openTournamentStandings: useCallback(() => setTournamentStandingsVisible(true), []),
+      closeTournamentStandings: useCallback(() => setTournamentStandingsVisible(false), []),
     },
   };
 }

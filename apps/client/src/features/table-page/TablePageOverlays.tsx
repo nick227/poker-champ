@@ -1,4 +1,4 @@
-import { ChooseTableModal } from "@/features/lobby";
+import { ChooseTableModal, TournamentStandingsModal } from "@/features/lobby";
 import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { ActiveTablesDropdown } from "@/features/table";
@@ -17,6 +17,7 @@ type TablePageOverlaysProps = {
 export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOverlaysProps) {
   const { snapshot, animationRequest, chatVisible, chatMessages } = renderModel;
   const { clearAnimationRequest, closeChat, sendChat } = actions;
+  const tournament = snapshot?.table?.tournament;
 
   return (
     <>
@@ -55,6 +56,11 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
         bots={renderModel.botSummaries}
         onClose={actions.closeBotPicker}
         onPick={actions.pickBot}
+      />
+      <TournamentStandingsModal
+        visible={renderModel.tournamentStandingsVisible}
+        tournamentId={tournament?.tournamentId ?? null}
+        onClose={actions.closeTournamentStandings}
       />
     </>
   );

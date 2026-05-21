@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TournamentTableBanner } from "../TournamentTableBanner";
+import { TournamentResultBanner } from "../TournamentResultBanner";
 import { BoardArea } from "../board-area";
 import type { Opponent } from "../opponent-strip";
 import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
@@ -44,6 +45,7 @@ type UseTableViewShellFrameParams = {
   onCardSlotBounds?: (index: number, rect: Rect) => void;
   /** When set, passed to shell for SEAT-anchored FX (reportSeatBounds). */
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
+  onViewTournamentStandings?: () => void;
   boardCardsOverride?: UiCard[] | null;
   potCentsOverride?: number;
   animateBoardReset?: boolean;
@@ -62,6 +64,7 @@ export function useTableViewShellFrame({
   onBoardBounds,
   onCardSlotBounds,
   onSeatBounds,
+  onViewTournamentStandings,
   boardCardsOverride,
   potCentsOverride,
   animateBoardReset = false,
@@ -84,7 +87,16 @@ export function useTableViewShellFrame({
     onPlayerPress,
     onSeatBounds,
     tournamentBanner: table?.tournament ? (
-      <TournamentTableBanner tournament={table.tournament} />
+      <>
+        <TournamentTableBanner tournament={table.tournament} />
+        {onViewTournamentStandings ? (
+          <TournamentResultBanner
+            tournament={table.tournament}
+            heroSeated={effectiveSnapshot.hero.youAreSeated}
+            onViewStandings={onViewTournamentStandings}
+          />
+        ) : null}
+      </>
     ) : undefined,
   };
   const boardContent = (

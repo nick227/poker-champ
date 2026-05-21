@@ -26,6 +26,10 @@ vi.mock("../../engine/auth/RequireAuth.js", () => ({
     req.user = { id: currentUserId, role: currentUserRole };
     next();
   },
+  attachAuthIfPresent: (req: { user?: { id: string; role: string } }, _res: unknown, next: () => void) => {
+    req.user = { id: currentUserId, role: currentUserRole };
+    next();
+  },
 }));
 
 vi.mock("../../engine/auth/AdminMiddleware.js", () => ({

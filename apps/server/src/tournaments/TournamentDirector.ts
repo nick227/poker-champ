@@ -23,6 +23,7 @@ function resolveRoomId(created: unknown): string | undefined {
 export class TournamentDirector {
   async tick(now: Date = new Date()): Promise<void> {
     await this.processDueTournaments(now);
+    await this.resumeStuckStartingTournaments(now);
     await this.advanceDueBlindLevels(now);
   }
 
@@ -48,6 +49,43 @@ export class TournamentDirector {
             message: err instanceof Error ? err.message : String(err),
           },
           "TOURNAMENT_DIRECTOR_PROCESS_FAILED",
+        );
+      }
+    }
+  }
+
+  async resumeStuckStartingTournaments(now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const stuck = await prisma.tournament.findMany({
+      where: {
+        status: "STARTING",
+        startTime: { lte: now },
+        roomId: null,
+      },
+      take: 10,
+    });
+
+    for (const row of stuck) {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: row.id },
+        include: {
+          registrations: {
+            include: { user: { select: { displayName: true } } },
+          },
+        },
+      });
+      if (!tournament || tournament.registrations.length < 2) continue;
+      try {
+        await this.startTournamentWithTable(tournament);
+        logger.info({ tournamentId: tournament.id }, "TOURNAMENT_STARTING_RESUMED");
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: tournament.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_STARTING_RESUME_FAILED",
         );
       }
     }

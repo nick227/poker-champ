@@ -58,6 +58,7 @@ export type TablePageController = {
     rejoinErrorMessage?: string | null;
     /** Current animation request; overlay consumes and clears via onComplete. */
     animationRequest: TableAnimationRequest | null;
+    tournamentStandingsVisible: boolean;
     /**
      * Measured bounds for BOARD/SEAT/HERO/CARD anchors; overlay uses for positioned FX.
      * Must be in overlay coordinate space (e.g. measureLayout(overlayRef), not raw measureInWindow).
@@ -106,6 +107,8 @@ export type TablePageController = {
     reportSeatBounds: (seatIndex: number, rect: Rect) => void;
     /** Report community card slot rect (0..4). Enables CARD-anchored FX. Use overlay coordinate space. */
     reportCardSlotBounds: (index: number, rect: Rect) => void;
+    openTournamentStandings: () => void;
+    closeTournamentStandings: () => void;
   };
 };
 

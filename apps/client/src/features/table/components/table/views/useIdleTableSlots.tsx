@@ -55,6 +55,7 @@ export function useIdleTableSlots(
     opponents: renderModel.opponents as Opponent[],
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
+    onViewTournamentStandings: actions.openTournamentStandings,
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",

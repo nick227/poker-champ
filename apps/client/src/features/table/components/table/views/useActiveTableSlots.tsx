@@ -73,6 +73,7 @@ export function useActiveTableSlots(
     onBoardBounds: actions.reportBoardBounds,
     onCardSlotBounds: actions.reportCardSlotBounds,
     onSeatBounds: actions.reportSeatBounds,
+    onViewTournamentStandings: actions.openTournamentStandings,
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",

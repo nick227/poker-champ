@@ -13,11 +13,13 @@ import type { TournamentSummary } from "@/services/tournaments.types";
 type TournamentCardProps = {
   tournament: TournamentSummary;
   authenticated: boolean;
+  actionInFlight?: boolean;
   onAction: (tournament: TournamentSummary) => void;
 };
 
-export function TournamentCard({ tournament, authenticated, onAction }: TournamentCardProps) {
+export function TournamentCard({ tournament, authenticated, actionInFlight, onAction }: TournamentCardProps) {
   const cta = resolveTournamentCta(tournament, { authenticated });
+  const disabled = cta.disabled || actionInFlight;
 
   return (
     <Surface styleId="surface.list.panel">
@@ -42,10 +44,10 @@ export function TournamentCard({ tournament, authenticated, onAction }: Tourname
           </Text>
         </View>
         <Button
-          title={cta.label}
+          title={actionInFlight ? "Please wait…" : cta.label}
           intent={cta.action === "unregister" ? "neutral" : "primary"}
           size="sm"
-          disabled={cta.disabled}
+          disabled={disabled}
           onPress={() => onAction(tournament)}
         />
       </View>

@@ -10,6 +10,7 @@ type TournamentsSectionProps = {
   busy: boolean;
   error: string | null;
   authenticated: boolean;
+  actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
 };
 
@@ -17,11 +18,13 @@ function SectionBlock({
   title,
   items,
   authenticated,
+  actionInFlight,
   onTournamentAction,
 }: {
   title: string;
   items: TournamentSummary[];
   authenticated: boolean;
+  actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
 }) {
   if (items.length === 0) return null;
@@ -35,6 +38,7 @@ function SectionBlock({
           key={t.id}
           tournament={t}
           authenticated={authenticated}
+          actionInFlight={actionInFlight}
           onAction={onTournamentAction}
         />
       ))}
@@ -47,6 +51,7 @@ export function TournamentsSection({
   busy,
   error,
   authenticated,
+  actionInFlight,
   onTournamentAction,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(tournaments);
@@ -74,18 +79,21 @@ export function TournamentsSection({
         title="Upcoming"
         items={groups.upcoming}
         authenticated={authenticated}
+        actionInFlight={actionInFlight}
         onTournamentAction={onTournamentAction}
       />
       <SectionBlock
         title="Running"
         items={groups.running}
         authenticated={authenticated}
+        actionInFlight={actionInFlight}
         onTournamentAction={onTournamentAction}
       />
       <SectionBlock
         title="Recent"
         items={groups.recent}
         authenticated={authenticated}
+        actionInFlight={actionInFlight}
         onTournamentAction={onTournamentAction}
       />
     </View>

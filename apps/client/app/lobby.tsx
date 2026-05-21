@@ -90,6 +90,7 @@ export default function LobbyScreen() {
   const [registerModalTournament, setRegisterModalTournament] = useState<TournamentSummary | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
   const [standingsModal, setStandingsModal] = useState<{ id: string; name: string } | null>(null);
+  const [tournamentActionBusy, setTournamentActionBusy] = useState(false);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
   const {
     latestHandId,
@@ -215,6 +216,7 @@ export default function LobbyScreen() {
 
   const handleTournamentAction = useCallback(
     (tournament: TournamentSummary) => {
+      if (tournamentActionBusy) return;
       const cta = resolveTournamentCta(tournament, { authenticated: Boolean(authToken) });
 
       if (cta.action === "none" || cta.disabled) return;
@@ -230,6 +232,7 @@ export default function LobbyScreen() {
       }
 
       if (cta.action === "unregister") {
+        setTournamentActionBusy(true);
         void postTournamentUnregister(tournament.id)
           .then(() => {
             useToastStore.getState().show("Unregistered from tournament", "success");
@@ -239,7 +242,8 @@ export default function LobbyScreen() {
           .catch((e: unknown) => {
             const message = e instanceof Error ? e.message : "Unregister failed";
             useToastStore.getState().show(mapTournamentErrorMessage(message), "danger");
-          });
+          })
+          .finally(() => setTournamentActionBusy(false));
         return;
       }
 
@@ -253,7 +257,7 @@ export default function LobbyScreen() {
         setStandingsModal({ id: tournament.id, name: tournament.name });
       }
     },
-    [authToken, openTable, refreshBankroll, refreshTournaments, router],
+    [authToken, openTable, refreshBankroll, refreshTournaments, router, tournamentActionBusy],
   );
 
   const handleConfirmTournamentRegister = useCallback(async () => {
@@ -321,6 +325,7 @@ export default function LobbyScreen() {
           busy={tournamentsBusy}
           error={tournamentsError}
           authenticated={Boolean(authToken)}
+          actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
         />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">

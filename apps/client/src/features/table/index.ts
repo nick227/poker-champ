@@ -1,5 +1,6 @@
 export { TableTopNavMenu } from "./components/table/TableTopNavMenu";
 export { TournamentTableBanner } from "./components/table/TournamentTableBanner";
+export { TournamentResultBanner } from "./components/table/TournamentResultBanner";
 export { PlayerHistoryPopup } from "./components/table/PlayerHistoryPopup";
 export { ActiveTablesDropdown } from "./components/table/ActiveTablesDropdown";
 export { BotPickerSheet } from "./components/table/BotPickerSheet";
