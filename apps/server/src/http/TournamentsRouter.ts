@@ -36,6 +36,9 @@ const CreateTournamentSchema = z.object({
   lateRegMinutes: z.number().int().min(0).max(120).optional(),
   fillBotsAtStart: z.boolean().default(false),
   fillBotCount: z.number().int().min(1).max(8).optional(),
+  playFormat: z.enum(["FREEZEOUT", "REBUY"]).default("FREEZEOUT"),
+  maxRebuysPerPlayer: z.number().int().min(0).max(10).default(0),
+  rebuyPeriodMinutes: z.number().int().min(0).max(120).default(0),
 });
 
 const tournamentInclude = {
@@ -164,6 +167,11 @@ router.post("/", requireAuth, async (req, res) => {
       lateRegMinutes:
         parsed.data.lateRegMinutes ??
         defaultLateRegMinutesForStructure(parsed.data.blindStructureId),
+      playFormat: parsed.data.playFormat,
+      maxRebuysPerPlayer:
+        parsed.data.playFormat === "REBUY" ? parsed.data.maxRebuysPerPlayer : 0,
+      rebuyPeriodMinutes:
+        parsed.data.playFormat === "REBUY" ? parsed.data.rebuyPeriodMinutes : 0,
       fillBotsAtStart: parsed.data.fillBotsAtStart,
       fillBotCount: parsed.data.fillBotCount ?? null,
       status: "REGISTERING",

@@ -297,6 +297,8 @@ export function mapTournamentErrorMessage(code: string): string {
       return "Cannot delete a tournament after players have registered.";
     case "TOURNAMENT_JOIN_CLOSED":
       return "This tournament is not open for table joins.";
+    case "TOURNAMENT_REBUY_NOT_ALLOWED":
+      return "Rebuys are not allowed in this freezeout tournament.";
     case "TOURNAMENT_SPECTATOR_READONLY":
       return "Eliminated players can only watch this tournament table.";
     case "Invalid tournament payload":

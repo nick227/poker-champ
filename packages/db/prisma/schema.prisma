@@ -333,6 +333,10 @@ model Tournament {
   blindStructureId   String
   lateRegMinutes     Int @default(0)
 
+  playFormat         String @default("FREEZEOUT") // FREEZEOUT | REBUY
+  maxRebuysPerPlayer Int    @default(0)
+  rebuyPeriodMinutes Int    @default(0)
+
   fillBotsAtStart Boolean @default(false)
   fillBotCount    Int?
 

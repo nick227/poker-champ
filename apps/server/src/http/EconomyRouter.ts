@@ -6,6 +6,7 @@ import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { getPrisma } from "@poker-champ/db";
 import { CashierService, TABLE_NAME_REQUIRED } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
+import { TOURNAMENT_REBUY_NOT_ALLOWED } from "../tournaments/tournament.errors.js";
 
 const router = express.Router();
 
@@ -78,12 +79,24 @@ router.post("/buy-in", async (req, res) => {
   }
 
   try {
+    const prisma = getPrisma();
+    const activeTournament = await prisma.tournament.findFirst({
+      where: {
+        tableId: parsed.data.tableId,
+        status: { in: ["LATE_REG", "STARTING", "RUNNING"] },
+      },
+      select: { playFormat: true },
+    });
+    if (activeTournament && activeTournament.playFormat !== "REBUY") {
+      res.status(400).json({ error: TOURNAMENT_REBUY_NOT_ALLOWED });
+      return;
+    }
+
     const rooms = (await matchMaker.query({ name: "poker" })) as {
       roomId?: string;
       metadata?: { tableId?: string; name?: string; creatorId?: string };
     }[];
     const room = rooms.find((r) => (r.metadata?.tableId ?? r.roomId) === parsed.data.tableId);
-    const prisma = getPrisma();
     const tableRow = await prisma.pokerTable.findUnique({
       where: { id: parsed.data.tableId },
       select: { name: true, creatorId: true },

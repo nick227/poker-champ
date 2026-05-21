@@ -5,6 +5,7 @@ import { logger } from "../lib/logger.js";
 import { getBlindLevel } from "./blind-structure.js";
 import type { TournamentTableOverlay } from "./tournament-overlay.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
+import { resolveTournamentWinnerUserId } from "./tournament-finish-resolution.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -103,12 +104,21 @@ export class TournamentTableReconciler {
       }
     }
 
-    const refreshed = await prisma.tournament.findUnique({ where: { id: ctx.tournamentId } });
+    const refreshed = await prisma.tournament.findUnique({
+      where: { id: ctx.tournamentId },
+      include: { registrations: true },
+    });
     if (!refreshed || refreshed.status !== "RUNNING") return;
 
-    const survivors = countTournamentSurvivorsWithChips(ctx.state);
-    if (survivors.length === 1) {
-      const winnerId = survivors[0];
+    const winnerId = resolveTournamentWinnerUserId(
+      ctx.state,
+      refreshed.registrations.map((r) => ({
+        userId: r.userId,
+        isBot: r.isBot,
+        finishPlace: r.finishPlace,
+      })),
+    );
+    if (winnerId) {
       await prisma.tournamentRegistration.update({
         where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: winnerId } },
         data: { finishPlace: 1, eliminatedAt: null },
@@ -144,7 +154,7 @@ export class TournamentTableReconciler {
         nextLevelAtTs: null,
       });
 
-      logger.info({ tournamentId: ctx.tournamentId, winnerId }, "TOURNAMENT_FINISHED");
+      logger.info({ tournamentId: ctx.tournamentId, winnerId, reason: "human_field_closed" }, "TOURNAMENT_FINISHED");
       if (ctx.emitSnapshot) {
         await ctx.emitSnapshot();
       }

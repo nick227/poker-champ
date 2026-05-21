@@ -16,6 +16,8 @@ export function useRebuySheet(
 
   const canRebuy = useMemo(() => {
     if (!snapshot) return false;
+    if (snapshot.table?.tournament) return false;
+    if (snapshot.hero.tournamentViewer?.isEliminated) return false;
 
     // Must currently be seated to safely reason about stack/status.
     if (!snapshot.hero.youAreSeated) return false;

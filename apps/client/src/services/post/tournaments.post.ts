@@ -12,6 +12,9 @@ export type CreateTournamentInput = {
   lateRegMinutes?: number;
   fillBotsAtStart?: boolean;
   fillBotCount?: number;
+  playFormat?: "FREEZEOUT" | "REBUY";
+  maxRebuysPerPlayer?: number;
+  rebuyPeriodMinutes?: number;
 };
 
 export async function postTournamentCreate(input: CreateTournamentInput): Promise<TournamentSummary> {

@@ -92,6 +92,9 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
       startingStackCents,
       blindStructureId: ADMIN_BLIND_STRUCTURE_ID,
       lateRegMinutes: defaultLateRegMinutesForStructure(ADMIN_BLIND_STRUCTURE_ID),
+      playFormat: "FREEZEOUT",
+      maxRebuysPerPlayer: 0,
+      rebuyPeriodMinutes: 0,
       fillBotsAtStart,
       ...(parsedFillBotCount != null ? { fillBotCount: parsedFillBotCount } : {}),
     });
@@ -119,6 +122,7 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
   return (
     <View className="ui-stack-3">
       <Text variant="muted">Start date and time use your device local timezone.</Text>
+      <Text variant="muted">Freezeout: one entry, no rebuys. Winner is the last human remaining.</Text>
       {showBotPreset ? (
         <View className="rounded-lg border border-border-subtle bg-panel-elevated px-3 py-2 ui-stack-2">
           <Text variant="label">Bot-filled demo preset</Text>
