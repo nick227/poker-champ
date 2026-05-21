@@ -96,6 +96,8 @@ export function AdminTournamentsPanel() {
   const [startTime, setStartTime] = useState(defaultStart.time);
   const [maxPlayers, setMaxPlayers] = useState("9");
   const [startingStack, setStartingStack] = useState(String(DEFAULT_ADMIN_STARTING_STACK_CENTS));
+  const [fillBotsAtStart, setFillBotsAtStart] = useState(false);
+  const [fillBotCount, setFillBotCount] = useState("");
 
   const loadTournaments = useCallback(async () => {
     setListLoading(true);
@@ -163,6 +165,13 @@ export function AdminTournamentsPanel() {
       showToast("Starting stack must be a positive number", "danger");
       return;
     }
+    const parsedFillBotCount = fillBotsAtStart
+      ? parsePositiveInt(fillBotCount.trim() || String(max - 1), 1, max - 1)
+      : null;
+    if (fillBotsAtStart && parsedFillBotCount == null) {
+      showToast("Bot count must be between 1 and max players minus one", "danger");
+      return;
+    }
 
     setCreateBusy(true);
     const res = await serviceRegistry.post.tournamentCreate({
@@ -173,6 +182,8 @@ export function AdminTournamentsPanel() {
       startingStackCents,
       blindStructureId: ADMIN_BLIND_STRUCTURE_ID,
       lateRegMinutes: 0,
+      fillBotsAtStart,
+      ...(parsedFillBotCount != null ? { fillBotCount: parsedFillBotCount } : {}),
     });
     if (!res.ok) {
       showToast(mapTournamentApiError(res.error.message || "Create failed", res.error.code), "danger");
@@ -191,6 +202,8 @@ export function AdminTournamentsPanel() {
     showToast,
     startDate,
     startTime,
+    fillBotCount,
+    fillBotsAtStart,
     startingStack,
   ]);
 
@@ -230,6 +243,22 @@ export function AdminTournamentsPanel() {
             <Text variant="muted">Blind structure</Text>
             <Text variant="body">{ADMIN_BLIND_STRUCTURE_ID}</Text>
           </View>
+          <Button
+            title={fillBotsAtStart ? "Fill open seats with bots at start: On" : "Fill open seats with bots at start: Off"}
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onPress={() => setFillBotsAtStart((value) => !value)}
+          />
+          {fillBotsAtStart ? (
+            <Input
+              label="Bot count (optional)"
+              value={fillBotCount}
+              onChangeText={setFillBotCount}
+              keyboardType="number-pad"
+              placeholder="Defaults to fill table"
+            />
+          ) : null}
           <Button title="Create tournament" loading={createBusy} className="w-full" onPress={() => { void handleCreate(); }} />
         </View>
       </Surface>

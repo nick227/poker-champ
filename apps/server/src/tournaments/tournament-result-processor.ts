@@ -13,7 +13,7 @@ export async function processTournamentFinishResults(tournamentId: string): Prom
       name: true,
       status: true,
       registrations: {
-        where: { finishPlace: { not: null } },
+        where: { finishPlace: { not: null }, isBot: false },
         select: { userId: true, finishPlace: true },
       },
     },

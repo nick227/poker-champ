@@ -3,7 +3,6 @@ import type { PokerState } from "../state/PokerState.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
 import { getBlindLevel } from "./blind-structure.js";
-import { computePayoutAmountsByPlace, tournamentPayoutExternalRef } from "./tournament-payouts.js";
 import type { TournamentTableOverlay } from "./tournament-overlay.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
 
@@ -63,7 +62,7 @@ export class TournamentTableReconciler {
     });
 
     for (const player of ctx.state.playersById.values()) {
-      if (player.kind !== "HUMAN" || player.stackCents > 0) continue;
+      if (player.stackCents > 0) continue;
 
       const registration = tournament.registrations.find((r) => r.userId === player.id);
       if (!registration || registration.finishPlace != null) continue;
@@ -118,13 +117,13 @@ export class TournamentTableReconciler {
         },
       });
 
-      const entrantCount = await prisma.tournamentRegistration.count({
-        where: { tournamentId: ctx.tournamentId },
+      const humanEntrantCount = await prisma.tournamentRegistration.count({
+        where: { tournamentId: ctx.tournamentId, isBot: false },
       });
 
       await CashierService.processTournamentPayouts({
         tournamentId: ctx.tournamentId,
-        entrantCount,
+        humanEntrantCount,
       });
 
       await processTournamentFinishResults(ctx.tournamentId);

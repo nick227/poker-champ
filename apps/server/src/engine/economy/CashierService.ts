@@ -1,7 +1,7 @@
 import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
 import {
-  computePayoutAmountsByPlace,
+  computeHumanPayoutAmountsByUserId,
   tournamentPayoutExternalRef,
 } from "../../tournaments/tournament-payouts.js";
 import {
@@ -251,6 +251,49 @@ export class CashierService {
   }
 
   /**
+   * Bot tournament registration — no bankroll debit, no prize pool increment.
+   */
+  static async processTournamentBotRegister(params: {
+    userId: string;
+    tournamentId: string;
+    externalRef: string;
+  }): Promise<{ success: boolean }> {
+    const prisma = getPrisma();
+    const { userId, tournamentId, externalRef } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingRef) return { success: true };
+
+      const existingReg = await tx.tournamentRegistration.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
+      });
+      if (existingReg) return { success: true };
+
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      if (tourney.status !== "STARTING") {
+        throw new Error(TOURNAMENT_CLOSED);
+      }
+
+      const regCount = await tx.tournamentRegistration.count({ where: { tournamentId } });
+      if (regCount >= tourney.maxPlayers) {
+        throw new Error(TOURNAMENT_FULL);
+      }
+
+      await tx.tournamentRegistration.create({
+        data: {
+          userId,
+          tournamentId,
+          isBot: true,
+          entryTxId: externalRef,
+        },
+      });
+
+      return { success: true };
+    });
+  }
+
+  /**
    * Grant tournament starting stack at the table without debiting bankroll (entry fee already paid).
    */
   static async grantTournamentStartingStack(params: {
@@ -339,26 +382,28 @@ export class CashierService {
         where: { tournamentId_userId: { tournamentId, userId } },
       });
 
-      await tx.user.update({
-        where: { id: userId },
-        data: { bankrollCents: { increment: entryFeeCents } },
-      });
+      if (!registration.isBot) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { bankrollCents: { increment: entryFeeCents } },
+        });
 
-      await tx.tournament.update({
-        where: { id: tournamentId },
-        data: { prizePoolCents: { decrement: entryFeeCents } },
-      });
+        await tx.tournament.update({
+          where: { id: tournamentId },
+          data: { prizePoolCents: { decrement: entryFeeCents } },
+        });
 
-      await tx.balanceTransaction.create({
-        data: {
-          id: nanoid(),
-          userId,
-          tournamentId,
-          type: "REFUND",
-          amountCents: entryFeeCents,
-          externalRef,
-        },
-      });
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId,
+            tournamentId,
+            type: "REFUND",
+            amountCents: entryFeeCents,
+            externalRef,
+          },
+        });
+      }
 
       return { success: true };
     });
@@ -405,13 +450,15 @@ export class CashierService {
         return { success: true, refundedCount: 0 };
       }
 
+      let refundedCount = 0;
       for (const reg of registrations) {
-        const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;
-
         await tx.tournamentRegistration.delete({
           where: { tournamentId_userId: { tournamentId, userId: reg.userId } },
         });
 
+        if (reg.isBot) continue;
+
+        const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;
         await tx.user.update({
           where: { id: reg.userId },
           data: { bankrollCents: { increment: tourney.entryFeeCents } },
@@ -427,6 +474,7 @@ export class CashierService {
             externalRef: refundRef,
           },
         });
+        refundedCount += 1;
       }
 
       await tx.tournament.update({
@@ -445,11 +493,11 @@ export class CashierService {
           type: "REFUND",
           amountCents: 0,
           externalRef,
-          metaJson: { kind: "TOURNAMENT_CANCEL", refundedCount: registrations.length },
+          metaJson: { kind: "TOURNAMENT_CANCEL", refundedCount },
         },
       });
 
-      return { success: true, refundedCount: registrations.length };
+      return { success: true, refundedCount };
     });
   }
 
@@ -494,14 +542,14 @@ export class CashierService {
   }
 
   /**
-   * Distribute prize pool to finishing places per MVP payout table.
+   * Distribute prize pool to eligible humans by human finish order (bots ineligible).
    */
   static async processTournamentPayouts(params: {
     tournamentId: string;
-    entrantCount: number;
+    humanEntrantCount: number;
   }): Promise<{ success: boolean; paidCount: number }> {
     const prisma = getPrisma();
-    const { tournamentId, entrantCount } = params;
+    const { tournamentId, humanEntrantCount } = params;
 
     return await prisma.$transaction(async (tx: any) => {
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
@@ -515,19 +563,28 @@ export class CashierService {
         prizePoolCents = paidSum._sum.amountCents ?? 0;
       }
 
-      const amountsByPlace = computePayoutAmountsByPlace(prizePoolCents, entrantCount);
-      const paidPlaces = [...amountsByPlace.entries()].filter(([, cents]) => cents > 0);
-
-      const registrations = await tx.tournamentRegistration.findMany({
-        where: { tournamentId, finishPlace: { not: null } },
+      const humanRegs = await tx.tournamentRegistration.findMany({
+        where: { tournamentId, isBot: false, finishPlace: { not: null } },
       });
+      const humanFinishers = humanRegs
+        .filter((r: { finishPlace: number | null }) => r.finishPlace != null)
+        .map((r: { userId: string; finishPlace: number | null }) => ({
+          userId: r.userId,
+          finishPlace: r.finishPlace as number,
+        }));
+
+      const payoutsByUser = computeHumanPayoutAmountsByUserId(
+        prizePoolCents,
+        humanEntrantCount,
+        humanFinishers,
+      );
 
       let paidCount = 0;
-      for (const [place, amountCents] of paidPlaces) {
-        const reg = registrations.find((r: { finishPlace: number | null }) => r.finishPlace === place);
-        if (!reg || amountCents <= 0) continue;
-
-        const externalRef = tournamentPayoutExternalRef(tournamentId, place, reg.userId);
+      let payoutOrdinal = 0;
+      for (const [userId, amountCents] of payoutsByUser.entries()) {
+        if (amountCents <= 0) continue;
+        payoutOrdinal += 1;
+        const externalRef = tournamentPayoutExternalRef(tournamentId, payoutOrdinal, userId);
         const existing = await tx.balanceTransaction.findUnique({ where: { externalRef } });
         if (existing) {
           paidCount += 1;
@@ -535,14 +592,14 @@ export class CashierService {
         }
 
         await tx.user.update({
-          where: { id: reg.userId },
+          where: { id: userId },
           data: { bankrollCents: { increment: amountCents } },
         });
 
         await tx.balanceTransaction.create({
           data: {
             id: nanoid(),
-            userId: reg.userId,
+            userId,
             tournamentId,
             type: "TOURNAMENT_PAYOUT",
             amountCents,

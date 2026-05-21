@@ -274,7 +274,7 @@ describe("Tournament M10 awards and stats", () => {
       ],
     });
 
-    await CashierService.processTournamentPayouts({ tournamentId: tournament.id, entrantCount: 2 });
+    await CashierService.processTournamentPayouts({ tournamentId: tournament.id, humanEntrantCount: 2 });
     await processTournamentFinishResults(tournament.id);
     await processTournamentFinishResults(tournament.id);
 

@@ -6,6 +6,7 @@ export type TournamentStandingRow = {
   finishPlace: number | null;
   eliminatedAt: string | null;
   payoutCents: number;
+  isBot: boolean;
 };
 
 export async function loadTournamentStandings(tournamentId: string): Promise<TournamentStandingRow[]> {
@@ -29,10 +30,11 @@ export async function loadTournamentStandings(tournamentId: string): Promise<Tou
   return registrations
     .map((reg) => ({
       userId: reg.userId,
-      displayName: reg.user.displayName,
+      displayName: reg.isBot ? `${reg.user.displayName} (Bot)` : reg.user.displayName,
       finishPlace: reg.finishPlace,
       eliminatedAt: reg.eliminatedAt?.toISOString() ?? null,
       payoutCents: payoutByUser.get(reg.userId) ?? 0,
+      isBot: reg.isBot,
     }))
     .sort((a, b) => {
       if (a.finishPlace == null && b.finishPlace == null) return 0;

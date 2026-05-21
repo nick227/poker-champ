@@ -1277,6 +1277,59 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return { ok: seated >= 2, seated };
   }
 
+  async seedTournamentBots(
+    seats: { userId: string; displayName: string; catalogBotId: string }[],
+    startingStackCents: number,
+    tournamentId: string,
+  ): Promise<{ ok: boolean; seated: number }> {
+    if (!this.tournamentId || this.tournamentId !== tournamentId) {
+      return { ok: false, seated: 0 };
+    }
+
+    let seated = 0;
+    this.dealer.suspendGameplayTransitions("TOURNAMENT_BOT_SEED");
+    try {
+      for (const seat of seats) {
+        if (this.dealer.hasPlayer(seat.userId)) {
+          seated += 1;
+          continue;
+        }
+        try {
+          await this.dealer.addTournamentBotPlayer(
+            seat.userId,
+            seat.displayName,
+            seat.catalogBotId,
+            startingStackCents,
+            tournamentId,
+            tournamentSeatGrantExternalRef(tournamentId, seat.userId),
+            { inertDuringSeed: true },
+          );
+          seated += 1;
+        } catch (err: unknown) {
+          logger.warn(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              tournamentId,
+              userId: seat.userId,
+              catalogBotId: seat.catalogBotId,
+              message: (err as Error | undefined)?.message ?? String(err),
+            },
+            "TOURNAMENT_SEED_BOT_FAILED",
+          );
+        }
+      }
+      if (seated > 0) {
+        this.updateMetadataCounts();
+        await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+      }
+    } finally {
+      this.dealer.resumeGameplayTransitions("TOURNAMENT_BOT_SEED");
+    }
+
+    return { ok: seated > 0, seated };
+  }
+
   /**
    * Called when the room is being disposed. Performs comprehensive cleanup:
    * - Stops disconnect sweep timers

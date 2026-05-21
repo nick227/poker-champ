@@ -25,3 +25,7 @@ export function tournamentCancelExternalRef(tournamentId: string): string {
 export function tournamentSeatGrantExternalRef(tournamentId: string, userId: string): string {
   return `tournament_seat_${tournamentId}_${userId}`;
 }
+
+export function tournamentBotEntryExternalRef(tournamentId: string, userId: string): string {
+  return `tournament_bot_entry_${tournamentId}_${userId}`;
+}

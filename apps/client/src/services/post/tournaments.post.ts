@@ -10,6 +10,8 @@ export type CreateTournamentInput = {
   startingStackCents?: number;
   blindStructureId?: "standard_8min";
   lateRegMinutes?: number;
+  fillBotsAtStart?: boolean;
+  fillBotCount?: number;
 };
 
 export async function postTournamentCreate(input: CreateTournamentInput): Promise<TournamentSummary> {

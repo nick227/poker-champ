@@ -28,6 +28,8 @@ const CreateTournamentSchema = z.object({
     message: "Invalid blindStructureId",
   }).default(DEFAULT_BLIND_STRUCTURE_ID),
   lateRegMinutes: z.number().int().min(0).max(120).default(0),
+  fillBotsAtStart: z.boolean().default(false),
+  fillBotCount: z.number().int().min(1).max(8).optional(),
 });
 
 const tournamentInclude = {
@@ -135,6 +137,8 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       startingStackCents: parsed.data.startingStackCents,
       blindStructureId: parsed.data.blindStructureId,
       lateRegMinutes: parsed.data.lateRegMinutes,
+      fillBotsAtStart: parsed.data.fillBotsAtStart,
+      fillBotCount: parsed.data.fillBotCount ?? null,
       status: "REGISTERING",
     },
     include: tournamentInclude,

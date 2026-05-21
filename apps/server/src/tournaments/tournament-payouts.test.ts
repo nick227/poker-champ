@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computePayoutAmountsByPlace, getPayoutSlots } from "./tournament-payouts.js";
+import {
+  computeHumanPayoutAmountsByUserId,
+  computePayoutAmountsByPlace,
+  getPayoutSlots,
+} from "./tournament-payouts.js";
 
 describe("tournament payouts", () => {
   it("uses winner-take-all for 2 players", () => {
@@ -21,5 +25,22 @@ describe("tournament payouts", () => {
     expect(amounts.get(2)).toBe(3000);
     expect(amounts.get(3)).toBe(2000);
     expect([...amounts.values()].reduce((s, v) => s + v, 0)).toBe(10_001);
+  });
+
+  it("pays humans by human finish order when bots place higher", () => {
+    const payouts = computeHumanPayoutAmountsByUserId(10_000, 3, [
+      { userId: "human_winner", finishPlace: 2 },
+      { userId: "human_second", finishPlace: 3 },
+    ]);
+    expect(payouts.get("human_winner")).toBe(7000);
+    expect(payouts.get("human_second")).toBe(3000);
+    expect(payouts.has("bot_winner")).toBe(false);
+  });
+
+  it("rolls full pool to sole human when only one human entered", () => {
+    const payouts = computeHumanPayoutAmountsByUserId(5000, 1, [
+      { userId: "human_only", finishPlace: 2 },
+    ]);
+    expect(payouts.get("human_only")).toBe(5000);
   });
 });

@@ -8,6 +8,8 @@ type SeedOptions = {
   maxPlayers: number;
   startingStackCents: number;
   startsInMinutes: number;
+  fillBotsAtStart: boolean;
+  fillBotCount: number | null;
 };
 
 function parseArg(argv: string[], flag: string): string | undefined {
@@ -22,6 +24,10 @@ function parseOptions(argv: string[]): SeedOptions {
   const startingStack = Number(parseArg(argv, "--starting-stack-cents") ?? "10000");
   const startsInMinutes = Number(parseArg(argv, "--starts-in-minutes") ?? "5");
   const name = parseArg(argv, "--name") ?? `QA Tournament ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
+  const fillBotsAtStart = argv.includes("--fill-bots");
+  const fillBotCountRaw = parseArg(argv, "--bot-count");
+  const fillBotCount =
+    fillBotCountRaw == null ? null : Number(fillBotCountRaw);
 
   if (!Number.isInteger(entryFee) || entryFee <= 0) {
     throw new Error("--entry-fee-cents must be a positive integer");
@@ -35,6 +41,9 @@ function parseOptions(argv: string[]): SeedOptions {
   if (!Number.isInteger(startsInMinutes) || startsInMinutes < 1 || startsInMinutes > 1440) {
     throw new Error("--starts-in-minutes must be between 1 and 1440");
   }
+  if (fillBotCount != null && (!Number.isInteger(fillBotCount) || fillBotCount < 1 || fillBotCount > 8)) {
+    throw new Error("--bot-count must be between 1 and 8");
+  }
 
   return {
     name,
@@ -42,6 +51,8 @@ function parseOptions(argv: string[]): SeedOptions {
     maxPlayers,
     startingStackCents: startingStack,
     startsInMinutes,
+    fillBotsAtStart,
+    fillBotCount,
   };
 }
 
@@ -61,6 +72,8 @@ async function main() {
       startingStackCents: opts.startingStackCents,
       blindStructureId: BLIND_STRUCTURE_ID,
       lateRegMinutes: 0,
+      fillBotsAtStart: opts.fillBotsAtStart,
+      fillBotCount: opts.fillBotCount,
     },
   });
 
@@ -75,6 +88,8 @@ async function main() {
     startTime: tournament.startTime.toISOString(),
     startsInMinutes: opts.startsInMinutes,
     blindStructureId: tournament.blindStructureId,
+    fillBotsAtStart: tournament.fillBotsAtStart,
+    fillBotCount: tournament.fillBotCount,
   });
 }
 

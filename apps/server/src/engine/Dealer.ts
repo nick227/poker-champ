@@ -765,6 +765,29 @@ export class Dealer {
     });
   }
 
+  async addTournamentBotPlayer(
+    userId: string,
+    name: string,
+    catalogBotId: string,
+    startingStackCents: number,
+    tournamentId: string,
+    externalRef: string,
+    options?: AddBotOptions,
+  ) {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = await this.playerLifecycleService.addTournamentBotPlayer(
+        userId,
+        name,
+        catalogBotId,
+        startingStackCents,
+        tournamentId,
+        externalRef,
+        options,
+      );
+      await this.applyExternalPlayerLifecyclePlans(plans, "ADD_TOURNAMENT_BOT_PLAYER");
+    });
+  }
+
   async restorePlayerFromSession(
     userId: string,
     name: string,

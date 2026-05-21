@@ -221,11 +221,11 @@ describe("Tournament M3 finish, blinds, payouts", () => {
 
     const first = await CashierService.processTournamentPayouts({
       tournamentId: tournament.id,
-      entrantCount: 2,
+      humanEntrantCount: 2,
     });
     const second = await CashierService.processTournamentPayouts({
       tournamentId: tournament.id,
-      entrantCount: 2,
+      humanEntrantCount: 2,
     });
 
     expect(first.paidCount).toBe(1);

@@ -48,3 +48,30 @@ export function tournamentPayoutExternalRef(
 ): string {
   return `tournament_payout_${tournamentId}_${finishPlace}_${userId}`;
 }
+
+/** Payout rule B: bots are ineligible; prizes roll to eligible humans by human finish order. */
+export function computeHumanPayoutAmountsByUserId(
+  prizePoolCents: number,
+  humanEntrantCount: number,
+  humanFinishers: { userId: string; finishPlace: number }[],
+): Map<string, number> {
+  if (humanEntrantCount <= 0 || prizePoolCents <= 0) return new Map();
+
+  const amountsByPlace = computePayoutAmountsByPlace(prizePoolCents, humanEntrantCount);
+  const paidPlaces = [...amountsByPlace.entries()]
+    .filter(([, cents]) => cents > 0)
+    .sort(([a], [b]) => a - b);
+
+  const sortedHumans = humanFinishers
+    .slice()
+    .sort((a, b) => a.finishPlace - b.finishPlace);
+
+  const payouts = new Map<string, number>();
+  for (let i = 0; i < paidPlaces.length && i < sortedHumans.length; i++) {
+    const [, amountCents] = paidPlaces[i]!;
+    const human = sortedHumans[i]!;
+    payouts.set(human.userId, amountCents);
+  }
+
+  return payouts;
+}

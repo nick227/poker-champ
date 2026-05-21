@@ -5,10 +5,12 @@ import { CashierService } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
 import { computeNextLevelAt, getBlindLevel, getBlindLevels } from "./blind-structure.js";
 import { tournamentCancelExternalRef } from "./tournament.constants.js";
+import { fillTournamentBotRegistrations } from "./tournament-bot-fill.js";
+import { parseTournamentBotCatalogId } from "./tournament-bot-users.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
 
 type TournamentWithRegistrations = Tournament & {
-  registrations: { userId: string; user: { displayName: string } }[];
+  registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
 };
 
 function resolveRoomId(created: unknown): string | undefined {
@@ -99,7 +101,7 @@ export class TournamentDirector {
     });
     if (claimed.count !== 1) return;
 
-    const tournament = await prisma.tournament.findUnique({
+    let tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
         registrations: {
@@ -108,6 +110,20 @@ export class TournamentDirector {
       },
     });
     if (!tournament) return;
+
+    if (tournament.fillBotsAtStart) {
+      await fillTournamentBotRegistrations(tournamentId);
+      tournament =
+        (await prisma.tournament.findUnique({
+          where: { id: tournamentId },
+          include: {
+            registrations: {
+              include: { user: { select: { displayName: true } } },
+            },
+          },
+        })) ?? null;
+      if (!tournament) return;
+    }
 
     const registeredCount = tournament.registrations.length;
     if (registeredCount < 2) {
@@ -130,7 +146,22 @@ export class TournamentDirector {
     await this.startTournamentWithTable(tournament);
   }
 
-  private async startTournamentWithTable(tournament: TournamentWithRegistrations): Promise<void> {
+  private async startTournamentWithTable(tournamentInput: TournamentWithRegistrations): Promise<void> {
+    const prisma = getPrisma();
+    let tournament = tournamentInput;
+    if (tournament.fillBotsAtStart) {
+      await fillTournamentBotRegistrations(tournament.id);
+      tournament =
+        (await prisma.tournament.findUnique({
+          where: { id: tournament.id },
+          include: {
+            registrations: {
+              include: { user: { select: { displayName: true } } },
+            },
+          },
+        })) ?? tournament;
+    }
+
     const level = getBlindLevel(tournament.blindStructureId, 1);
     const nextLevelAt = computeNextLevelAt(new Date(), level);
     const tableConfig = buildTournamentTableConfig({
@@ -148,17 +179,46 @@ export class TournamentDirector {
       throw new Error("TOURNAMENT_ROOM_CREATE_FAILED");
     }
 
-    const seats = tournament.registrations.map((reg) => ({
-      userId: reg.userId,
-      displayName: reg.user.displayName,
-    }));
+    const humanSeats = tournament.registrations
+      .filter((reg) => !reg.isBot)
+      .map((reg) => ({
+        userId: reg.userId,
+        displayName: reg.user.displayName,
+      }));
+    const botSeats = tournament.registrations
+      .filter((reg) => reg.isBot)
+      .map((reg) => {
+        const catalogBotId = parseTournamentBotCatalogId(reg.userId);
+        if (!catalogBotId) {
+          throw new Error(`TOURNAMENT_BOT_CATALOG_ID_MISSING:${reg.userId}`);
+        }
+        return {
+          userId: reg.userId,
+          displayName: reg.user.displayName,
+          catalogBotId,
+        };
+      });
 
-    const seedResult = (await matchMaker.remoteRoomCall(
+    const humanSeed = (await matchMaker.remoteRoomCall(
       roomId,
       "seedTournamentPlayers" as never,
-      [seats, tournament.startingStackCents, tournament.id],
+      [humanSeats, tournament.startingStackCents, tournament.id],
       30_000,
     )) as { ok?: boolean; seated?: number } | undefined;
+
+    let botSeated = 0;
+    if (botSeats.length > 0) {
+      const botSeed = (await matchMaker.remoteRoomCall(
+        roomId,
+        "seedTournamentBots" as never,
+        [botSeats, tournament.startingStackCents, tournament.id],
+        30_000,
+      )) as { ok?: boolean; seated?: number } | undefined;
+      botSeated = botSeed?.seated ?? 0;
+    }
+
+    const seated = (humanSeed?.seated ?? 0) + botSeated;
+    const seedResult = { ok: seated >= 2, seated };
 
     if (!seedResult?.ok) {
       logger.error(
@@ -173,7 +233,6 @@ export class TournamentDirector {
       return;
     }
 
-    const prisma = getPrisma();
     await prisma.tournament.update({
       where: { id: tournament.id },
       data: {

@@ -332,6 +332,9 @@ model Tournament {
   blindStructureId   String
   lateRegMinutes     Int @default(0)
 
+  fillBotsAtStart Boolean @default(false)
+  fillBotCount    Int?
+
   currentLevel Int       @default(1)
   nextLevelAt  DateTime?
 
@@ -382,6 +385,8 @@ model TournamentRegistration {
 
   finishPlace  Int?
   eliminatedAt DateTime?
+
+  isBot Boolean @default(false)
 
   @@unique([tournamentId, userId])
 }
