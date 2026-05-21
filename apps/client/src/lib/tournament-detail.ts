@@ -109,6 +109,15 @@ export function buildTournamentTimeline(status: string): TournamentTimelineStep[
     ];
   }
 
+  if (status === "ABANDONED") {
+    return [
+      { key: "reg", label: "Registration", state: "done" },
+      { key: "start", label: "Started", state: "done" },
+      { key: "run", label: "In progress", state: "done" },
+      { key: "abandon", label: "Abandoned", state: "cancelled" },
+    ];
+  }
+
   const idx = order.indexOf(status as (typeof order)[number]);
   return order.map((step, i) => {
     let state: TournamentTimelineStep["state"] = "upcoming";

@@ -24,17 +24,14 @@ export function pickBestHumanFinisher(registrations: TournamentRegistrationRow[]
   return ranked[0]?.userId ?? null;
 }
 
-/** When to close a freezeout: one human left with chips, or all humans busted. */
+/** When to close a freezeout: exactly one human still has chips. */
 export function resolveTournamentWinnerUserId(
   state: PokerState,
-  registrations: TournamentRegistrationRow[],
+  _registrations: TournamentRegistrationRow[],
 ): string | null {
   const humansWithChips = countHumanSurvivorsWithChips(state);
   if (humansWithChips.length === 1) {
     return humansWithChips[0]!;
-  }
-  if (humansWithChips.length === 0) {
-    return pickBestHumanFinisher(registrations);
   }
   return null;
 }

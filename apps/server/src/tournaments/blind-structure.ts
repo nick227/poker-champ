@@ -39,6 +39,11 @@ export function getBlindLevel(structureId: string, level: number): BlindLevel {
   return row;
 }
 
+export function getMaxBlindLevel(structureId: string): number {
+  const levels = getBlindLevels(structureId);
+  return levels[levels.length - 1].level;
+}
+
 export function computeNextLevelAt(from: Date, level: BlindLevel): Date {
   return new Date(from.getTime() + level.durationMinutes * 60 * 1000);
 }

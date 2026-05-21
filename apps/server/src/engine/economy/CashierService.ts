@@ -507,6 +507,80 @@ export class CashierService {
   }
 
   /**
+   * All humans eliminated — refund each human entry from prize pool; no payouts.
+   */
+  static async processTournamentAbandonRefunds(params: {
+    tournamentId: string;
+    externalRef: string;
+  }): Promise<{ success: boolean; refundedCount: number }> {
+    const prisma = getPrisma();
+    const { tournamentId, externalRef } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existing) return { success: true, refundedCount: 0 };
+
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      if (tourney.status !== "RUNNING") {
+        return { success: true, refundedCount: 0 };
+      }
+
+      const registrations = await tx.tournamentRegistration.findMany({
+        where: { tournamentId, isBot: false },
+      });
+
+      let refundedCount = 0;
+      for (const reg of registrations) {
+        const refundRef = `tournament_abandon_refund_${tournamentId}_${reg.userId}`;
+        const existingRefund = await tx.balanceTransaction.findUnique({ where: { externalRef: refundRef } });
+        if (existingRefund) {
+          refundedCount += 1;
+          continue;
+        }
+
+        await tx.user.update({
+          where: { id: reg.userId },
+          data: { bankrollCents: { increment: tourney.entryFeeCents } },
+        });
+
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId: reg.userId,
+            tournamentId,
+            type: "REFUND",
+            amountCents: tourney.entryFeeCents,
+            externalRef: refundRef,
+            metaJson: { kind: "TOURNAMENT_ABANDON" },
+          },
+        });
+        refundedCount += 1;
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: 0 },
+      });
+
+      if (registrations.length > 0) {
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId: registrations[0]!.userId,
+            tournamentId,
+            type: "REFUND",
+            amountCents: 0,
+            externalRef,
+            metaJson: { kind: "TOURNAMENT_ABANDON", refundedCount },
+          },
+        });
+      }
+
+      return { success: true, refundedCount };
+    });
+  }
+
+  /**
    * Zero tournament table chips after bust without crediting bankroll.
    */
   static async forfeitTournamentTableBalance(params: {

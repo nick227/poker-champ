@@ -265,6 +265,7 @@ describe("formatJoinedTournamentHint", () => {
   it("describes cancelled and finished joined tournaments", () => {
     expect(formatJoinedTournamentHint(baseTournament({ status: "CANCELLED" }))).toMatch(/Cancelled/i);
     expect(formatJoinedTournamentHint(baseTournament({ status: "FINISHED" }))).toMatch(/Finished/i);
+    expect(formatJoinedTournamentHint(baseTournament({ status: "ABANDONED" }))).toMatch(/Abandoned/i);
   });
 });
 

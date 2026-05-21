@@ -321,7 +321,7 @@ model Tournament {
   updatedAt DateTime @updatedAt
 
   name   String
-  status String @default("REGISTERING") // REGISTERING | LATE_REG | STARTING | RUNNING | FINISHED | CANCELLED
+  status String @default("REGISTERING") // REGISTERING | LATE_REG | STARTING | RUNNING | FINISHED | ABANDONED | CANCELLED
 
   entryFeeCents  Int
   prizePoolCents Int @default(0)

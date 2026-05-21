@@ -29,6 +29,8 @@ export function formatTournamentStatus(status: string): string {
       return "Finished";
     case "CANCELLED":
       return "Cancelled";
+    case "ABANDONED":
+      return "Abandoned";
     default:
       return status;
   }
@@ -120,6 +122,10 @@ export function resolveTournamentCta(
     return { label: "View Standings", action: "standings", disabled: false };
   }
 
+  if (tournament.status === "ABANDONED") {
+    return { label: "View Standings", action: "standings", disabled: false };
+  }
+
   if (isTournamentInJoinPhase(tournament, nowMs)) {
     return resolveTournamentJoinCta(tournament, authenticated, nowMs);
   }
@@ -150,6 +156,7 @@ const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "LATE_REG", "STARTING", "R
 const JOINED_VISIBLE_STATUSES = new Set([
   ...PUBLIC_LOBBY_STATUSES,
   "FINISHED",
+  "ABANDONED",
   "CANCELLED",
 ]);
 
@@ -170,7 +177,7 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
       const rank = (status: string) => {
         if (status === "RUNNING" || status === "STARTING" || status === "LATE_REG") return 0;
         if (status === "REGISTERING") return 1;
-        if (status === "FINISHED") return 2;
+        if (status === "FINISHED" || status === "ABANDONED") return 2;
         return 3;
       };
       const byPhase = rank(a.status) - rank(b.status);
@@ -238,6 +245,9 @@ export function formatJoinedTournamentHint(
   }
   if (tournament.status === "FINISHED") {
     return "Finished · view standings for results";
+  }
+  if (tournament.status === "ABANDONED") {
+    return "Abandoned · no winner · entry fee refunded";
   }
   return formatTournamentStatus(tournament.status);
 }

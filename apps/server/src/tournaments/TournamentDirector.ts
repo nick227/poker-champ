@@ -10,6 +10,7 @@ import { parseTournamentBotCatalogId } from "./tournament-bot-users.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-live.js";
+import { abandonTournamentAtMaxBlind } from "./tournament-abandon.js";
 import { isLateRegistrationClosed } from "./tournament-schedule.js";
 
 type TournamentWithRegistrations = Tournament & {
@@ -511,6 +512,8 @@ export class TournamentDirector {
       },
       "TOURNAMENT_BLIND_LEVEL_ADVANCED",
     );
+
+    await abandonTournamentAtMaxBlind(tournamentId, now);
   }
 }
 

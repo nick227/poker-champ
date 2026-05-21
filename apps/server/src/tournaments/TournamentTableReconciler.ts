@@ -6,6 +6,7 @@ import { getBlindLevel } from "./blind-structure.js";
 import type { TournamentTableOverlay } from "./tournament-overlay.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
 import { resolveTournamentWinnerUserId } from "./tournament-finish-resolution.js";
+import { isHumanFieldEliminated } from "./tournament-human-field.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -49,7 +50,7 @@ export class TournamentTableReconciler {
     });
 
     if (!tournament || tournament.status !== "RUNNING") {
-      if (tournament?.status === "FINISHED") {
+      if (tournament?.status === "FINISHED" || tournament?.status === "ABANDONED") {
         await processTournamentFinishResults(ctx.tournamentId);
         ctx.onPlayEnded();
       }
@@ -110,13 +111,24 @@ export class TournamentTableReconciler {
     });
     if (!refreshed || refreshed.status !== "RUNNING") return;
 
+    const registrationRows = refreshed.registrations.map((r) => ({
+      userId: r.userId,
+      isBot: r.isBot,
+      finishPlace: r.finishPlace,
+    }));
+
+    if (isHumanFieldEliminated(registrationRows, ctx.state)) {
+      ctx.onPlayEnded();
+      logger.info(
+        { tournamentId: ctx.tournamentId },
+        "TOURNAMENT_HUMAN_FIELD_ELIMINATED",
+      );
+      return;
+    }
+
     const winnerId = resolveTournamentWinnerUserId(
       ctx.state,
-      refreshed.registrations.map((r) => ({
-        userId: r.userId,
-        isBot: r.isBot,
-        finishPlace: r.finishPlace,
-      })),
+      registrationRows,
     );
     if (winnerId) {
       await prisma.tournamentRegistration.update({

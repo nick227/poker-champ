@@ -46,7 +46,7 @@ describe("tournament-finish-resolution", () => {
     expect(resolveTournamentWinnerUserId(state, [])).toBeNull();
   });
 
-  it("picks best human finisher when all humans busted", () => {
+  it("does not finish when all humans busted (abandon at max blind instead)", () => {
     const state = new PokerState();
     seat(state, 0, "bot_1", "BOT", 10_000);
 
@@ -55,6 +55,6 @@ describe("tournament-finish-resolution", () => {
         { userId: "human_1", isBot: false, finishPlace: 2 },
         { userId: "human_2", isBot: false, finishPlace: 1 },
       ]),
-    ).toBe("human_2");
+    ).toBeNull();
   });
 });

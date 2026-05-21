@@ -22,6 +22,14 @@ export function tournamentCancelExternalRef(tournamentId: string): string {
   return `tournament_cancel_${tournamentId}`;
 }
 
+export function tournamentAbandonExternalRef(tournamentId: string): string {
+  return `tournament_abandon_${tournamentId}`;
+}
+
+export function tournamentAbandonRefundExternalRef(tournamentId: string, userId: string): string {
+  return `tournament_abandon_refund_${tournamentId}_${userId}`;
+}
+
 export function tournamentSeatGrantExternalRef(tournamentId: string, userId: string): string {
   return `tournament_seat_${tournamentId}_${userId}`;
 }

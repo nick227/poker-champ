@@ -28,7 +28,11 @@ export function shouldShowTournamentResultOverlay(
   isEliminated: boolean | undefined,
   tournamentStatus: string,
 ): boolean {
-  return isEliminated === true || tournamentStatus === "FINISHED";
+  return (
+    isEliminated === true ||
+    tournamentStatus === "FINISHED" ||
+    tournamentStatus === "ABANDONED"
+  );
 }
 
 export function buildTournamentResultRevealKey(

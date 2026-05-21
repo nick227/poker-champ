@@ -19,7 +19,7 @@ export async function processTournamentFinishResults(tournamentId: string): Prom
     },
   });
 
-  if (!tournament || tournament.status !== "FINISHED") return;
+  if (!tournament || (tournament.status !== "FINISHED" && tournament.status !== "ABANDONED")) return;
   if (tournament.registrations.length === 0) return;
 
   const payoutTxs = await prisma.balanceTransaction.findMany({
