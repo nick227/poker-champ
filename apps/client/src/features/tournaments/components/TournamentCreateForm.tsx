@@ -6,11 +6,15 @@ import { Text } from "@/components/base/Text";
 import {
   ADMIN_BLIND_STRUCTURE_ID,
   DEFAULT_ADMIN_STARTING_STACK_CENTS,
-  buildTournamentStartIso,
-  defaultAdminTournamentStartParts,
   parseDollarsToCents,
   parsePositiveInt,
 } from "@/lib/admin-tournament-form";
+import {
+  buildTournamentStartIsoFromSchedule,
+  defaultTournamentStartSchedule,
+  type TournamentStartSchedule,
+} from "@/lib/tournament-start-schedule";
+import { TournamentStartScheduleFields } from "./TournamentStartScheduleFields";
 import { BOT_DEMO_HELPER_COPY, BOT_DEMO_PRESET } from "@/lib/tournament-bot-fill";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
 import { serviceRegistry } from "@/registry/service.registry";
@@ -23,26 +27,23 @@ type TournamentCreateFormProps = {
 
 export function TournamentCreateForm({ showBotPreset = true, onCreated }: TournamentCreateFormProps) {
   const showToast = useToastStore((s) => s.show);
-  const defaultStart = useMemo(() => defaultAdminTournamentStartParts(), []);
+  const defaultStart = useMemo(() => defaultTournamentStartSchedule(), []);
 
   const [createBusy, setCreateBusy] = useState(false);
   const [name, setName] = useState("");
   const [entryFeeDollars, setEntryFeeDollars] = useState("10");
-  const [startDate, setStartDate] = useState(defaultStart.date);
-  const [startTime, setStartTime] = useState(defaultStart.time);
+  const [startSchedule, setStartSchedule] = useState<TournamentStartSchedule>(defaultStart);
   const [maxPlayers, setMaxPlayers] = useState("9");
   const [startingStack, setStartingStack] = useState(String(DEFAULT_ADMIN_STARTING_STACK_CENTS));
   const [fillBotsAtStart, setFillBotsAtStart] = useState(false);
   const [fillBotCount, setFillBotCount] = useState("");
 
   const applyBotDemoPreset = useCallback(() => {
-    const parts = defaultAdminTournamentStartParts(new Date(), BOT_DEMO_PRESET.startsInMinutes);
+    setStartSchedule(defaultTournamentStartSchedule(new Date(), BOT_DEMO_PRESET.startsInMinutes));
     setName(BOT_DEMO_PRESET.name);
     setEntryFeeDollars(BOT_DEMO_PRESET.entryFeeDollars);
     setMaxPlayers(BOT_DEMO_PRESET.maxPlayers);
     setStartingStack(BOT_DEMO_PRESET.startingStack);
-    setStartDate(parts.date);
-    setStartTime(parts.time);
     setFillBotsAtStart(true);
     setFillBotCount(BOT_DEMO_PRESET.fillBotCount);
   }, []);
@@ -58,9 +59,9 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
       showToast("Enter a valid entry fee in dollars", "danger");
       return;
     }
-    const startIso = buildTournamentStartIso(startDate, startTime);
+    const startIso = buildTournamentStartIsoFromSchedule(startSchedule);
     if (!startIso) {
-      showToast("Enter a valid start date (YYYY-MM-DD) and time (HH:mm)", "danger");
+      showToast("Choose a valid start date and time", "danger");
       return;
     }
     const max = parsePositiveInt(maxPlayers, 2, 9);
@@ -110,8 +111,7 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
     name,
     onCreated,
     showToast,
-    startDate,
-    startTime,
+    startSchedule,
     startingStack,
   ]);
 
@@ -139,10 +139,7 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
         keyboardType="decimal-pad"
         placeholder="10"
       />
-      <View className="ui-stack-3">
-        <Input label="Start date" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" />
-        <Input label="Start time (local)" value={startTime} onChangeText={setStartTime} placeholder="HH:mm" />
-      </View>
+      <TournamentStartScheduleFields value={startSchedule} onChange={setStartSchedule} />
       <View className="ui-stack-3">
         <Input
           label="Max players (2–9)"
