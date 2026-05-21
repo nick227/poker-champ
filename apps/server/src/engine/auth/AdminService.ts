@@ -5,6 +5,11 @@ import { UserRole } from "@prisma/client";
 import { matchMaker } from "@colyseus/core";
 import { sessionEvents } from "./SessionEvents.js";
 import { AuthService } from "./AuthService.js";
+import { TOURNAMENT_BOT_USER_ID_PREFIX } from "../../tournaments/tournament-bot-users.js";
+
+const excludeTournamentBotUsersWhere = {
+  NOT: { id: { startsWith: TOURNAMENT_BOT_USER_ID_PREFIX } },
+} as const;
 
 type AdminUserStats = {
   lastOnlineAt: Date | null;
@@ -58,13 +63,12 @@ export class AdminService {
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
+        where: excludeTournamentBotUsersWhere,
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
-         // Exclude sensitive fields if necessary, though passwordHash is safer to exclude in Controller layer
-         // But for simplicity sending full object for now
       }),
-      prisma.user.count()
+      prisma.user.count({ where: excludeTournamentBotUsersWhere }),
     ]);
 
     if (users.length === 0) {

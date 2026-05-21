@@ -760,6 +760,12 @@ export interface components {
             token: string;
             user: components["schemas"]["User"];
         };
+        UserTournamentStats: {
+            tournamentsPlayed: number;
+            tournamentWins: number;
+            tournamentCashes: number;
+            tournamentEarningsCents: number;
+        };
         TournamentSummary: {
             id: string;
             name: string;
@@ -1188,6 +1194,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         user: components["schemas"]["User"];
+                        tournamentStats: components["schemas"]["UserTournamentStats"];
                     };
                 };
             };

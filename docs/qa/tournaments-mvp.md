@@ -62,13 +62,16 @@ Manual release verification for scheduled single-table freezeout tournaments. Ru
 
 ## Automated regression (CI/local)
 
-```bash
-pnpm exec vitest run apps/server/src/tests/integration/tournaments-m1.integration.test.ts apps/server/src/tests/integration/tournaments-m2.integration.test.ts apps/server/src/tests/integration/tournaments-m3.integration.test.ts apps/server/src/tests/integration/tournaments-m5.integration.test.ts apps/server/src/tournaments/tournament-payouts.test.ts
-pnpm -C apps/client exec vitest run src/lib/tournament.utils.test.ts src/lib/admin-tournament-form.test.ts
-pnpm -C apps/server typecheck
-pnpm -C apps/client typecheck
+See **[tournaments-release.md](./tournaments-release.md)** for the full test command, SDK audit, and release gates.
+
+```powershell
+pnpm test:tournaments
 ```
+
+## Bot-filled demo (M11/M12)
+
+See **[tournaments-bot-demo.md](./tournaments-bot-demo.md)**.
 
 ## Out of scope (do not test for MVP)
 
-- Late registration, spectators, bots in tournaments, awards, leaderboards, reminders, multi-table / MTT balancing, custom blind structures
+- Late registration, public spectators, multi-table / MTT balancing, custom blind structures, cross-tournament leaderboards

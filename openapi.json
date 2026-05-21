@@ -176,6 +176,29 @@
           "user"
         ]
       },
+      "UserTournamentStats": {
+        "type": "object",
+        "properties": {
+          "tournamentsPlayed": {
+            "type": "integer"
+          },
+          "tournamentWins": {
+            "type": "integer"
+          },
+          "tournamentCashes": {
+            "type": "integer"
+          },
+          "tournamentEarningsCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tournamentsPlayed",
+          "tournamentWins",
+          "tournamentCashes",
+          "tournamentEarningsCents"
+        ]
+      },
       "TournamentSummary": {
         "type": "object",
         "properties": {
@@ -1098,10 +1121,14 @@
                   "properties": {
                     "user": {
                       "$ref": "#/components/schemas/User"
+                    },
+                    "tournamentStats": {
+                      "$ref": "#/components/schemas/UserTournamentStats"
                     }
                   },
                   "required": [
-                    "user"
+                    "user",
+                    "tournamentStats"
                   ]
                 }
               }

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPrisma } from "@poker-champ/db";
+import { isTournamentBotUserId } from "./tournament-bot-users.js";
 
 export type UserTournamentStatsSnapshot = {
   tournamentsPlayed: number;
@@ -16,6 +17,8 @@ const EMPTY_STATS: UserTournamentStatsSnapshot = {
 };
 
 export async function getUserTournamentStats(userId: string): Promise<UserTournamentStatsSnapshot> {
+  if (isTournamentBotUserId(userId)) return { ...EMPTY_STATS };
+
   const prisma = getPrisma();
   const row = await prisma.userTournamentStats.findUnique({ where: { userId } });
   if (!row) return { ...EMPTY_STATS };
@@ -33,6 +36,10 @@ export async function recordTournamentPlayerResult(params: {
   finishPlace: number;
   payoutCents: number;
 }): Promise<{ recorded: boolean; statsAfter: UserTournamentStatsSnapshot }> {
+  if (isTournamentBotUserId(params.userId)) {
+    return { recorded: false, statsAfter: { ...EMPTY_STATS } };
+  }
+
   const prisma = getPrisma();
   const winDelta = params.finishPlace === 1 ? 1 : 0;
   const cashDelta = params.payoutCents > 0 ? 1 : 0;

@@ -71,6 +71,21 @@ export const openApiSpec = {
         },
         required: ["token", "user"],
       },
+      UserTournamentStats: {
+        type: "object",
+        properties: {
+          tournamentsPlayed: { type: "integer" },
+          tournamentWins: { type: "integer" },
+          tournamentCashes: { type: "integer" },
+          tournamentEarningsCents: { type: "integer" },
+        },
+        required: [
+          "tournamentsPlayed",
+          "tournamentWins",
+          "tournamentCashes",
+          "tournamentEarningsCents",
+        ],
+      },
       TournamentSummary: {
         type: "object",
         properties: {
@@ -520,8 +535,11 @@ export const openApiSpec = {
               "application/json": {
                 schema: {
                   type: "object",
-                  properties: { user: { $ref: "#/components/schemas/User" } },
-                  required: ["user"],
+                  properties: {
+                    user: { $ref: "#/components/schemas/User" },
+                    tournamentStats: { $ref: "#/components/schemas/UserTournamentStats" },
+                  },
+                  required: ["user", "tournamentStats"],
                 },
               },
             },
