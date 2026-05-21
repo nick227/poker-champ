@@ -129,18 +129,33 @@ export type TournamentLobbySection = "upcoming" | "running";
 
 const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "STARTING", "RUNNING"]);
 
-const JOINED_ACTIVE_STATUSES = PUBLIC_LOBBY_STATUSES;
+/** Active + recent terminal states so joined rows do not vanish after cancel/finish. */
+const JOINED_VISIBLE_STATUSES = new Set([
+  ...PUBLIC_LOBBY_STATUSES,
+  "FINISHED",
+  "CANCELLED",
+]);
 
-export function isJoinedActiveTournament(tournament: TournamentSummary): boolean {
-  return Boolean(tournament.isRegistered) && JOINED_ACTIVE_STATUSES.has(tournament.status);
+export function isJoinedVisibleTournament(tournament: TournamentSummary): boolean {
+  return Boolean(tournament.isRegistered) && JOINED_VISIBLE_STATUSES.has(tournament.status);
 }
 
-/** Registered tournaments that are scheduled or live (excludes finished/cancelled). */
+/** @deprecated Alias for isJoinedVisibleTournament */
+export function isJoinedActiveTournament(tournament: TournamentSummary): boolean {
+  return isJoinedVisibleTournament(tournament);
+}
+
+/** Registered tournaments: scheduled, live, and recent cancelled/finished. */
 export function selectJoinedTournaments(tournaments: TournamentSummary[]): TournamentSummary[] {
   return tournaments
-    .filter(isJoinedActiveTournament)
+    .filter(isJoinedVisibleTournament)
     .sort((a, b) => {
-      const rank = (status: string) => (status === "RUNNING" || status === "STARTING" ? 0 : 1);
+      const rank = (status: string) => {
+        if (status === "RUNNING" || status === "STARTING") return 0;
+        if (status === "REGISTERING") return 1;
+        if (status === "FINISHED") return 2;
+        return 3;
+      };
       const byPhase = rank(a.status) - rank(b.status);
       if (byPhase !== 0) return byPhase;
       return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
@@ -191,6 +206,12 @@ export function formatJoinedTournamentHint(
   if (tournament.status === "RUNNING") {
     if (tournament.tableLive === false) return "Ended · table no longer active";
     return `Live · level ${tournament.currentLevel}`;
+  }
+  if (tournament.status === "CANCELLED") {
+    return "Cancelled · entry fee refunded";
+  }
+  if (tournament.status === "FINISHED") {
+    return "Finished · view standings for results";
   }
   return formatTournamentStatus(tournament.status);
 }

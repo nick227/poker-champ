@@ -34,7 +34,7 @@ export function JoinedTournamentsSection({
       <View className="ui-stack-1">
         <Text variant="h2">Your tournaments</Text>
         <Text variant="muted" className="text-sm">
-          Scheduled and live events you are registered for.
+          Scheduled, live, and your recent results — including cancelled events.
         </Text>
       </View>
       <View className="ui-stack-3">

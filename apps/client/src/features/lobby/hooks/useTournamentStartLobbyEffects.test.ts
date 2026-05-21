@@ -36,4 +36,10 @@ describe("tournamentNeedsFastLobbyRefresh", () => {
     const t = base({ startTime: new Date(now + 10 * 60_000).toISOString() });
     expect(tournamentNeedsFastLobbyRefresh(t, now)).toBe(false);
   });
+
+  it("is true while tournament is starting", () => {
+    const now = Date.now();
+    const t = base({ status: "STARTING", startTime: new Date(now - 1000).toISOString() });
+    expect(tournamentNeedsFastLobbyRefresh(t, now)).toBe(true);
+  });
 });

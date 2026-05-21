@@ -14,8 +14,14 @@ export function tournamentNeedsFastLobbyRefresh(
   if (!tournament.isRegistered) return false;
   const startTs = new Date(tournament.startTime).getTime();
   if (!Number.isFinite(startTs)) return false;
-  if (tournament.status === "REGISTERING" || tournament.status === "STARTING") {
+  if (tournament.status === "REGISTERING") {
     return startTs - nowMs <= NEAR_START_MS;
+  }
+  if (tournament.status === "STARTING") {
+    return true;
+  }
+  if (tournament.status === "RUNNING" && !tournament.tableLive) {
+    return startTs <= nowMs;
   }
   return false;
 }
@@ -24,21 +30,41 @@ type UseTournamentStartLobbyEffectsParams = {
   tournaments: TournamentSummary[];
   enabled: boolean;
   refreshTournaments: (opts?: { background?: boolean }) => Promise<void>;
+  onTournamentCancelled?: (tournament: TournamentSummary) => void;
 };
 
 export function useTournamentStartLobbyEffects({
   tournaments,
   enabled,
   refreshTournaments,
+  onTournamentCancelled,
 }: UseTournamentStartLobbyEffectsParams): void {
   const nowMs = useNowMs();
   const startSoundedRef = useRef(new Set<string>());
+  const prevStatusRef = useRef(new Map<string, string>());
 
   const joined = useMemo(() => selectJoinedTournaments(tournaments), [tournaments]);
   const fastRefresh = useMemo(
     () => joined.some((t) => tournamentNeedsFastLobbyRefresh(t, nowMs)),
     [joined, nowMs],
   );
+
+  useEffect(() => {
+    if (!enabled) return;
+    for (const t of tournaments) {
+      if (!t.isRegistered) continue;
+      const prev = prevStatusRef.current.get(t.id);
+      prevStatusRef.current.set(t.id, t.status);
+      if (
+        prev &&
+        (prev === "REGISTERING" || prev === "STARTING") &&
+        t.status === "CANCELLED"
+      ) {
+        onTournamentCancelled?.(t);
+        void refreshTournaments({ background: true });
+      }
+    }
+  }, [enabled, tournaments, refreshTournaments, onTournamentCancelled]);
 
   useEffect(() => {
     if (!enabled) return;

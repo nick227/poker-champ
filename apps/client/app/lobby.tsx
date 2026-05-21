@@ -131,10 +131,21 @@ export default function LobbyScreen() {
     return () => clearInterval(timer);
   }, [authHydrated, refresh, refreshTournaments]);
 
+  const handleTournamentAutoCancelled = useCallback(
+    (tournament: TournamentSummary) => {
+      showToast(
+        `${tournament.name} was cancelled (not enough players or table could not start). Entry refunded.`,
+        "danger",
+      );
+    },
+    [showToast],
+  );
+
   useTournamentStartLobbyEffects({
     tournaments: tournamentList,
     enabled: authHydrated,
     refreshTournaments,
+    onTournamentCancelled: handleTournamentAutoCancelled,
   });
 
   const sortedTables = useMemo(() => {

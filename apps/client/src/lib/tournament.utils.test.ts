@@ -215,14 +215,15 @@ describe("filterTournamentsForPublicLobby", () => {
 });
 
 describe("selectJoinedTournaments", () => {
-  it("includes registered scheduled and live only", () => {
+  it("includes registered scheduled, live, and terminal states", () => {
     const joined = selectJoinedTournaments([
       baseTournament({ id: "sched", isRegistered: true, status: "REGISTERING" }),
       baseTournament({ id: "live", isRegistered: true, status: "RUNNING", tableId: "t", roomId: "r" }),
       baseTournament({ id: "other", isRegistered: false, status: "REGISTERING" }),
       baseTournament({ id: "done", isRegistered: true, status: "FINISHED" }),
+      baseTournament({ id: "gone", isRegistered: true, status: "CANCELLED" }),
     ]);
-    expect(joined.map((t) => t.id)).toEqual(["live", "sched"]);
+    expect(joined.map((t) => t.id)).toEqual(["live", "sched", "done", "gone"]);
   });
 
   it("removes joined active rows from browse list", () => {
@@ -257,6 +258,11 @@ describe("formatJoinedTournamentHint", () => {
     expect(
       formatJoinedTournamentHint(baseTournament({ status: "REGISTERING", startTime: past }), now),
     ).toBe("Starting now · table opens shortly");
+  });
+
+  it("describes cancelled and finished joined tournaments", () => {
+    expect(formatJoinedTournamentHint(baseTournament({ status: "CANCELLED" }))).toMatch(/Cancelled/i);
+    expect(formatJoinedTournamentHint(baseTournament({ status: "FINISHED" }))).toMatch(/Finished/i);
   });
 });
 

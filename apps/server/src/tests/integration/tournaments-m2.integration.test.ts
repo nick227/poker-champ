@@ -125,6 +125,8 @@ describe("Tournament M2 director and table flow", () => {
     expect(updated?.status).toBe("CANCELLED");
     expect(updated?.prizePoolCents).toBe(0);
     expect(user?.bankrollCents).toBe(50_000);
+    const regCount = await prisma.tournamentRegistration.count({ where: { tournamentId: tournament.id } });
+    expect(regCount).toBe(1);
   });
 
   it("starts tournament with table link and equal stacks for two players", async () => {

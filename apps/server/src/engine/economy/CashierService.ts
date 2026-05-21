@@ -452,10 +452,6 @@ export class CashierService {
 
       let refundedCount = 0;
       for (const reg of registrations) {
-        await tx.tournamentRegistration.delete({
-          where: { tournamentId_userId: { tournamentId, userId: reg.userId } },
-        });
-
         if (reg.isBot) continue;
 
         const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;

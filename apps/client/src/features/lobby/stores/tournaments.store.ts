@@ -19,10 +19,14 @@ export const useTournamentsStore = create<TournamentsState>((set) => ({
     if (!background) set({ busy: true, error: null });
     try {
       const tournaments = await getTournaments();
-      set({ tournaments, busy: false });
+      set({ tournaments, busy: false, error: null });
     } catch (e: unknown) {
       const raw = e instanceof Error ? e.message : "Failed to load tournaments";
-      set({ tournaments: [], error: mapTournamentApiError(raw), busy: false });
+      set((state) => ({
+        tournaments: background ? state.tournaments : [],
+        error: mapTournamentApiError(raw),
+        busy: false,
+      }));
     }
   },
 }));
