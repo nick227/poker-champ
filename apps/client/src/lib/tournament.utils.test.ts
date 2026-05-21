@@ -124,10 +124,11 @@ describe("resolveTournamentCta", () => {
 });
 
 describe("formatTournamentStartLocal", () => {
-  it("includes local timezone in formatted start", () => {
+  it("includes am/pm and local timezone in formatted start", () => {
     const formatted = formatTournamentStartLocal("2026-06-15T18:30:00.000Z");
     expect(formatted).not.toBe("Invalid start time");
     expect(formatted.length).toBeGreaterThan(8);
+    expect(formatted).toMatch(/(AM|PM|am|pm)/);
   });
 
   it("returns fallback for invalid iso", () => {
