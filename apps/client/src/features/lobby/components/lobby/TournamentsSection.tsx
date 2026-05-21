@@ -12,6 +12,7 @@ type TournamentsSectionProps = {
   authenticated: boolean;
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
+  onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onRetry?: () => void;
 };
 
@@ -21,12 +22,14 @@ function SectionBlock({
   authenticated,
   actionInFlight,
   onTournamentAction,
+  onOpenTournamentDetail,
 }: {
   title: string;
   items: TournamentSummary[];
   authenticated: boolean;
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
+  onOpenTournamentDetail: (tournament: TournamentSummary) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -40,6 +43,7 @@ function SectionBlock({
           tournament={t}
           authenticated={authenticated}
           actionInFlight={actionInFlight}
+          onOpenDetail={onOpenTournamentDetail}
           onAction={onTournamentAction}
         />
       ))}
@@ -54,6 +58,7 @@ export function TournamentsSection({
   authenticated,
   actionInFlight,
   onTournamentAction,
+  onOpenTournamentDetail,
   onRetry,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(tournaments);
@@ -81,6 +86,7 @@ export function TournamentsSection({
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
+            onOpenTournamentDetail={onOpenTournamentDetail}
           />
           <SectionBlock
             title="Running"
@@ -88,6 +94,7 @@ export function TournamentsSection({
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
+            onOpenTournamentDetail={onOpenTournamentDetail}
           />
           <SectionBlock
             title="Recent"
@@ -95,6 +102,7 @@ export function TournamentsSection({
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
+            onOpenTournamentDetail={onOpenTournamentDetail}
           />
         </>
       ) : null}

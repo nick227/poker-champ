@@ -18,6 +18,10 @@ export function lobbyPath(): string {
   return screenRegistry.byKey.lobby.path;
 }
 
+export function tournamentPath(id: string): string {
+  return `/tournaments/${encodeURIComponent(id)}`;
+}
+
 function loginPath(): string {
   return screenRegistry.byKey.login.path;
 }

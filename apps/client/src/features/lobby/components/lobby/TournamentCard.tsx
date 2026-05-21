@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { Surface } from "@/components/containers/Surface";
@@ -14,37 +14,46 @@ type TournamentCardProps = {
   tournament: TournamentSummary;
   authenticated: boolean;
   actionInFlight?: boolean;
+  onOpenDetail: (tournament: TournamentSummary) => void;
   onAction: (tournament: TournamentSummary) => void;
 };
 
-export function TournamentCard({ tournament, authenticated, actionInFlight, onAction }: TournamentCardProps) {
+export function TournamentCard({
+  tournament,
+  authenticated,
+  actionInFlight,
+  onOpenDetail,
+  onAction,
+}: TournamentCardProps) {
   const cta = resolveTournamentCta(tournament, { authenticated });
   const disabled = cta.disabled || actionInFlight;
 
   return (
     <Surface styleId="surface.list.panel">
       <View className="ui-stack-3 p-4">
-        <View className="ui-stack-2">
-          <View className="ui-row flex-wrap items-start justify-between gap-2">
-            <View className="min-w-0 flex-1">
-              <Text variant="h2" numberOfLines={2}>
-                {tournament.name}
+        <Pressable onPress={() => onOpenDetail(tournament)} accessibilityRole="button">
+          <View className="ui-stack-2">
+            <View className="ui-row flex-wrap items-start justify-between gap-2">
+              <View className="min-w-0 flex-1">
+                <Text variant="h2" numberOfLines={2}>
+                  {tournament.name}
+                </Text>
+              </View>
+              <Text variant="label" className="text-brand shrink-0">
+                {formatTournamentStatus(tournament.status)}
               </Text>
             </View>
-            <Text variant="label" className="text-brand shrink-0">
-              {formatTournamentStatus(tournament.status)}
+            <Text variant="body" className="text-muted">
+              Starts {formatTournamentStartLocal(tournament.startTime)}
             </Text>
+            <View className="ui-row flex-wrap gap-x-3 gap-y-1">
+              <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
+              <Text variant="body">
+                {tournament.registeredCount}/{tournament.maxPlayers} registered
+              </Text>
+            </View>
           </View>
-          <Text variant="body" className="text-muted">
-            Starts {formatTournamentStartLocal(tournament.startTime)}
-          </Text>
-        </View>
-        <View className="ui-row flex-wrap gap-x-3 gap-y-1">
-          <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
-          <Text variant="body">
-            {tournament.registeredCount}/{tournament.maxPlayers} registered
-          </Text>
-        </View>
+        </Pressable>
         <Button
           title={actionInFlight ? "Please wait…" : cta.label}
           intent={cta.action === "unregister" ? "neutral" : "primary"}

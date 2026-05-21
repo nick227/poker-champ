@@ -1,0 +1,120 @@
+import { formatCents } from "@/lib/format";
+
+export type PayoutSlot = { place: number; percent: number };
+
+export type BlindLevelRow = {
+  level: number;
+  smallBlindCents: number;
+  bigBlindCents: number;
+  durationMinutes: number;
+};
+
+const STANDARD_8MIN_LEVELS: BlindLevelRow[] = [
+  { level: 1, smallBlindCents: 25, bigBlindCents: 50, durationMinutes: 8 },
+  { level: 2, smallBlindCents: 50, bigBlindCents: 100, durationMinutes: 8 },
+  { level: 3, smallBlindCents: 75, bigBlindCents: 150, durationMinutes: 8 },
+  { level: 4, smallBlindCents: 100, bigBlindCents: 200, durationMinutes: 8 },
+  { level: 5, smallBlindCents: 150, bigBlindCents: 300, durationMinutes: 8 },
+  { level: 6, smallBlindCents: 200, bigBlindCents: 400, durationMinutes: 8 },
+  { level: 7, smallBlindCents: 300, bigBlindCents: 600, durationMinutes: 8 },
+  { level: 8, smallBlindCents: 400, bigBlindCents: 800, durationMinutes: 8 },
+  { level: 9, smallBlindCents: 600, bigBlindCents: 1200, durationMinutes: 8 },
+  { level: 10, smallBlindCents: 800, bigBlindCents: 1600, durationMinutes: 8 },
+];
+
+/** Mirrors server `getPayoutSlots` for display only. */
+export function getTournamentPayoutSlots(entrantCount: number): PayoutSlot[] {
+  if (entrantCount <= 2) return [{ place: 1, percent: 100 }];
+  if (entrantCount === 3) {
+    return [
+      { place: 1, percent: 70 },
+      { place: 2, percent: 30 },
+    ];
+  }
+  return [
+    { place: 1, percent: 50 },
+    { place: 2, percent: 30 },
+    { place: 3, percent: 20 },
+  ];
+}
+
+export function formatPayoutPlace(place: number): string {
+  if (place === 1) return "1st";
+  if (place === 2) return "2nd";
+  if (place === 3) return "3rd";
+  return `${place}th`;
+}
+
+export function buildPayoutSummaryLines(prizePoolCents: number, entrantCount: number): string[] {
+  const count = Math.max(entrantCount, 2);
+  const slots = getTournamentPayoutSlots(count);
+  let distributed = 0;
+  const lines: string[] = [];
+
+  for (const slot of slots) {
+    const amount = Math.floor((prizePoolCents * slot.percent) / 100);
+    distributed += amount;
+    lines.push(`${formatPayoutPlace(slot.place)}: ${formatCents(amount)} (${slot.percent}%)`);
+  }
+
+  const remainder = prizePoolCents - distributed;
+  if (remainder > 0 && lines.length > 0) {
+    lines[0] = `${lines[0]} + ${formatCents(remainder)} to 1st`;
+  }
+
+  return lines;
+}
+
+export function getBlindLevelsForPreset(blindStructureId: string): BlindLevelRow[] {
+  if (blindStructureId === "standard_8min") return STANDARD_8MIN_LEVELS;
+  return [];
+}
+
+export function formatBlindLevelRow(row: BlindLevelRow): string {
+  return `Level ${row.level}: ${formatCents(row.smallBlindCents)} / ${formatCents(row.bigBlindCents)} · ${row.durationMinutes}m`;
+}
+
+export function buildBlindSummaryLines(blindStructureId: string, currentLevel: number): string[] {
+  const levels = getBlindLevelsForPreset(blindStructureId);
+  if (levels.length === 0) return ["Blind structure unavailable"];
+
+  const current = levels.find((l) => l.level === currentLevel) ?? levels[0];
+  const preview = levels.slice(0, 5).map(formatBlindLevelRow);
+  const lines = [`Current: ${formatBlindLevelRow(current)}`, ...preview];
+  if (levels.length > 5) {
+    lines.push(`… ${levels.length - 5} more levels (${blindStructureId})`);
+  }
+  return lines;
+}
+
+export type TournamentTimelineStep = {
+  key: string;
+  label: string;
+  state: "done" | "current" | "upcoming" | "cancelled";
+};
+
+export function buildTournamentTimeline(status: string): TournamentTimelineStep[] {
+  const order = ["REGISTERING", "STARTING", "RUNNING", "FINISHED"] as const;
+  const labels: Record<string, string> = {
+    REGISTERING: "Registration open",
+    STARTING: "Starting",
+    RUNNING: "In progress",
+    FINISHED: "Finished",
+  };
+
+  if (status === "CANCELLED") {
+    return [
+      { key: "reg", label: "Registration", state: "cancelled" },
+      { key: "cancel", label: "Cancelled", state: "cancelled" },
+    ];
+  }
+
+  const idx = order.indexOf(status as (typeof order)[number]);
+  return order.map((step, i) => {
+    let state: TournamentTimelineStep["state"] = "upcoming";
+    if (idx === -1) state = i === 0 ? "current" : "upcoming";
+    else if (i < idx) state = "done";
+    else if (i === idx) state = "current";
+    return { key: step, label: labels[step], state };
+  });
+}

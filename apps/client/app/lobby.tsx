@@ -38,8 +38,8 @@ import {
   getInstantGamePreset,
   type InstantGamePresetId,
 } from "@/features/lobby";
-import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
-import { mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
+import { confirmTournamentRegister, dispatchTournamentCta } from "@/lib/tournament.actions";
+import { tournamentPath } from "@/lib/nav";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 type SortKey = "name" | "players" | "blinds";
@@ -214,68 +214,54 @@ export default function LobbyScreen() {
     requestOnlinePlayers();
   }, [requestOnlinePlayers]);
 
+  const showToast = useToastStore((s) => s.show);
+
+  const handleOpenTournamentDetail = useCallback(
+    (tournament: TournamentSummary) => {
+      router.push(tournamentPath(tournament.id));
+    },
+    [router],
+  );
+
   const handleTournamentAction = useCallback(
     (tournament: TournamentSummary) => {
-      if (tournamentActionBusy) return;
-      const cta = resolveTournamentCta(tournament, { authenticated: Boolean(authToken) });
-
-      if (cta.action === "none" || cta.disabled) return;
-
-      if (!authToken && cta.action !== "standings") {
-        router.push(loginPathWithNext("/lobby"));
-        return;
-      }
-
-      if (cta.action === "register") {
-        setRegisterModalTournament(tournament);
-        return;
-      }
-
-      if (cta.action === "unregister") {
-        setTournamentActionBusy(true);
-        void postTournamentUnregister(tournament.id)
-          .then(() => {
-            useToastStore.getState().show("Unregistered from tournament", "success");
-            void refreshTournaments();
-            void refreshBankroll();
-          })
-          .catch((e: unknown) => {
-            const message = e instanceof Error ? e.message : "Unregister failed";
-            useToastStore.getState().show(mapTournamentApiError(message), "danger");
-          })
-          .finally(() => setTournamentActionBusy(false));
-        return;
-      }
-
-      if (cta.action === "join" && tournament.tableId) {
-        openTable(tournament.tableId);
-        router.push(tablePath(tournament.tableId));
-        return;
-      }
-
-      if (cta.action === "standings") {
-        setStandingsModal({ id: tournament.id, name: tournament.name });
-      }
+      dispatchTournamentCta(tournament, {
+        router,
+        authenticated: Boolean(authToken),
+        actionInFlight: tournamentActionBusy || registerBusy,
+        setActionInFlight: setTournamentActionBusy,
+        showToast,
+        onRequestRegister: setRegisterModalTournament,
+        onRequestStandings: (t) => setStandingsModal({ id: t.id, name: t.name }),
+        openTable,
+        refreshTournament: () => { void refreshTournaments(); },
+        refreshBankroll: () => { void refreshBankroll(); },
+        loginReturnPath: "/lobby",
+      });
     },
-    [authToken, openTable, refreshBankroll, refreshTournaments, router, tournamentActionBusy],
+    [
+      authToken,
+      openTable,
+      refreshBankroll,
+      refreshTournaments,
+      registerBusy,
+      router,
+      showToast,
+      tournamentActionBusy,
+    ],
   );
 
   const handleConfirmTournamentRegister = useCallback(async () => {
     if (!registerModalTournament) return;
     setRegisterBusy(true);
-    try {
-      await postTournamentRegister(registerModalTournament.id);
-      useToastStore.getState().show("Registered for tournament", "success");
-      setRegisterModalTournament(null);
-      void refreshTournaments();
-      void refreshBankroll();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Registration failed";
-      useToastStore.getState().show(mapTournamentApiError(message), "danger");
-    } finally {
-      setRegisterBusy(false);
-    }
-  }, [registerModalTournament, refreshBankroll, refreshTournaments]);
+    const ok = await confirmTournamentRegister(registerModalTournament.id, {
+      showToast,
+      refreshTournament: () => { void refreshTournaments(); },
+      refreshBankroll: () => { void refreshBankroll(); },
+    });
+    if (ok) setRegisterModalTournament(null);
+    setRegisterBusy(false);
+  }, [registerModalTournament, refreshBankroll, refreshTournaments, showToast]);
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
 
@@ -327,6 +313,7 @@ export default function LobbyScreen() {
           authenticated={Boolean(authToken)}
           actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
+          onOpenTournamentDetail={handleOpenTournamentDetail}
           onRetry={() => { void refreshTournaments(); }}
         />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
