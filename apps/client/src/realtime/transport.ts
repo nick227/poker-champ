@@ -1,6 +1,6 @@
 import { Client } from "@colyseus/sdk";
 import { lobby } from "@poker-champ/sdk";
-import { RECONNECT_DELAY_MS, MAX_RECONNECT_ATTEMPTS } from "@/constants";
+import { MAX_RECONNECT_ATTEMPTS, MAX_RECONNECT_ATTEMPTS_WITH_TOKEN, RECONNECT_DELAY_MS } from "@/constants";
 
 /** Close code when leaving a stale/superseded connection. Must match PokerRoom session-replaced code. */
 const LEAVE_CODE_STALE_OR_REPLACED = 4001;
@@ -72,6 +72,26 @@ export function captureReconnectionToken(room: {
     return `${roomId}:${sessionId}`;
   }
   return null;
+}
+
+export type ConnectFailureKind = "retryable" | "terminal";
+
+/** Classify Colyseus connect/reconnect errors so we do not spin on disposed or expired rooms. */
+export function classifyConnectFailure(message: string): ConnectFailureKind {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) return "retryable";
+  if (normalized.includes("room \"") && normalized.includes("\" not found")) return "terminal";
+  if (normalized.includes("has been disposed")) return "terminal";
+  if (normalized.includes("allowreconnection")) return "terminal";
+  if (normalized.includes("invalid or expired session")) return "terminal";
+  if (normalized.includes("invalid reconnection token")) return "terminal";
+  if (normalized.includes("missing_buy_in_cents")) return "terminal";
+  if (normalized.includes("insufficient_bankroll") || normalized.includes("insufficient bankroll")) {
+    return "terminal";
+  }
+  if (normalized.includes("bad_join_options")) return "terminal";
+  if (normalized.includes("authentication required")) return "terminal";
+  return "retryable";
 }
 
 function normalizeInbound(data: unknown): RealtimeInboundMessage | null {
@@ -226,19 +246,6 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     console.log("[COLYSEUS_RT]", ...args);
   };
 
-  const isRetryableJoinError = (message: string): boolean => {
-    if (!message || message.trim().length === 0) return true;
-    const normalized = message.toLowerCase();
-    if (normalized.includes("room \"") && normalized.includes("\" not found")) return false;
-    if (normalized.includes("missing_buy_in_cents")) return false;
-    if (normalized.includes("insufficient_bankroll")) return false;
-    if (normalized.includes("insufficient bankroll")) return false;
-    if (normalized.includes("bad_join_options")) return false;
-    if (normalized.includes("invalid or expired session")) return false;
-    if (normalized.includes("authentication required")) return false;
-    return true;
-  };
-
   const isRoomNotFoundError = (message: string): boolean => {
     const normalized = message.toLowerCase();
     return normalized.includes("room \"") && normalized.includes("\" not found");
@@ -250,19 +257,18 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       debugLog("RECONNECT_ABORTED_TERMINAL_JOIN_FAILURE", { roomId: activeRoomId, roomName: options.roomName });
       return;
     }
-    // Only enforce the attempt cap for fresh joins (no reconnection token).
-    // When a token is present the server holds the seat for the full reconnect window
-    // (20 min by default), so we should keep retrying until the token is cleared or
-    // the server rejects the session as conclusively invalid.
     const hasReconnectToken = Boolean(reconnectionToken);
-    if (!hasReconnectToken && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    const maxAttempts = hasReconnectToken ? MAX_RECONNECT_ATTEMPTS_WITH_TOKEN : MAX_RECONNECT_ATTEMPTS;
+    if (reconnectAttempts >= maxAttempts) {
       debugLog("RECONNECT_ABORTED_MAX_ATTEMPTS", {
         roomId: activeRoomId,
         roomName: options.roomName,
         reconnectAttempts,
+        hasReconnectToken,
       });
       shouldReconnect = false;
-      options.onError?.("Join failed repeatedly. Please retry manually.");
+      reconnectionToken = null;
+      options.onError?.("Could not restore this table session. Return to the lobby and join again.");
       return;
     }
 
@@ -445,17 +451,11 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         return;
       }
 
-      // Only clear the reconnection token when the session is conclusively invalid
-      // (expired/invalid session ID, or the room no longer exists on the server).
-      // For transient network failures (CORS, fetch error, timeout), preserve the
-      // token so the next retry uses client.reconnect() over WebSocket instead of
-      // falling back to joinById() which triggers an HTTP matchmaking request that
-      // will be CORS-blocked by the browser.
-      const isSessionConclusivelyInvalid =
-        isRoomNotFoundError(message) ||
-        message.toLowerCase().includes("invalid or expired session");
-      if (isSessionConclusivelyInvalid) {
+      const failureKind = classifyConnectFailure(message);
+      if (failureKind === "terminal") {
         reconnectionToken = null;
+        shouldReconnect = false;
+        terminalJoinFailure = true;
       }
 
       connected = false;
@@ -509,8 +509,12 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         }
       }
 
-      options.onError?.(message);
-      if (isRetryableJoinError(message) && !terminalJoinFailure) {
+      if (failureKind === "terminal") {
+        options.onError?.("This table session has ended. Return to the lobby and join again.");
+      } else {
+        options.onError?.(message);
+      }
+      if (failureKind === "retryable" && !terminalJoinFailure) {
         scheduleReconnect();
       }
     }
