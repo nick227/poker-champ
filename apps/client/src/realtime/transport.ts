@@ -55,6 +55,25 @@ async function resolveRoomIdByTableId(tableId: string): Promise<string | null> {
   return typeof roomId === "string" && roomId.length > 0 ? roomId : null;
 }
 
+/** Colyseus 0.17+ expects `client.reconnect("roomId:token")` from `room.reconnectionToken`. */
+export function captureReconnectionToken(room: {
+  roomId?: string;
+  sessionId?: string;
+  reconnectionToken?: string;
+}): string | null {
+  const roomId = room.roomId;
+  if (!roomId) return null;
+  const token = room.reconnectionToken;
+  if (typeof token === "string" && token.length > 0) {
+    return token.includes(":") ? token : `${roomId}:${token}`;
+  }
+  const sessionId = room.sessionId;
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    return `${roomId}:${sessionId}`;
+  }
+  return null;
+}
+
 function normalizeInbound(data: unknown): RealtimeInboundMessage | null {
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
@@ -190,9 +209,8 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
   let room: ColyseusRoom | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let activeRoomId = options.roomId;
-  /** When set, connect() uses client.reconnect() instead of joinById so the server's allowReconnection reservation is used. */
-  let reconnectionRoomId: string | null = null;
-  let reconnectionSessionId: string | null = null;
+  /** When set, connect() uses client.reconnect(reconnectionToken) for seat reservation. */
+  let reconnectionToken: string | null = null;
   let attemptedRoomIdRecovery = false;
   let attemptedRoomIdPreflightRecovery = false;
   let attemptedEmptyErrorRetry = false;
@@ -236,7 +254,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
     // When a token is present the server holds the seat for the full reconnect window
     // (20 min by default), so we should keep retrying until the token is cleared or
     // the server rejects the session as conclusively invalid.
-    const hasReconnectToken = Boolean(reconnectionRoomId && reconnectionSessionId);
+    const hasReconnectToken = Boolean(reconnectionToken);
     if (!hasReconnectToken && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       debugLog("RECONNECT_ABORTED_MAX_ATTEMPTS", {
         roomId: activeRoomId,
@@ -257,8 +275,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         durationMs: Date.now() - reconnectStartTs,
       });
       shouldReconnect = false;
-      reconnectionRoomId = null;
-      reconnectionSessionId = null;
+      reconnectionToken = null;
       reconnectStartTs = 0;
       options.onError?.("Session expired. Please rejoin the table.");
       return;
@@ -312,7 +329,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       }
 
       const client = new Client(url);
-      const useReconnect = Boolean(reconnectionRoomId && reconnectionSessionId);
+      const useReconnect = Boolean(reconnectionToken);
       debugLog("SOCKET_CONNECT_ATTEMPT", {
         url,
         roomId: activeRoomId,
@@ -321,10 +338,9 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         hasJoinOptions: Boolean(options.joinOptions),
         joinOptionKeys: options.joinOptions ? Object.keys(options.joinOptions) : [],
       });
-      if (useReconnect && reconnectionRoomId && reconnectionSessionId) {
-        room = await client.reconnect(reconnectionRoomId, reconnectionSessionId);
-        reconnectionRoomId = null;
-        reconnectionSessionId = null;
+      if (useReconnect && reconnectionToken) {
+        room = await client.reconnect(reconnectionToken);
+        reconnectionToken = null;
       } else {
         room = activeRoomId
           ? await client.joinById(activeRoomId, options.joinOptions ?? {})
@@ -347,9 +363,8 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       // Store reconnect token immediately on successful join so it's available
       // even if onLeave fires without a clean close code. This is the primary
       // reservation; onLeave also refreshes it as a belt-and-suspenders guard.
-      if (currentRoom?.roomId && currentRoom?.sessionId && shouldReconnect) {
-        reconnectionRoomId = currentRoom.roomId;
-        reconnectionSessionId = currentRoom.sessionId;
+      if (shouldReconnect) {
+        reconnectionToken = captureReconnectionToken(currentRoom ?? {});
       }
       if (useReconnect) {
         debugLog("RECONNECT_SUCCESS", { roomId: currentRoom?.roomId, sessionId: currentRoom?.sessionId });
@@ -399,30 +414,29 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         if (sessionReplacedByNewerConnection) {
           debugLog("LEAVE_SESSION_REPLACED", { roomId: roomIdForReconnect });
           // Clear token — this session is definitively over.
-          reconnectionRoomId = null;
-          reconnectionSessionId = null;
+          reconnectionToken = null;
           return;
         }
         // Consented leave (code 4000) = player intentionally left; clear token.
         const isConsented = code === 4000;
         if (isConsented) {
-          reconnectionRoomId = null;
-          reconnectionSessionId = null;
+          reconnectionToken = null;
           return;
         }
         if (shouldReconnect) {
-          // Refresh token from the leaving room (belt-and-suspenders; already set at connect time).
-          if (roomIdForReconnect && sessionIdForReconnect) {
-            reconnectionRoomId = roomIdForReconnect;
-            reconnectionSessionId = sessionIdForReconnect;
-          }
-          debugLog("RECONNECT_SCHEDULED", { roomId: reconnectionRoomId, sessionId: reconnectionSessionId, closeCode: code });
+          const refreshed = captureReconnectionToken({
+            roomId: roomIdForReconnect ?? undefined,
+            sessionId: sessionIdForReconnect ?? undefined,
+            reconnectionToken: currentRoom.reconnectionToken,
+          });
+          if (refreshed) reconnectionToken = refreshed;
+          debugLog("RECONNECT_SCHEDULED", { reconnectionToken, closeCode: code });
           scheduleReconnect();
         }
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unable to connect to Colyseus";
-      debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message, useReconnect: Boolean(reconnectionRoomId && reconnectionSessionId) });
+      debugLog("CONNECT_FAILED", { roomId: activeRoomId, roomName: options.roomName, message, useReconnect: Boolean(reconnectionToken) });
 
       // If this connect attempt is stale (disposed or superseded by a newer attempt),
       // do not emit DISCONNECTED, do not schedule reconnect, and do not mutate shared
@@ -441,8 +455,7 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
         isRoomNotFoundError(message) ||
         message.toLowerCase().includes("invalid or expired session");
       if (isSessionConclusivelyInvalid) {
-        reconnectionRoomId = null;
-        reconnectionSessionId = null;
+        reconnectionToken = null;
       }
 
       connected = false;
