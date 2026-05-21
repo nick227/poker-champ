@@ -24,20 +24,22 @@ export function TournamentCard({ tournament, authenticated, actionInFlight, onAc
   return (
     <Surface styleId="surface.list.panel">
       <View className="ui-stack-3 p-4">
-        <View className="ui-row items-start justify-between gap-2">
-          <View className="flex-1">
-            <Text variant="h2" numberOfLines={2}>
-              {tournament.name}
-            </Text>
-            <Text variant="body" className="text-muted">
-              {formatTournamentStartLocal(tournament.startTime)}
+        <View className="ui-stack-2">
+          <View className="ui-row flex-wrap items-start justify-between gap-2">
+            <View className="min-w-0 flex-1">
+              <Text variant="h2" numberOfLines={2}>
+                {tournament.name}
+              </Text>
+            </View>
+            <Text variant="label" className="text-brand shrink-0">
+              {formatTournamentStatus(tournament.status)}
             </Text>
           </View>
-          <Text variant="label" className="text-brand">
-            {formatTournamentStatus(tournament.status)}
+          <Text variant="body" className="text-muted">
+            Starts {formatTournamentStartLocal(tournament.startTime)}
           </Text>
         </View>
-        <View className="ui-row flex-wrap gap-3">
+        <View className="ui-row flex-wrap gap-x-3 gap-y-1">
           <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
           <Text variant="body">
             {tournament.registeredCount}/{tournament.maxPlayers} registered
@@ -47,6 +49,7 @@ export function TournamentCard({ tournament, authenticated, actionInFlight, onAc
           title={actionInFlight ? "Please wait…" : cta.label}
           intent={cta.action === "unregister" ? "neutral" : "primary"}
           size="sm"
+          className="w-full"
           disabled={disabled}
           onPress={() => onAction(tournament)}
         />

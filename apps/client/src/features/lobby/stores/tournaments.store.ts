@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { mapTournamentApiError } from "@/lib/tournament.utils";
 import { getTournaments } from "@/services/get/tournaments.get";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -20,8 +21,8 @@ export const useTournamentsStore = create<TournamentsState>((set) => ({
       const tournaments = await getTournaments();
       set({ tournaments, busy: false });
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to load tournaments";
-      set({ error: message, busy: false });
+      const raw = e instanceof Error ? e.message : "Failed to load tournaments";
+      set({ tournaments: [], error: mapTournamentApiError(raw), busy: false });
     }
   },
 }));

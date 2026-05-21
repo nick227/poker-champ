@@ -39,7 +39,7 @@ import {
   type InstantGamePresetId,
 } from "@/features/lobby";
 import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
-import { mapTournamentErrorMessage, resolveTournamentCta } from "@/lib/tournament.utils";
+import { mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 type SortKey = "name" | "players" | "blinds";
@@ -241,7 +241,7 @@ export default function LobbyScreen() {
           })
           .catch((e: unknown) => {
             const message = e instanceof Error ? e.message : "Unregister failed";
-            useToastStore.getState().show(mapTournamentErrorMessage(message), "danger");
+            useToastStore.getState().show(mapTournamentApiError(message), "danger");
           })
           .finally(() => setTournamentActionBusy(false));
         return;
@@ -271,7 +271,7 @@ export default function LobbyScreen() {
       void refreshBankroll();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Registration failed";
-      useToastStore.getState().show(mapTournamentErrorMessage(message), "danger");
+      useToastStore.getState().show(mapTournamentApiError(message), "danger");
     } finally {
       setRegisterBusy(false);
     }
@@ -327,6 +327,7 @@ export default function LobbyScreen() {
           authenticated={Boolean(authToken)}
           actionInFlight={tournamentActionBusy || registerBusy}
           onTournamentAction={handleTournamentAction}
+          onRetry={() => { void refreshTournaments(); }}
         />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
           <GameListHeader

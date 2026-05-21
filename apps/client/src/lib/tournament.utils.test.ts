@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { groupTournamentsForLobby, resolveTournamentCta } from "./tournament.utils";
+import {
+  formatTournamentStartLocal,
+  groupTournamentsForLobby,
+  mapTournamentApiError,
+  mapTournamentErrorMessage,
+  resolveTournamentCta,
+} from "./tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummary {
@@ -55,6 +61,32 @@ describe("resolveTournamentCta", () => {
   it("shows standings CTA when finished", () => {
     const cta = resolveTournamentCta(baseTournament({ status: "FINISHED" }));
     expect(cta.action).toBe("standings");
+  });
+});
+
+describe("formatTournamentStartLocal", () => {
+  it("includes local timezone in formatted start", () => {
+    const formatted = formatTournamentStartLocal("2026-06-15T18:30:00.000Z");
+    expect(formatted).not.toBe("Invalid start time");
+    expect(formatted.length).toBeGreaterThan(8);
+  });
+
+  it("returns fallback for invalid iso", () => {
+    expect(formatTournamentStartLocal("not-a-date")).toBe("Invalid start time");
+  });
+});
+
+describe("mapTournamentApiError", () => {
+  it("maps known API codes from message", () => {
+    expect(mapTournamentApiError("TOURNAMENT_FULL")).toBe("This tournament is full.");
+    expect(mapTournamentApiError("Registration failed", "INSUFFICIENT_BANKROLL")).toBe(
+      "Insufficient bankroll for this entry fee.",
+    );
+  });
+
+  it("maps cancel and closed errors", () => {
+    expect(mapTournamentErrorMessage("TOURNAMENT_NOT_CANCELLABLE")).toContain("registering");
+    expect(mapTournamentApiError("TOURNAMENT_CLOSED")).toContain("closed");
   });
 });
 

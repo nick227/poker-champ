@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Input } from "@/components/base/Input";
-import { Loader } from "@/components/base/Loader";
 import { Text } from "@/components/base/Text";
 import { Surface } from "@/components/containers/Surface";
 import {
@@ -14,7 +13,8 @@ import {
   parsePositiveInt,
 } from "@/lib/admin-tournament-form";
 import { formatCents } from "@/lib/format";
-import { formatTournamentStartLocal, formatTournamentStatus, mapTournamentErrorMessage } from "@/lib/tournament.utils";
+import { formatTournamentStartLocal, formatTournamentStatus, mapTournamentApiError } from "@/lib/tournament.utils";
+import { TournamentListFeedback } from "@/features/lobby/components/lobby/TournamentListFeedback";
 import { serviceRegistry } from "@/registry/service.registry";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { useToastStore } from "@/stores/toast.store";
@@ -33,16 +33,16 @@ function AdminTournamentRow({
   return (
     <Surface styleId="surface.list.panel">
       <View className="ui-stack-3 p-4">
-        <View className="ui-row items-start justify-between gap-2">
-          <View className="flex-1">
-            <Text variant="h2" numberOfLines={2}>
+        <View className="ui-stack-2">
+          <View className="ui-row flex-wrap items-start justify-between gap-2">
+            <Text variant="h2" numberOfLines={2} className="min-w-0 flex-1">
               {tournament.name}
             </Text>
-            <Text variant="muted">{formatTournamentStartLocal(tournament.startTime)}</Text>
+            <Text variant="label" className="text-brand shrink-0">
+              {formatTournamentStatus(tournament.status)}
+            </Text>
           </View>
-          <Text variant="label" className="text-brand">
-            {formatTournamentStatus(tournament.status)}
-          </Text>
+          <Text variant="muted">Starts {formatTournamentStartLocal(tournament.startTime)}</Text>
         </View>
         <View className="ui-row flex-wrap gap-3">
           <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
@@ -70,6 +70,7 @@ function AdminTournamentRow({
             title="Cancel tournament"
             intent="danger"
             size="sm"
+            className="w-full"
             loading={cancelBusy}
             onPress={() => onCancel(tournament.id)}
           />
@@ -101,7 +102,7 @@ export function AdminTournamentsPanel() {
     setListError(null);
     const res = await serviceRegistry.get.tournaments();
     if (!res.ok) {
-      setListError(res.error.message || "Failed to load tournaments.");
+      setListError(mapTournamentApiError(res.error.message || "Failed to load tournaments.", res.error.code));
       setList([]);
       setListLoading(false);
       return;
@@ -121,7 +122,7 @@ export function AdminTournamentsPanel() {
       setCancelKey(tournamentId);
       const res = await serviceRegistry.post.tournamentCancel(tournamentId);
       if (!res.ok) {
-        showToast(mapTournamentErrorMessage(res.error.message || "Cancel failed"), "danger");
+        showToast(mapTournamentApiError(res.error.message || "Cancel failed", res.error.code), "danger");
         setCancelKey(null);
         return;
       }
@@ -174,7 +175,7 @@ export function AdminTournamentsPanel() {
       lateRegMinutes: 0,
     });
     if (!res.ok) {
-      showToast(mapTournamentErrorMessage(res.error.message || "Create failed"), "danger");
+      showToast(mapTournamentApiError(res.error.message || "Create failed", res.error.code), "danger");
       setCreateBusy(false);
       return;
     }
@@ -198,6 +199,7 @@ export function AdminTournamentsPanel() {
       <Surface styleId="surface.list.panel">
         <View className="ui-stack-3 p-4">
           <Text variant="h2">Create tournament</Text>
+          <Text variant="muted">Start date and time use your device local timezone.</Text>
           <Input label="Name" value={name} onChangeText={setName} placeholder="Friday Night MTT" />
           <Input
             label="Entry fee (USD)"
@@ -206,50 +208,44 @@ export function AdminTournamentsPanel() {
             keyboardType="decimal-pad"
             placeholder="10"
           />
-          <View className="ui-row ui-inline-2">
-            <View className="flex-1">
-              <Input label="Start date" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" />
-            </View>
-            <View className="flex-1">
-              <Input label="Start time" value={startTime} onChangeText={setStartTime} placeholder="HH:mm" />
-            </View>
+          <View className="ui-stack-3">
+            <Input label="Start date" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" />
+            <Input label="Start time (local)" value={startTime} onChangeText={setStartTime} placeholder="HH:mm" />
           </View>
-          <View className="ui-row ui-inline-2">
-            <View className="flex-1">
-              <Input
-                label="Max players (2–9)"
-                value={maxPlayers}
-                onChangeText={setMaxPlayers}
-                keyboardType="number-pad"
-              />
-            </View>
-            <View className="flex-1">
-              <Input
-                label="Starting stack (chips)"
-                value={startingStack}
-                onChangeText={setStartingStack}
-                keyboardType="number-pad"
-              />
-            </View>
+          <View className="ui-stack-3">
+            <Input
+              label="Max players (2–9)"
+              value={maxPlayers}
+              onChangeText={setMaxPlayers}
+              keyboardType="number-pad"
+            />
+            <Input
+              label="Starting stack (chips)"
+              value={startingStack}
+              onChangeText={setStartingStack}
+              keyboardType="number-pad"
+            />
           </View>
           <View className="rounded-lg border border-border-subtle bg-panel-elevated px-3 py-2">
             <Text variant="muted">Blind structure</Text>
             <Text variant="body">{ADMIN_BLIND_STRUCTURE_ID}</Text>
           </View>
-          <Button title="Create tournament" loading={createBusy} onPress={() => { void handleCreate(); }} />
+          <Button title="Create tournament" loading={createBusy} className="w-full" onPress={() => { void handleCreate(); }} />
         </View>
       </Surface>
 
-      <View className="mt-4 ui-row items-center justify-between">
+      <View className="mt-4 ui-row flex-wrap items-center justify-between gap-2">
         <Text variant="h2">Tournaments</Text>
         <Button title="Refresh" variant="ghost" size="sm" onPress={() => { void loadTournaments(); }} />
       </View>
 
-      {listLoading ? <Loader /> : null}
-      {listError ? <Text variant="danger">{listError}</Text> : null}
-      {!listLoading && !listError && list.length === 0 ? (
-        <Text variant="muted">No tournaments yet.</Text>
-      ) : null}
+      <TournamentListFeedback
+        busy={listLoading}
+        error={listError}
+        isEmpty={list.length === 0}
+        emptyMessage="No tournaments yet. Create one above or run pnpm tournaments:seed:soon."
+        onRetry={() => { void loadTournaments(); }}
+      />
 
       {!listLoading && !listError ? (
         <ScrollView className="mt-2 flex-1" contentContainerStyle={{ gap: 12, paddingBottom: 24 }}>

@@ -2,12 +2,14 @@ import type { TournamentCta, TournamentSummary } from "@/services/tournaments.ty
 
 export function formatTournamentStartLocal(startTimeIso: string): string {
   const date = new Date(startTimeIso);
+  if (Number.isNaN(date.getTime())) return "Invalid start time";
   return date.toLocaleString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZoneName: "short",
   });
 }
 
@@ -138,7 +140,39 @@ export function mapTournamentErrorMessage(code: string): string {
       return "You are not registered for this tournament.";
     case "TOURNAMENT_NOT_CANCELLABLE":
       return "Only registering tournaments can be cancelled.";
+    case "TOURNAMENT_JOIN_CLOSED":
+      return "This tournament is not open for table joins.";
+    case "Invalid tournament payload":
+      return "Check tournament details and try again.";
+    case "Tournament not found":
+      return "This tournament no longer exists.";
+    case "Tournament registration failed":
+      return "Could not register for this tournament. Please try again.";
+    case "Tournament unregister failed":
+      return "Could not unregister. Please try again.";
+    case "Tournament cancel failed":
+      return "Could not cancel this tournament. Please try again.";
     default:
       return code;
   }
+}
+
+/** Map API error message and/or code to a player-friendly string. */
+export function mapTournamentApiError(message: string, code?: string): string {
+  const trimmed = message.trim();
+  if (code) {
+    const fromCode = mapTournamentErrorMessage(code);
+    if (fromCode !== code) return fromCode;
+  }
+  const fromMessage = mapTournamentErrorMessage(trimmed);
+  if (fromMessage !== trimmed) return fromMessage;
+
+  const token = trimmed.split(/\s+/).find((part) => mapTournamentErrorMessage(part) !== part);
+  if (token) return mapTournamentErrorMessage(token);
+
+  if (/failed to load tournaments/i.test(trimmed)) {
+    return "Could not load tournaments. Check your connection and try again.";
+  }
+
+  return trimmed || "Something went wrong. Please try again.";
 }

@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { TournamentCard } from "./TournamentCard";
-import { GameTablePanelSkeleton } from "./GameTablePanelSkeleton";
+import { TournamentListFeedback } from "./TournamentListFeedback";
 import { groupTournamentsForLobby } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -12,6 +12,7 @@ type TournamentsSectionProps = {
   authenticated: boolean;
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
+  onRetry?: () => void;
 };
 
 function SectionBlock({
@@ -53,49 +54,50 @@ export function TournamentsSection({
   authenticated,
   actionInFlight,
   onTournamentAction,
+  onRetry,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(tournaments);
   const hasAny =
     groups.upcoming.length > 0 || groups.running.length > 0 || groups.recent.length > 0;
+  const emptyMessage = authenticated
+    ? "No tournaments scheduled yet. Check back soon."
+    : "No tournaments scheduled yet. Log in to register when events are posted.";
 
   return (
     <View className="ui-stack-4 px-4 pb-2">
       <Text variant="h2">Tournaments</Text>
-      {busy && !hasAny ? (
+      <TournamentListFeedback
+        busy={busy}
+        error={error}
+        isEmpty={!hasAny}
+        emptyMessage={emptyMessage}
+        onRetry={onRetry}
+      />
+      {!error ? (
         <>
-          <GameTablePanelSkeleton />
-          <GameTablePanelSkeleton />
+          <SectionBlock
+            title="Upcoming"
+            items={groups.upcoming}
+            authenticated={authenticated}
+            actionInFlight={actionInFlight}
+            onTournamentAction={onTournamentAction}
+          />
+          <SectionBlock
+            title="Running"
+            items={groups.running}
+            authenticated={authenticated}
+            actionInFlight={actionInFlight}
+            onTournamentAction={onTournamentAction}
+          />
+          <SectionBlock
+            title="Recent"
+            items={groups.recent}
+            authenticated={authenticated}
+            actionInFlight={actionInFlight}
+            onTournamentAction={onTournamentAction}
+          />
         </>
       ) : null}
-      {error ? (
-        <Text variant="danger">{error}</Text>
-      ) : null}
-      {!busy && !error && !hasAny ? (
-        <Text variant="body" className="text-muted">
-          No tournaments scheduled yet.
-        </Text>
-      ) : null}
-      <SectionBlock
-        title="Upcoming"
-        items={groups.upcoming}
-        authenticated={authenticated}
-        actionInFlight={actionInFlight}
-        onTournamentAction={onTournamentAction}
-      />
-      <SectionBlock
-        title="Running"
-        items={groups.running}
-        authenticated={authenticated}
-        actionInFlight={actionInFlight}
-        onTournamentAction={onTournamentAction}
-      />
-      <SectionBlock
-        title="Recent"
-        items={groups.recent}
-        authenticated={authenticated}
-        actionInFlight={actionInFlight}
-        onTournamentAction={onTournamentAction}
-      />
     </View>
   );
 }
