@@ -90,6 +90,7 @@ export const openApiSpec = {
           roomId: { type: "string", nullable: true },
           finishedAt: { type: "string", format: "date-time", nullable: true },
           registeredCount: { type: "integer" },
+          isRegistered: { type: "boolean" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },

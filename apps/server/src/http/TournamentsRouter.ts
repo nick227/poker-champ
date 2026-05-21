@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { requireAuth } from "../engine/auth/RequireAuth.js";
+import { attachAuthIfPresent, requireAuth } from "../engine/auth/RequireAuth.js";
 import { requireAdmin } from "../engine/auth/AdminMiddleware.js";
 import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../engine/economy/CashierService.js";
@@ -40,7 +40,7 @@ function tournamentErrorStatus(message: string): number {
   return TOURNAMENT_CLIENT_ERRORS.has(message) ? 400 : 500;
 }
 
-router.get("/", async (req, res) => {
+router.get("/", attachAuthIfPresent, async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const prisma = getPrisma();
   const tournaments = await prisma.tournament.findMany({
@@ -48,7 +48,28 @@ router.get("/", async (req, res) => {
     orderBy: { startTime: "asc" },
     include: tournamentInclude,
   });
-  res.json({ tournaments: tournaments.map(toTournamentResponse) });
+
+  const registeredIds = new Set<string>();
+  if (req.user && tournaments.length > 0) {
+    const regs = await prisma.tournamentRegistration.findMany({
+      where: {
+        userId: req.user.id,
+        tournamentId: { in: tournaments.map((t) => t.id) },
+      },
+      select: { tournamentId: true },
+    });
+    for (const reg of regs) {
+      registeredIds.add(reg.tournamentId);
+    }
+  }
+
+  res.json({
+    tournaments: tournaments.map((t) =>
+      toTournamentResponse(t, {
+        isRegistered: req.user ? registeredIds.has(t.id) : undefined,
+      }),
+    ),
+  });
 });
 
 router.get("/:id/standings", async (req, res) => {
@@ -69,7 +90,7 @@ router.get("/:id/standings", async (req, res) => {
   res.json({ standings });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", attachAuthIfPresent, async (req, res) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   if (!id) {
     res.status(400).json({ error: "Tournament id is required" });
@@ -85,7 +106,16 @@ router.get("/:id", async (req, res) => {
     res.status(404).json({ error: "Tournament not found" });
     return;
   }
-  res.json(toTournamentResponse(tournament));
+
+  let isRegistered: boolean | undefined;
+  if (req.user) {
+    const reg = await prisma.tournamentRegistration.findUnique({
+      where: { tournamentId_userId: { tournamentId: id, userId: req.user.id } },
+    });
+    isRegistered = Boolean(reg);
+  }
+
+  res.json(toTournamentResponse(tournament, { isRegistered }));
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res) => {

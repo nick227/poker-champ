@@ -30,6 +30,8 @@ const serviceByKey = {
     economyWallet: () => withApiError(() => economy.wallet()),
     economyTransactions: (limit?: number) => withApiError(() => economy.transactions(limit ? { limit } : undefined)),
     tournaments: (status?: string) => withApiError(() => tournaments.list(status ? { status } : undefined)),
+    tournament: (id: string) => withApiError(() => tournaments.get({ id })),
+    tournamentStandings: (id: string) => withApiError(() => tournaments.standings({ id })),
     me: () => withApiError(() => auth.me()),
     adminUsers: (page: number = 1, limit: number = DEFAULT_PAGE_SIZE) =>
       withApiError(() =>
@@ -111,6 +113,10 @@ const serviceByKey = {
       withApiError(() => request("POST", `/api/admin/users/${userId}/ban`)),
     adminDeleteUser: (userId: string) =>
       withApiError(() => request("POST", `/api/admin/users/${userId}/delete`)),
+    tournamentRegister: (tournamentId: string) =>
+      withApiError(() => tournaments.register({ id: tournamentId })),
+    tournamentUnregister: (tournamentId: string) =>
+      withApiError(() => tournaments.unregister({ id: tournamentId })),
   },
 } as const;
 
@@ -120,6 +126,8 @@ const serviceOrdered = [
   { key: "get.economyWallet", call: serviceByKey.get.economyWallet },
   { key: "get.economyTransactions", call: serviceByKey.get.economyTransactions },
   { key: "get.tournaments", call: serviceByKey.get.tournaments },
+  { key: "get.tournament", call: serviceByKey.get.tournament },
+  { key: "get.tournamentStandings", call: serviceByKey.get.tournamentStandings },
   { key: "get.me", call: serviceByKey.get.me },
   { key: "get.adminUsers", call: serviceByKey.get.adminUsers },
   { key: "post.authRegister", call: serviceByKey.post.authRegister },
@@ -133,6 +141,8 @@ const serviceOrdered = [
   { key: "post.adminPromoteUser", call: serviceByKey.post.adminPromoteUser },
   { key: "post.adminSuspendUser", call: serviceByKey.post.adminSuspendUser },
   { key: "post.adminDeleteUser", call: serviceByKey.post.adminDeleteUser },
+  { key: "post.tournamentRegister", call: serviceByKey.post.tournamentRegister },
+  { key: "post.tournamentUnregister", call: serviceByKey.post.tournamentUnregister },
 ] as const;
 
 export const serviceRegistry = {

@@ -8,8 +8,9 @@ export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleto
 export { EmptyState } from "./components/lobby/EmptyState";
 export { CreateGameModal } from "./components/lobby/CreateGameModal";
 export { ChooseTableModal } from "./components/lobby/ChooseTableModal";
+export { TournamentsSection } from "./components/lobby/TournamentsSection";
+export { TournamentRegisterModal } from "./components/lobby/TournamentRegisterModal";
+export { TournamentStandingsModal } from "./components/lobby/TournamentStandingsModal";
 export * from "./components/lobby/createGame.constants";
 
 export * from "./components/lobby/instantGame.presets";
-export { useLobbyRealtime } from "./realtime/useLobbyRealtime";
-export { LobbyRealtimeBridge, useLobbyRealtimeBridge } from "./realtime/lobbyRealtimeBridge";

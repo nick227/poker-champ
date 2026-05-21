@@ -86,6 +86,16 @@ export const tournaments = {
       "POST",
       pathWithParams("/api/tournaments/{id}/register", path as Record<string, string | number>),
     ),
+  unregister: (path: PathParams<Operation<"/api/tournaments/{id}/unregister", "post">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/unregister", "post">>>(
+      "POST",
+      pathWithParams("/api/tournaments/{id}/unregister", path as Record<string, string | number>),
+    ),
+  standings: (path: PathParams<Operation<"/api/tournaments/{id}/standings", "get">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/standings", "get">>>(
+      "GET",
+      pathWithParams("/api/tournaments/{id}/standings", path as Record<string, string | number>),
+    ),
 };
 
 export const admin = {

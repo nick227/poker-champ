@@ -1,5 +1,6 @@
 import { useAuthStore } from "@/stores/auth.store";
 import { useLobbyStore } from "@/features/lobby/stores/lobby.store";
+import { useTournamentsStore } from "@/features/lobby/stores/tournaments.store";
 import { useMultiTableStore } from "@/features/table/stores/multitable.store";
 import { useTableStore } from "@/features/table/stores/table.store";
 import { useHistoryStore } from "@/stores/history.store";
@@ -15,6 +16,11 @@ const storeByKey = {
     key: "lobby",
     get: () => useLobbyStore.getState(),
     use: useLobbyStore,
+  },
+  tournaments: {
+    key: "tournaments",
+    get: () => useTournamentsStore.getState(),
+    use: useTournamentsStore,
   },
   tables: {
     key: "tables",
@@ -38,13 +44,22 @@ const storeByKey = {
   },
 } as const;
 
-const storeOrdered = [storeByKey.auth, storeByKey.lobby, storeByKey.tables, storeByKey.table, storeByKey.history, storeByKey.profile] as const;
+const storeOrdered = [
+  storeByKey.auth,
+  storeByKey.lobby,
+  storeByKey.tournaments,
+  storeByKey.tables,
+  storeByKey.table,
+  storeByKey.history,
+  storeByKey.profile,
+] as const;
 
 export const storeRegistry = {
   byKey: storeByKey,
   ordered: storeOrdered,
   auth: () => storeByKey.auth.get(),
   lobby: () => storeByKey.lobby.get(),
+  tournaments: () => storeByKey.tournaments.get(),
   tables: () => storeByKey.tables.get(),
   table: () => storeByKey.table.get(),
   history: () => storeByKey.history.get(),
@@ -52,6 +67,7 @@ export const storeRegistry = {
   use: {
     auth: storeByKey.auth.use,
     lobby: storeByKey.lobby.use,
+    tournaments: storeByKey.tournaments.use,
     tables: storeByKey.tables.use,
     table: storeByKey.table.use,
     history: storeByKey.history.use,

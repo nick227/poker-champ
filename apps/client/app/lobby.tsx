@@ -8,6 +8,9 @@ import { HeaderStack } from "@/components/containers/HeaderStack";
 import { GameListHeader } from "@/features/lobby";
 import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
+import { TournamentsSection } from "@/features/lobby";
+import { TournamentRegisterModal } from "@/features/lobby";
+import { TournamentStandingsModal } from "@/features/lobby";
 import { GameTablePanel } from "@/features/lobby";
 import { GameTablePanelSkeleton } from "@/features/lobby";
 import { EmptyState } from "@/features/lobby";
@@ -35,6 +38,9 @@ import {
   getInstantGamePreset,
   type InstantGamePresetId,
 } from "@/features/lobby";
+import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
+import { mapTournamentErrorMessage, resolveTournamentCta } from "@/lib/tournament.utils";
+import type { TournamentSummary } from "@/services/tournaments.types";
 
 type SortKey = "name" | "players" | "blinds";
 
@@ -62,9 +68,15 @@ export default function LobbyScreen() {
     onlineBusy,
     onlineError,
   } = storeRegistry.use.lobby();
+  const {
+    tournaments: tournamentList,
+    busy: tournamentsBusy,
+    error: tournamentsError,
+    refresh: refreshTournaments,
+  } = storeRegistry.use.tournaments();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
-  const { cents: bankroll } = useBankroll();
+  const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -75,6 +87,9 @@ export default function LobbyScreen() {
     maxBuyInCents: number;
   } | null>(null);
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
+  const [registerModalTournament, setRegisterModalTournament] = useState<TournamentSummary | null>(null);
+  const [registerBusy, setRegisterBusy] = useState(false);
+  const [standingsModal, setStandingsModal] = useState<{ id: string; name: string } | null>(null);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
   const {
     latestHandId,
@@ -82,13 +97,17 @@ export default function LobbyScreen() {
     error: latestReplayError,
   } = useLatestReplayHand();
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    void refreshTournaments();
+  }, [refresh, refreshTournaments]);
   useEffect(() => {
     const timer = setInterval(() => {
       void refresh({ background: true });
-    }, 3000);
+      void refreshTournaments({ background: true });
+    }, 30_000);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, refreshTournaments]);
 
   const sortedTables = useMemo(() => {
     const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));
@@ -194,6 +213,66 @@ export default function LobbyScreen() {
     requestOnlinePlayers();
   }, [requestOnlinePlayers]);
 
+  const handleTournamentAction = useCallback(
+    (tournament: TournamentSummary) => {
+      const cta = resolveTournamentCta(tournament, { authenticated: Boolean(authToken) });
+
+      if (cta.action === "none" || cta.disabled) return;
+
+      if (!authToken && cta.action !== "standings") {
+        router.push(loginPathWithNext("/lobby"));
+        return;
+      }
+
+      if (cta.action === "register") {
+        setRegisterModalTournament(tournament);
+        return;
+      }
+
+      if (cta.action === "unregister") {
+        void postTournamentUnregister(tournament.id)
+          .then(() => {
+            useToastStore.getState().show("Unregistered from tournament", "success");
+            void refreshTournaments();
+            void refreshBankroll();
+          })
+          .catch((e: unknown) => {
+            const message = e instanceof Error ? e.message : "Unregister failed";
+            useToastStore.getState().show(mapTournamentErrorMessage(message), "danger");
+          });
+        return;
+      }
+
+      if (cta.action === "join" && tournament.tableId) {
+        openTable(tournament.tableId);
+        router.push(tablePath(tournament.tableId));
+        return;
+      }
+
+      if (cta.action === "standings") {
+        setStandingsModal({ id: tournament.id, name: tournament.name });
+      }
+    },
+    [authToken, openTable, refreshBankroll, refreshTournaments, router],
+  );
+
+  const handleConfirmTournamentRegister = useCallback(async () => {
+    if (!registerModalTournament) return;
+    setRegisterBusy(true);
+    try {
+      await postTournamentRegister(registerModalTournament.id);
+      useToastStore.getState().show("Registered for tournament", "success");
+      setRegisterModalTournament(null);
+      void refreshTournaments();
+      void refreshBankroll();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Registration failed";
+      useToastStore.getState().show(mapTournamentErrorMessage(message), "danger");
+    } finally {
+      setRegisterBusy(false);
+    }
+  }, [registerModalTournament, refreshBankroll, refreshTournaments]);
+
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
 
   return (
@@ -237,6 +316,13 @@ export default function LobbyScreen() {
           onPokerSchool={() => router.push("/lessons")}
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
+        <TournamentsSection
+          tournaments={tournamentList}
+          busy={tournamentsBusy}
+          error={tournamentsError}
+          authenticated={Boolean(authToken)}
+          onTournamentAction={handleTournamentAction}
+        />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
           <GameListHeader
             onSort={cycleSort}
@@ -285,6 +371,20 @@ export default function LobbyScreen() {
         </View>
       </ScrollView>
       <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
+      <TournamentRegisterModal
+        visible={registerModalTournament != null}
+        tournament={registerModalTournament}
+        balanceCents={bankroll}
+        busy={registerBusy}
+        onClose={() => setRegisterModalTournament(null)}
+        onConfirm={() => void handleConfirmTournamentRegister()}
+      />
+      <TournamentStandingsModal
+        visible={standingsModal != null}
+        tournamentId={standingsModal?.id ?? null}
+        tournamentName={standingsModal?.name}
+        onClose={() => setStandingsModal(null)}
+      />
       {chooseTableModal && (
         <ChooseTableModal
           visible

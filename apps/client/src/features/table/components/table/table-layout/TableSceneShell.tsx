@@ -46,6 +46,7 @@ export type TableSceneShellProps = {
   revealed?: boolean;
   revealDurationMs?: number;
   reducedMotion?: boolean;
+  tournamentBanner?: ReactNode;
 };
 
 function cx(...tokens: Array<string | undefined>) {
@@ -79,6 +80,7 @@ export function TableSceneShell({
   revealed = true,
   revealDurationMs = TABLE_REVEAL_MS,
   reducedMotion = false,
+  tournamentBanner,
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
@@ -151,6 +153,7 @@ export function TableSceneShell({
             right={topBarRight}
           />
         </View>
+        {tournamentBanner}
 
         {immersiveBoard ? (
           <View style={{ flex: 1 }}>

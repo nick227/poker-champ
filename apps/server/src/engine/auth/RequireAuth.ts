@@ -10,6 +10,23 @@ function parseBearerToken(req: Request): string | null {
   return token.length > 0 ? token : null;
 }
 
+export async function attachAuthIfPresent(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const token = parseBearerToken(req);
+    if (!token) {
+      next();
+      return;
+    }
+    const user = await AuthService.validateSession(token);
+    if (user) {
+      req.user = user;
+    }
+    next();
+  } catch {
+    next();
+  }
+}
+
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     const token = parseBearerToken(req);

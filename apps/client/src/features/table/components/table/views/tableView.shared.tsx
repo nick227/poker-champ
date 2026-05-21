@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { TournamentTableBanner } from "../TournamentTableBanner";
 import { BoardArea } from "../board-area";
 import type { Opponent } from "../opponent-strip";
 import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
@@ -24,6 +25,7 @@ type TableShellBaseProps = Pick<
   | "winnerName"
   | "onPlayerPress"
   | "onSeatBounds"
+  | "tournamentBanner"
 >;
 
 type UseTableViewShellFrameParams = {
@@ -81,6 +83,9 @@ export function useTableViewShellFrame({
     winnerName: winnerBanner?.winnerName,
     onPlayerPress,
     onSeatBounds,
+    tournamentBanner: table?.tournament ? (
+      <TournamentTableBanner tournament={table.tournament} />
+    ) : undefined,
   };
   const boardContent = (
     <BoardArea

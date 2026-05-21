@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { getLobbyChatMessages, getLobbyTables, type LobbyChatMessageDto } from "@/services/get/lobby.get";
 import type { OnlinePlayerSummary } from "@poker-champ/realtime-contract";
 
-export const LOBBY_CHAT_MAX = 400;
+const LOBBY_CHAT_MAX = 400;
 const LOBBY_CHAT_DEFAULT_SCOPE = "lobby";
 const LOBBY_CHAT_PAGE_SIZE = 50;
 

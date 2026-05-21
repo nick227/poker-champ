@@ -1,9 +1,9 @@
 export { TableTopNavMenu } from "./components/table/TableTopNavMenu";
+export { TournamentTableBanner } from "./components/table/TournamentTableBanner";
 export { PlayerHistoryPopup } from "./components/table/PlayerHistoryPopup";
 export { ActiveTablesDropdown } from "./components/table/ActiveTablesDropdown";
 export { BotPickerSheet } from "./components/table/BotPickerSheet";
 export { ThemePickerSheet } from "./components/table/ThemePickerSheet";
-export { RejoinCTA } from "./components/table/RejoinCTA";
 export type { RejoinUiState } from "./components/table/RejoinCTA";
 
 export {
