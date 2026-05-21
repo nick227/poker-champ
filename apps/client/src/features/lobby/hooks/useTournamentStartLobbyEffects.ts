@@ -17,7 +17,7 @@ export function tournamentNeedsFastLobbyRefresh(
   if (tournament.status === "REGISTERING") {
     return startTs - nowMs <= NEAR_START_MS;
   }
-  if (tournament.status === "STARTING") {
+  if (tournament.status === "LATE_REG" || tournament.status === "STARTING") {
     return true;
   }
   if (tournament.status === "RUNNING" && !tournament.tableLive) {

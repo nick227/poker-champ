@@ -16,6 +16,7 @@ import {
 } from "@/lib/tournament-start-schedule";
 import { TournamentStartScheduleFields } from "./TournamentStartScheduleFields";
 import { BOT_DEMO_HELPER_COPY, BOT_DEMO_PRESET } from "@/lib/tournament-bot-fill";
+import { defaultLateRegMinutesForStructure } from "@/lib/tournament-schedule";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
 import { serviceRegistry } from "@/registry/service.registry";
 import { useToastStore } from "@/stores/toast.store";
@@ -90,7 +91,7 @@ export function TournamentCreateForm({ showBotPreset = true, onCreated }: Tourna
       maxPlayers: max,
       startingStackCents,
       blindStructureId: ADMIN_BLIND_STRUCTURE_ID,
-      lateRegMinutes: 0,
+      lateRegMinutes: defaultLateRegMinutesForStructure(ADMIN_BLIND_STRUCTURE_ID),
       fillBotsAtStart,
       ...(parsedFillBotCount != null ? { fillBotCount: parsedFillBotCount } : {}),
     });

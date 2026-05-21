@@ -252,12 +252,14 @@ describe("formatJoinedTournamentHint", () => {
     );
   });
 
-  it("shows starting now when start time has passed", () => {
+  it("shows late registration countdown after start when late reg enabled", () => {
     const now = Date.now();
-    const past = new Date(now - 1000).toISOString();
-    expect(
-      formatJoinedTournamentHint(baseTournament({ status: "REGISTERING", startTime: past }), now),
-    ).toBe("Starting now · table opens shortly");
+    const past = new Date(now - 60_000).toISOString();
+    const hint = formatJoinedTournamentHint(
+      baseTournament({ status: "LATE_REG", startTime: past, lateRegMinutes: 16 }),
+      now,
+    );
+    expect(hint).toMatch(/Late registration · closes in/);
   });
 
   it("describes cancelled and finished joined tournaments", () => {

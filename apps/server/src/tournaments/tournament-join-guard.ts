@@ -5,7 +5,7 @@ export type TournamentJoinResolution =
   | { mode: "PLAY"; startingStackCents: number }
   | { mode: "SPECTATE"; finishPlace: number; payoutCents: number };
 
-const OPEN_STATUSES = new Set(["STARTING", "RUNNING", "FINISHED"]);
+const OPEN_STATUSES = new Set(["STARTING", "LATE_REG", "RUNNING", "FINISHED"]);
 
 export async function resolveTournamentJoin(params: {
   tournamentId: string;
@@ -56,7 +56,11 @@ export async function resolveTournamentJoin(params: {
     };
   }
 
-  if (tournament.status !== "STARTING" && tournament.status !== "RUNNING") {
+  if (
+    tournament.status !== "STARTING" &&
+    tournament.status !== "LATE_REG" &&
+    tournament.status !== "RUNNING"
+  ) {
     throw new Error(TOURNAMENT_JOIN_CLOSED);
   }
 

@@ -265,7 +265,7 @@ async function start() {
     });
   }, 60 * 60 * 1000);
 
-  const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "15000");
+  const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "30000");
   if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {
     void tournamentDirector.tick();
     tournamentDirectorInterval = setInterval(() => {

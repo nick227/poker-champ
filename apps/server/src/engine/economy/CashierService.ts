@@ -11,6 +11,7 @@ import {
   TOURNAMENT_FULL,
   TOURNAMENT_NOT_CANCELLABLE,
 } from "../../tournaments/tournament.errors.js";
+import { isLateRegistrationOpen } from "../../tournaments/tournament-schedule.js";
 
 export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
 
@@ -205,7 +206,11 @@ export class CashierService {
       if (existingReg) return { success: true };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+      const regOpen =
+        tourney.status === "REGISTERING" ||
+        tourney.status === "LATE_REG" ||
+        isLateRegistrationOpen(tourney, new Date());
+      if (!regOpen) {
         throw new Error(TOURNAMENT_CLOSED);
       }
 
@@ -271,7 +276,7 @@ export class CashierService {
       if (existingReg) return { success: true };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      if (tourney.status !== "STARTING") {
+      if (tourney.status !== "STARTING" && tourney.status !== "LATE_REG") {
         throw new Error(TOURNAMENT_CLOSED);
       }
 
@@ -367,7 +372,11 @@ export class CashierService {
       if (existingRef) return { success: true };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+      const regOpen =
+        tourney.status === "REGISTERING" ||
+        tourney.status === "LATE_REG" ||
+        isLateRegistrationOpen(tourney, new Date());
+      if (!regOpen) {
         throw new Error(TOURNAMENT_CLOSED);
       }
 

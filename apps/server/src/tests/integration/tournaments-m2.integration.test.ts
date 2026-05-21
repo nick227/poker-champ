@@ -112,6 +112,29 @@ describe("Tournament M2 director and table flow", () => {
     });
   }
 
+  it("defers cancel until late registration closes when only one player registered", async () => {
+    const prisma = getPrisma();
+    const tournament = await createDueTournament();
+    await prisma.tournament.update({
+      where: { id: tournament.id },
+      data: { lateRegMinutes: 16 },
+    });
+    await registerUser(tournament.id, testUsers.playerA, tournament.entryFeeCents);
+
+    await tournamentDirector.beginLateRegistration(tournament.id);
+    let updated = await prisma.tournament.findUnique({ where: { id: tournament.id } });
+    expect(updated?.status).toBe("LATE_REG");
+
+    await tournamentDirector.closeLateRegistration(
+      tournament.id,
+      new Date(tournament.startTime.getTime() + 16 * 60 * 1000 + 1000),
+    );
+    updated = await prisma.tournament.findUnique({ where: { id: tournament.id } });
+    const user = await prisma.user.findUnique({ where: { id: testUsers.playerA } });
+    expect(updated?.status).toBe("CANCELLED");
+    expect(user?.bankrollCents).toBe(50_000);
+  });
+
   it("auto-cancels and refunds when only one player registered", async () => {
     const tournament = await createDueTournament();
     await registerUser(tournament.id, testUsers.playerA, tournament.entryFeeCents);

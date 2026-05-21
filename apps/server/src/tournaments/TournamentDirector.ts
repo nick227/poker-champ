@@ -10,6 +10,7 @@ import { parseTournamentBotCatalogId } from "./tournament-bot-users.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-live.js";
+import { isLateRegistrationClosed } from "./tournament-schedule.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
@@ -27,6 +28,8 @@ function resolveRoomId(created: unknown): string | undefined {
 export class TournamentDirector {
   async tick(now: Date = new Date()): Promise<void> {
     await this.processDueTournaments(now);
+    await this.processLateRegistrationWindows(now);
+    await this.processLateRegistrationClosures(now);
     await this.resumeStuckStartingTournaments(now);
     await this.reconcileOrphanRunningTournaments();
     await this.advanceDueBlindLevels(now);
@@ -85,7 +88,11 @@ export class TournamentDirector {
 
     for (const tournament of due) {
       try {
-        await this.processTournament(tournament.id, now);
+        if (tournament.lateRegMinutes > 0) {
+          await this.beginLateRegistration(tournament.id, now);
+        } else {
+          await this.processTournament(tournament.id, now);
+        }
       } catch (err: unknown) {
         logger.error(
           {
@@ -99,11 +106,173 @@ export class TournamentDirector {
     }
   }
 
+  async beginLateRegistration(tournamentId: string, now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const claimed = await prisma.tournament.updateMany({
+      where: { id: tournamentId, status: "REGISTERING", startTime: { lte: now } },
+      data: { status: "LATE_REG" },
+    });
+    if (claimed.count !== 1) return;
+
+    logger.info({ tournamentId }, "TOURNAMENT_LATE_REG_OPENED");
+    await this.tryStartTournamentTable(tournamentId);
+  }
+
+  async processLateRegistrationWindows(now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const open = await prisma.tournament.findMany({
+      where: { status: "LATE_REG", lateRegMinutes: { gt: 0 } },
+      take: 20,
+    });
+    for (const row of open) {
+      try {
+        await this.tryStartTournamentTable(row.id);
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: row.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_LATE_REG_START_FAILED",
+        );
+      }
+    }
+  }
+
+  async processLateRegistrationClosures(now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const candidates = await prisma.tournament.findMany({
+      where: {
+        lateRegMinutes: { gt: 0 },
+        status: { in: ["LATE_REG", "RUNNING"] },
+      },
+      take: 30,
+    });
+
+    for (const row of candidates) {
+      if (!isLateRegistrationClosed(row, now)) continue;
+      try {
+        await this.closeLateRegistration(row.id, now);
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: row.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_LATE_REG_CLOSE_FAILED",
+        );
+      }
+    }
+  }
+
+  async closeLateRegistration(tournamentId: string, now: Date = new Date()): Promise<void> {
+    const tournament = await this.loadTournamentWithRegistrations(tournamentId);
+    if (!tournament || tournament.lateRegMinutes <= 0) return;
+    if (!isLateRegistrationClosed(tournament, now)) return;
+
+    if (tournament.fillBotsAtStart) {
+      await fillTournamentBotRegistrations(tournamentId);
+    }
+    const refreshed = await this.loadTournamentWithRegistrations(tournamentId);
+    if (!refreshed) return;
+
+    const registeredCount = refreshed.registrations.length;
+    if (registeredCount < 2) {
+      await this.cancelLowEntries(tournamentId, refreshed);
+      return;
+    }
+
+    if (refreshed.status === "LATE_REG" && !refreshed.roomId) {
+      await this.startTournamentWithTable(refreshed);
+    }
+
+    logger.info({ tournamentId }, "TOURNAMENT_LATE_REG_CLOSED");
+  }
+
+  async tryStartTournamentTable(tournamentId: string): Promise<void> {
+    const tournament = await this.loadTournamentWithRegistrations(tournamentId);
+    if (!tournament) return;
+    if (tournament.roomId) return;
+
+    if (tournament.fillBotsAtStart) {
+      await fillTournamentBotRegistrations(tournamentId);
+    }
+    const refreshed = await this.loadTournamentWithRegistrations(tournamentId);
+    if (!refreshed || refreshed.registrations.length < 2) return;
+
+    await this.startTournamentWithTable(refreshed);
+  }
+
+  async seatLateRegistrant(tournamentId: string, userId: string): Promise<void> {
+    const prisma = getPrisma();
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        registrations: {
+          where: { userId },
+          include: { user: { select: { displayName: true } } },
+        },
+      },
+    });
+    if (!tournament?.roomId || tournament.status !== "RUNNING") return;
+
+    const reg = tournament.registrations[0];
+    if (!reg || reg.isBot) return;
+
+    await matchMaker.remoteRoomCall(
+      tournament.roomId,
+      "seedTournamentPlayers" as never,
+      [
+        [{ userId: reg.userId, displayName: reg.user.displayName }],
+        tournament.startingStackCents,
+        tournament.id,
+      ],
+      30_000,
+    );
+  }
+
+  private async loadTournamentWithRegistrations(
+    tournamentId: string,
+  ): Promise<TournamentWithRegistrations | null> {
+    const prisma = getPrisma();
+    return prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        registrations: {
+          include: { user: { select: { displayName: true } } },
+        },
+      },
+    });
+  }
+
+  private async cancelLowEntries(
+    tournamentId: string,
+    tournament: TournamentWithRegistrations,
+  ): Promise<void> {
+    const prisma = getPrisma();
+    const registeredCount = tournament.registrations.length;
+    if (registeredCount === 0) {
+      await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { status: "CANCELLED", prizePoolCents: 0 },
+      });
+    } else {
+      await CashierService.processTournamentCancel({
+        tournamentId,
+        adminUserId: tournament.registrations[0]!.userId,
+        externalRef: tournamentCancelExternalRef(tournamentId),
+      });
+    }
+    logger.info({ tournamentId, registeredCount }, "TOURNAMENT_AUTO_CANCELLED_LOW_ENTRIES");
+  }
+
   async resumeStuckStartingTournaments(now: Date = new Date()): Promise<void> {
     const prisma = getPrisma();
     const stuck = await prisma.tournament.findMany({
       where: {
-        status: "STARTING",
+        status: { in: ["STARTING", "LATE_REG"] },
         startTime: { lte: now },
         roomId: null,
       },
@@ -119,9 +288,9 @@ export class TournamentDirector {
           },
         },
       });
-      if (!tournament || tournament.registrations.length < 2) continue;
+      if (!tournament) continue;
       try {
-        await this.startTournamentWithTable(tournament);
+        await this.tryStartTournamentTable(tournament.id);
         logger.info({ tournamentId: tournament.id }, "TOURNAMENT_STARTING_RESUMED");
       } catch (err: unknown) {
         logger.error(
@@ -144,45 +313,17 @@ export class TournamentDirector {
     });
     if (claimed.count !== 1) return;
 
-    let tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      include: {
-        registrations: {
-          include: { user: { select: { displayName: true } } },
-        },
-      },
-    });
+    let tournament = await this.loadTournamentWithRegistrations(tournamentId);
     if (!tournament) return;
 
     if (tournament.fillBotsAtStart) {
       await fillTournamentBotRegistrations(tournamentId);
-      tournament =
-        (await prisma.tournament.findUnique({
-          where: { id: tournamentId },
-          include: {
-            registrations: {
-              include: { user: { select: { displayName: true } } },
-            },
-          },
-        })) ?? null;
+      tournament = (await this.loadTournamentWithRegistrations(tournamentId)) ?? null;
       if (!tournament) return;
     }
 
-    const registeredCount = tournament.registrations.length;
-    if (registeredCount < 2) {
-      if (registeredCount === 0) {
-        await prisma.tournament.update({
-          where: { id: tournamentId },
-          data: { status: "CANCELLED", prizePoolCents: 0 },
-        });
-      } else {
-        await CashierService.processTournamentCancel({
-          tournamentId,
-          adminUserId: tournament.registrations[0]!.userId,
-          externalRef: tournamentCancelExternalRef(tournamentId),
-        });
-      }
-      logger.info({ tournamentId, registeredCount }, "TOURNAMENT_AUTO_CANCELLED_LOW_ENTRIES");
+    if (tournament.registrations.length < 2) {
+      await this.cancelLowEntries(tournamentId, tournament);
       return;
     }
 

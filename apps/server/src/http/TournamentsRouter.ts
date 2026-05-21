@@ -17,6 +17,8 @@ import {
 } from "../tournaments/tournament.errors.js";
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "../tournaments/tournament-room-live.js";
 import { assertTournamentCancelAllowed } from "../tournaments/tournament-cancel-auth.js";
+import { tournamentDirector } from "../tournaments/TournamentDirector.js";
+import { defaultLateRegMinutesForStructure } from "../tournaments/tournament-schedule.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
@@ -31,7 +33,7 @@ const CreateTournamentSchema = z.object({
   blindStructureId: z.string().refine(isTournamentBlindStructureId, {
     message: "Invalid blindStructureId",
   }).default(DEFAULT_BLIND_STRUCTURE_ID),
-  lateRegMinutes: z.number().int().min(0).max(120).default(0),
+  lateRegMinutes: z.number().int().min(0).max(120).optional(),
   fillBotsAtStart: z.boolean().default(false),
   fillBotCount: z.number().int().min(1).max(8).optional(),
 });
@@ -77,7 +79,7 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
         isRegistered: req.user ? registeredIds.has(t.id) : undefined,
         isCreator: req.user ? t.createdByUserId === req.user.id : undefined,
         tableLive:
-          t.status === "STARTING" || t.status === "RUNNING"
+          t.status === "STARTING" || t.status === "LATE_REG" || t.status === "RUNNING"
             ? isTournamentRoomLive(t.roomId, liveRoomIds)
             : undefined,
       }),
@@ -134,7 +136,9 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
       isRegistered,
       isCreator: req.user ? tournament.createdByUserId === req.user.id : undefined,
       tableLive:
-        tournament.status === "STARTING" || tournament.status === "RUNNING"
+        tournament.status === "STARTING" ||
+        tournament.status === "LATE_REG" ||
+        tournament.status === "RUNNING"
           ? isTournamentRoomLive(tournament.roomId, liveRoomIds)
           : undefined,
     }),
@@ -157,7 +161,9 @@ router.post("/", requireAuth, async (req, res) => {
       maxPlayers: parsed.data.maxPlayers,
       startingStackCents: parsed.data.startingStackCents,
       blindStructureId: parsed.data.blindStructureId,
-      lateRegMinutes: parsed.data.lateRegMinutes,
+      lateRegMinutes:
+        parsed.data.lateRegMinutes ??
+        defaultLateRegMinutesForStructure(parsed.data.blindStructureId),
       fillBotsAtStart: parsed.data.fillBotsAtStart,
       fillBotCount: parsed.data.fillBotCount ?? null,
       status: "REGISTERING",
@@ -191,6 +197,8 @@ router.post("/:id/register", requireAuth, async (req, res) => {
       entryFeeCents: tournament.entryFeeCents,
       externalRef: tournamentEntryExternalRef(tournament.id, req.user!.id),
     });
+    await tournamentDirector.tryStartTournamentTable(tournament.id);
+    await tournamentDirector.seatLateRegistrant(tournament.id, req.user!.id);
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Tournament registration failed";

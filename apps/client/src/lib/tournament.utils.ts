@@ -1,3 +1,4 @@
+import { isLateRegistrationOpen, lateRegCloseMs } from "@/lib/tournament-schedule";
 import type { TournamentCta, TournamentSummary } from "@/services/tournaments.types";
 
 export function formatTournamentStartLocal(startTimeIso: string): string {
@@ -20,6 +21,8 @@ export function formatTournamentStatus(status: string): string {
       return "Registering";
     case "STARTING":
       return "Starting";
+    case "LATE_REG":
+      return "Late registration";
     case "RUNNING":
       return "Running";
     case "FINISHED":
@@ -43,11 +46,25 @@ export function isTournamentStartDue(
   return Number.isFinite(startTs) && startTs <= nowMs;
 }
 
+export function isTournamentRegistrationOpen(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  if (tournament.status === "REGISTERING") return true;
+  return isLateRegistrationOpen(tournament, nowMs);
+}
+
 export function isTournamentInJoinPhase(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),
 ): boolean {
-  if (tournament.status === "STARTING" || tournament.status === "RUNNING") return true;
+  if (
+    tournament.status === "STARTING" ||
+    tournament.status === "LATE_REG" ||
+    tournament.status === "RUNNING"
+  ) {
+    return true;
+  }
   return tournament.status === "REGISTERING" && isTournamentStartDue(tournament, nowMs);
 }
 
@@ -107,7 +124,7 @@ export function resolveTournamentCta(
     return resolveTournamentJoinCta(tournament, authenticated, nowMs);
   }
 
-  if (tournament.status === "REGISTERING") {
+  if (isTournamentRegistrationOpen(tournament, nowMs)) {
     if (!authenticated) {
       return { label: "Register", action: "register", disabled: false };
     }
@@ -127,7 +144,7 @@ export function resolveTournamentCta(
 
 export type TournamentLobbySection = "upcoming" | "running";
 
-const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "STARTING", "RUNNING"]);
+const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "LATE_REG", "STARTING", "RUNNING"]);
 
 /** Active + recent terminal states so joined rows do not vanish after cancel/finish. */
 const JOINED_VISIBLE_STATUSES = new Set([
@@ -151,7 +168,7 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
     .filter(isJoinedVisibleTournament)
     .sort((a, b) => {
       const rank = (status: string) => {
-        if (status === "RUNNING" || status === "STARTING") return 0;
+        if (status === "RUNNING" || status === "STARTING" || status === "LATE_REG") return 0;
         if (status === "REGISTERING") return 1;
         if (status === "FINISHED") return 2;
         return 3;
@@ -190,14 +207,23 @@ export function formatJoinedTournamentHint(
     if (!Number.isFinite(startTs)) {
       return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
     }
-    if (isTournamentStartDue(tournament, nowMs)) {
-      return "Starting now · table opens shortly";
-    }
     const countdown = formatCountdownTo(startTs, nowMs);
     if (countdown) {
       return `Scheduled · starts in ${countdown}`;
     }
     return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
+  }
+  if (tournament.status === "LATE_REG" || isLateRegistrationOpen(tournament, nowMs)) {
+    const closeTs = lateRegCloseMs(tournament);
+    const lateCountdown = formatCountdownTo(closeTs, nowMs);
+    if (isTournamentTableLive(tournament)) {
+      return lateCountdown
+        ? `Live · late registration closes in ${lateCountdown}`
+        : "Live · late registration closed";
+    }
+    return lateCountdown
+      ? `Late registration · closes in ${lateCountdown}`
+      : "Late registration · waiting for players";
   }
   if (tournament.status === "STARTING") {
     if (isTournamentTableLive(tournament)) return "Live · join the table";
@@ -223,7 +249,7 @@ export function groupTournamentsForLobby(tournaments: TournamentSummary[]): Reco
   for (const t of tournaments) {
     if (t.status === "REGISTERING") {
       upcoming.push(t);
-    } else if (t.status === "STARTING" || t.status === "RUNNING") {
+    } else if (t.status === "STARTING" || t.status === "LATE_REG" || t.status === "RUNNING") {
       running.push(t);
     }
   }

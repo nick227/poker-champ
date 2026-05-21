@@ -31,7 +31,7 @@ export async function fillTournamentBotRegistrations(tournamentId: string): Prom
   });
 
   if (!tournament?.fillBotsAtStart) return 0;
-  if (tournament.status !== "STARTING") return 0;
+  if (tournament.status !== "STARTING" && tournament.status !== "LATE_REG") return 0;
 
   const humanCount = tournament.registrations.filter((reg) => !reg.isBot).length;
   const botCount = resolveTournamentBotFillCount({
