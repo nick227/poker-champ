@@ -6,7 +6,7 @@ const StreetEnum = z.enum(["WAITING", "PREFLOP", "FLOP", "TURN", "RIVER", "SHOWD
 const LastActionStreetEnum = z.enum(["PREFLOP", "FLOP", "TURN", "RIVER"]);
 const PlayerStatusEnum = z.enum(["WAITING", "ACTIVE", "FOLDED", "ALL_IN", "ABANDONED", "OUT"]);
 const VisibilityEnum = z.enum(["PUBLIC", "PRIVATE"]);
-const JoinModeEnum = z.enum(["NEW", "RESTORE"]);
+const JoinModeEnum = z.enum(["NEW", "RESTORE", "TOURNAMENT_SPECTATE"]);
 const LastActionOriginEnum = z.enum(["PLAYER", "AUTO", "FORCED"]);
 export const TableErrorCodeEnum = z.enum([
   "NOT_YOUR_TURN",
@@ -242,6 +242,13 @@ export const TableSnapshotPayloadSchema = z.object({
     playerStats: HeroPlayerStatsSchema.optional(),
     avatarUrl: z.string().min(1).optional(),
     avatarVersion: z.number().int().nonnegative().optional(),
+    tournamentViewer: z
+      .object({
+        isEliminated: z.boolean(),
+        finishPlace: z.number().int().positive().nullable().optional(),
+        payoutCents: z.number().int().nonnegative(),
+      })
+      .optional(),
   }),
 
   calculationsMeta: CalculationsMetaSchema.optional(),

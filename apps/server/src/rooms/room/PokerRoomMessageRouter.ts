@@ -14,12 +14,21 @@ import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionServ
 import { dealerRuntimeMetrics } from "../../engine/dealer/metrics/dealerRuntimeMetrics.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomMessageRouterContract } from "./types/PokerRoomTypes.js";
+import { assertNotTournamentTableSpectator } from "../../tournaments/tournament-table-spectator.js";
 
 export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
   constructor(
     private readonly ctx: PokerRoomContext,
     private readonly session: PokerRoomSessionManager,
   ) {}
+
+  private assertHeroCanAct(userId: string): void {
+    assertNotTournamentTableSpectator({
+      tournamentId: this.ctx.room.getTournamentIdInternal(),
+      hasPlayer: (id) => this.ctx.dealer.hasPlayer(id),
+      userId,
+    });
+  }
 
   private static asErrorLike(err: unknown): { code?: string; message: string } {
     if (err instanceof PokerError) return { code: err.code, message: err.message };
@@ -221,6 +230,8 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           return;
         }
 
+        this.assertHeroCanAct(userId);
+
         room.touchActivityInternal();
         const currentHandId = this.ctx.state.handId;
         if (normalized.handId && normalized.handId !== currentHandId) {
@@ -321,6 +332,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
       if (!this.session.isActiveBoundClient(userId, client)) return;
       try {
+        this.assertHeroCanAct(userId);
         await this.ctx.dealer.setPlayerSittingOut(userId, parsed.data.payload.sittingOut);
         room.updateMetadataCountsInternal();
       } catch (err: unknown) {
@@ -348,6 +360,13 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
       if (!this.session.isActiveBoundClient(userId, client)) return;
+      try {
+        this.assertHeroCanAct(userId);
+      } catch (err: unknown) {
+        const e = PokerRoomMessageRouter.asErrorLike(err);
+        room.sendTableMessageInternal(client, "ERROR", { code: e.code ?? "BAD_STATE", message: e.message });
+        return;
+      }
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(client, "ERROR", { code: "REJOIN_FAILED_TABLE_GONE", message: "Table no longer exists" });
         return;
@@ -394,6 +413,13 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
       if (!this.session.isActiveBoundClient(userId, client)) return;
+      try {
+        this.assertHeroCanAct(userId);
+      } catch (err: unknown) {
+        const e = PokerRoomMessageRouter.asErrorLike(err);
+        room.sendTableMessageInternal(client, "ERROR", { code: e.code ?? "BAD_STATE", message: e.message });
+        return;
+      }
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
         return;

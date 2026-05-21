@@ -48,6 +48,7 @@ import { snapshotMetrics } from "../metrics/snapshotMetrics.js";
 // IMPORTS - Type Definitions
 // ============================================================================
 import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { getPrisma } from "@poker-champ/db";
 import type { TournamentTableOverlay } from "../../../tournaments/tournament-overlay.js";
 
 // ============================================================================
@@ -711,6 +712,35 @@ export class SnapshotService {
     }
 
     const hasCalc = mode === "full" && (Boolean(calc) || potOddsPct !== undefined);
+    let tournamentViewer: TableSnapshotPayload["hero"]["tournamentViewer"];
+    if (mode === "full" && !hero) {
+      const overlay = this.deps.getTournamentTableOverlay?.();
+      if (overlay) {
+        const prisma = getPrisma();
+        const registration = await prisma.tournamentRegistration.findUnique({
+          where: {
+            tournamentId_userId: { tournamentId: overlay.tournamentId, userId },
+          },
+          select: { finishPlace: true },
+        });
+        if (registration?.finishPlace != null) {
+          const payoutTx = await prisma.balanceTransaction.findFirst({
+            where: {
+              tournamentId: overlay.tournamentId,
+              userId,
+              type: "TOURNAMENT_PAYOUT",
+            },
+            select: { amountCents: true },
+          });
+          tournamentViewer = {
+            isEliminated: true,
+            finishPlace: registration.finishPlace,
+            payoutCents: payoutTx?.amountCents ?? 0,
+          };
+        }
+      }
+    }
+
     const heroSection = {
       userId,
       youAreSeated: Boolean(hero),
@@ -730,6 +760,7 @@ export class SnapshotService {
       playerStats: mode === "full" ? this.deps.getHeroSessionStats?.(userId) : undefined,
       ...(avatarUrl != null && { avatarUrl }),
       ...(avatarVersion != null && { avatarVersion }),
+      ...(tournamentViewer != null && { tournamentViewer }),
     };
 
     return { ...base, hero: heroSection };

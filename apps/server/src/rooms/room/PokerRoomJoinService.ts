@@ -4,7 +4,7 @@ import type { ZodIssue } from "zod";
 import { PokerError } from "../../engine/errors.js";
 import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionService.js";
 import { presenceIndex } from "../../lobby/PresenceIndex.js";
-import { assertTournamentJoinAllowed } from "../../tournaments/tournament-join-guard.js";
+import { resolveTournamentJoin } from "../../tournaments/tournament-join-guard.js";
 import {
   TOURNAMENT_JOIN_CLOSED,
   TOURNAMENT_NOT_REGISTERED,
@@ -205,8 +205,25 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
       let requiredBuyInCents: number | null = null;
       if (tournamentId) {
         try {
-          const allowed = await assertTournamentJoinAllowed({ tournamentId, userId });
-          requiredBuyInCents = allowed.startingStackCents;
+          const resolution = await resolveTournamentJoin({ tournamentId, userId });
+          if (resolution.mode === "SPECTATE") {
+            this.session.rebindClientExclusive(userId, client);
+            room.addTablePresenceInternal(client, userId, username);
+            room.sendTableMessageInternal(client, "WELCOME", {
+              roomId: room.roomId,
+              playerId: userId,
+              tableId: this.ctx.state.tableId,
+              joinMode: "TOURNAMENT_SPECTATE",
+            });
+            await this.ctx.dealer.emitSnapshotToUser(userId, "JOIN");
+            this.ctx.logger.info(
+              { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, finishPlace: resolution.finishPlace },
+              "POKER_JOIN_TOURNAMENT_SPECTATE",
+            );
+            room.handleEmptyStateChangeInternal();
+            return;
+          }
+          requiredBuyInCents = resolution.startingStackCents;
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : TOURNAMENT_JOIN_CLOSED;
           const code =

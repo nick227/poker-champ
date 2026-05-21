@@ -16,6 +16,7 @@ import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
+import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 
 function renderStatusStripPanel(
   message: string,
@@ -56,6 +57,7 @@ export function useIdleTableSlots(
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
     onViewTournamentStandings: actions.openTournamentStandings,
+    onBackToLobby: actions.closeTableAndReturn,
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",
@@ -68,7 +70,8 @@ export function useIdleTableSlots(
   const { heroStatus, heroStackCents, heroCards } = model;
   const heroIsSeated = snapshot.hero.youAreSeated;
   const hasActiveHand = Boolean(snapshot.hand);
-  const isSpectator = !heroIsSeated && !hasActiveHand;
+  const tournamentSpectator = isTournamentEliminatedSpectator(snapshot);
+  const isSpectator = !heroIsSeated && !hasActiveHand && !tournamentSpectator;
   const heroIsSittingOut = heroIsSeated && heroStatus === "SITTING_OUT" && !!actions.rejoinHero;
   const rejoinState = (renderModel.rejoinUiState ?? "idle") as RejoinUiState;
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
@@ -86,6 +89,16 @@ export function useIdleTableSlots(
     );
   } else if (renderModel.canRebuy && actions.openRebuySheet) {
     bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
+  } else if (tournamentSpectator) {
+    bottom = (
+      <View className="ui-p-inline-4 gap-y-2">
+        <Text className="text-center">Spectating this tournament table.</Text>
+        <View className="ui-row gap-x-2 justify-center">
+          <Button title="View standings" onPress={actions.openTournamentStandings} />
+          <Button title="Back to lobby" variant="ghost" onPress={actions.closeTableAndReturn} />
+        </View>
+      </View>
+    );
   } else if (isSpectator) {
     bottom = (
       <View className="ui-p-inline-4 gap-y-2">

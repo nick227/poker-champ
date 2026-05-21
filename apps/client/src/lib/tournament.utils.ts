@@ -142,6 +142,8 @@ export function mapTournamentErrorMessage(code: string): string {
       return "Only registering tournaments can be cancelled.";
     case "TOURNAMENT_JOIN_CLOSED":
       return "This tournament is not open for table joins.";
+    case "TOURNAMENT_SPECTATOR_READONLY":
+      return "Eliminated players can only watch this tournament table.";
     case "Invalid tournament payload":
       return "Check tournament details and try again.";
     case "Tournament not found":

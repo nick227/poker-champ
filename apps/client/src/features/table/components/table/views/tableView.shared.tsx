@@ -46,6 +46,7 @@ type UseTableViewShellFrameParams = {
   /** When set, passed to shell for SEAT-anchored FX (reportSeatBounds). */
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   onViewTournamentStandings?: () => void;
+  onBackToLobby?: () => void;
   boardCardsOverride?: UiCard[] | null;
   potCentsOverride?: number;
   animateBoardReset?: boolean;
@@ -65,6 +66,7 @@ export function useTableViewShellFrame({
   onCardSlotBounds,
   onSeatBounds,
   onViewTournamentStandings,
+  onBackToLobby,
   boardCardsOverride,
   potCentsOverride,
   animateBoardReset = false,
@@ -89,11 +91,12 @@ export function useTableViewShellFrame({
     tournamentBanner: table?.tournament ? (
       <>
         <TournamentTableBanner tournament={table.tournament} />
-        {onViewTournamentStandings ? (
+        {onViewTournamentStandings && onBackToLobby ? (
           <TournamentResultBanner
             tournament={table.tournament}
-            heroSeated={effectiveSnapshot.hero.youAreSeated}
+            tournamentViewer={effectiveSnapshot.hero.tournamentViewer}
             onViewStandings={onViewTournamentStandings}
+            onBackToLobby={onBackToLobby}
           />
         ) : null}
       </>

@@ -21,6 +21,7 @@ import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
+import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 
 export type LiveTableSlotState = {
   sceneModel?: TableSceneModel;
@@ -74,6 +75,7 @@ export function useActiveTableSlots(
     onCardSlotBounds: actions.reportCardSlotBounds,
     onSeatBounds: actions.reportSeatBounds,
     onViewTournamentStandings: actions.openTournamentStandings,
+    onBackToLobby: actions.closeTableAndReturn,
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",
@@ -157,7 +159,18 @@ export function useActiveTableSlots(
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
 
   let bottom: ReactNode;
-  if (!heroIsSeated) {
+  const tournamentSpectator = snapshot ? isTournamentEliminatedSpectator(snapshot) : false;
+  if (!heroIsSeated && tournamentSpectator) {
+    bottom = (
+      <View className="ui-p-inline-4 gap-y-2">
+        <Text className="text-center">Spectating this tournament table.</Text>
+        <View className="ui-row gap-x-2 justify-center">
+          <Button title="View standings" onPress={actions.openTournamentStandings} />
+          <Button title="Back to lobby" variant="ghost" onPress={actions.closeTableAndReturn} />
+        </View>
+      </View>
+    );
+  } else if (!heroIsSeated) {
     bottom = (
       <View className="ui-p-inline-4 gap-y-2">
         <Text className="text-center">You are not seated at this table.</Text>

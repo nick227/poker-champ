@@ -1,4 +1,5 @@
 export type PokerErrorCode =
+  | "TOURNAMENT_SPECTATOR_READONLY"
   | "BAD_STATE"
   | "NOT_YOUR_TURN"
   | "NOT_ELIGIBLE"
