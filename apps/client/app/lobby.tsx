@@ -32,6 +32,7 @@ import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
 import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import { useAuthStore } from "@/stores/auth.store";
+import { useMeRole } from "@/hooks/useMeRole";
 import {
   buildInstantCreateTableConfig,
   getInstantGamePreset,
@@ -84,6 +85,8 @@ export default function LobbyScreen() {
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
+  const { role: meRole } = useMeRole();
+  const showToast = useToastStore((s) => s.show);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [instantStartInFlightPreset, setInstantStartInFlightPreset] = useState<InstantGamePresetId | null>(null);
@@ -229,7 +232,18 @@ export default function LobbyScreen() {
     requestOnlinePlayers();
   }, [requestOnlinePlayers]);
 
-  const showToast = useToastStore((s) => s.show);
+  const handleCreateTournament = useCallback(() => {
+    const adminPath = "/admin?tab=tournaments";
+    if (!authToken) {
+      router.push(loginPathWithNext(adminPath));
+      return;
+    }
+    if (meRole !== "ADMIN") {
+      showToast("Admin access required to create tournaments", "danger");
+      return;
+    }
+    router.push(adminPath);
+  }, [authToken, meRole, router, showToast]);
 
   const handleOpenTournamentDetail = useCallback(
     (tournament: TournamentSummary) => {
@@ -354,6 +368,7 @@ export default function LobbyScreen() {
           onTournamentAction={handleTournamentAction}
           onOpenTournamentDetail={handleOpenTournamentDetail}
           onRetry={() => { void refreshTournaments(); }}
+          onCreateTournament={handleCreateTournament}
         />
         <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
           <GameListHeader

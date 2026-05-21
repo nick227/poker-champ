@@ -96,9 +96,11 @@ export function resolveTournamentCta(
   return { label: "Unavailable", action: "none", disabled: true };
 }
 
-export type TournamentLobbySection = "upcoming" | "running" | "recent";
+export type TournamentLobbySection = "upcoming" | "running";
 
-const JOINED_ACTIVE_STATUSES = new Set(["REGISTERING", "STARTING", "RUNNING"]);
+const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "STARTING", "RUNNING"]);
+
+const JOINED_ACTIVE_STATUSES = PUBLIC_LOBBY_STATUSES;
 
 export function isJoinedActiveTournament(tournament: TournamentSummary): boolean {
   return Boolean(tournament.isRegistered) && JOINED_ACTIVE_STATUSES.has(tournament.status);
@@ -116,10 +118,15 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
     });
 }
 
-/** Browse list: hide active joined rows so they only appear in the joined section. */
+/** Lobby browse: scheduled and live only (no finished/cancelled). */
+export function filterTournamentsForPublicLobby(tournaments: TournamentSummary[]): TournamentSummary[] {
+  return tournaments.filter((t) => PUBLIC_LOBBY_STATUSES.has(t.status));
+}
+
+/** Browse list: public lobby rows minus active joined (shown in Your tournaments). */
 export function filterTournamentsForBrowseLobby(tournaments: TournamentSummary[]): TournamentSummary[] {
   const joinedIds = new Set(selectJoinedTournaments(tournaments).map((t) => t.id));
-  return tournaments.filter((t) => !joinedIds.has(t.id));
+  return filterTournamentsForPublicLobby(tournaments).filter((t) => !joinedIds.has(t.id));
 }
 
 export function formatJoinedTournamentHint(tournament: TournamentSummary): string {
@@ -144,31 +151,19 @@ export function formatJoinedTournamentHint(tournament: TournamentSummary): strin
 export function groupTournamentsForLobby(tournaments: TournamentSummary[]): Record<TournamentLobbySection, TournamentSummary[]> {
   const upcoming: TournamentSummary[] = [];
   const running: TournamentSummary[] = [];
-  const recent: TournamentSummary[] = [];
 
   for (const t of tournaments) {
     if (t.status === "REGISTERING") {
       upcoming.push(t);
     } else if (t.status === "STARTING" || t.status === "RUNNING") {
       running.push(t);
-    } else if (t.status === "FINISHED" || t.status === "CANCELLED") {
-      recent.push(t);
     }
   }
 
   upcoming.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   running.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  recent.sort((a, b) => {
-    const aTs = new Date(a.finishedAt ?? a.startTime).getTime();
-    const bTs = new Date(b.finishedAt ?? b.startTime).getTime();
-    return bTs - aTs;
-  });
 
-  return {
-    upcoming,
-    running,
-    recent: recent.slice(0, 10),
-  };
+  return { upcoming, running };
 }
 
 export function formatCountdownTo(ts: number | null | undefined): string | null {

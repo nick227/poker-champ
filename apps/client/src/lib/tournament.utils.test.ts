@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterTournamentsForBrowseLobby,
+  filterTournamentsForPublicLobby,
   formatJoinedTournamentHint,
   formatTournamentStartLocal,
   groupTournamentsForLobby,
@@ -152,11 +153,20 @@ describe("groupTournamentsForLobby", () => {
     const groups = groupTournamentsForLobby([
       baseTournament({ id: "a", status: "REGISTERING" }),
       baseTournament({ id: "b", status: "RUNNING", tableId: "t", roomId: "r" }),
-      baseTournament({ id: "c", status: "FINISHED", finishedAt: "2026-06-02T00:00:00.000Z" }),
     ]);
     expect(groups.upcoming.map((t) => t.id)).toEqual(["a"]);
     expect(groups.running.map((t) => t.id)).toEqual(["b"]);
-    expect(groups.recent.map((t) => t.id)).toEqual(["c"]);
+  });
+});
+
+describe("filterTournamentsForPublicLobby", () => {
+  it("excludes finished and cancelled", () => {
+    const visible = filterTournamentsForPublicLobby([
+      baseTournament({ id: "open", status: "REGISTERING" }),
+      baseTournament({ id: "done", status: "FINISHED" }),
+      baseTournament({ id: "gone", status: "CANCELLED" }),
+    ]);
+    expect(visible.map((t) => t.id)).toEqual(["open"]);
   });
 });
 

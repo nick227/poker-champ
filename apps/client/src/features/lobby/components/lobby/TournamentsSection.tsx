@@ -1,5 +1,7 @@
 import { View } from "react-native";
+import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
+import { TOURNAMENT } from "@/constants/copy";
 import { TournamentCard } from "./TournamentCard";
 import { TournamentListFeedback } from "./TournamentListFeedback";
 import {
@@ -18,6 +20,7 @@ type TournamentsSectionProps = {
   onTournamentAction: (tournament: TournamentSummary) => void;
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onRetry?: () => void;
+  onCreateTournament?: () => void;
 };
 
 function SectionBlock({
@@ -64,10 +67,10 @@ export function TournamentsSection({
   onTournamentAction,
   onOpenTournamentDetail,
   onRetry,
+  onCreateTournament,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
-  const hasBrowse =
-    groups.upcoming.length > 0 || groups.running.length > 0 || groups.recent.length > 0;
+  const hasBrowse = groups.upcoming.length > 0 || groups.running.length > 0;
   const hasJoined = selectJoinedTournaments(tournaments).length > 0;
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Check back soon."
@@ -75,7 +78,12 @@ export function TournamentsSection({
 
   return (
     <View className="ui-stack-4 px-4 pb-2">
-      <Text variant="h2">Tournaments</Text>
+      <View className="ui-row flex-wrap items-center justify-between gap-2">
+        <Text variant="h2">Tournaments</Text>
+        {onCreateTournament ? (
+          <Button intent="accent" title={TOURNAMENT.create} size="sm" onPress={onCreateTournament} />
+        ) : null}
+      </View>
       <TournamentListFeedback
         busy={busy}
         error={error}
@@ -96,14 +104,6 @@ export function TournamentsSection({
           <SectionBlock
             title="Running"
             items={groups.running}
-            authenticated={authenticated}
-            actionInFlight={actionInFlight}
-            onTournamentAction={onTournamentAction}
-            onOpenTournamentDetail={onOpenTournamentDetail}
-          />
-          <SectionBlock
-            title="Recent"
-            items={groups.recent}
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Redirect } from "expo-router";
+import { Redirect, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Text } from "@/components/base/Text";
@@ -57,6 +57,7 @@ function formatLastOnline(input?: string | null): string {
 }
 
 export default function AdminScreen() {
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
   const [user, setUser] = useState<MeUser | null>(null);
@@ -66,7 +67,11 @@ export default function AdminScreen() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [actionKey, setActionKey] = useState<string | null>(null);
-  const [tab, setTab] = useState<AdminTab>("users");
+  const [tab, setTab] = useState<AdminTab>(tabParam === "tournaments" ? "tournaments" : "users");
+
+  useEffect(() => {
+    if (tabParam === "tournaments") setTab("tournaments");
+  }, [tabParam]);
   const showToast = useToastStore((s) => s.show);
 
   useEffect(() => {

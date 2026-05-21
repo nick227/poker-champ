@@ -23,6 +23,10 @@ export const CHAT = {
   empty: "No messages yet.",
 } as const;
 
+export const TOURNAMENT = {
+  create: "Create tournament",
+} as const;
+
 export const TABLE = {
   yourTurn: "Your turn",
   wins: "wins",
