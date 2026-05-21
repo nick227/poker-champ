@@ -1,8 +1,16 @@
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
+import { TournamentInTheMoneyReveal } from "./TournamentInTheMoneyReveal";
+import {
+  buildTournamentResultRevealKey,
+  formatFinishPlace,
+  getTournamentResultTier,
+  shouldShowTournamentResultOverlay,
+} from "./tournament-result.utils";
 
 type TournamentOverlay = NonNullable<TableSnapshotPayload["table"]["tournament"]>;
 type TournamentViewer = NonNullable<TableSnapshotPayload["hero"]["tournamentViewer"]>;
@@ -14,21 +22,6 @@ type TournamentResultBannerProps = {
   onBackToLobby: () => void;
 };
 
-function formatFinishPlace(place: number): string {
-  const mod100 = place % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${place}th`;
-  switch (place % 10) {
-    case 1:
-      return `${place}st`;
-    case 2:
-      return `${place}nd`;
-    case 3:
-      return `${place}rd`;
-    default:
-      return `${place}th`;
-  }
-}
-
 export function TournamentResultBanner({
   tournament,
   tournamentViewer,
@@ -37,10 +30,39 @@ export function TournamentResultBanner({
 }: TournamentResultBannerProps) {
   const eliminated = tournamentViewer?.isEliminated === true;
   const finished = tournament.status === "FINISHED";
-  if (!eliminated && !finished) return null;
+  const showOverlay = shouldShowTournamentResultOverlay(eliminated, tournament.status);
 
   const place = tournamentViewer?.finishPlace;
   const payoutCents = tournamentViewer?.payoutCents ?? 0;
+  const tier = getTournamentResultTier(place, payoutCents);
+  const revealKey = buildTournamentResultRevealKey(
+    tournament.tournamentId,
+    place,
+    payoutCents,
+  );
+
+  const [revealDismissed, setRevealDismissed] = useState(false);
+  useEffect(() => {
+    setRevealDismissed(false);
+  }, [revealKey]);
+
+  if (!showOverlay) return null;
+
+  const showInTheMoneyReveal = tier !== "none" && !revealDismissed && place != null;
+
+  if (showInTheMoneyReveal) {
+    return (
+      <TournamentInTheMoneyReveal
+        visible
+        tier={tier}
+        finishPlace={place}
+        payoutCents={payoutCents}
+        onDismiss={() => setRevealDismissed(true)}
+        onViewStandings={onViewStandings}
+        onBackToLobby={onBackToLobby}
+      />
+    );
+  }
 
   let headline = "You were eliminated from this tournament.";
   if (finished && !eliminated) {
@@ -56,8 +78,21 @@ export function TournamentResultBanner({
         ? "Spectating — table actions are disabled."
         : null;
 
+  const compactItm = tier !== "none";
+
   return (
-    <View className="border-b border-border bg-panel-elevated px-4 py-3">
+    <View
+      className={
+        compactItm
+          ? "border-b border-amber-500/40 bg-amber-950/40 px-4 py-3"
+          : "border-b border-border bg-panel-elevated px-4 py-3"
+      }
+    >
+      {compactItm ? (
+        <Text variant="label" className="text-amber-300">
+          {tier === "champion" ? "Tournament champion" : "In the money"}
+        </Text>
+      ) : null}
       <Text variant="body">{headline}</Text>
       {detail ? (
         <Text variant="muted" className="mt-1">

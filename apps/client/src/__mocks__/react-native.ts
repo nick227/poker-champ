@@ -78,4 +78,106 @@ export function useWindowDimensions() {
   return { width: 400, height: 600 };
 }
 
-export default { Platform, StyleSheet, View, Text, Pressable, ScrollView, ActivityIndicator, PanResponder, useWindowDimensions };
+class AnimatedValue {
+  constructor(public _value: number) {}
+  setValue(v: number) {
+    this._value = v;
+  }
+  interpolate() {
+    return this._value;
+  }
+}
+
+function animatedStub() {
+  return {
+    start: (cb?: (result?: { finished: boolean }) => void) => {
+      cb?.({ finished: true });
+      return { stop: () => {} };
+    },
+    stop: () => {},
+  };
+}
+
+export const Animated = {
+  Value: AnimatedValue,
+  View,
+  timing: () => animatedStub(),
+  spring: () => animatedStub(),
+  delay: () => animatedStub(),
+  sequence: (steps: unknown[]) => {
+    const stub = animatedStub();
+    return {
+      start: (cb?: (result?: { finished: boolean }) => void) => {
+        if (Array.isArray(steps)) {
+          for (const step of steps) {
+            if (step && typeof step === "object" && "start" in step) {
+              (step as ReturnType<typeof animatedStub>).start();
+            }
+          }
+        }
+        cb?.({ finished: true });
+        return stub;
+      },
+      stop: () => stub.stop(),
+    };
+  },
+  parallel: (steps: unknown[]) => {
+    const stub = animatedStub();
+    return {
+      start: (cb?: (result?: { finished: boolean }) => void) => {
+        if (Array.isArray(steps)) {
+          for (const step of steps) {
+            if (step && typeof step === "object" && "start" in step) {
+              (step as ReturnType<typeof animatedStub>).start();
+            }
+          }
+        }
+        cb?.({ finished: true });
+        return stub;
+      },
+      stop: () => stub.stop(),
+    };
+  },
+  loop: (step: unknown) => {
+    const stub = animatedStub();
+    const inner =
+      step && typeof step === "object" && "start" in step
+        ? (step as ReturnType<typeof animatedStub>)
+        : null;
+    return {
+      start: (cb?: (result?: { finished: boolean }) => void) => {
+        inner?.start();
+        cb?.({ finished: true });
+        return stub;
+      },
+      stop: () => {
+        inner?.stop();
+        stub.stop();
+      },
+    };
+  },
+};
+
+export const Modal = ({
+  visible,
+  children,
+  ...rest
+}: {
+  visible?: boolean;
+  children?: ReactNode;
+  [key: string]: unknown;
+}) => (visible ? createElement("div", { ...rest, "data-testid": "modal" }, children) : null);
+
+export default {
+  Platform,
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  PanResponder,
+  useWindowDimensions,
+  Animated,
+  Modal,
+};
