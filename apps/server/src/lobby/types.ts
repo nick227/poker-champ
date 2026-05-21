@@ -21,6 +21,8 @@ export type TableConfig = {
     presetId: "MULTIPLAYER_RING" | "HEADS_UP_BOT";
     targetBotCountOverride?: number;
   };
+  tournamentId?: string;
+  gameMode?: "CASH" | "TOURNAMENT";
 };
 
 export type LobbyTableSummary = {

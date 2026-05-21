@@ -268,6 +268,58 @@ export class PlayerLifecycleService {
     return plans;
   }
 
+  async addTournamentPlayer(
+    userId: string,
+    name: string,
+    startingStackCents: number,
+    tournamentId: string,
+    externalRef: string,
+  ): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    if (this.deps.state.playersById.has(userId)) {
+      return plans;
+    }
+    this.cashedOutUserIds.delete(userId);
+
+    const seat = findOpenSeat(this.deps.state);
+    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
+
+    const grant = await CashierService.grantTournamentStartingStack({
+      userId,
+      tableId: this.deps.state.tableId,
+      tournamentId,
+      amountCents: startingStackCents,
+      externalRef,
+      tableMeta: { name: this.deps.state.tableName },
+    });
+
+    const player = new PlayerState();
+    player.id = userId;
+    player.userId = userId;
+    player.kind = "HUMAN";
+    player.name = name;
+    player.seat = seat;
+    player.status = "ACTIVE";
+    player.connected = false;
+    player.disconnectDeadlineTs = 0;
+    player.stackCents = grant.stackCents;
+    player.roundBetCents = 0;
+    player.committedCents = 0;
+    player.needsAction = false;
+    player.sittingOutUntilNextHand = false;
+
+    this.deps.state.playersById.set(userId, player);
+    this.deps.state.seats[seat] = userId;
+
+    await this.deps.ensurePlayerPersistence(player);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+
+    if (this.deps.state.street === "WAITING" && countNonOutPlayers(this.deps.state) >= 2) {
+      plans.push({ kind: "START_HAND" });
+    }
+    return plans;
+  }
+
   /**
    * Add chips to an already-seated player (rebuy). Caller must have already run
    * CashierService.processCashGameBuyIn so ledger is updated; this only mutates in-memory state.

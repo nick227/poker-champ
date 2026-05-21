@@ -32,6 +32,7 @@ import { presenceIndex } from "../lobby/PresenceIndex.js";
 import { createPerClientRateLimiter } from "./perClientRateLimit.js";
 import { listEnabledBotSummaries } from "../engine/bots/BotCatalog.js";
 import { getPrisma } from "@poker-champ/db";
+import { tournamentSeatGrantExternalRef } from "../tournaments/tournament.constants.js";
 import { awardService } from "../awards/index.js";
 import { PokerRoomController } from "./room/PokerRoomController.js";
 import { dealerRuntimeMetrics } from "../engine/dealer/metrics/dealerRuntimeMetrics.js";
@@ -93,6 +94,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   private dealer!: Dealer;
   private controller!: PokerRoomController;
+  private tournamentId?: string;
+  private tournamentStartingStackCents?: number;
   // Back-compat bridge for tests and legacy paths; SessionManager is the owner of mutations.
   readonly userIdBySessionId: Map<string, string> = new Map();
   readonly bindingEpochByUserId: Map<string, number> = new Map();
@@ -263,6 +266,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.state.minBuyInCents = cfg?.minBuyInCents ?? this.state.minBuyInCents;
     this.state.maxBuyInCents = cfg?.maxBuyInCents ?? this.state.maxBuyInCents;
     this.state.showStats = cfg?.showStats ?? false;
+    this.tournamentId = cfg?.tournamentId;
+    this.tournamentStartingStackCents =
+      cfg?.gameMode === "TOURNAMENT" ? cfg.minBuyInCents : undefined;
 
     // Limit maximum clients to the table's seat capacity
     this.maxClients = this.state.maxSeats;
@@ -273,6 +279,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
       creatorName: cfg?.creatorName ?? "Player",
       creatorAvatarUrl: cfg?.creatorAvatarUrl ?? null,
+      tournamentId: cfg?.tournamentId,
+      gameMode: cfg?.gameMode ?? "CASH",
       updatedAt: Date.now(),
     });
 
@@ -409,9 +417,19 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       creatorId: cfg?.creatorId != null ? String(cfg.creatorId) : undefined,
       creatorName: cfg?.creatorName ?? "Player",
       creatorAvatarUrl: cfg?.creatorAvatarUrl ?? null,
+      tournamentId: this.tournamentId,
+      gameMode: cfg?.gameMode ?? (this.tournamentId ? "TOURNAMENT" : "CASH"),
       humanCount,
       connectedHumanCount,
     });
+  }
+
+  getTournamentIdInternal(): string | undefined {
+    return this.tournamentId;
+  }
+
+  getTournamentStartingStackCentsInternal(): number | undefined {
+    return this.tournamentStartingStackCents;
   }
 
   startStallMonitorInternal(): void {
@@ -1126,6 +1144,56 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
 
     return { ok: added === missing, added, target };
+  }
+
+  async seedTournamentPlayers(
+    seats: { userId: string; displayName: string }[],
+    startingStackCents: number,
+    tournamentId: string,
+  ): Promise<{ ok: boolean; seated: number }> {
+    if (!this.tournamentId || this.tournamentId !== tournamentId) {
+      return { ok: false, seated: 0 };
+    }
+
+    let seated = 0;
+    this.dealer.suspendGameplayTransitions("TOURNAMENT_SEED");
+    try {
+      for (const seat of seats) {
+        if (this.dealer.hasPlayer(seat.userId)) {
+          seated += 1;
+          continue;
+        }
+        try {
+          await this.dealer.addTournamentPlayer(
+            seat.userId,
+            seat.displayName,
+            startingStackCents,
+            tournamentId,
+            tournamentSeatGrantExternalRef(tournamentId, seat.userId),
+          );
+          seated += 1;
+        } catch (err: unknown) {
+          logger.warn(
+            {
+              roomId: this.roomId,
+              tableId: this.state.tableId,
+              tournamentId,
+              userId: seat.userId,
+              message: (err as Error | undefined)?.message ?? String(err),
+            },
+            "TOURNAMENT_SEED_PLAYER_FAILED",
+          );
+        }
+      }
+      if (seated > 0) {
+        this.updateMetadataCounts();
+        await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+      }
+    } finally {
+      this.dealer.resumeGameplayTransitions("TOURNAMENT_SEED");
+    }
+
+    return { ok: seated >= 2, seated };
   }
 
   /**

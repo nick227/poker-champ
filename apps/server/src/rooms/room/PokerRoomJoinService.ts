@@ -4,6 +4,12 @@ import type { ZodIssue } from "zod";
 import { PokerError } from "../../engine/errors.js";
 import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionService.js";
 import { presenceIndex } from "../../lobby/PresenceIndex.js";
+import { assertTournamentJoinAllowed } from "../../tournaments/tournament-join-guard.js";
+import {
+  TOURNAMENT_JOIN_CLOSED,
+  TOURNAMENT_NOT_REGISTERED,
+} from "../../tournaments/tournament.errors.js";
+import { tournamentSeatGrantExternalRef } from "../../tournaments/tournament.constants.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomJoinServiceContract } from "./types/PokerRoomTypes.js";
 
@@ -195,7 +201,28 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         }
       }
 
-      const parsedJoin = TableJoinOptionsSchema.safeParse(optionsObj);
+      const tournamentId = room.getTournamentIdInternal();
+      let requiredBuyInCents: number | null = null;
+      if (tournamentId) {
+        try {
+          const allowed = await assertTournamentJoinAllowed({ tournamentId, userId });
+          requiredBuyInCents = allowed.startingStackCents;
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : TOURNAMENT_JOIN_CLOSED;
+          const code =
+            message === TOURNAMENT_NOT_REGISTERED ? TOURNAMENT_NOT_REGISTERED : TOURNAMENT_JOIN_CLOSED;
+          room.sendTableMessageInternal(client, "ERROR", { code, message });
+          client.leave();
+          return;
+        }
+      }
+
+      const joinOptionsForParse =
+        requiredBuyInCents != null
+          ? { ...optionsObj, buyInCents: requiredBuyInCents }
+          : optionsObj;
+
+      const parsedJoin = TableJoinOptionsSchema.safeParse(joinOptionsForParse);
       if (!parsedJoin.success) {
         const hasBuyInIssue = parsedJoin.error.issues.some((issue: ZodIssue) => issue.path[0] === "buyInCents");
         this.ctx.logger.warn(
@@ -225,7 +252,17 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         }
 
         this.session.rebindClientExclusive(userId, client);
-        await this.ctx.dealer.addPlayer(userId, name, buyInCents);
+        if (tournamentId) {
+          await this.ctx.dealer.addTournamentPlayer(
+            userId,
+            name,
+            buyInCents,
+            tournamentId,
+            tournamentSeatGrantExternalRef(tournamentId, userId),
+          );
+        } else {
+          await this.ctx.dealer.addPlayer(userId, name, buyInCents);
+        }
         room.updateMetadataCountsInternal();
         room.maybeStartPendingInstantGameSeedInternal();
 

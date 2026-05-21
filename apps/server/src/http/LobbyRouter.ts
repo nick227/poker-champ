@@ -6,6 +6,7 @@ import { CreateTableSchema } from "../lobby/schemas.js";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
 import { getPrisma } from "@poker-champ/db";
+import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
 
 const router = express.Router();
 const InstantPresetIdSchema = z.enum(["MULTIPLAYER_RING", "HEADS_UP_BOT"]);
@@ -49,7 +50,10 @@ function logInstantGamePhase(phase: string, extra?: Record<string, unknown>): vo
 
 router.get("/tables", async (_req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
-  const tables = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
+  const cashRooms = rooms.filter(
+    (r: { metadata?: Record<string, unknown> }) => !isTournamentTableMetadata(r.metadata),
+  );
+  const tables = cashRooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
     const metadata = r.metadata ?? {};
     const humanCount = typeof metadata.humanCount === "number" ? metadata.humanCount : undefined;
     const connectedHumanCount = typeof metadata.connectedHumanCount === "number" ? metadata.connectedHumanCount : undefined;

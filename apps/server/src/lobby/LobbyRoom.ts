@@ -9,6 +9,7 @@ import { logger } from "../lib/logger.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import { presenceIndex } from "./PresenceIndex.js";
 import { getPrisma } from "@poker-champ/db";
+import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
 import { nanoid } from "nanoid";
 
 type LobbyState = Record<string, never>;
@@ -323,8 +324,11 @@ export class LobbyRoom extends Room<LobbyState> {
 
   private async queryTables(includePrivateHash: boolean = false): Promise<(LobbyTableSummary & { passwordHash?: string })[]> {
     const rooms = await matchMaker.query({ name: "poker" });
+    const cashRooms = rooms.filter(
+      (r: { metadata?: Record<string, unknown> }) => !isTournamentTableMetadata(r.metadata),
+    );
 
-    const raw = rooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
+    const raw = cashRooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
       const m = r.metadata ?? {};
       const humanCount = typeof m.humanCount === "number" ? m.humanCount : undefined;
       const connectedHumanCount = typeof m.connectedHumanCount === "number" ? m.connectedHumanCount : undefined;

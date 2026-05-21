@@ -247,6 +247,63 @@ export class CashierService {
   }
 
   /**
+   * Grant tournament starting stack at the table without debiting bankroll (entry fee already paid).
+   */
+  static async grantTournamentStartingStack(params: {
+    userId: string;
+    tableId: string;
+    tournamentId: string;
+    amountCents: number;
+    externalRef: string;
+    tableMeta: { name: string };
+  }): Promise<{ stackCents: number }> {
+    const prisma = getPrisma();
+    const { userId, tableId, tournamentId, amountCents, externalRef, tableMeta } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingRef) {
+        const pb = await tx.playerBalance.findUnique({
+          where: { tableId_userId: { tableId, userId } },
+        });
+        return { stackCents: pb?.balanceCents ?? amountCents };
+      }
+
+      await CashierService.ensureTableExists(tx, tableId, tableMeta);
+
+      const pb = await tx.playerBalance.upsert({
+        where: { tableId_userId: { tableId, userId } },
+        create: {
+          id: nanoid(),
+          tableId,
+          userId,
+          balanceCents: amountCents,
+          status: "ACTIVE",
+        },
+        update: {
+          balanceCents: amountCents,
+          status: "ACTIVE",
+        },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          tableId,
+          tournamentId,
+          type: "TOURNAMENT_SEAT",
+          amountCents: 0,
+          externalRef,
+          metaJson: { startingStackCents: amountCents },
+        },
+      });
+
+      return { stackCents: pb.balanceCents };
+    });
+  }
+
+  /**
    * Tournament unregister — refunds entry fee to bankroll and removes registration.
    */
   static async processTournamentRefund(params: {
@@ -324,13 +381,25 @@ export class CashierService {
       if (tourney.status === "CANCELLED") {
         return { success: true, refundedCount: 0 };
       }
-      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+      if (
+        tourney.status !== "REGISTERING" &&
+        tourney.status !== "LATE_REG" &&
+        tourney.status !== "STARTING"
+      ) {
         throw new Error(TOURNAMENT_NOT_CANCELLABLE);
       }
 
       const registrations = await tx.tournamentRegistration.findMany({
         where: { tournamentId },
       });
+
+      if (registrations.length === 0) {
+        await tx.tournament.update({
+          where: { id: tournamentId },
+          data: { status: "CANCELLED", prizePoolCents: 0 },
+        });
+        return { success: true, refundedCount: 0 };
+      }
 
       for (const reg of registrations) {
         const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;

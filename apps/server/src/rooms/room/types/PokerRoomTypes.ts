@@ -47,6 +47,8 @@ export type TableConfig = {
   creatorName: string;
   creatorAvatarUrl: string | null;
   instantGameSeed?: InstantGameSeedConfig;
+  tournamentId?: string;
+  gameMode?: "CASH" | "TOURNAMENT";
 };
 
 /** Metadata exposed to the lobby system for table discovery */
@@ -72,6 +74,8 @@ export type PokerRoomMetadata = {
   connectedHumanCount?: number;
   avgPotCents?: number;
   waitlistCount?: number;
+  tournamentId?: string;
+  gameMode?: "CASH" | "TOURNAMENT";
 };
 
 export type SittingOutSweepOptions = {
@@ -142,6 +146,8 @@ export interface PokerRoomFacade {
     action: { action: string; amountCents?: number; actionId: string; atTs: number },
   ): void;
   getLastAcceptedActionInternal(userId: string): { action: string; amountCents?: number; actionId: string; atTs: number } | undefined;
+  getTournamentIdInternal(): string | undefined;
+  getTournamentStartingStackCentsInternal(): number | undefined;
 }
 
 export type PokerRoomContext = {

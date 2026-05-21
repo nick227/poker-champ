@@ -29,6 +29,7 @@ import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggr
 import { loadEnv } from "./config/env.js";
 import { isLeaderboardEnabled, isLessonsV1Enabled } from "./config/features.js";
 import { disconnectPrisma } from "@poker-champ/db";
+import { tournamentDirector } from "./tournaments/TournamentDirector.js";
 import { securityHeaders } from "./http/middleware/security.js";
 import { createIpRateLimit } from "./http/middleware/rateLimit.js";
 
@@ -202,6 +203,7 @@ gameServer.define("lobby", LobbyRoom);
 gameServer.define("poker", PokerRoom);
 
 let recoveryInterval: NodeJS.Timeout | null = null;
+let tournamentDirectorInterval: NodeJS.Timeout | null = null;
 let leaderboardInterval: NodeJS.Timeout | null = null;
 let eventLoopLagInterval: NodeJS.Timeout | null = null;
 let memoryLogInterval: NodeJS.Timeout | null = null;
@@ -215,6 +217,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (recoveryInterval) {
     clearInterval(recoveryInterval);
     recoveryInterval = null;
+  }
+  if (tournamentDirectorInterval) {
+    clearInterval(tournamentDirectorInterval);
+    tournamentDirectorInterval = null;
   }
   if (leaderboardInterval) {
     clearInterval(leaderboardInterval);
@@ -258,6 +264,14 @@ async function start() {
       logger.error({ err }, "Periodic recovery job failed");
     });
   }, 60 * 60 * 1000);
+
+  const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "15000");
+  if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {
+    void tournamentDirector.processDueTournaments();
+    tournamentDirectorInterval = setInterval(() => {
+      void tournamentDirector.processDueTournaments();
+    }, tournamentPollMs);
+  }
 
   if (isLeaderboardEnabled()) {
     void recomputeLeaderboardSafely();
