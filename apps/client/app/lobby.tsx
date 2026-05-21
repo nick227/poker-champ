@@ -30,6 +30,7 @@ import { normalizeTable } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
+import { useTournamentStartLobbyEffects } from "@/features/lobby/hooks/useTournamentStartLobbyEffects";
 import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import { useAuthStore } from "@/stores/auth.store";
 import { serviceRegistry } from "@/registry/service.registry";
@@ -129,6 +130,12 @@ export default function LobbyScreen() {
     }, 30_000);
     return () => clearInterval(timer);
   }, [authHydrated, refresh, refreshTournaments]);
+
+  useTournamentStartLobbyEffects({
+    tournaments: tournamentList,
+    enabled: authHydrated,
+    refreshTournaments,
+  });
 
   const sortedTables = useMemo(() => {
     const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));

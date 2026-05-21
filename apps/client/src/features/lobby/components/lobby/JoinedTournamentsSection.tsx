@@ -1,8 +1,9 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { TournamentCard } from "./TournamentCard";
-import { formatJoinedTournamentHint, selectJoinedTournaments } from "@/lib/tournament.utils";
+import { selectJoinedTournaments } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
+import { JoinedTournamentCard } from "./JoinedTournamentCard";
 
 type JoinedTournamentsSectionProps = {
   tournaments: TournamentSummary[];
@@ -38,16 +39,13 @@ export function JoinedTournamentsSection({
       </View>
       <View className="ui-stack-3">
         {joined.map((t) => (
-          <TournamentCard
+          <JoinedTournamentCard
             key={t.id}
             tournament={t}
             authenticated={authenticated}
             actionInFlight={actionInFlight}
-            statusHint={formatJoinedTournamentHint(t)}
             onOpenDetail={onOpenTournamentDetail}
             onAction={onTournamentAction}
-            onDelete={onDeleteTournament}
-            deleteInFlight={deleteInFlightId === t.id}
           />
         ))}
       </View>

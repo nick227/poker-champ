@@ -31,24 +31,69 @@ export function formatTournamentStatus(status: string): string {
   }
 }
 
+export function tournamentStartMs(tournament: TournamentSummary): number {
+  return new Date(tournament.startTime).getTime();
+}
+
+export function isTournamentStartDue(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  const startTs = tournamentStartMs(tournament);
+  return Number.isFinite(startTs) && startTs <= nowMs;
+}
+
+export function isTournamentInJoinPhase(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  if (tournament.status === "STARTING" || tournament.status === "RUNNING") return true;
+  return tournament.status === "REGISTERING" && isTournamentStartDue(tournament, nowMs);
+}
+
 export function isTournamentTableLive(tournament: TournamentSummary): boolean {
   if (!tournament.tableId || !tournament.roomId) return false;
   return tournament.tableLive === true;
 }
 
-export function canJoinTournament(tournament: TournamentSummary): boolean {
+export function canJoinTournament(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
   return (
-    (tournament.status === "STARTING" || tournament.status === "RUNNING") &&
+    isTournamentInJoinPhase(tournament, nowMs) &&
     Boolean(tournament.isRegistered) &&
     isTournamentTableLive(tournament)
   );
 }
 
+function resolveTournamentJoinCta(
+  tournament: TournamentSummary,
+  authenticated: boolean,
+  nowMs: number,
+): TournamentCta {
+  const joinReady = canJoinTournament(tournament, nowMs);
+  if (!joinReady) {
+    if (!authenticated) {
+      return { label: "Log in to join", action: "join", disabled: true };
+    }
+    if (tournament.isRegistered !== true) {
+      return { label: "Not registered", action: "none", disabled: true };
+    }
+    if (tournament.tableLive === false) {
+      return { label: "Table ended", action: "join", disabled: true };
+    }
+    return { label: "Starting soon…", action: "join", disabled: true };
+  }
+  return { label: "Join Table", action: "join", disabled: false };
+}
+
 export function resolveTournamentCta(
   tournament: TournamentSummary,
-  opts?: { authenticated?: boolean },
+  opts?: { authenticated?: boolean; nowMs?: number },
 ): TournamentCta {
   const authenticated = opts?.authenticated !== false;
+  const nowMs = opts?.nowMs ?? Date.now();
 
   if (tournament.status === "CANCELLED") {
     return { label: "Cancelled", action: "none", disabled: true };
@@ -58,25 +103,8 @@ export function resolveTournamentCta(
     return { label: "View Standings", action: "standings", disabled: false };
   }
 
-  if (tournament.status === "STARTING" || tournament.status === "RUNNING") {
-    const joinReady = canJoinTournament(tournament);
-    if (!joinReady) {
-      if (!authenticated) {
-        return { label: "Log in to join", action: "join", disabled: true };
-      }
-      if (tournament.isRegistered !== true) {
-        return { label: "Not registered", action: "none", disabled: true };
-      }
-      if (tournament.tableLive === false) {
-        return { label: "Table ended", action: "join", disabled: true };
-      }
-      return { label: "Starting soon…", action: "join", disabled: true };
-    }
-    return {
-      label: "Join Table",
-      action: "join",
-      disabled: false,
-    };
+  if (isTournamentInJoinPhase(tournament, nowMs)) {
+    return resolveTournamentJoinCta(tournament, authenticated, nowMs);
   }
 
   if (tournament.status === "REGISTERING") {
@@ -138,17 +166,27 @@ export function filterTournamentsForBrowseLobby(tournaments: TournamentSummary[]
   return filterTournamentsForPublicLobby(tournaments).filter((t) => !joinedIds.has(t.id));
 }
 
-export function formatJoinedTournamentHint(tournament: TournamentSummary): string {
+export function formatJoinedTournamentHint(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): string {
   if (tournament.status === "REGISTERING") {
-    const startTs = new Date(tournament.startTime).getTime();
-    const countdown = formatCountdownTo(startTs);
-    if (countdown && countdown !== "Now") {
+    const startTs = tournamentStartMs(tournament);
+    if (!Number.isFinite(startTs)) {
+      return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
+    }
+    if (isTournamentStartDue(tournament, nowMs)) {
+      return "Starting now · table opens shortly";
+    }
+    const countdown = formatCountdownTo(startTs, nowMs);
+    if (countdown) {
       return `Scheduled · starts in ${countdown}`;
     }
     return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
   }
   if (tournament.status === "STARTING") {
-    return "Starting · table opens shortly";
+    if (isTournamentTableLive(tournament)) return "Live · join the table";
+    return "Starting now · table opens shortly";
   }
   if (tournament.status === "RUNNING") {
     if (tournament.tableLive === false) return "Ended · table no longer active";
@@ -175,10 +213,13 @@ export function groupTournamentsForLobby(tournaments: TournamentSummary[]): Reco
   return { upcoming, running };
 }
 
-export function formatCountdownTo(ts: number | null | undefined): string | null {
+export function formatCountdownTo(
+  ts: number | null | undefined,
+  nowMs: number = Date.now(),
+): string | null {
   if (ts == null || !Number.isFinite(ts)) return null;
-  const remainingMs = ts - Date.now();
-  if (remainingMs <= 0) return "Now";
+  const remainingMs = ts - nowMs;
+  if (remainingMs <= 0) return null;
   const totalSec = Math.ceil(remainingMs / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;

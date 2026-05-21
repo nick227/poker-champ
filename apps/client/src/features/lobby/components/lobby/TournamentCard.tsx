@@ -9,13 +9,15 @@ import {
   formatTournamentStatus,
   resolveTournamentCta,
 } from "@/lib/tournament.utils";
-import type { TournamentSummary } from "@/services/tournaments.types";
+import type { TournamentCta, TournamentSummary } from "@/services/tournaments.types";
 
 type TournamentCardProps = {
   tournament: TournamentSummary;
   authenticated: boolean;
   actionInFlight?: boolean;
   statusHint?: string;
+  /** When set (e.g. live countdown join phase), used instead of resolving CTA at render time. */
+  ctaOverride?: TournamentCta;
   onOpenDetail: (tournament: TournamentSummary) => void;
   onAction: (tournament: TournamentSummary) => void;
   onDelete?: (tournament: TournamentSummary) => void;
@@ -27,12 +29,13 @@ export function TournamentCard({
   authenticated,
   actionInFlight,
   statusHint,
+  ctaOverride,
   onOpenDetail,
   onAction,
   onDelete,
   deleteInFlight,
 }: TournamentCardProps) {
-  const cta = resolveTournamentCta(tournament, { authenticated });
+  const cta = ctaOverride ?? resolveTournamentCta(tournament, { authenticated });
   const disabled = cta.disabled || actionInFlight;
   const showDelete = onDelete != null && canCreatorDeleteTournament(tournament);
 

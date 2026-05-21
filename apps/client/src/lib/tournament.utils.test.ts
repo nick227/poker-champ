@@ -3,9 +3,11 @@ import {
   canCreatorDeleteTournament,
   filterTournamentsForBrowseLobby,
   filterTournamentsForPublicLobby,
+  formatCountdownTo,
   formatJoinedTournamentHint,
   formatTournamentStartLocal,
   groupTournamentsForLobby,
+  isTournamentStartDue,
   mapTournamentApiError,
   mapTournamentErrorMessage,
   resolveTournamentCta,
@@ -35,8 +37,12 @@ function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummar
 }
 
 describe("resolveTournamentCta", () => {
-  it("offers unregister when registered during REGISTERING", () => {
-    const cta = resolveTournamentCta(baseTournament({ isRegistered: true }));
+  it("offers unregister when registered during REGISTERING before start", () => {
+    const futureStart = new Date(Date.now() + 60 * 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({ isRegistered: true, startTime: futureStart }),
+      { nowMs: Date.now() },
+    );
     expect(cta).toEqual({ label: "Unregister", action: "unregister", disabled: false });
   });
 
@@ -120,6 +126,22 @@ describe("resolveTournamentCta", () => {
   it("shows standings CTA when finished", () => {
     const cta = resolveTournamentCta(baseTournament({ status: "FINISHED" }));
     expect(cta.action).toBe("standings");
+  });
+
+  it("offers join CTA after scheduled start time even if status is still REGISTERING", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "REGISTERING",
+        isRegistered: true,
+        startTime: pastStart,
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+      { nowMs: Date.now() },
+    );
+    expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
   });
 });
 
@@ -215,10 +237,39 @@ describe("selectJoinedTournaments", () => {
 
 describe("formatJoinedTournamentHint", () => {
   it("describes scheduled and live states", () => {
-    const farFuture = new Date(Date.now() + 60 * 60_000).toISOString();
-    expect(formatJoinedTournamentHint(baseTournament({ status: "REGISTERING", startTime: farFuture }))).toMatch(
-      /^Scheduled · starts in /,
+    const now = Date.now();
+    const farFuture = new Date(now + 60 * 60_000).toISOString();
+    const startTs = new Date(farFuture).getTime();
+    expect(
+      formatJoinedTournamentHint(
+        baseTournament({ status: "REGISTERING", startTime: farFuture }),
+        now,
+      ),
+    ).toBe(`Scheduled · starts in ${formatCountdownTo(startTs, now)}`);
+    expect(formatJoinedTournamentHint(baseTournament({ status: "RUNNING", currentLevel: 3 }))).toBe(
+      "Live · level 3",
     );
-    expect(formatJoinedTournamentHint(baseTournament({ status: "RUNNING", currentLevel: 3 }))).toBe("Live · level 3");
+  });
+
+  it("shows starting now when start time has passed", () => {
+    const now = Date.now();
+    const past = new Date(now - 1000).toISOString();
+    expect(
+      formatJoinedTournamentHint(baseTournament({ status: "REGISTERING", startTime: past }), now),
+    ).toBe("Starting now · table opens shortly");
+  });
+});
+
+describe("formatCountdownTo", () => {
+  it("returns null when start time has passed", () => {
+    const now = 1_000_000;
+    expect(formatCountdownTo(999_000, now)).toBeNull();
+  });
+});
+
+describe("isTournamentStartDue", () => {
+  it("is true when start time is in the past", () => {
+    const t = baseTournament({ startTime: new Date(0).toISOString() });
+    expect(isTournamentStartDue(t, 1000)).toBe(true);
   });
 });
