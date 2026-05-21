@@ -71,6 +71,45 @@ export const openApiSpec = {
         },
         required: ["token", "user"],
       },
+      TournamentSummary: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          status: { type: "string" },
+          entryFeeCents: { type: "integer" },
+          prizePoolCents: { type: "integer" },
+          startTime: { type: "string", format: "date-time" },
+          maxPlayers: { type: "integer" },
+          startingStackCents: { type: "integer" },
+          blindStructureId: { type: "string" },
+          lateRegMinutes: { type: "integer" },
+          currentLevel: { type: "integer" },
+          nextLevelAt: { type: "string", format: "date-time", nullable: true },
+          tableId: { type: "string", nullable: true },
+          roomId: { type: "string", nullable: true },
+          finishedAt: { type: "string", format: "date-time", nullable: true },
+          registeredCount: { type: "integer" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
+        },
+        required: [
+          "id",
+          "name",
+          "status",
+          "entryFeeCents",
+          "prizePoolCents",
+          "startTime",
+          "maxPlayers",
+          "startingStackCents",
+          "blindStructureId",
+          "lateRegMinutes",
+          "currentLevel",
+          "registeredCount",
+          "createdAt",
+          "updatedAt",
+        ],
+      },
       LobbyTableSummary: {
         type: "object",
         properties: {
@@ -1096,7 +1135,7 @@ export const openApiSpec = {
                   properties: {
                     tournaments: {
                       type: "array",
-                      items: { type: "object", additionalProperties: true },
+                      items: { $ref: "#/components/schemas/TournamentSummary" },
                     },
                   },
                   required: ["tournaments"],
@@ -1120,8 +1159,12 @@ export const openApiSpec = {
                   name: { type: "string" },
                   entryFeeCents: { type: "integer" },
                   startTime: { type: "string", format: "date-time" },
+                  maxPlayers: { type: "integer", minimum: 2, maximum: 9 },
+                  startingStackCents: { type: "integer", minimum: 1 },
+                  blindStructureId: { type: "string", enum: ["standard_8min"] },
+                  lateRegMinutes: { type: "integer", minimum: 0, maximum: 120 },
                 },
-                required: ["name", "entryFeeCents", "startTime"],
+                required: ["name", "entryFeeCents", "startTime", "maxPlayers"],
               },
             },
           },
@@ -1129,7 +1172,11 @@ export const openApiSpec = {
         responses: {
           "201": {
             description: "Tournament created",
-            content: { "application/json": { schema: { type: "object", additionalProperties: true } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/TournamentSummary" },
+              },
+            },
           },
           "403": {
             description: "Admin required",
@@ -1146,7 +1193,11 @@ export const openApiSpec = {
         responses: {
           "200": {
             description: "Tournament",
-            content: { "application/json": { schema: { type: "object", additionalProperties: true } } },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/TournamentSummary" },
+              },
+            },
           },
           "404": {
             description: "Not found",
@@ -1176,6 +1227,65 @@ export const openApiSpec = {
           },
           "400": {
             description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/tournaments/{id}/unregister": {
+      post: {
+        tags: ["tournaments"],
+        operationId: "tournamentsUnregister",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Unregistered",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" } },
+                  required: ["success"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/tournaments/{id}/cancel": {
+      post: {
+        tags: ["tournaments"],
+        operationId: "tournamentsCancel",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Cancelled",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    refundedCount: { type: "integer" },
+                  },
+                  required: ["success", "refundedCount"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "403": {
+            description: "Admin required",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

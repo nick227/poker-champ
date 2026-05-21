@@ -318,12 +318,24 @@ model Tournament {
   updatedAt DateTime @updatedAt
 
   name   String
-  status String @default("REGISTERING") // REGISTERING | RUNNING | FINISHED | CANCELLED
+  status String @default("REGISTERING") // REGISTERING | LATE_REG | STARTING | RUNNING | FINISHED | CANCELLED
 
   entryFeeCents  Int
   prizePoolCents Int @default(0)
 
   startTime DateTime
+
+  maxPlayers         Int
+  startingStackCents Int
+  blindStructureId   String
+  lateRegMinutes     Int @default(0)
+
+  currentLevel Int       @default(1)
+  nextLevelAt  DateTime?
+
+  tableId    String?
+  roomId     String?
+  finishedAt DateTime?
 
   registrations TournamentRegistration[]
   transactions  BalanceTransaction[]
@@ -339,6 +351,9 @@ model TournamentRegistration {
   createdAt DateTime @default(now())
 
   entryTxId String? // idempotent ref
+
+  finishPlace  Int?
+  eliminatedAt DateTime?
 
   @@unique([tournamentId, userId])
 }

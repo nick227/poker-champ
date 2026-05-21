@@ -1,10 +1,19 @@
 import express from "express";
 import { z } from "zod";
-import { nanoid } from "nanoid";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { requireAdmin } from "../engine/auth/AdminMiddleware.js";
 import { getPrisma } from "@poker-champ/db";
 import { CashierService } from "../engine/economy/CashierService.js";
+import {
+  DEFAULT_BLIND_STRUCTURE_ID,
+  DEFAULT_STARTING_STACK_CENTS,
+  isTournamentBlindStructureId,
+  tournamentCancelExternalRef,
+  tournamentEntryExternalRef,
+  tournamentRefundExternalRef,
+} from "../tournaments/tournament.constants.js";
+import { TOURNAMENT_CLIENT_ERRORS } from "../tournaments/tournament.errors.js";
+import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
 
 const router = express.Router();
 
@@ -12,7 +21,23 @@ const CreateTournamentSchema = z.object({
   name: z.string().min(1).max(120),
   entryFeeCents: z.number().int().positive(),
   startTime: z.string().datetime(),
+  maxPlayers: z.number().int().min(2).max(9),
+  startingStackCents: z.number().int().positive().default(DEFAULT_STARTING_STACK_CENTS),
+  blindStructureId: z.string().refine(isTournamentBlindStructureId, {
+    message: "Invalid blindStructureId",
+  }).default(DEFAULT_BLIND_STRUCTURE_ID),
+  lateRegMinutes: z.number().int().min(0).max(120).default(0),
 });
+
+const tournamentInclude = {
+  _count: {
+    select: { registrations: true },
+  },
+} as const;
+
+function tournamentErrorStatus(message: string): number {
+  return TOURNAMENT_CLIENT_ERRORS.has(message) ? 400 : 500;
+}
 
 router.get("/", async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
@@ -20,8 +45,9 @@ router.get("/", async (req, res) => {
   const tournaments = await prisma.tournament.findMany({
     where: status ? { status } : undefined,
     orderBy: { startTime: "asc" },
+    include: tournamentInclude,
   });
-  res.json({ tournaments });
+  res.json({ tournaments: tournaments.map(toTournamentResponse) });
 });
 
 router.get("/:id", async (req, res) => {
@@ -34,17 +60,13 @@ router.get("/:id", async (req, res) => {
   const prisma = getPrisma();
   const tournament = await prisma.tournament.findUnique({
     where: { id },
-    include: {
-      _count: {
-        select: { registrations: true },
-      },
-    },
+    include: tournamentInclude,
   });
   if (!tournament) {
     res.status(404).json({ error: "Tournament not found" });
     return;
   }
-  res.json(tournament);
+  res.json(toTournamentResponse(tournament));
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res) => {
@@ -60,10 +82,15 @@ router.post("/", requireAuth, requireAdmin, async (req, res) => {
       name: parsed.data.name,
       entryFeeCents: parsed.data.entryFeeCents,
       startTime: new Date(parsed.data.startTime),
+      maxPlayers: parsed.data.maxPlayers,
+      startingStackCents: parsed.data.startingStackCents,
+      blindStructureId: parsed.data.blindStructureId,
+      lateRegMinutes: parsed.data.lateRegMinutes,
       status: "REGISTERING",
     },
+    include: tournamentInclude,
   });
-  res.status(201).json(tournament);
+  res.status(201).json(toTournamentResponse(tournament));
 });
 
 router.post("/:id/register", requireAuth, async (req, res) => {
@@ -85,18 +112,68 @@ router.post("/:id/register", requireAuth, async (req, res) => {
       userId: req.user!.id,
       tournamentId: tournament.id,
       entryFeeCents: tournament.entryFeeCents,
-      externalRef: `tournament_${tournament.id}_${req.user!.id}_${nanoid(8)}`,
+      externalRef: tournamentEntryExternalRef(tournament.id, req.user!.id),
     });
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Tournament registration failed";
-    if (message === "INSUFFICIENT_BANKROLL" || message === "TOURNAMENT_CLOSED") {
-      res.status(400).json({ error: message });
-      return;
-    }
-    res.status(500).json({ error: message });
+    res.status(tournamentErrorStatus(message)).json({ error: message });
+  }
+});
+
+router.post("/:id/unregister", requireAuth, async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const prisma = getPrisma();
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  try {
+    const result = await CashierService.processTournamentRefund({
+      userId: req.user!.id,
+      tournamentId: tournament.id,
+      entryFeeCents: tournament.entryFeeCents,
+      externalRef: tournamentRefundExternalRef(tournament.id, req.user!.id),
+    });
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament unregister failed";
+    res.status(tournamentErrorStatus(message)).json({ error: message });
+  }
+});
+
+router.post("/:id/cancel", requireAuth, requireAdmin, async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const prisma = getPrisma();
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  try {
+    const result = await CashierService.processTournamentCancel({
+      tournamentId: tournament.id,
+      adminUserId: req.user!.id,
+      externalRef: tournamentCancelExternalRef(tournament.id),
+    });
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament cancel failed";
+    res.status(tournamentErrorStatus(message)).json({ error: message });
   }
 });
 
 export const tournamentsRouter = router;
-

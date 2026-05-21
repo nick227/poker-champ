@@ -1,6 +1,12 @@
-
 import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
+import {
+  INSUFFICIENT_BANKROLL,
+  NOT_REGISTERED,
+  TOURNAMENT_CLOSED,
+  TOURNAMENT_FULL,
+  TOURNAMENT_NOT_CANCELLABLE,
+} from "../../tournaments/tournament.errors.js";
 
 export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
 
@@ -177,66 +183,201 @@ export class CashierService {
    * For now: entryFeeCents goes to prize pool.
    */
   static async processTournamentRegister(params: {
-      userId: string;
-      tournamentId: string;
-      entryFeeCents: number;
-      externalRef: string;
+    userId: string;
+    tournamentId: string;
+    entryFeeCents: number;
+    externalRef: string;
   }): Promise<{ success: boolean }> {
-      const prisma = getPrisma();
-      const { userId, tournamentId, entryFeeCents, externalRef } = params;
+    const prisma = getPrisma();
+    const { userId, tournamentId, entryFeeCents, externalRef } = params;
 
-      return await prisma.$transaction(async (tx: any) => {
-           // 1. Idempotency
-           const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
-           if(existingRef) return { success: true };
+    return await prisma.$transaction(async (tx: any) => {
+      const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingRef) return { success: true };
 
-           // 2. Check Bankroll
-           const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-           if (user.bankrollCents < entryFeeCents) {
-               throw new Error("INSUFFICIENT_BANKROLL");
-           }
-
-           // 3. Check Tournament State
-           const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId }});
-           if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
-               throw new Error("TOURNAMENT_CLOSED");
-           }
-
-           // 4. Debit User
-           await tx.user.update({
-               where: { id: userId },
-               data: { bankrollCents: { decrement: entryFeeCents } }
-           });
-
-           // 5. Credit Tournament Prize Pool
-           await tx.tournament.update({
-               where: { id: tournamentId },
-               data: { prizePoolCents: { increment: entryFeeCents } }
-           });
-
-           // 6. Create Registration
-           await tx.tournamentRegistration.create({
-               data: {
-                   userId,
-                   tournamentId,
-                   entryTxId: externalRef
-               }
-           });
-
-           // 7. Record Transaction
-           await tx.balanceTransaction.create({
-               data: {
-                   id: nanoid(),
-                   userId,
-                   tournamentId,
-                   type: "TOURNAMENT_ENTRY",
-                   amountCents: entryFeeCents,
-                   externalRef,
-               }
-           });
-
-           return { success: true };
+      const existingReg = await tx.tournamentRegistration.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
       });
+      if (existingReg) return { success: true };
+
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+        throw new Error(TOURNAMENT_CLOSED);
+      }
+
+      const regCount = await tx.tournamentRegistration.count({ where: { tournamentId } });
+      if (regCount >= tourney.maxPlayers) {
+        throw new Error(TOURNAMENT_FULL);
+      }
+
+      const debitResult = await tx.user.updateMany({
+        where: { id: userId, bankrollCents: { gte: entryFeeCents } },
+        data: { bankrollCents: { decrement: entryFeeCents } },
+      });
+      if (debitResult.count !== 1) {
+        throw new Error(INSUFFICIENT_BANKROLL);
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: { increment: entryFeeCents } },
+      });
+
+      await tx.tournamentRegistration.create({
+        data: {
+          userId,
+          tournamentId,
+          entryTxId: externalRef,
+        },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          tournamentId,
+          type: "TOURNAMENT_ENTRY",
+          amountCents: entryFeeCents,
+          externalRef,
+        },
+      });
+
+      return { success: true };
+    });
+  }
+
+  /**
+   * Tournament unregister — refunds entry fee to bankroll and removes registration.
+   */
+  static async processTournamentRefund(params: {
+    userId: string;
+    tournamentId: string;
+    entryFeeCents: number;
+    externalRef: string;
+  }): Promise<{ success: boolean }> {
+    const prisma = getPrisma();
+    const { userId, tournamentId, entryFeeCents, externalRef } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingRef = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingRef) return { success: true };
+
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+        throw new Error(TOURNAMENT_CLOSED);
+      }
+
+      const registration = await tx.tournamentRegistration.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
+      });
+      if (!registration) {
+        throw new Error(NOT_REGISTERED);
+      }
+
+      await tx.tournamentRegistration.delete({
+        where: { tournamentId_userId: { tournamentId, userId } },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { bankrollCents: { increment: entryFeeCents } },
+      });
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: { decrement: entryFeeCents } },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          tournamentId,
+          type: "REFUND",
+          amountCents: entryFeeCents,
+          externalRef,
+        },
+      });
+
+      return { success: true };
+    });
+  }
+
+  /**
+   * Admin cancel — refunds all registrations and marks tournament CANCELLED.
+   */
+  static async processTournamentCancel(params: {
+    tournamentId: string;
+    adminUserId: string;
+    externalRef: string;
+  }): Promise<{ success: boolean; refundedCount: number }> {
+    const prisma = getPrisma();
+    const { tournamentId, adminUserId, externalRef } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      const existingCancel = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingCancel) {
+        return { success: true, refundedCount: 0 };
+      }
+
+      const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      if (tourney.status === "CANCELLED") {
+        return { success: true, refundedCount: 0 };
+      }
+      if (tourney.status !== "REGISTERING" && tourney.status !== "LATE_REG") {
+        throw new Error(TOURNAMENT_NOT_CANCELLABLE);
+      }
+
+      const registrations = await tx.tournamentRegistration.findMany({
+        where: { tournamentId },
+      });
+
+      for (const reg of registrations) {
+        const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;
+
+        await tx.tournamentRegistration.delete({
+          where: { tournamentId_userId: { tournamentId, userId: reg.userId } },
+        });
+
+        await tx.user.update({
+          where: { id: reg.userId },
+          data: { bankrollCents: { increment: tourney.entryFeeCents } },
+        });
+
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId: reg.userId,
+            tournamentId,
+            type: "REFUND",
+            amountCents: tourney.entryFeeCents,
+            externalRef: refundRef,
+          },
+        });
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: {
+          status: "CANCELLED",
+          prizePoolCents: 0,
+        },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId: adminUserId,
+          tournamentId,
+          type: "REFUND",
+          amountCents: 0,
+          externalRef,
+          metaJson: { kind: "TOURNAMENT_CANCEL", refundedCount: registrations.length },
+        },
+      });
+
+      return { success: true, refundedCount: registrations.length };
+    });
   }
 }
 
