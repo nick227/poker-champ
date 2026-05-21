@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterTournamentsForBrowseLobby,
+  formatJoinedTournamentHint,
   formatTournamentStartLocal,
   groupTournamentsForLobby,
   mapTournamentApiError,
   mapTournamentErrorMessage,
   resolveTournamentCta,
+  selectJoinedTournaments,
 } from "./tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -112,5 +115,36 @@ describe("groupTournamentsForLobby", () => {
     expect(groups.upcoming.map((t) => t.id)).toEqual(["a"]);
     expect(groups.running.map((t) => t.id)).toEqual(["b"]);
     expect(groups.recent.map((t) => t.id)).toEqual(["c"]);
+  });
+});
+
+describe("selectJoinedTournaments", () => {
+  it("includes registered scheduled and live only", () => {
+    const joined = selectJoinedTournaments([
+      baseTournament({ id: "sched", isRegistered: true, status: "REGISTERING" }),
+      baseTournament({ id: "live", isRegistered: true, status: "RUNNING", tableId: "t", roomId: "r" }),
+      baseTournament({ id: "other", isRegistered: false, status: "REGISTERING" }),
+      baseTournament({ id: "done", isRegistered: true, status: "FINISHED" }),
+    ]);
+    expect(joined.map((t) => t.id)).toEqual(["live", "sched"]);
+  });
+
+  it("removes joined active rows from browse list", () => {
+    const all = [
+      baseTournament({ id: "mine", isRegistered: true, status: "REGISTERING" }),
+      baseTournament({ id: "open", isRegistered: false, status: "REGISTERING" }),
+    ];
+    const browse = filterTournamentsForBrowseLobby(all);
+    expect(browse.map((t) => t.id)).toEqual(["open"]);
+  });
+});
+
+describe("formatJoinedTournamentHint", () => {
+  it("describes scheduled and live states", () => {
+    const farFuture = new Date(Date.now() + 60 * 60_000).toISOString();
+    expect(formatJoinedTournamentHint(baseTournament({ status: "REGISTERING", startTime: farFuture }))).toMatch(
+      /^Scheduled · starts in /,
+    );
+    expect(formatJoinedTournamentHint(baseTournament({ status: "RUNNING", currentLevel: 3 }))).toBe("Live · level 3");
   });
 });

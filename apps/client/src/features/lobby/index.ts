@@ -8,6 +8,7 @@ export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleto
 export { EmptyState } from "./components/lobby/EmptyState";
 export { CreateGameModal } from "./components/lobby/CreateGameModal";
 export { ChooseTableModal } from "./components/lobby/ChooseTableModal";
+export { JoinedTournamentsSection } from "./components/lobby/JoinedTournamentsSection";
 export { TournamentsSection } from "./components/lobby/TournamentsSection";
 export { TournamentJoinModal } from "./components/lobby/TournamentJoinModal";
 export { TournamentRegisterModal } from "./components/lobby/TournamentRegisterModal";

@@ -14,6 +14,7 @@ type TournamentCardProps = {
   tournament: TournamentSummary;
   authenticated: boolean;
   actionInFlight?: boolean;
+  statusHint?: string;
   onOpenDetail: (tournament: TournamentSummary) => void;
   onAction: (tournament: TournamentSummary) => void;
 };
@@ -22,6 +23,7 @@ export function TournamentCard({
   tournament,
   authenticated,
   actionInFlight,
+  statusHint,
   onOpenDetail,
   onAction,
 }: TournamentCardProps) {
@@ -31,7 +33,6 @@ export function TournamentCard({
   return (
     <Surface styleId="surface.list.panel">
       <View className="ui-stack-3 p-4">
-        <Pressable onPress={() => onOpenDetail(tournament)} accessibilityRole="button">
           <View className="ui-stack-2">
             <View className="ui-row flex-wrap items-start justify-between gap-2">
               <View className="min-w-0 flex-1">
@@ -44,7 +45,7 @@ export function TournamentCard({
               </Text>
             </View>
             <Text variant="body" className="text-muted">
-              Starts {formatTournamentStartLocal(tournament.startTime)}
+              {statusHint ?? `Starts ${formatTournamentStartLocal(tournament.startTime)}`}
             </Text>
             <View className="ui-row flex-wrap gap-x-3 gap-y-1">
               <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
@@ -53,6 +54,8 @@ export function TournamentCard({
               </Text>
             </View>
           </View>
+          <Pressable onPress={() => onOpenDetail(tournament)} accessibilityRole="button">
+            ABOUT
         </Pressable>
         <Button
           title={actionInFlight ? "Please wait…" : cta.label}

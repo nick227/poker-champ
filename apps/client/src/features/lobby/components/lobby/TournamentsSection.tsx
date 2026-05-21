@@ -2,7 +2,11 @@ import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { TournamentCard } from "./TournamentCard";
 import { TournamentListFeedback } from "./TournamentListFeedback";
-import { groupTournamentsForLobby } from "@/lib/tournament.utils";
+import {
+  filterTournamentsForBrowseLobby,
+  groupTournamentsForLobby,
+  selectJoinedTournaments,
+} from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 type TournamentsSectionProps = {
@@ -61,9 +65,10 @@ export function TournamentsSection({
   onOpenTournamentDetail,
   onRetry,
 }: TournamentsSectionProps) {
-  const groups = groupTournamentsForLobby(tournaments);
-  const hasAny =
+  const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
+  const hasBrowse =
     groups.upcoming.length > 0 || groups.running.length > 0 || groups.recent.length > 0;
+  const hasJoined = selectJoinedTournaments(tournaments).length > 0;
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Check back soon."
     : "No tournaments scheduled yet. Log in to register when events are posted.";
@@ -74,7 +79,7 @@ export function TournamentsSection({
       <TournamentListFeedback
         busy={busy}
         error={error}
-        isEmpty={!hasAny}
+        isEmpty={!hasBrowse && !hasJoined}
         emptyMessage={emptyMessage}
         onRetry={onRetry}
       />

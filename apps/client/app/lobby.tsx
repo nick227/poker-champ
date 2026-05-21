@@ -8,7 +8,7 @@ import { HeaderStack } from "@/components/containers/HeaderStack";
 import { GameListHeader } from "@/features/lobby";
 import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
-import { TournamentsSection } from "@/features/lobby";
+import { JoinedTournamentsSection, TournamentsSection } from "@/features/lobby";
 import { TournamentJoinModal, TournamentRegisterModal, TournamentStandingsModal } from "@/features/lobby";
 import { GameTablePanel } from "@/features/lobby";
 import { GameTablePanelSkeleton } from "@/features/lobby";
@@ -327,6 +327,13 @@ export default function LobbyScreen() {
           onPokerSchool={() => router.push("/lessons")}
         />
         <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
+        <JoinedTournamentsSection
+          tournaments={tournamentList}
+          authenticated={Boolean(authToken)}
+          actionInFlight={tournamentActionBusy || registerBusy}
+          onTournamentAction={handleTournamentAction}
+          onOpenTournamentDetail={handleOpenTournamentDetail}
+        />
         <TournamentsSection
           tournaments={tournamentList}
           busy={tournamentsBusy}

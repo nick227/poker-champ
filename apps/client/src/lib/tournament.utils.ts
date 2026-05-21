@@ -91,6 +91,48 @@ export function resolveTournamentCta(
 
 export type TournamentLobbySection = "upcoming" | "running" | "recent";
 
+const JOINED_ACTIVE_STATUSES = new Set(["REGISTERING", "STARTING", "RUNNING"]);
+
+export function isJoinedActiveTournament(tournament: TournamentSummary): boolean {
+  return Boolean(tournament.isRegistered) && JOINED_ACTIVE_STATUSES.has(tournament.status);
+}
+
+/** Registered tournaments that are scheduled or live (excludes finished/cancelled). */
+export function selectJoinedTournaments(tournaments: TournamentSummary[]): TournamentSummary[] {
+  return tournaments
+    .filter(isJoinedActiveTournament)
+    .sort((a, b) => {
+      const rank = (status: string) => (status === "RUNNING" || status === "STARTING" ? 0 : 1);
+      const byPhase = rank(a.status) - rank(b.status);
+      if (byPhase !== 0) return byPhase;
+      return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+    });
+}
+
+/** Browse list: hide active joined rows so they only appear in the joined section. */
+export function filterTournamentsForBrowseLobby(tournaments: TournamentSummary[]): TournamentSummary[] {
+  const joinedIds = new Set(selectJoinedTournaments(tournaments).map((t) => t.id));
+  return tournaments.filter((t) => !joinedIds.has(t.id));
+}
+
+export function formatJoinedTournamentHint(tournament: TournamentSummary): string {
+  if (tournament.status === "REGISTERING") {
+    const startTs = new Date(tournament.startTime).getTime();
+    const countdown = formatCountdownTo(startTs);
+    if (countdown && countdown !== "Now") {
+      return `Scheduled · starts in ${countdown}`;
+    }
+    return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
+  }
+  if (tournament.status === "STARTING") {
+    return "Starting · table opens shortly";
+  }
+  if (tournament.status === "RUNNING") {
+    return `Live · level ${tournament.currentLevel}`;
+  }
+  return formatTournamentStatus(tournament.status);
+}
+
 export function groupTournamentsForLobby(tournaments: TournamentSummary[]): Record<TournamentLobbySection, TournamentSummary[]> {
   const upcoming: TournamentSummary[] = [];
   const running: TournamentSummary[] = [];
