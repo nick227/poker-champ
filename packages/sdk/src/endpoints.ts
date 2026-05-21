@@ -96,6 +96,11 @@ export const tournaments = {
       "GET",
       pathWithParams("/api/tournaments/{id}/standings", path as Record<string, string | number>),
     ),
+  cancel: (path: PathParams<Operation<"/api/tournaments/{id}/cancel", "post">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/cancel", "post">>>(
+      "POST",
+      pathWithParams("/api/tournaments/{id}/cancel", path as Record<string, string | number>),
+    ),
 };
 
 export const admin = {

@@ -136,6 +136,8 @@ export function mapTournamentErrorMessage(code: string): string {
     case "NOT_REGISTERED":
     case "TOURNAMENT_NOT_REGISTERED":
       return "You are not registered for this tournament.";
+    case "TOURNAMENT_NOT_CANCELLABLE":
+      return "Only registering tournaments can be cancelled.";
     default:
       return code;
   }

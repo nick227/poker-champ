@@ -117,6 +117,17 @@ const serviceByKey = {
       withApiError(() => tournaments.register({ id: tournamentId })),
     tournamentUnregister: (tournamentId: string) =>
       withApiError(() => tournaments.unregister({ id: tournamentId })),
+    tournamentCreate: (input: {
+      name: string;
+      entryFeeCents: number;
+      startTime: string;
+      maxPlayers: number;
+      startingStackCents?: number;
+      blindStructureId?: "standard_8min";
+      lateRegMinutes?: number;
+    }) => withApiError(() => tournaments.create(input)),
+    tournamentCancel: (tournamentId: string) =>
+      withApiError(() => tournaments.cancel({ id: tournamentId })),
   },
 } as const;
 
@@ -143,6 +154,8 @@ const serviceOrdered = [
   { key: "post.adminDeleteUser", call: serviceByKey.post.adminDeleteUser },
   { key: "post.tournamentRegister", call: serviceByKey.post.tournamentRegister },
   { key: "post.tournamentUnregister", call: serviceByKey.post.tournamentUnregister },
+  { key: "post.tournamentCreate", call: serviceByKey.post.tournamentCreate },
+  { key: "post.tournamentCancel", call: serviceByKey.post.tournamentCancel },
 ] as const;
 
 export const serviceRegistry = {

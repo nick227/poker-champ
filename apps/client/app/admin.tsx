@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Redirect } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { Text } from "@/components/base/Text";
 import { Loader } from "@/components/base/Loader";
 import { Button } from "@/components/base/Button";
+import { AdminTournamentsPanel } from "@/features/admin/components/AdminTournamentsPanel";
 import { serviceRegistry } from "@/registry/service.registry";
 import { useAuthStore } from "@/stores/auth.store";
 import { useToastStore } from "@/stores/toast.store";
 import { formatCents } from "@/lib/format";
+
+type AdminTab = "users" | "tournaments";
 
 type MeUser = {
   id: string;
@@ -63,6 +66,7 @@ export default function AdminScreen() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [tab, setTab] = useState<AdminTab>("users");
   const showToast = useToastStore((s) => s.show);
 
   useEffect(() => {
@@ -166,24 +170,36 @@ export default function AdminScreen() {
       <View className="flex-1 py-4">
         <View className="rounded-2xl border border-border-subtle bg-panel/80 p-4">
           <Text variant="h1">Admin Console</Text>
-          <Text variant="muted">Manage users, roles, and account status.</Text>
+          <Text variant="muted">
+            {tab === "users" ? "Manage users, roles, and account status." : "Create and manage scheduled tournaments."}
+          </Text>
           <View className="mt-3 ui-row ui-inline-2">
-            <View className="flex-1 rounded-xl border border-border-subtle bg-panel-elevated p-3">
+            <Pressable
+              onPress={() => setTab("users")}
+              className={`flex-1 rounded-xl border p-3 ${tab === "users" ? "border-brand bg-panel-elevated" : "border-border-subtle bg-panel/60"}`}
+            >
               <Text variant="label">Users</Text>
               <Text variant="h2">{adminTotal}</Text>
-            </View>
-            <View className="flex-1 rounded-xl border border-border-subtle bg-panel-elevated p-3">
-              <Text variant="label">Session</Text>
-              <Text variant="body">{user.role}</Text>
-            </View>
+            </Pressable>
+            <Pressable
+              onPress={() => setTab("tournaments")}
+              className={`flex-1 rounded-xl border p-3 ${tab === "tournaments" ? "border-brand bg-panel-elevated" : "border-border-subtle bg-panel/60"}`}
+            >
+              <Text variant="label">Tournaments</Text>
+              <Text variant="body">{tab === "tournaments" ? "Manage" : "Open"}</Text>
+            </Pressable>
           </View>
         </View>
 
-        {adminLoading ? <Loader /> : null}
-        {adminError ? <Text variant="danger">{adminError}</Text> : null}
-        {!adminLoading && !adminError && adminUsers.length === 0 ? <Text variant="muted">No users found.</Text> : null}
+        {tab === "tournaments" ? <AdminTournamentsPanel /> : null}
 
-        {!adminLoading && !adminError ? (
+        {tab === "users" && adminLoading ? <Loader /> : null}
+        {tab === "users" && adminError ? <Text variant="danger">{adminError}</Text> : null}
+        {tab === "users" && !adminLoading && !adminError && adminUsers.length === 0 ? (
+          <Text variant="muted">No users found.</Text>
+        ) : null}
+
+        {tab === "users" && !adminLoading && !adminError ? (
           <ScrollView className="mt-4 flex-1" contentContainerStyle={{ gap: 12, paddingBottom: 20 }}>
             {adminUsers.map((item) => (
               <View key={item.id} className="rounded-2xl border border-border-subtle bg-panel/90 p-4">
