@@ -276,6 +276,8 @@ model User {
   userAwards           UserAward[]
   curriculumProgress   UserCurriculumProgress?
   handCount            UserHandCount?
+  tournamentStats      UserTournamentStats?
+  tournamentResults    TournamentPlayerResult[]
 
   // Monetization
   membership Membership?
@@ -339,6 +341,32 @@ model Tournament {
 
   registrations TournamentRegistration[]
   transactions  BalanceTransaction[]
+  playerResults TournamentPlayerResult[]
+}
+
+model TournamentPlayerResult {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finishPlace  Int
+  payoutCents  Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([userId])
+}
+
+model UserTournamentStats {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournamentsPlayed       Int      @default(0)
+  tournamentWins          Int      @default(0)
+  tournamentCashes        Int      @default(0)
+  tournamentEarningsCents Int      @default(0)
+  updatedAt               DateTime @updatedAt
 }
 
 model TournamentRegistration {

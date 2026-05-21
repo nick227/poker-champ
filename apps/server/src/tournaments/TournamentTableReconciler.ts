@@ -5,6 +5,7 @@ import { logger } from "../lib/logger.js";
 import { getBlindLevel } from "./blind-structure.js";
 import { computePayoutAmountsByPlace, tournamentPayoutExternalRef } from "./tournament-payouts.js";
 import type { TournamentTableOverlay } from "./tournament-overlay.js";
+import { processTournamentFinishResults } from "./tournament-result-processor.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -44,6 +45,7 @@ export class TournamentTableReconciler {
 
     if (!tournament || tournament.status !== "RUNNING") {
       if (tournament?.status === "FINISHED") {
+        await processTournamentFinishResults(ctx.tournamentId);
         ctx.onPlayEnded();
       }
       return;
@@ -124,6 +126,8 @@ export class TournamentTableReconciler {
         tournamentId: ctx.tournamentId,
         entrantCount,
       });
+
+      await processTournamentFinishResults(ctx.tournamentId);
 
       ctx.onPlayEnded();
       ctx.onOverlayUpdated({

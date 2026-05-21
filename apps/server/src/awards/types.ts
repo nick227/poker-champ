@@ -10,7 +10,7 @@ export type AwardGrant = {
   tierWeight: number;
   priorityWeight: number;
   reason: string;
-  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION";
+  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | "TOURNAMENT";
   contextId?: string;
 };
 
@@ -23,13 +23,13 @@ export type BulkGrantResult = {
 export type GrantCandidate = {
   awardId: string;
   reason: string;
-  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION";
+  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | "TOURNAMENT";
   contextId?: string;
   triggerKey?: string;
 };
 
 export type AwardTier = "COMMON" | "UNCOMMON" | "RARE" | "LEGENDARY";
-export type AwardSource = "LESSON" | "TABLE" | "REPLAY" | "SYSTEM";
+export type AwardSource = "LESSON" | "TABLE" | "REPLAY" | "SYSTEM" | "TOURNAMENT";
 export type AwardEarnType = "ONE_TIME" | "REPEATABLE";
 
 export type AwardCatalogEntry = {

@@ -71,8 +71,14 @@ const HAND_CATALOG: AwardCatalogEntry[] = [
   entry("big_pot_win", "Big Pot", "Won pot ≥ 50bb", "💰", "UNCOMMON", 28, "REPEATABLE", "VOLUME", "TABLE"),
 ];
 
+const TOURNAMENT_CATALOG: AwardCatalogEntry[] = [
+  entry("first_tournament_played", "First Tournament", "Played your first tournament", "🎫", "COMMON", 55, "ONE_TIME", "PROGRESSION", "TOURNAMENT"),
+  entry("tournament_winner", "Tournament Champion", "Won {tournamentName}", "🏆", "RARE", 95, "REPEATABLE", "PROGRESSION", "TOURNAMENT"),
+  entry("tournament_paid_finish", "In The Money", "Cashed in {tournamentName}", "💵", "UNCOMMON", 70, "REPEATABLE", "PROGRESSION", "TOURNAMENT"),
+];
+
 const BY_ID = new Map<string, AwardCatalogEntry>();
-for (const e of [...LESSON_CATALOG, ...HAND_CATALOG]) {
+for (const e of [...LESSON_CATALOG, ...HAND_CATALOG, ...TOURNAMENT_CATALOG]) {
   BY_ID.set(e.id, e);
 }
 
@@ -82,7 +88,7 @@ export const awardCatalog = {
     return BY_ID.get(id);
   },
   getAll(): AwardCatalogEntry[] {
-    return [...LESSON_CATALOG, ...HAND_CATALOG];
+    return [...LESSON_CATALOG, ...HAND_CATALOG, ...TOURNAMENT_CATALOG];
   },
   getLessonCompletionAwardId(lessonId: string): string {
     const rawPrefix = lessonId.split("_")[0];

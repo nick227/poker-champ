@@ -6,6 +6,7 @@ import { getPrisma } from "@poker-champ/db";
 import { toPublicUser } from "../engine/auth/PublicUser.js";
 import { avatarStorageFs } from "../engine/avatar/AvatarStorage.js";
 import { logger } from "../lib/logger.js";
+import { getUserTournamentStats } from "../tournaments/tournament-user-stats.js";
 
 const router = express.Router();
 
@@ -23,7 +24,8 @@ const allowedMimes = new Set(["image/jpeg", "image/png", "image/webp"]);
 router.use(requireAuth);
 
 router.get("/", async (req, res) => {
-  res.json({ user: toPublicUser(req.user!) });
+  const tournamentStats = await getUserTournamentStats(req.user!.id);
+  res.json({ user: toPublicUser(req.user!), tournamentStats });
 });
 
 router.patch("/", async (req, res) => {
