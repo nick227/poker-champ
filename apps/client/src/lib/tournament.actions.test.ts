@@ -21,6 +21,7 @@ function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummar
     updatedAt: "2026-05-01T00:00:00.000Z",
     tableId: "table_abc",
     roomId: "room_xyz",
+    tableLive: true,
     isRegistered: true,
     ...overrides,
   };

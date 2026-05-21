@@ -13,6 +13,7 @@ import {
   tournamentRefundExternalRef,
 } from "../tournaments/tournament.constants.js";
 import { TOURNAMENT_CLIENT_ERRORS } from "../tournaments/tournament.errors.js";
+import { isTournamentRoomLive, loadLivePokerRoomIds } from "../tournaments/tournament-room-live.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
@@ -65,10 +66,16 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
     }
   }
 
+  const liveRoomIds = await loadLivePokerRoomIds();
+
   res.json({
     tournaments: tournaments.map((t) =>
       toTournamentResponse(t, {
         isRegistered: req.user ? registeredIds.has(t.id) : undefined,
+        tableLive:
+          t.status === "STARTING" || t.status === "RUNNING"
+            ? isTournamentRoomLive(t.roomId, liveRoomIds)
+            : undefined,
       }),
     ),
   });
@@ -117,7 +124,16 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
     isRegistered = Boolean(reg);
   }
 
-  res.json(toTournamentResponse(tournament, { isRegistered }));
+  const liveRoomIds = await loadLivePokerRoomIds();
+  res.json(
+    toTournamentResponse(tournament, {
+      isRegistered,
+      tableLive:
+        tournament.status === "STARTING" || tournament.status === "RUNNING"
+          ? isTournamentRoomLive(tournament.roomId, liveRoomIds)
+          : undefined,
+    }),
+  );
 });
 
 router.post("/", requireAuth, requireAdmin, async (req, res) => {

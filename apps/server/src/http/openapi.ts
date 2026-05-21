@@ -106,6 +106,7 @@ export const openApiSpec = {
           finishedAt: { type: "string", format: "date-time", nullable: true },
           registeredCount: { type: "integer" },
           isRegistered: { type: "boolean" },
+          tableLive: { type: "boolean" },
           fillBotsAtStart: { type: "boolean" },
           fillBotCount: { type: "integer", nullable: true },
           createdAt: { type: "string", format: "date-time" },

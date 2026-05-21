@@ -61,12 +61,19 @@ export function dispatchTournamentCta(
   if (handlers.actionInFlight) return;
 
   const cta = resolveTournamentCta(tournament, { authenticated: handlers.authenticated });
-  if (cta.action === "none" || cta.disabled) return;
 
-  if (!handlers.authenticated && cta.action !== "standings") {
+  if (!handlers.authenticated && (cta.action === "register" || cta.action === "join")) {
     handlers.router.push(loginPathWithNext(handlers.loginReturnPath));
     return;
   }
+
+  if (cta.action === "join" && cta.disabled) {
+    handlers.showToast("This tournament table is no longer available. Refresh the lobby.", "danger");
+    void handlers.refreshTournament();
+    return;
+  }
+
+  if (cta.action === "none" || cta.disabled) return;
 
   if (cta.action === "register") {
     handlers.onRequestRegister(tournament);

@@ -30,12 +30,16 @@ export function formatTournamentStatus(status: string): string {
   }
 }
 
+export function isTournamentTableLive(tournament: TournamentSummary): boolean {
+  if (!tournament.tableId || !tournament.roomId) return false;
+  return tournament.tableLive === true;
+}
+
 export function canJoinTournament(tournament: TournamentSummary): boolean {
   return (
     (tournament.status === "STARTING" || tournament.status === "RUNNING") &&
     Boolean(tournament.isRegistered) &&
-    Boolean(tournament.tableId) &&
-    Boolean(tournament.roomId)
+    isTournamentTableLive(tournament)
   );
 }
 
@@ -56,18 +60,21 @@ export function resolveTournamentCta(
   if (tournament.status === "STARTING" || tournament.status === "RUNNING") {
     const joinReady = canJoinTournament(tournament);
     if (!joinReady) {
+      if (authenticated && tournament.isRegistered && tournament.tableId && tournament.tableLive === false) {
+        return { label: "Table ended", action: "join", disabled: true };
+      }
       const waitingLabel =
         authenticated && tournament.isRegistered
           ? tournament.tableId && tournament.roomId
             ? "Join Table"
             : "Starting soon…"
-          : "Join Table";
+          : "Log in to join";
       return { label: waitingLabel, action: "join", disabled: true };
     }
     return {
       label: "Join Table",
       action: "join",
-      disabled: !authenticated,
+      disabled: false,
     };
   }
 
@@ -128,6 +135,7 @@ export function formatJoinedTournamentHint(tournament: TournamentSummary): strin
     return "Starting · table opens shortly";
   }
   if (tournament.status === "RUNNING") {
+    if (tournament.tableLive === false) return "Ended · table no longer active";
     return `Live · level ${tournament.currentLevel}`;
   }
   return formatTournamentStatus(tournament.status);

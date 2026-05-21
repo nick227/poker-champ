@@ -55,8 +55,10 @@ export function TournamentCard({
             </View>
           </View>
           <Pressable onPress={() => onOpenDetail(tournament)} accessibilityRole="button">
-            ABOUT
-        </Pressable>
+            <Text variant="label" className="text-brand">
+              About
+            </Text>
+          </Pressable>
         <Button
           title={actionInFlight ? "Please wait…" : cta.label}
           intent={cta.action === "unregister" ? "neutral" : "primary"}

@@ -787,6 +787,7 @@ export interface components {
             finishedAt?: string | null;
             registeredCount: number;
             isRegistered?: boolean;
+            tableLive?: boolean;
             fillBotsAtStart: boolean;
             fillBotCount?: number | null;
             /** Format: date-time */

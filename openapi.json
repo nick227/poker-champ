@@ -260,6 +260,9 @@
           "isRegistered": {
             "type": "boolean"
           },
+          "tableLive": {
+            "type": "boolean"
+          },
           "fillBotsAtStart": {
             "type": "boolean"
           },

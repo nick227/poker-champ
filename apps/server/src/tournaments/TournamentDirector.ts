@@ -9,6 +9,7 @@ import { fillTournamentBotRegistrations } from "./tournament-bot-fill.js";
 import { parseTournamentBotCatalogId } from "./tournament-bot-users.js";
 import { buildTournamentTableConfig } from "./tournament-table-config.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
+import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-live.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
@@ -32,30 +33,25 @@ export class TournamentDirector {
   }
 
   /** Close RUNNING/STARTING tournaments whose Colyseus room no longer exists (e.g. after server restart). */
-  async reconcileOrphanRunningTournaments(): Promise<void> {
+  async reconcileOrphanRunningTournaments(now: Date = new Date()): Promise<void> {
     const prisma = getPrisma();
     const open = await prisma.tournament.findMany({
-      where: {
-        status: { in: ["STARTING", "RUNNING"] },
-        roomId: { not: null },
-      },
+      where: { status: { in: ["STARTING", "RUNNING"] } },
       take: 50,
     });
     if (open.length === 0) return;
 
-    type PokerRoomRef = { roomId?: string };
-    const rooms = (await matchMaker.query({ name: "poker" })) as PokerRoomRef[];
-    const liveRoomIds = new Set(
-      rooms.map((r) => r.roomId).filter((id): id is string => typeof id === "string" && id.length > 0),
-    );
+    const liveRoomIds = await loadLivePokerRoomIds();
+    const staleBefore = new Date(now.getTime() - 12 * 60 * 60 * 1000);
 
     for (const tournament of open) {
-      const roomId = tournament.roomId;
-      if (!roomId || liveRoomIds.has(roomId)) continue;
+      const roomDead = !isTournamentRoomLive(tournament.roomId, liveRoomIds);
+      const staleByTime = tournament.startTime < staleBefore;
+      if (!roomDead && !staleByTime) continue;
 
       await prisma.tournament.update({
         where: { id: tournament.id },
-        data: { status: "FINISHED", finishedAt: new Date() },
+        data: { status: "FINISHED", finishedAt: now },
       });
       try {
         await processTournamentFinishResults(tournament.id);
@@ -69,7 +65,10 @@ export class TournamentDirector {
           "TOURNAMENT_ORPHAN_FINISH_RESULTS_FAILED",
         );
       }
-      logger.info({ tournamentId: tournament.id, roomId }, "TOURNAMENT_ORPHAN_CLOSED");
+      logger.info(
+        { tournamentId: tournament.id, roomId: tournament.roomId, roomDead, staleByTime },
+        "TOURNAMENT_ORPHAN_CLOSED",
+      );
     }
   }
 

@@ -61,16 +61,31 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Starting soon…", action: "join", disabled: true });
   });
 
-  it("enables join for registered running tournament", () => {
+  it("enables join for registered running tournament with live table", () => {
     const cta = resolveTournamentCta(
       baseTournament({
         status: "RUNNING",
         isRegistered: true,
         tableId: "table_1",
         roomId: "room_1",
+        tableLive: true,
       }),
     );
     expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
+  });
+
+  it("shows table ended when room is not live", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: true,
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: false,
+      }),
+      { authenticated: true },
+    );
+    expect(cta).toEqual({ label: "Table ended", action: "join", disabled: true });
   });
 
   it("shows standings CTA when finished", () => {
