@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tournaments/{id}/ensure-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tournamentsEnsureTable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tournaments/{id}/cancel": {
         parameters: {
             query?: never;
@@ -398,6 +414,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["tournamentsCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tables/{tableId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tablesResume"];
         delete?: never;
         options?: never;
         head?: never;
@@ -796,6 +828,37 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        TournamentEnsureTableResult: {
+            tournamentId: string;
+            tournamentStatus: string;
+            /** @enum {string} */
+            playerStatus: "ACTIVE" | "ELIMINATED" | "NOT_REGISTERED";
+            tableId: string | null;
+            roomId: string | null;
+            tableLive: boolean;
+            /** @enum {string} */
+            joinStatus: "READY" | "RESTORED" | "CREATING_TABLE" | "ENDED" | "NOT_ALLOWED" | "FAILED";
+            recoveryReason?: string;
+            tournament: components["schemas"]["TournamentSummary"];
+        };
+        CashTableResumeRequest: {
+            roomId?: string;
+        };
+        CashTableResumeResult: {
+            tableId: string;
+            roomId: string | null;
+            tableLive: boolean;
+            /** @enum {string} */
+            resumeStatus: "READY" | "ROOM_RECOVERED" | "NEEDS_BUY_IN" | "NOT_SEATED" | "ENDED" | "FAILED";
+            /** @enum {string} */
+            playerStatus: "SEATED" | "NOT_SEATED";
+            /** @enum {string|null} */
+            seatSessionState?: "SEATED_ACTIVE" | "SEATED_SITTING_OUT" | "LEFT" | null;
+            stackCentsSnapshot?: number | null;
+            minBuyInCents?: number;
+            maxBuyInCents?: number;
+            recoveryReason?: string;
         };
         LobbyTableSummary: {
             tableId: string;
@@ -1912,6 +1975,46 @@ export interface operations {
             };
         };
     };
+    tournamentsEnsureTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tournament table resume contract */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TournamentEnsureTableResult"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Tournament not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     tournamentsCancel: {
         parameters: {
             query?: never;
@@ -1946,6 +2049,41 @@ export interface operations {
             };
             /** @description Admin required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    tablesResume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tableId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CashTableResumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Cash table resume contract */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashTableResumeResult"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

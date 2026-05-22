@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useRealtimeChannel } from "@/realtime/useRealtimeChannel";
 import { storeRegistry } from "@/registry/store.registry";
+import { syncTableRoomIdFromProp } from "@/lib/tableRoomIdHint";
 import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.message";
 
 export type TableRealtimeRoom = {
@@ -148,13 +149,12 @@ export function useTableRealtime({
   });
 
   useEffect(() => {
-    if (roomId && roomId.length > 0) {
-      const tables = storeRegistry.tables();
-      const current = tables.roomIdByTableId?.[tableId];
-      if (current !== roomId) {
-        tables.setRoomForTable(tableId, roomId);
-      }
-    }
+    syncTableRoomIdFromProp({
+      tableId,
+      propRoomId: roomId,
+      currentRoomId: storeRegistry.tables().roomIdByTableId?.[tableId],
+      setRoomForTable: (t, r) => storeRegistry.tables().setRoomForTable(t, r),
+    });
     if (__DEV__) {
       debugLog("CONNECT_CONFIG", {
         tableId,

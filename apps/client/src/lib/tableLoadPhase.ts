@@ -45,6 +45,7 @@ export type TableLoadLogEvent =
   | "table_recovery_failed"
   | "cash_table_recovery_success"
   | "stale_roomid_replaced"
+  | "stale_prop_roomid_ignored"
   | "cash_table_recovery_unavailable";
 
 export function logTableLoadEvent(event: TableLoadLogEvent, fields: Record<string, unknown>): void {

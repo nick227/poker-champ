@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { paths } from "./types.gen";
+import type { components, paths } from "./types.gen";
 
 type Operation<P extends keyof paths, M extends keyof paths[P]> = paths[P][M];
 
@@ -69,6 +69,18 @@ export const economy = {
     request<SuccessPayload<Operation<"/api/economy/cash-out", "post">>>("POST", "/api/economy/cash-out", input),
 };
 
+export const tables = {
+  resume: (
+    path: PathParams<Operation<"/api/tables/{tableId}/resume", "post">>,
+    input?: components["schemas"]["CashTableResumeRequest"],
+  ) =>
+    request<SuccessPayload<Operation<"/api/tables/{tableId}/resume", "post">>>(
+      "POST",
+      pathWithParams("/api/tables/{tableId}/resume", path as Record<string, string | number>),
+      input,
+    ),
+};
+
 export const tournaments = {
   list: (query?: QueryParams<Operation<"/api/tournaments", "get">>) =>
     request<SuccessPayload<Operation<"/api/tournaments", "get">>>("GET", "/api/tournaments", undefined, {
@@ -90,6 +102,11 @@ export const tournaments = {
     request<SuccessPayload<Operation<"/api/tournaments/{id}/unregister", "post">>>(
       "POST",
       pathWithParams("/api/tournaments/{id}/unregister", path as Record<string, string | number>),
+    ),
+  ensureTable: (path: PathParams<Operation<"/api/tournaments/{id}/ensure-table", "post">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/ensure-table", "post">>>(
+      "POST",
+      pathWithParams("/api/tournaments/{id}/ensure-table", path as Record<string, string | number>),
     ),
   standings: (path: PathParams<Operation<"/api/tournaments/{id}/standings", "get">>) =>
     request<SuccessPayload<Operation<"/api/tournaments/{id}/standings", "get">>>(
@@ -149,5 +166,5 @@ export const bots = {
 };
 
 export function createNamespacedSdk() {
-  return { auth, profile, lobby, economy, tournaments, admin, bots };
+  return { auth, profile, lobby, economy, tables, tournaments, admin, bots };
 }

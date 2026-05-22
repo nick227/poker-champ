@@ -93,6 +93,7 @@ export default function LobbyScreen() {
   const [instantStartInFlightPreset, setInstantStartInFlightPreset] = useState<InstantGamePresetId | null>(null);
   const [chooseTableModal, setChooseTableModal] = useState<{
     id: string;
+    roomId?: string;
     minBuyInCents: number;
     maxBuyInCents: number;
   } | null>(null);
@@ -100,7 +101,11 @@ export default function LobbyScreen() {
   const [registerModalTournament, setRegisterModalTournament] = useState<TournamentSummary | null>(null);
   const [joinModalTournament, setJoinModalTournament] = useState<TournamentSummary | null>(null);
   const [registerBusy, setRegisterBusy] = useState(false);
-  const [standingsModal, setStandingsModal] = useState<{ id: string; name: string } | null>(null);
+  const [standingsModal, setStandingsModal] = useState<{
+    id: string;
+    name: string;
+    status: string;
+  } | null>(null);
   const [tournamentActionBusy, setTournamentActionBusy] = useState(false);
   const [tournamentCreateModalVisible, setTournamentCreateModalVisible] = useState(false);
   const [tournamentDeleteId, setTournamentDeleteId] = useState<string | null>(null);
@@ -195,6 +200,10 @@ export default function LobbyScreen() {
       });
       const tableId = String((created as { tableId?: string })?.tableId ?? "");
       if (!tableId) throw new Error("Failed to create instant game");
+      const createdRoomId = typeof (created as { roomId?: string }).roomId === "string"
+        ? (created as { roomId: string }).roomId
+        : "";
+      if (createdRoomId) setRoomForTable(tableId, createdRoomId);
       openTable(tableId, { buyInCents: createConfig.minBuyInCents });
       router.push(
         tablePath(tableId, {
@@ -208,7 +217,7 @@ export default function LobbyScreen() {
       clearTimeout(unlockTimer);
       setInstantStartInFlightPreset(null);
     }
-  }, [authToken, bankroll, instantStartInFlightPreset, openTable, refresh, router]);
+  }, [authToken, bankroll, instantStartInFlightPreset, openTable, refresh, router, setRoomForTable]);
 
   const handleJoinApply = useCallback((opts: { buyInCents: number }) => {
     if (!chooseTableModal) return;
@@ -216,6 +225,7 @@ export default function LobbyScreen() {
     beginJoining(targetTableId);
 
     try {
+      if (chooseTableModal.roomId) setRoomForTable(targetTableId, chooseTableModal.roomId);
       openTable(targetTableId, { buyInCents: opts.buyInCents });
       router.push(tablePath(targetTableId, { buyInCents: opts.buyInCents }));
       setChooseTableModal(null);
@@ -224,7 +234,7 @@ export default function LobbyScreen() {
       clearJoining(targetTableId);
       useToastStore.getState().show((e as Error).message ?? "Failed to join table", "danger");
     }
-  }, [beginJoining, chooseTableModal, clearJoining, openTable, router]);
+  }, [beginJoining, chooseTableModal, clearJoining, openTable, router, setRoomForTable]);
 
   const skeletonCount = 3;
 
@@ -293,7 +303,8 @@ export default function LobbyScreen() {
         showToast,
         onRequestRegister: setRegisterModalTournament,
         onRequestJoin: setJoinModalTournament,
-        onRequestStandings: (t) => setStandingsModal({ id: t.id, name: t.name }),
+        onRequestStandings: (t) =>
+          setStandingsModal({ id: t.id, name: t.name, status: t.status }),
         openTable,
         setRoomForTable,
         refreshTournament: () => { void refreshTournaments(); },
@@ -302,7 +313,6 @@ export default function LobbyScreen() {
       });
     },
     [
-      authToken,
       authenticated,
       openTable,
       refreshBankroll,
@@ -447,7 +457,12 @@ export default function LobbyScreen() {
                     router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
                     return;
                   }
-                  setChooseTableModal({ id: t.id, minBuyInCents: t.minBuyInCents, maxBuyInCents: t.maxBuyInCents });
+                  setChooseTableModal({
+                    id: t.id,
+                    roomId: t.roomId,
+                    minBuyInCents: t.minBuyInCents,
+                    maxBuyInCents: t.maxBuyInCents,
+                  });
                 }}
                 onDelete={handleDeleteTable}
               />
@@ -480,6 +495,7 @@ export default function LobbyScreen() {
         visible={standingsModal != null}
         tournamentId={standingsModal?.id ?? null}
         tournamentName={standingsModal?.name}
+        tournamentStatus={standingsModal?.status}
         onClose={() => setStandingsModal(null)}
       />
       {chooseTableModal && (

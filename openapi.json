@@ -304,6 +304,133 @@
           "updatedAt"
         ]
       },
+      "TournamentEnsureTableResult": {
+        "type": "object",
+        "properties": {
+          "tournamentId": {
+            "type": "string"
+          },
+          "tournamentStatus": {
+            "type": "string"
+          },
+          "playerStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ELIMINATED",
+              "NOT_REGISTERED"
+            ]
+          },
+          "tableId": {
+            "type": "string",
+            "nullable": true
+          },
+          "roomId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tableLive": {
+            "type": "boolean"
+          },
+          "joinStatus": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "RESTORED",
+              "CREATING_TABLE",
+              "ENDED",
+              "NOT_ALLOWED",
+              "FAILED"
+            ]
+          },
+          "recoveryReason": {
+            "type": "string"
+          },
+          "tournament": {
+            "$ref": "#/components/schemas/TournamentSummary"
+          }
+        },
+        "required": [
+          "tournamentId",
+          "tournamentStatus",
+          "playerStatus",
+          "tableId",
+          "roomId",
+          "tableLive",
+          "joinStatus",
+          "tournament"
+        ]
+      },
+      "CashTableResumeRequest": {
+        "type": "object",
+        "properties": {
+          "roomId": {
+            "type": "string"
+          }
+        }
+      },
+      "CashTableResumeResult": {
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string"
+          },
+          "roomId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tableLive": {
+            "type": "boolean"
+          },
+          "resumeStatus": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "ROOM_RECOVERED",
+              "NEEDS_BUY_IN",
+              "NOT_SEATED",
+              "ENDED",
+              "FAILED"
+            ]
+          },
+          "playerStatus": {
+            "type": "string",
+            "enum": [
+              "SEATED",
+              "NOT_SEATED"
+            ]
+          },
+          "seatSessionState": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "SEATED_ACTIVE",
+              "SEATED_SITTING_OUT",
+              "LEFT"
+            ]
+          },
+          "stackCentsSnapshot": {
+            "type": "integer",
+            "nullable": true
+          },
+          "minBuyInCents": {
+            "type": "integer"
+          },
+          "maxBuyInCents": {
+            "type": "integer"
+          },
+          "recoveryReason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tableId",
+          "roomId",
+          "tableLive",
+          "resumeStatus",
+          "playerStatus"
+        ]
+      },
       "LobbyTableSummary": {
         "type": "object",
         "properties": {
@@ -2539,6 +2666,61 @@
         }
       }
     },
+    "/api/tournaments/{id}/ensure-table": {
+      "post": {
+        "tags": [
+          "tournaments"
+        ],
+        "operationId": "tournamentsEnsureTable",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tournament table resume contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentEnsureTableResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tournament not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tournaments/{id}/cancel": {
       "post": {
         "tags": [
@@ -2595,6 +2777,61 @@
           },
           "403": {
             "description": "Admin required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tables/{tableId}/resume": {
+      "post": {
+        "tags": [
+          "tables"
+        ],
+        "operationId": "tablesResume",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashTableResumeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cash table resume contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashTableResumeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
             "content": {
               "application/json": {
                 "schema": {
