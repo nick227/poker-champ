@@ -35,7 +35,7 @@ export type TablePageController = {
     showLoadRecovery: boolean;
     loadStatusMessage: string;
     loadRecoveryBusy: boolean;
-    /** True when ensure-table recovery is available (tournament tables). */
+    /** Recover table action (tournament ensure-table or cash resume API). */
     canRecoverTable: boolean;
     realtimeRoomId: string;
     tableNextPath: string;

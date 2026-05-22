@@ -8,7 +8,7 @@ export type TableLoadRecoveryPanelProps = {
   phase: TableLoadPhase;
   lastError?: string | null;
   recoveryBusy?: boolean;
-  /** Tournament tables can call ensure-table; cash tables use Retry only. */
+  /** When false, hide Recover (e.g. terminal failed state). */
   canRecoverTable?: boolean;
   onRetry: () => void;
   onRecover: () => void;

@@ -35,6 +35,8 @@ import {
   logTableLoadEvent,
   MAX_TABLE_AUTO_RECOVERY_ATTEMPTS,
 } from "@/lib/tableLoadPhase";
+import { resolveCashTableResumeOutcome } from "@/lib/cashTableRecovery";
+import { postCashTableResume } from "@/services/post/tables.resume";
 import { resolveTournamentTableForJoin } from "@/lib/tournamentEnsureJoin";
 import { usePlayerJoinedSound } from "@/features/table";
 import { useTablePageStores } from "@/features/table/hooks/useTablePageStores";
@@ -515,7 +517,12 @@ export function useTablePageController({
     [loadPhaseState.phase, loadPhaseState.timedOut],
   );
 
-  const canRecoverTable = Boolean(tournamentId);
+  const recoverRoomIdHint = useMemo(() => {
+    if (persistedRoomId && persistedRoomId.length > 0) return persistedRoomId;
+    const row = tableById.get(tableId);
+    if (row?.roomId && row.roomId.length > 0) return row.roomId;
+    return tableId;
+  }, [persistedRoomId, tableById, tableId]);
 
   const clearTableLoadFailureState = useCallback(() => {
     storeRegistry.table().resetSnapshotStream(tableId);
@@ -534,6 +541,28 @@ export function useTablePageController({
     showLoadRecovery: loadPhaseState.showRecovery,
   });
 
+  const applyResumeReconnect = useCallback(
+    (roomId: string, oldRoomId: string | null | undefined, buyInCentsOverride?: number) => {
+      if (oldRoomId && oldRoomId !== roomId) {
+        logTableLoadEvent("stale_roomid_replaced", {
+          tableId,
+          oldRoomId,
+          newRoomId: roomId,
+          phase: loadPhaseState.phase,
+        });
+      }
+      storeRegistry.tables().setRoomForTable(tableId, roomId);
+      if (Number.isInteger(buyInCentsOverride) && Number(buyInCentsOverride) > 0) {
+        storeRegistry.tables().setLastBuyIn(tableId, Number(buyInCentsOverride));
+      }
+      storeRegistry.table().resetSnapshotStream(tableId);
+      storeRegistry.table().clearTableLoadSignals(tableId);
+      loadPhaseState.resetForRetry();
+      setReconnectNonce((n) => n + 1);
+    },
+    [tableId, loadPhaseState.phase, loadPhaseState.resetForRetry],
+  );
+
   const runTournamentEnsureRecover = useCallback(async (): Promise<boolean> => {
     if (!tournamentId) return false;
     const oldRoomId = storeRegistry.tables().roomIdByTableId[tableId];
@@ -546,22 +575,11 @@ export function useTablePageController({
     const resolved = await resolveTournamentTableForJoin(tournamentId);
     if (!resolved.ok) {
       loadPhaseState.markFailed(resolved.message);
+      storeRegistry.table().setError(tableId, resolved.message);
       return false;
     }
-    if (oldRoomId && oldRoomId !== resolved.roomId) {
-      logTableLoadEvent("stale_roomid_replaced", {
-        tableId,
-        oldRoomId,
-        newRoomId: resolved.roomId,
-        phase: loadPhaseState.phase,
-      });
-    }
-    storeRegistry.tables().setRoomForTable(tableId, resolved.roomId);
-    storeRegistry.table().resetSnapshotStream(tableId);
-    storeRegistry.table().clearTableLoadSignals(tableId);
+    applyResumeReconnect(resolved.roomId, oldRoomId);
     storeRegistry.lobby().refresh();
-    loadPhaseState.resetForRetry();
-    setReconnectNonce((n) => n + 1);
     logTableLoadEvent("table_recovery_success", {
       tableId,
       newRoomId: resolved.roomId,
@@ -573,7 +591,53 @@ export function useTablePageController({
     tournamentId,
     loadPhaseState.phase,
     loadPhaseState.markFailed,
-    loadPhaseState.resetForRetry,
+    applyResumeReconnect,
+  ]);
+
+  const runCashTableResumeRecover = useCallback(async (): Promise<boolean> => {
+    const oldRoomId = storeRegistry.tables().roomIdByTableId[tableId] ?? recoverRoomIdHint;
+    logTableLoadEvent("table_recovery_attempt", {
+      tableId,
+      oldRoomId,
+      phase: loadPhaseState.phase,
+      source: "cash_resume",
+    });
+    try {
+      const result = await postCashTableResume(tableId, { roomId: recoverRoomIdHint });
+      const outcome = resolveCashTableResumeOutcome(result, buyInCents);
+      if (outcome.kind === "reconnect") {
+        applyResumeReconnect(outcome.roomId, oldRoomId, outcome.buyInCents);
+        logTableLoadEvent("cash_table_recovery_success", {
+          tableId,
+          oldRoomId,
+          newRoomId: outcome.roomId,
+          resumeStatus: result.resumeStatus,
+          connectionStatus,
+        });
+        return true;
+      }
+      loadPhaseState.markFailed(outcome.message);
+      storeRegistry.table().setError(tableId, outcome.message);
+      return false;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Could not resume this table";
+      loadPhaseState.markFailed(message);
+      storeRegistry.table().setError(tableId, message);
+      logTableLoadEvent("table_recovery_failed", {
+        tableId,
+        message,
+        source: "cash_resume",
+      });
+      return false;
+    }
+  }, [
+    tableId,
+    recoverRoomIdHint,
+    buyInCents,
+    loadPhaseState.phase,
+    loadPhaseState.markFailed,
+    applyResumeReconnect,
+    connectionStatus,
   ]);
 
   const retryTableLoad = useCallback(() => {
@@ -582,25 +646,25 @@ export function useTablePageController({
   }, [clearTableLoadFailureState]);
 
   const recoverTableLoad = useCallback(() => {
-    if (!canRecoverTable || loadRecoveryBusy) return;
+    if (loadRecoveryBusy) return;
     setLoadRecoveryBusy(true);
     loadPhaseState.beginRecovering();
     void (async () => {
       try {
-        const ok = await runTournamentEnsureRecover();
-        if (!ok && !autoRecoveryAttemptedRef.current) {
-          loadPhaseState.markFailed();
-        }
+        const ok = tournamentId
+          ? await runTournamentEnsureRecover()
+          : await runCashTableResumeRecover();
+        if (!ok) return;
       } finally {
         setLoadRecoveryBusy(false);
       }
     })();
   }, [
-    canRecoverTable,
     loadRecoveryBusy,
     loadPhaseState.beginRecovering,
-    loadPhaseState.markFailed,
+    tournamentId,
     runTournamentEnsureRecover,
+    runCashTableResumeRecover,
   ]);
 
   const goToLobby = useCallback(() => {
@@ -884,7 +948,7 @@ export function useTablePageController({
       showLoadRecovery: loadPhaseState.showRecovery,
       loadStatusMessage,
       loadRecoveryBusy,
-      canRecoverTable,
+      canRecoverTable: true,
       realtimeRoomId,
       tableNextPath,
       hasValidBuyIn,

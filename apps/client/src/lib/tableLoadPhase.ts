@@ -43,8 +43,10 @@ export type TableLoadLogEvent =
   | "table_recovery_attempt"
   | "table_recovery_success"
   | "table_recovery_failed"
+  | "cash_table_recovery_success"
   | "stale_roomid_replaced"
-  | "cash_table_recovery_unavailable";
+  | "cash_table_recovery_unavailable"
+  | "cash_table_recovery_success";
 
 export function logTableLoadEvent(event: TableLoadLogEvent, fields: Record<string, unknown>): void {
   console.log(`[TABLE_LOAD] ${event}`, fields);
