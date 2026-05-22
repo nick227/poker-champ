@@ -22,8 +22,10 @@ type UseTableRealtimeOptions = {
   buyInCents?: number;
   password?: string;
   enabled?: boolean;
+  reconnectNonce?: number;
   onError?: (message: string) => void;
   onTableGone?: (tableId: string) => void;
+  onTerminalJoinFailure?: (tableId: string, message: string) => void;
   onReadyRoom?: (room: TableRealtimeRoom | null) => void;
 };
 
@@ -33,8 +35,10 @@ export function useTableRealtime({
   buyInCents,
   password,
   enabled = true,
+  reconnectNonce = 0,
   onError,
   onTableGone,
+  onTerminalJoinFailure,
   onReadyRoom,
 }: UseTableRealtimeOptions) {
   const authHydrated = storeRegistry.use.auth((s) => s.hydrated);
@@ -44,6 +48,7 @@ export function useTableRealtime({
   };
   const onErrorRef = useRef(onError);
   const onTableGoneRef = useRef(onTableGone);
+  const onTerminalJoinFailureRef = useRef(onTerminalJoinFailure);
   const onReadyRoomRef = useRef(onReadyRoom);
   const realtimeSendRef = useRef<(type: string, payload?: unknown) => boolean>(() => false);
   const realtimeDisconnectRef = useRef<(consented?: boolean) => void>(() => undefined);
@@ -52,6 +57,7 @@ export function useTableRealtime({
   const didDisconnectOthersRef = useRef(false);
   onErrorRef.current = onError;
   onTableGoneRef.current = onTableGone;
+  onTerminalJoinFailureRef.current = onTerminalJoinFailure;
   onReadyRoomRef.current = onReadyRoom;
 
   const joinOptions = useMemo(
@@ -95,8 +101,11 @@ export function useTableRealtime({
           getActiveSessionId: (t) => storeRegistry.table().getActiveSessionId(t),
           clearActiveSessionId: (t) => storeRegistry.table().clearActiveSessionId(t),
           setError: (t, message) => storeRegistry.table().setError(t, message),
+          markTableWelcome: (t) => storeRegistry.table().markTableWelcome(t),
+          markTableSessionRestore: (t) => storeRegistry.table().markTableSessionRestore(t),
           onError: (m) => onErrorRef.current?.(m),
           onTableGone: (t) => onTableGoneRef.current?.(t),
+          onTerminalJoinFailure: (t, message) => onTerminalJoinFailureRef.current?.(t, message),
           debugLog,
         },
       });
@@ -106,6 +115,7 @@ export function useTableRealtime({
       storeRegistry.table().setError(tableId, normalized);
       debugLog("TRANSPORT_ERROR", { tableId, message: normalized });
       onErrorRef.current?.(normalized);
+      onTerminalJoinFailureRef.current?.(tableId, normalized);
     },
     onOpen: (_send, getNativeRoom) => {
       const nativeRoom = getNativeRoom?.() ?? null;
@@ -157,6 +167,13 @@ export function useTableRealtime({
       });
     }
   }, [tableId, roomId, enabled, authHydrated, hasValidBuyIn, buyInCents, password]);
+
+  useEffect(() => {
+    if (reconnectNonce > 0) {
+      debugLog("RECONNECT_NONCE", { tableId, reconnectNonce });
+      realtime.disconnect(false);
+    }
+  }, [reconnectNonce, tableId, realtime.disconnect]);
 
   useEffect(() => {
     realtimeSendRef.current = realtime.send;

@@ -7,7 +7,7 @@ import { isValidTableInbound } from "@/realtime/contract.guards";
 import { useTableStore } from "@/features/table/stores/table.store";
 
 type RealtimeSender = (type: string, payload?: unknown) => boolean;
-type TableJoinState = { buyInCents?: number; password?: string };
+type TableJoinState = { buyInCents?: number; password?: string; tournamentId?: string };
 
 export type PendingAction = {
   actionId: string;

@@ -11,6 +11,7 @@ export type TableSceneParams = {
   hasSnapshot: boolean;
   hasActiveHand: boolean;
   canAddBot: boolean;
+  showLoadRecovery?: boolean;
 };
 
 export type TableTopBarFlags = {
@@ -27,6 +28,7 @@ export function useTableScene(params: TableSceneParams): {
     hasSnapshot,
     hasActiveHand,
     canAddBot,
+    showLoadRecovery,
   } = params;
 
   const sceneMode = useMemo(
@@ -36,8 +38,9 @@ export function useTableScene(params: TableSceneParams): {
         hasAuthToken,
         hasSnapshot,
         hasActiveHand,
+        showLoadRecovery,
       }),
-    [authHydrated, hasAuthToken, hasSnapshot, hasActiveHand]
+    [authHydrated, hasAuthToken, hasSnapshot, hasActiveHand, showLoadRecovery]
   );
 
   const tableTopBarFlags = useMemo(

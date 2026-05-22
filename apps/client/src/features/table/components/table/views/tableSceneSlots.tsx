@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import type { TablePageController } from "@/types/tableSceneContract";
 import { TableLoadingLanding, type TableLoadingMode } from "../loading/TableLoadingLanding";
+import { TableLoadRecoveryPanel } from "../loading/TableLoadRecoveryPanel";
 import {
   ACTION_BAR_HEIGHT,
   HERO_ZONE_HEIGHT,
@@ -19,9 +20,10 @@ function statusMessageFor(
 ): string {
   if (mode === "auth_loading") return "Restoring your session...";
   if (mode === "auth_required") return "Sign in to continue.";
+  if (scene.showLoadRecovery) return scene.loadStatusMessage;
   const { tableError } = scene;
   if (tableError) return tableError;
-  return "Connecting to table...";
+  return scene.loadStatusMessage || "Connecting to table...";
 }
 
 export type LoadingSlotsParams = {
@@ -102,6 +104,7 @@ export function getLoadingSlots({
   const loadingMode: TableLoadingMode =
     mode === "auth_required" ? "auth_required" : mode === "auth_loading" ? "auth_loading" : "connecting";
   const message = statusMessageFor(mode, scene);
+  const showRecovery = scene.showLoadRecovery && mode === "connecting";
 
   return {
     tableName: "Poker Champ",
@@ -110,7 +113,18 @@ export function getLoadingSlots({
     opponents: [],
     opponentStripEmptyState: opponentStripPlaceholder,
     dealerBar: <View collapsable={false} />,
-    board: (
+    board: showRecovery ? (
+      <TableLoadRecoveryPanel
+        statusMessage={message}
+        phase={scene.loadPhase}
+        lastError={scene.tableError}
+        recoveryBusy={scene.loadRecoveryBusy}
+        onRetry={actions.retryTableLoad}
+        onRecover={actions.recoverTableLoad}
+        onBackToLobby={actions.goToLobby}
+        devDiagnostics={scene.loadDevDiagnostics}
+      />
+    ) : (
       <TableLoadingLanding
         mode={loadingMode}
         statusMessage={message}

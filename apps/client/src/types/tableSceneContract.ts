@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { TableSnapshotPayload, BotSummary } from "@poker-champ/realtime-contract";
 import type { TableSceneModel } from "@/features/table";
 import type { TableSceneMode } from "@/features/table";
+import type { TableLoadPhase } from "@/lib/tableLoadPhase";
 import type { Opponent } from "@/features/table";
 import type { TableAction } from "@/features/table";
 import type { ChatMessageForOverlay } from "@/components/domain/chat/types";
@@ -30,11 +31,17 @@ export type ActiveTableRow = {
 export type TablePageController = {
   scene: {
     mode: TableSceneMode;
+    loadPhase: TableLoadPhase;
+    showLoadRecovery: boolean;
+    loadStatusMessage: string;
+    loadRecoveryBusy: boolean;
+    realtimeRoomId: string;
     tableNextPath: string;
     hasValidBuyIn: boolean;
     tableStatus: string;
     connectionStatus: ConnectionStatus;
     tableError?: string;
+    loadDevDiagnostics?: string;
   };
   renderModel: {
     tableId: string;
@@ -76,6 +83,8 @@ export type TablePageController = {
   actions: {
     goToLogin: () => void;
     goToLobby: () => void;
+    retryTableLoad: () => void;
+    recoverTableLoad: () => void;
     closeTableAndReturn: () => void;
     selectTableFromDropdown: (targetId: string) => void;
     selectTableTab: (targetId: string) => void;
@@ -91,7 +100,7 @@ export type TablePageController = {
     onPlayerPress: (opponent: Opponent) => void;
     openAddBotPicker: () => void;
     pickBot: (botId: string) => void;
-    sendAction: (payload: { type: TableAction; amount?: number }) => void;
+    sendAction: (payload: { type: TableAction; amount?: number }) => boolean;
     toggleHeroSittingOut: () => void;
     rejoinHero: () => void;
     joinTableFromFallback: () => void;

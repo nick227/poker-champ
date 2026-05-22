@@ -16,8 +16,11 @@ export type TableRealtimeMessageHandlerDeps = {
   getActiveSessionId?: (tableId: string) => string | undefined;
   clearActiveSessionId?: (tableId: string) => void;
   setError: (tableId: string, error: string) => void;
+  markTableWelcome?: (tableId: string) => void;
+  markTableSessionRestore?: (tableId: string) => void;
   onError?: (message: string) => void;
   onTableGone?: (tableId: string) => void;
+  onTerminalJoinFailure?: (tableId: string, message: string) => void;
   debugLog: (...args: unknown[]) => void;
 };
 
@@ -64,6 +67,7 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
     if (typeof p?.roomId === "string" && p.roomId.length > 0) {
       deps.setRoomForTable(tableId, p.roomId);
     }
+    deps.markTableWelcome?.(tableId);
     if (p?.joinMode === "NEW") {
       deps.resetSnapshotStream(tableId);
     }
@@ -78,6 +82,7 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
   if (type === "SESSION_RESTORED") {
     // A restored session may resume from a different snapshot stream cursor.
     // Reset local cursor so the first post-restore snapshot is always accepted.
+    deps.markTableSessionRestore?.(tableId);
     deps.resetSnapshotStream(tableId);
     deps.setConnectionStatus(tableId, "CONNECTED");
   }
@@ -133,6 +138,15 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
       deps.onTableGone?.(tableId);
       if (!deps.onTableGone) deps.setError(tableId, p?.message ?? "Table no longer exists");
       return;
+    }
+    if (
+      p?.code === "JOIN_FAILED" ||
+      p?.code === "BAD_JOIN_OPTIONS" ||
+      p?.code === "MISSING_BUY_IN_CENTS" ||
+      p?.code === "UNAUTHORIZED"
+    ) {
+      const message = p?.message ?? p?.code ?? "Join failed";
+      deps.onTerminalJoinFailure?.(tableId, message);
     }
     if (p?.code === "QUEUE_FULL" || p?.code === "RATE_LIMITED") {
       storeRegistry.tables().scheduleActionRetry(tableId, p?.retryAfterSeconds ?? 2);

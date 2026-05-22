@@ -5,10 +5,11 @@ export function resolveTableSceneMode(params: {
   hasAuthToken: boolean;
   hasSnapshot: boolean;
   hasActiveHand: boolean;
+  showLoadRecovery?: boolean;
 }): TableSceneMode {
   if (!params.authHydrated) return "auth_loading";
   if (!params.hasAuthToken) return "auth_required";
-  if (!params.hasSnapshot) return "connecting";
+  if (!params.hasSnapshot || params.showLoadRecovery) return "connecting";
   if (!params.hasActiveHand) return "idle";
   return "active";
 }

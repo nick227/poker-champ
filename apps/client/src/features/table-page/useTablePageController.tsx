@@ -28,6 +28,14 @@ import { useVoiceJoinPolicy } from "@/features/table";
 import { showVoiceErrorToast } from "@/voice/errors";
 import { useOpenTableSync } from "@/features/table";
 import { useTableConnection } from "@/features/table";
+import { useTableLoadPhase } from "@/features/table/components/table/hooks/useTableLoadPhase";
+import { isRecoverableTableJoinFailure } from "@/lib/tableJoinFailure";
+import {
+  loadPhaseStatusMessage,
+  logTableLoadEvent,
+  MAX_TABLE_AUTO_RECOVERY_ATTEMPTS,
+} from "@/lib/tableLoadPhase";
+import { resolveTournamentTableForJoin } from "@/lib/tournamentEnsureJoin";
 import { usePlayerJoinedSound } from "@/features/table";
 import { useTablePageStores } from "@/features/table/hooks/useTablePageStores";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
@@ -120,6 +128,8 @@ export function useTablePageController({
     botSummariesUpdatedAtForTable,
     connectionStatusForTable,
     errorForTable,
+    loadSignalsForTable,
+    lastSeqForTable,
     hydrated: authHydrated,
     token: authToken,
   } = useTablePageStores(tableId);
@@ -343,14 +353,6 @@ export function useTablePageController({
     });
   }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
-  const { sceneMode, tableTopBarFlags } = useTableScene({
-    authHydrated,
-    hasAuthToken: Boolean(authToken),
-    hasSnapshot: Boolean(snapshot),
-    hasActiveHand: Boolean(snapshot?.hand),
-    canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents && !snapshot?.table?.tournament),
-  });
-
   const {
     rebuySheetVisible,
     setRebuySheetVisible,
@@ -480,15 +482,169 @@ export function useTablePageController({
     setVoiceRoom((prev) => (prev === room ? prev : room));
   }, []);
 
-  const { hasValidBuyIn } = useTableConnection({
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  const [loadRecoveryBusy, setLoadRecoveryBusy] = useState(false);
+  const autoRecoveryAttemptedRef = useRef(false);
+
+  const tournamentId =
+    joinState?.tournamentId ?? snapshot?.table?.tournament?.tournamentId ?? undefined;
+
+  const loadSignals = useMemo(
+    () => ({
+      welcomeAt: loadSignalsForTable?.welcomeAt,
+      sessionRestoreAt: loadSignalsForTable?.sessionRestoreAt,
+      snapshotAt: loadSignalsForTable?.lastSnapshotAt,
+    }),
+    [loadSignalsForTable],
+  );
+
+  const loadPhaseState = useTableLoadPhase({
+    tableId,
+    authHydrated,
+    hasAuthToken: Boolean(authToken),
+    hasSnapshot: Boolean(snapshot),
+    snapshotSeq: snapshot?.snapshotSeq ?? lastSeqForTable,
+    connectionStatus,
+    loadSignals,
+    tableError,
+  });
+
+  const loadStatusMessage = useMemo(
+    () => loadPhaseStatusMessage(loadPhaseState.phase, loadPhaseState.timedOut),
+    [loadPhaseState.phase, loadPhaseState.timedOut],
+  );
+
+  const { sceneMode, tableTopBarFlags } = useTableScene({
+    authHydrated,
+    hasAuthToken: Boolean(authToken),
+    hasSnapshot: Boolean(snapshot),
+    hasActiveHand: Boolean(snapshot?.hand),
+    canAddBot: Boolean(snapshot?.hero.youAreSeated && buyInCents && !snapshot?.table?.tournament),
+    showLoadRecovery: loadPhaseState.showRecovery,
+  });
+
+  const runTournamentEnsureRecover = useCallback(async (): Promise<boolean> => {
+    if (!tournamentId) return false;
+    const oldRoomId = storeRegistry.tables().roomIdByTableId[tableId];
+    logTableLoadEvent("table_recovery_attempt", {
+      tableId,
+      tournamentId,
+      oldRoomId: oldRoomId ?? null,
+      phase: loadPhaseState.phase,
+    });
+    const resolved = await resolveTournamentTableForJoin(tournamentId);
+    if (!resolved.ok) {
+      loadPhaseState.markFailed(resolved.message);
+      return false;
+    }
+    if (oldRoomId && oldRoomId !== resolved.roomId) {
+      logTableLoadEvent("stale_roomid_replaced", {
+        tableId,
+        oldRoomId,
+        newRoomId: resolved.roomId,
+        phase: loadPhaseState.phase,
+      });
+    }
+    storeRegistry.tables().setRoomForTable(tableId, resolved.roomId);
+    storeRegistry.table().resetSnapshotStream(tableId);
+    storeRegistry.table().clearTableLoadSignals(tableId);
+    storeRegistry.lobby().refresh();
+    loadPhaseState.resetForRetry();
+    setReconnectNonce((n) => n + 1);
+    logTableLoadEvent("table_recovery_success", {
+      tableId,
+      newRoomId: resolved.roomId,
+      tournamentId,
+    });
+    return true;
+  }, [
+    tableId,
+    tournamentId,
+    loadPhaseState.phase,
+    loadPhaseState.markFailed,
+    loadPhaseState.resetForRetry,
+  ]);
+
+  const retryTableLoad = useCallback(() => {
+    storeRegistry.table().resetSnapshotStream(tableId);
+    loadPhaseState.resetForRetry();
+    setReconnectNonce((n) => n + 1);
+  }, [tableId, loadPhaseState.resetForRetry]);
+
+  const recoverTableLoad = useCallback(() => {
+    if (loadRecoveryBusy) return;
+    setLoadRecoveryBusy(true);
+    loadPhaseState.beginRecovering();
+    void (async () => {
+      try {
+        if (tournamentId) {
+          const ok = await runTournamentEnsureRecover();
+          if (!ok && !autoRecoveryAttemptedRef.current) {
+            loadPhaseState.markFailed();
+          }
+        } else {
+          storeRegistry.table().resetSnapshotStream(tableId);
+          storeRegistry.table().clearTableLoadSignals(tableId);
+          loadPhaseState.resetForRetry();
+          setReconnectNonce((n) => n + 1);
+        }
+      } finally {
+        setLoadRecoveryBusy(false);
+      }
+    })();
+  }, [
+    loadRecoveryBusy,
+    loadPhaseState.beginRecovering,
+    loadPhaseState.markFailed,
+    tournamentId,
+    runTournamentEnsureRecover,
+    tableId,
+  ]);
+
+  const handleTerminalJoinFailure = useCallback(
+    (failedTableId: string, message: string) => {
+      if (failedTableId !== tableId) return;
+      if (!tournamentId) return;
+      if (autoRecoveryAttemptedRef.current) return;
+      if (!isRecoverableTableJoinFailure(message)) return;
+      if (loadPhaseState.recoveryAttemptCount >= MAX_TABLE_AUTO_RECOVERY_ATTEMPTS) return;
+      autoRecoveryAttemptedRef.current = true;
+      setLoadRecoveryBusy(true);
+      loadPhaseState.beginRecovering();
+      void runTournamentEnsureRecover().finally(() => setLoadRecoveryBusy(false));
+    },
+    [
+      tableId,
+      tournamentId,
+      loadPhaseState.recoveryAttemptCount,
+      loadPhaseState.beginRecovering,
+      runTournamentEnsureRecover,
+    ],
+  );
+
+  useEffect(() => {
+    if (snapshot) {
+      loadPhaseState.markReady();
+      autoRecoveryAttemptedRef.current = false;
+    }
+  }, [snapshot?.snapshotId, snapshot?.snapshotSeq, loadPhaseState.markReady]);
+
+  useEffect(() => {
+    autoRecoveryAttemptedRef.current = false;
+    storeRegistry.table().clearTableLoadSignals(tableId);
+  }, [tableId]);
+
+  const { hasValidBuyIn, realtimeRoomId } = useTableConnection({
     tableId,
     persistedRoomId,
     tableById,
     buyInCents,
     authHydrated,
     hasAuthToken: Boolean(authToken),
+    reconnectNonce,
     onError: handleRealtimeError,
     onTableGone: handleTableGone,
+    onTerminalJoinFailure: handleTerminalJoinFailure,
     onReadyRoom: handleReadyRoom,
   });
 
@@ -551,6 +707,7 @@ export function useTablePageController({
           });
         }
       }
+      return ok;
     },
     [tableId, dispatchTableAction, snapshot, connectionStatus],
   );
@@ -697,11 +854,19 @@ export function useTablePageController({
   return {
     scene: {
       mode: sceneMode,
+      loadPhase: loadPhaseState.phase,
+      showLoadRecovery: loadPhaseState.showRecovery,
+      loadStatusMessage,
+      loadRecoveryBusy,
+      realtimeRoomId,
       tableNextPath,
       hasValidBuyIn,
       tableStatus,
       connectionStatus,
       tableError,
+      loadDevDiagnostics: __DEV__
+        ? `phase=${loadPhaseState.phase} room=${realtimeRoomId} conn=${connectionStatus} seq=${snapshot?.snapshotSeq ?? lastSeqForTable ?? "—"} attempts=${loadPhaseState.recoveryAttemptCount}`
+        : undefined,
     },
     renderModel: {
       tableId,
@@ -736,6 +901,8 @@ export function useTablePageController({
     actions: {
       goToLogin,
       goToLobby: () => router.replace(lobbyPath()),
+      retryTableLoad,
+      recoverTableLoad,
       closeTableAndReturn,
       selectTableFromDropdown,
       selectTableTab,

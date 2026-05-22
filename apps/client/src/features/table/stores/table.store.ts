@@ -13,6 +13,13 @@ type TableStoreState = {
   activeSessionIdByTableId: Record<string, string | undefined>;
   statusByTableId: Record<string, string | undefined>;
   errorByTableId: Record<string, string | undefined>;
+  loadSignalsByTableId: Record<
+    string,
+    { welcomeAt?: number; sessionRestoreAt?: number; lastSnapshotAt?: number } | undefined
+  >;
+  markTableWelcome: (tableId: string) => void;
+  markTableSessionRestore: (tableId: string) => void;
+  clearTableLoadSignals: (tableId: string) => void;
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
   resetSnapshotStream: (tableId: string) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
@@ -37,6 +44,32 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
   activeSessionIdByTableId: {},
   statusByTableId: {},
   errorByTableId: {},
+  loadSignalsByTableId: {},
+  markTableWelcome: (tableId) =>
+    set((s) => ({
+      loadSignalsByTableId: {
+        ...s.loadSignalsByTableId,
+        [tableId]: {
+          ...s.loadSignalsByTableId[tableId],
+          welcomeAt: Date.now(),
+        },
+      },
+    })),
+  markTableSessionRestore: (tableId) =>
+    set((s) => ({
+      loadSignalsByTableId: {
+        ...s.loadSignalsByTableId,
+        [tableId]: {
+          ...s.loadSignalsByTableId[tableId],
+          sessionRestoreAt: Date.now(),
+        },
+      },
+    })),
+  clearTableLoadSignals: (tableId) =>
+    set((s) => {
+      const { [tableId]: _signals, ...loadSignalsByTableId } = s.loadSignalsByTableId;
+      return { loadSignalsByTableId };
+    }),
   appendChatMessage: (tableId, message) =>
     set((s) => {
       const list = s.chatMessagesByTableId[tableId] ?? [];
@@ -87,6 +120,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         return s;
       }
       
+      const now = Date.now();
       return {
         snapshotsByTableId: {
           ...s.snapshotsByTableId,
@@ -99,6 +133,13 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         errorByTableId: {
           ...s.errorByTableId,
           [tableId]: undefined,
+        },
+        loadSignalsByTableId: {
+          ...s.loadSignalsByTableId,
+          [tableId]: {
+            ...s.loadSignalsByTableId[tableId],
+            lastSnapshotAt: now,
+          },
         },
       };
     }),
@@ -156,6 +197,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
       const { [tableId]: _connectionStatus, ...connectionStatusByTableId } = s.connectionStatusByTableId;
       const { [tableId]: _activeSessionId, ...activeSessionIdByTableId } = s.activeSessionIdByTableId;
+      const { [tableId]: _loadSignals, ...loadSignalsByTableId } = s.loadSignalsByTableId;
       return {
         snapshotsByTableId,
         chatMessagesByTableId,
@@ -166,6 +208,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         lastSeqByTableId,
         connectionStatusByTableId,
         activeSessionIdByTableId,
+        loadSignalsByTableId,
       };
     }),
 }));

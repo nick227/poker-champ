@@ -46,6 +46,8 @@ export function useTablePageStores(tableId: string | undefined) {
       botSummariesUpdatedAtForTable: id ? s.botSummariesUpdatedAtByTableId[id] : undefined,
       connectionStatusForTable: id ? s.connectionStatusByTableId[id] : undefined,
       errorForTable: id ? s.errorByTableId[id] : undefined,
+      loadSignalsForTable: id ? s.loadSignalsByTableId[id] : undefined,
+      lastSeqForTable: id ? s.lastSeqByTableId[id] : undefined,
     }))
   );
 

@@ -1,7 +1,7 @@
 import type { Router } from "expo-router";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
-import { hasTournamentTableTarget, mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
-import { postTournamentEnsureTable } from "@/services/post/tournaments.ensure-table";
+import { mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
+import { resolveTournamentTableForJoin } from "@/lib/tournamentEnsureJoin";
 import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -14,7 +14,7 @@ export type TournamentActionHandlers = {
   onRequestRegister: (tournament: TournamentSummary) => void;
   onRequestJoin: (tournament: TournamentSummary) => void;
   onRequestStandings?: (tournament: TournamentSummary) => void;
-  openTable: (tableId: string, joinState?: { buyInCents: number }) => void;
+  openTable: (tableId: string, joinState?: { buyInCents: number; tournamentId?: string }) => void;
   setRoomForTable: (tableId: string, roomId: string) => void;
   refreshTournament: () => void;
   refreshBankroll: () => void;
@@ -24,15 +24,16 @@ export type TournamentActionHandlers = {
 export function confirmTournamentTableJoin(
   tournament: TournamentSummary,
   handlers: Pick<TournamentActionHandlers, "openTable" | "router" | "setRoomForTable" | "showToast">,
+  targets?: { tableId: string; roomId: string; buyInCents: number },
 ): boolean {
-  const tableId = tournament.tableId;
-  const roomId = tournament.roomId;
+  const tableId = targets?.tableId ?? tournament.tableId;
+  const roomId = targets?.roomId ?? tournament.roomId;
   if (!tableId || !roomId) {
     return false;
   }
-  const buyInCents = tournament.startingStackCents;
+  const buyInCents = targets?.buyInCents ?? tournament.startingStackCents;
   handlers.setRoomForTable(tableId, roomId);
-  handlers.openTable(tableId, { buyInCents });
+  handlers.openTable(tableId, { buyInCents, tournamentId: tournament.id });
   handlers.router.push(tablePath(tableId, { buyInCents }));
   return true;
 }
@@ -44,19 +45,17 @@ export async function executeTournamentTableJoin(
     "openTable" | "router" | "setRoomForTable" | "showToast" | "refreshTournament"
   >,
 ): Promise<boolean> {
-  let ready = tournament;
-  if (!hasTournamentTableTarget(ready)) {
-    try {
-      const ensured = await postTournamentEnsureTable(ready.id);
-      ready = ensured.tournament;
-      handlers.refreshTournament();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Could not open tournament table";
-      handlers.showToast(mapTournamentApiError(message), "danger");
-      return false;
-    }
+  const resolved = await resolveTournamentTableForJoin(tournament.id);
+  if (!resolved.ok) {
+    handlers.showToast(resolved.message, "danger");
+    return false;
   }
-  return confirmTournamentTableJoin(ready, handlers);
+  handlers.refreshTournament();
+  return confirmTournamentTableJoin(resolved.tournament, handlers, {
+    tableId: resolved.tableId,
+    roomId: resolved.roomId,
+    buyInCents: resolved.buyInCents,
+  });
 }
 
 export async function confirmTournamentRegister(

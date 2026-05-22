@@ -10,8 +10,10 @@ type UseTableConnectionOptions = {
   buyInCents?: number;
   authHydrated: boolean;
   hasAuthToken: boolean;
+  reconnectNonce?: number;
   onError?: (message: string) => void;
   onTableGone?: (tableId: string) => void;
+  onTerminalJoinFailure?: (tableId: string, message: string) => void;
   onReadyRoom?: (room: TableRealtimeRoom | null) => void;
 };
 
@@ -22,8 +24,10 @@ export function useTableConnection({
   buyInCents,
   authHydrated,
   hasAuthToken,
+  reconnectNonce = 0,
   onError,
   onTableGone,
+  onTerminalJoinFailure,
   onReadyRoom,
 }: UseTableConnectionOptions): {
   hasValidBuyIn: boolean;
@@ -44,8 +48,10 @@ export function useTableConnection({
     roomId: realtimeRoomId,
     buyInCents,
     enabled: shouldConnectRealtime,
+    reconnectNonce,
     onError,
     onTableGone,
+    onTerminalJoinFailure,
     onReadyRoom,
   });
 

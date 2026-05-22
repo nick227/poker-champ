@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { confirmTournamentTableJoin } from "./tournament.actions";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { confirmTournamentTableJoin, executeTournamentTableJoin } from "./tournament.actions";
+import { resolveTournamentTableForJoin } from "./tournamentEnsureJoin";
 import type { TournamentSummary } from "@/services/tournaments.types";
+
+vi.mock("./tournamentEnsureJoin", () => ({
+  resolveTournamentTableForJoin: vi.fn(),
+}));
 
 function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummary {
   return {
@@ -19,8 +24,8 @@ function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummar
     fillBotsAtStart: false,
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
-    tableId: "table_abc",
-    roomId: "room_xyz",
+    tableId: "table_stale",
+    roomId: "room_stale",
     tableLive: true,
     isRegistered: true,
     ...overrides,
@@ -42,9 +47,9 @@ describe("confirmTournamentTableJoin", () => {
     });
 
     expect(ok).toBe(true);
-    expect(setRoomForTable).toHaveBeenCalledWith("table_abc", "room_xyz");
-    expect(openTable).toHaveBeenCalledWith("table_abc", { buyInCents: 10000 });
-    expect(router.push).toHaveBeenCalledWith("/table/table_abc?buyInCents=10000");
+    expect(setRoomForTable).toHaveBeenCalledWith("table_stale", "room_stale");
+    expect(openTable).toHaveBeenCalledWith("table_stale", { buyInCents: 10000, tournamentId: "t1" });
+    expect(router.push).toHaveBeenCalledWith("/table/table_stale?buyInCents=10000");
     expect(showToast).not.toHaveBeenCalled();
   });
 
@@ -56,5 +61,60 @@ describe("confirmTournamentTableJoin", () => {
       showToast: vi.fn(),
     });
     expect(ok).toBe(false);
+  });
+});
+
+describe("executeTournamentTableJoin", () => {
+  beforeEach(() => {
+    vi.mocked(resolveTournamentTableForJoin).mockReset();
+  });
+
+  it("ensures table before navigation even when cached ids exist", async () => {
+    vi.mocked(resolveTournamentTableForJoin).mockResolvedValue({
+      ok: true,
+      tournament: baseTournament({ tableId: "table_fresh", roomId: "room_fresh" }),
+      tableId: "table_fresh",
+      roomId: "room_fresh",
+      buyInCents: 10000,
+    });
+
+    const openTable = vi.fn();
+    const setRoomForTable = vi.fn();
+    const router = { push: vi.fn() };
+    const refreshTournament = vi.fn();
+
+    const ok = await executeTournamentTableJoin(baseTournament({}), {
+      openTable,
+      setRoomForTable,
+      router: router as never,
+      showToast: vi.fn(),
+      refreshTournament,
+    });
+
+    expect(resolveTournamentTableForJoin).toHaveBeenCalledWith("t1");
+    expect(refreshTournament).toHaveBeenCalled();
+    expect(ok).toBe(true);
+    expect(setRoomForTable).toHaveBeenCalledWith("table_fresh", "room_fresh");
+    expect(openTable).toHaveBeenCalledWith("table_fresh", { buyInCents: 10000, tournamentId: "t1" });
+    expect(router.push).toHaveBeenCalledWith("/table/table_fresh?buyInCents=10000");
+  });
+
+  it("does not navigate when ensure-table is blocked", async () => {
+    vi.mocked(resolveTournamentTableForJoin).mockResolvedValue({
+      ok: false,
+      message: "This tournament has ended.",
+    });
+
+    const router = { push: vi.fn() };
+    const ok = await executeTournamentTableJoin(baseTournament({}), {
+      openTable: vi.fn(),
+      setRoomForTable: vi.fn(),
+      router: router as never,
+      showToast: vi.fn(),
+      refreshTournament: vi.fn(),
+    });
+
+    expect(ok).toBe(false);
+    expect(router.push).not.toHaveBeenCalled();
   });
 });
