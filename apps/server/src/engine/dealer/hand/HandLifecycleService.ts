@@ -505,7 +505,11 @@ export class HandLifecycleService {
     // Consume one-hand sit-out tokens and reset player states in single pass
     for (const player of state.playersById.values()) {
       player.sittingOutUntilNextHand = false;
-      if (player.connected && player.status === "ABANDONED" && player.stackCents > 0) {
+      if (
+        (player.connected || state.tournamentMode) &&
+        player.status === "ABANDONED" &&
+        player.stackCents > 0
+      ) {
         player.status = "ACTIVE";
       }
       player.roundBetCents = 0;
@@ -530,8 +534,10 @@ export class HandLifecycleService {
     }
 
     if (activePlayers.length < 2) {
+      state.handId = "";
       state.street = "WAITING";
       state.runoutMode = "NONE";
+      state.toActSeat = -1;
       this.transitionRoundState("HAND_COMPLETE", "START_HAND_INSUFFICIENT_PLAYERS");
       this.currentHandInHandIds.clear();
       plans.push({ kind: "EMIT_SNAPSHOT", reason: "AUTO_TRANSITION" });

@@ -95,6 +95,10 @@ export type {
   DealerDiagnosticType,
 } from "./dealer/orchestration/DealerDiagnostics.js";
 
+function isNextHandStartDue(state: PokerState, now: number): boolean {
+  return state.nextHandAtTs === 0 || (state.nextHandAtTs > 0 && now >= state.nextHandAtTs);
+}
+
 type HandEndedAwardsCallback = (
   handSummary: {
     handId: string;
@@ -1950,13 +1954,16 @@ export class Dealer {
           mark("loop:waiting_branch");
           if (this.activeTerminalLifecycle) break;
 
-          // 🔥 CRITICAL: Use same eligibility logic as startHand() to avoid mismatch
-          const activePlayers = resolvePlayersReadyForNextHand(this.state);
-          
-          // 🔴 SETTLEMENT BARRIER: Don't start new hand while previous hand still settling
+          const driveNow = Date.now();
+          const activePlayers = resolveActivePlayersForHand(this.state);
+
+          // 🔴 SETTLEMENT BARRIER: same-hand settlement only (handId cleared on TRANSITION_TO_WAITING)
           const completedTerminalLifecycleId = this.completedTerminalLifecycle?.handId ?? null;
-          const handStillSettling = completedTerminalLifecycleId === this.state.handId;
-          
+          const handStillSettling =
+            Boolean(this.state.handId) &&
+            Boolean(completedTerminalLifecycleId) &&
+            completedTerminalLifecycleId === this.state.handId;
+
           if (handStillSettling) {
             logger.info({
               handId: this.state.handId,
@@ -1988,8 +1995,12 @@ export class Dealer {
           }
 
           if (terminalLifecycleCompletedThisDrive) break;
-          
-          if (this.state.nextHandAtTs === 0 && activePlayers.length >= 2) {
+
+          if (isNextHandStartDue(this.state, driveNow) && activePlayers.length >= 2) {
+            this.state.nextHandAtTs = 0;
+            if (!this.state.handId) {
+              this.completedTerminalLifecycle = null;
+            }
             logger.info({
               handId: this.state.handId,
               street: this.state.street,
@@ -2010,9 +2021,9 @@ export class Dealer {
             mark("loop:waiting_after_start_hand");
             madeProgress = true;
             continue;
-          } else {
-            break; // No work to do in WAITING (timer running or not enough eligible players)
           }
+
+          break; // No work to do in WAITING (timer running or not enough eligible players)
         } else if (this.state.roundState === "HAND_COMPLETE") {
           mark("loop:hand_complete_branch");
           this.normalizeTerminalRoundState(`DRIVE_GAME:${trigger}:HAND_COMPLETE`);
@@ -2564,9 +2575,15 @@ export class Dealer {
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
-      const readyPlayers = resolvePlayersReadyForNextHand(this.state);
-      const hasHumanReady = readyPlayers.some((player) => player.kind === "HUMAN");
-      if (readyPlayers.length >= 2 && hasHumanReady) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
+      const activePlayers = resolveActivePlayersForHand(this.state);
+      const hasHumanReady = activePlayers.some((player) => player.kind === "HUMAN");
+      if (
+        activePlayers.length >= 2 &&
+        hasHumanReady &&
+        isNextHandStartDue(this.state, Date.now())
+      ) {
+        await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
+      }
       return;
     }
     if (this.state.runoutMode === "STAGED") return;
@@ -3066,6 +3083,11 @@ export class Dealer {
    */
   maybeActForBotPublic(): void {
     void this.enqueueSerializedStateMutation(() => this.driveGame("STALL_MONITOR_RECOVERY"));
+  }
+
+  /** Between-hands recovery when next-hand scheduling did not progress the table. */
+  recoverBetweenHandsPublic(): void {
+    void this.enqueueSerializedStateMutation(() => this.driveGame("BETWEEN_HANDS_STALL_RECOVERY"));
   }
 
   suspendGameplayTransitions(reason: string): void {

@@ -39,6 +39,7 @@ import { tournamentTableReconciler } from "../tournaments/TournamentTableReconci
 import { awardService } from "../awards/index.js";
 import { PokerRoomController } from "./room/PokerRoomController.js";
 import { dealerRuntimeMetrics } from "../engine/dealer/metrics/dealerRuntimeMetrics.js";
+import { resolvePlayersReadyForNextHand } from "../engine/dealer/utils/TableNavigator.js";
 import type {
   PokerRoomFacade,
   JoinOptions,
@@ -272,6 +273,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.state.maxBuyInCents = cfg?.maxBuyInCents ?? this.state.maxBuyInCents;
     this.state.showStats = cfg?.showStats ?? false;
     this.tournamentId = cfg?.tournamentId;
+    this.state.tournamentMode = Boolean(cfg?.tournamentId || cfg?.gameMode === "TOURNAMENT");
     this.tournamentStartingStackCents =
       cfg?.gameMode === "TOURNAMENT" ? cfg.minBuyInCents : undefined;
 
@@ -535,6 +537,33 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         this.dealer.getLastDecisionTraceIdPublic() ??
         `stall_${this.state.tableId}_${this.state.handId || "none"}_${now}`;
       if (waitingTurns === 0) {
+        const betweenHandsReady = resolvePlayersReadyForNextHand(this.state);
+        const nextHandStartDue =
+          this.state.nextHandAtTs === 0 ||
+          (this.state.nextHandAtTs > 0 && now >= this.state.nextHandAtTs);
+        if (
+          this.state.street === "WAITING" &&
+          betweenHandsReady.length >= 2 &&
+          nextHandStartDue &&
+          !this.tournamentPlayEnded &&
+          snapshotSilenceMs >= STALL_THRESHOLD_MS
+        ) {
+          if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {
+            logger.warn(
+              {
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                readyPlayerCount: betweenHandsReady.length,
+                nextHandAtTs: this.state.nextHandAtTs,
+                snapshotSilenceMs,
+              },
+              "BETWEEN_HANDS_STALL_RECOVERY_REDRIVE",
+            );
+            this.lastStallRedriveLogAtMs = now;
+            dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
+          }
+          this.dealer.recoverBetweenHandsPublic();
+        }
         if (this.lastRuntimeMetricsLogAtMs + METRICS_LOG_INTERVAL_MS < now) {
           logger.info(
             {
@@ -1274,7 +1303,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       this.dealer.resumeGameplayTransitions("TOURNAMENT_SEED");
     }
 
-    return { ok: seated >= 2, seated };
+    return { ok: seated >= 1, seated };
   }
 
   async seedTournamentBots(
@@ -1597,6 +1626,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param userId - The user ID to mark as abandoned
    */
   private async markAbandonedSafe(userId: string): Promise<void> {
+    if (this.tournamentId) {
+      logger.info(
+        { roomId: this.roomId, tableId: this.state.tableId, tournamentId: this.tournamentId, userId },
+        "TOURNAMENT_DISCONNECT_TIMEOUT_PRESERVED_AS_GHOST_STACK",
+      );
+      return;
+    }
     const dealer = this.dealer as unknown as {
       markAbandonedSerialized?: (id: string) => Promise<void>;
       markAbandoned: (id: string) => Promise<void>;

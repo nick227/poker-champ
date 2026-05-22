@@ -144,9 +144,6 @@ export class HandOrchestrator {
         );
 
         this.deps.setCurrentHand(null);
-        // Avoid awaiting requestDrive from inside an active drive loop.
-        // requestDrive() waits on the current drivePromise when a drive is already in progress,
-        // so awaiting it here self-deadlocks the abort path.
         void this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
 
         return;
@@ -331,7 +328,9 @@ export class HandOrchestrator {
           this.resetNextHandSchedule();
           return;
         }
-        this.deps.state.nextHandAtTs = Date.now() + countdownMs;
+        if (countdownMs > 0) {
+          this.deps.state.nextHandAtTs = Date.now() + countdownMs;
+        }
         await this.deps.sendTableSnapshotToAll("AUTO_TRANSITION");
         logger.info(
           {
