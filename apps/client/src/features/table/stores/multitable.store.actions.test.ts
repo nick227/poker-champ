@@ -31,6 +31,7 @@ describe("multi-table action idempotency payloads", () => {
           payload: { action: "CHECK" as TableAction } as { actionId: string; action: TableAction },
           retriesLeft: 1,
           createdAtTs: Date.now(),
+          dispatchHandStreet: null,
         },
       },
     });
@@ -88,6 +89,7 @@ describe("multi-table action idempotency payloads", () => {
           payload: { actionId: "pending-1", action: "CALL" as TableAction },
           retriesLeft: 3,
           createdAtTs: Date.now(),
+          dispatchHandStreet: "PREFLOP",
         },
       },
     });

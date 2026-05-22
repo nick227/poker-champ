@@ -4,6 +4,7 @@ import type { StateStorage } from "zustand/middleware";
 import type { TableActionKey } from "@/registry/table-action.registry";
 import { toServerActionPayload } from "@/realtime/action.mapper";
 import { isValidTableInbound } from "@/realtime/contract.guards";
+import { useTableStore } from "@/features/table/stores/table.store";
 
 type RealtimeSender = (type: string, payload?: unknown) => boolean;
 type TableJoinState = { buyInCents?: number; password?: string };
@@ -13,6 +14,8 @@ export type PendingAction = {
   payload: ReturnType<typeof toServerActionPayload>;
   retriesLeft: number;
   createdAtTs: number;
+  /** Street when the action was sent; used to ack when betting round advances. */
+  dispatchHandStreet: string | null;
 };
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -214,10 +217,18 @@ export const useMultiTableStore = create<MultiTableState>()(
         if (get().pendingActionByTableId[tableId]) return false;
         const payload = toServerActionPayload({ action, amountCents });
         if (!isValidTableInbound("ACTION", payload)) return false;
+        const dispatchHandStreet =
+          useTableStore.getState().snapshotsByTableId[tableId]?.hand?.street ?? null;
         set((s) => ({
           pendingActionByTableId: {
             ...s.pendingActionByTableId,
-            [tableId]: { actionId: payload.actionId, payload, retriesLeft: 3, createdAtTs: Date.now() },
+            [tableId]: {
+              actionId: payload.actionId,
+              payload,
+              retriesLeft: 3,
+              createdAtTs: Date.now(),
+              dispatchHandStreet,
+            },
           },
         }));
         return sender("ACTION", payload);

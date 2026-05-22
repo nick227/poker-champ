@@ -3,7 +3,7 @@
  * When snapshot is null returns placeholder slots so hook can run unconditionally.
  */
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
@@ -22,6 +22,7 @@ import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
+import { useMultiTableStore } from "@/features/table/stores/multitable.store";
 
 export type LiveTableSlotState = {
   sceneModel?: TableSceneModel;
@@ -47,6 +48,25 @@ function renderStatusStripPanel(
   );
 }
 
+function getOptimisticActionMessage(payload: Parameters<ActionBarOnAction>[0] | null): string {
+  switch (payload?.type) {
+    case "FOLD":
+      return "Folding...";
+    case "CHECK":
+      return "Checking...";
+    case "CALL":
+      return "Calling...";
+    case "BET":
+      return "Betting...";
+    case "RAISE":
+      return "Raising...";
+    case "ALL_IN":
+      return "Going all-in...";
+    default:
+      return "Sending action...";
+  }
+}
+
 export function useActiveTableSlots(
   snapshot: TableSnapshotPayload | null,
   scene: TablePageController["scene"],
@@ -56,8 +76,17 @@ export function useActiveTableSlots(
   heroAvatarUrl?: string | null,
   liveTableState?: LiveTableSlotState,
 ): TableSceneShellProps {
+  const [optimisticAction, setOptimisticAction] = useState<Parameters<ActionBarOnAction>[0] | null>(null);
+  const optimisticActionRef = useRef<Parameters<ActionBarOnAction>[0] | null>(null);
+  const optimisticDispatchRef = useRef<{ handStreet: string | null; snapshotSeq: number | null } | null>(
+    null,
+  );
+  const actionFrameRef = useRef<number | null>(null);
   const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
+  const pendingAction = useMultiTableStore(
+    (s) => s.pendingActionByTableId[renderModel.tableId],
+  );
 
   const opponents = (renderModel.opponents ?? []) as Opponent[];
   const statusStrip = liveTableState?.statusStrip;
@@ -118,10 +147,90 @@ export function useActiveTableSlots(
 
   const handleAction: ActionBarOnAction = useCallback(
     (payload) => {
-      actions.sendAction(payload);
+      if (optimisticActionRef.current) return;
+      optimisticActionRef.current = payload;
+      optimisticDispatchRef.current = {
+        handStreet: snapshot?.hand?.street ?? null,
+        snapshotSeq: snapshot?.snapshotSeq ?? null,
+      };
+      setOptimisticAction(payload);
+      actionFrameRef.current = requestAnimationFrame(() => {
+        actionFrameRef.current = null;
+        const dispatched = actions.sendAction(payload);
+        if (!dispatched) {
+          optimisticActionRef.current = null;
+          optimisticDispatchRef.current = null;
+          setOptimisticAction(null);
+        }
+      });
     },
-    [actions],
+    [actions, snapshot?.hand?.street, snapshot?.snapshotSeq],
   );
+
+  useEffect(() => {
+    return () => {
+      if (actionFrameRef.current != null) {
+        cancelAnimationFrame(actionFrameRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!optimisticActionRef.current) return;
+    if (!showHeroActionBar || !heroActionOptions || waitingBetweenHands) {
+      optimisticActionRef.current = null;
+      optimisticDispatchRef.current = null;
+      setOptimisticAction(null);
+    }
+  }, [heroActionOptions, showHeroActionBar, waitingBetweenHands]);
+
+  useEffect(() => {
+    if (!optimisticActionRef.current) return;
+
+    const clearOptimistic = () => {
+      optimisticActionRef.current = null;
+      optimisticDispatchRef.current = null;
+      setOptimisticAction(null);
+    };
+
+    if (!pendingAction) {
+      clearOptimistic();
+      return;
+    }
+
+    const dispatchCtx = optimisticDispatchRef.current;
+    if (!dispatchCtx) return;
+
+    const resolvedActionId = snapshot?.resolvedActionId;
+    if (resolvedActionId && resolvedActionId === pendingAction.actionId) {
+      clearOptimistic();
+      return;
+    }
+
+    const handStreet = snapshot?.hand?.street ?? null;
+    if (
+      dispatchCtx.handStreet != null &&
+      handStreet != null &&
+      handStreet !== dispatchCtx.handStreet
+    ) {
+      clearOptimistic();
+      return;
+    }
+
+    const snapshotSeq = snapshot?.snapshotSeq ?? null;
+    if (
+      dispatchCtx.snapshotSeq != null &&
+      snapshotSeq != null &&
+      snapshotSeq > dispatchCtx.snapshotSeq
+    ) {
+      clearOptimistic();
+    }
+  }, [
+    pendingAction,
+    snapshot?.resolvedActionId,
+    snapshot?.hand?.street,
+    snapshot?.snapshotSeq,
+  ]);
 
   useEffect(() => {
     const handId = snapshot?.hand?.handId ?? null;
@@ -196,6 +305,12 @@ export function useActiveTableSlots(
     );
   } else if (renderModel.canRebuy && actions.openRebuySheet) {
     bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
+  } else if (optimisticAction) {
+    bottom = renderStatusStripPanel(
+      getOptimisticActionMessage(optimisticAction),
+      true,
+      false,
+    );
   } else if (!waitingBetweenHands && showHeroActionBar) {
     bottom = (
       <ActionBar

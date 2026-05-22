@@ -188,6 +188,7 @@ function makePendingAction(createdAtTs: number): PendingAction {
     } as PendingAction["payload"],
     retriesLeft: 3,
     createdAtTs,
+    dispatchHandStreet: null,
   };
 }
 

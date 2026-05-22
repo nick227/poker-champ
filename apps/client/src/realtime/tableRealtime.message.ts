@@ -36,7 +36,18 @@ function shouldClearPendingActionFromSnapshot(
   if (!pendingAction) {
     return false;
   }
-  return snapshot.resolvedActionId === pendingAction.actionId;
+  if (snapshot.resolvedActionId === pendingAction.actionId) {
+    return true;
+  }
+  const currentStreet = snapshot.hand?.street ?? null;
+  if (
+    pendingAction.dispatchHandStreet != null &&
+    currentStreet != null &&
+    currentStreet !== pendingAction.dispatchHandStreet
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function getSessionIdFromPayload(payload: unknown): string | undefined {

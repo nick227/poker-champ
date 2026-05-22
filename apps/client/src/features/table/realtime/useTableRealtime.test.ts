@@ -89,6 +89,7 @@ function primePendingAction(tableId = "t1", createdAtTs = Date.now()) {
         },
         retriesLeft: 3,
         createdAtTs,
+        dispatchHandStreet: "PREFLOP",
       },
     },
   });
@@ -204,6 +205,23 @@ describe("useTableRealtime behavior", () => {
     dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
 
     expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeDefined();
+  });
+
+  it("clears pending action when snapshot street advances past dispatch street", () => {
+    const snap = {
+      ...makeSnapshot(2),
+      snapshotSeq: 2,
+      hand: {
+        ...makeSnapshot(1).hand!,
+        street: "FLOP" as const,
+        toActSeat: 0,
+      },
+    };
+    primePendingAction();
+
+    dispatchTableMessage("t1", "TABLE_SNAPSHOT", snap);
+
+    expect(useMultiTableStore.getState().pendingActionByTableId["t1"]).toBeUndefined();
   });
 
   it("keeps pending action when hero is still to act and no matching resolvedActionId arrived", () => {
