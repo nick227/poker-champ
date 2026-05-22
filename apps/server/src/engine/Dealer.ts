@@ -288,9 +288,21 @@ export class Dealer {
       }
       // Route through the serialized queue so concurrent player actions interleave safely.
       void (async () => {
-        await this.handleAction(botId, payload);
-        logger.info({ botId, action: payload.action }, "DRIVE_CALLED_AFTER_BOT_ACTION");
-        await this.driveGame("BOT_ACTION_EXECUTED");
+        try {
+          await this.handleAction(botId, payload);
+          logger.info({ botId, action: payload.action }, "DRIVE_CALLED_AFTER_BOT_ACTION");
+          await this.driveGame("BOT_ACTION_EXECUTED");
+        } catch (err) {
+          if (err instanceof PokerError) {
+            logger.warn(
+              { err, botId, action: payload.action, code: err.code },
+              "BOT_SCHEDULED_ACTION_REJECTED",
+            );
+            await this.driveGame("BOT_SCHEDULED_ACTION_REJECTED");
+            return;
+          }
+          throw err;
+        }
       })();
     };
 
@@ -1937,7 +1949,6 @@ export class Dealer {
         if (street === "WAITING") {
           mark("loop:waiting_branch");
           if (this.activeTerminalLifecycle) break;
-          if (terminalLifecycleCompletedThisDrive) break;
 
           // 🔥 CRITICAL: Use same eligibility logic as startHand() to avoid mismatch
           const activePlayers = resolvePlayersReadyForNextHand(this.state);
@@ -1964,6 +1975,7 @@ export class Dealer {
             continue;
           }
 
+          // Run after every hand in WAITING — including the drive that just completed terminal lifecycle.
           if (this.onTournamentWaitingAfterHand) {
             mark("loop:waiting_tournament_reconcile");
             await this.onTournamentWaitingAfterHand();
@@ -1974,6 +1986,8 @@ export class Dealer {
           if (this.isNextHandBlocked?.()) {
             break;
           }
+
+          if (terminalLifecycleCompletedThisDrive) break;
           
           if (this.state.nextHandAtTs === 0 && activePlayers.length >= 2) {
             logger.info({
@@ -2550,7 +2564,9 @@ export class Dealer {
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
-      if (resolvePlayersReadyForNextHand(this.state).length >= 2) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
+      const readyPlayers = resolvePlayersReadyForNextHand(this.state);
+      const hasHumanReady = readyPlayers.some((player) => player.kind === "HUMAN");
+      if (readyPlayers.length >= 2 && hasHumanReady) await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
       return;
     }
     if (this.state.runoutMode === "STAGED") return;

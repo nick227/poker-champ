@@ -292,6 +292,9 @@ export class HandOrchestrator {
         delayMs,
         countdownMs,
       });
+      if (this.deps.state.tournamentMode) {
+        await this.deps.requestDrive("NEXT_HAND_TOURNAMENT_RECONCILE");
+      }
     };
 
     logger.info(
@@ -414,6 +417,9 @@ export class HandOrchestrator {
             },
             "NEXT_HAND_START_TIMER_TIMING",
           );
+          if (this.deps.state.tournamentMode) {
+            await this.deps.requestDrive("NEXT_HAND_TOURNAMENT_RECONCILE");
+          }
         }).finally(() => {
           // Keep the guard latched when a nested schedule has already armed
           // the next announce/start timers during lifecycle execution.

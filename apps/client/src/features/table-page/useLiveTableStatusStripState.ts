@@ -10,6 +10,7 @@ export type LiveTableStatusPhase =
   | "transport";
 
 export const DEALING_NEXT_HAND_COPY = "Dealing next hand...";
+export const TOURNAMENT_FINISHED_COPY = "Tournament complete";
 
 export const MIN_MESSAGE_DURATION_MS = 400;
 export const WINNER_HOLD_MS = 900;
@@ -23,6 +24,7 @@ type InternalPhase = Exclude<LiveTableStatusPhase, "transport">;
 type LiveTableStatusInputs = {
   tableId: string;
   displayState: TableDisplayState;
+  tournamentStatus?: string | null;
   debugNowTs?: number;
 };
 
@@ -456,7 +458,12 @@ function resolveDerivedState(
   if (transportMessage != null) {
     message = transportMessage;
   } else if (state.phase === "betweenHands") {
-    message = DEALING_NEXT_HAND_COPY;
+    message =
+      inputs.tournamentStatus === "FINISHED" ||
+      inputs.tournamentStatus === "ABANDONED" ||
+      inputs.tournamentStatus === "CANCELLED"
+        ? TOURNAMENT_FINISHED_COPY
+        : DEALING_NEXT_HAND_COPY;
   } else if (state.phase === "winnerHold" || state.phase === "boardReset") {
     message = state.displayedMessage;
   } else {

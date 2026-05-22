@@ -98,6 +98,7 @@ export function useTableSceneSlots({
   const liveStatusStripState = useLiveTableStatusStripState({
     tableId: renderModel.tableId,
     displayState: tableDisplayState ?? EMPTY_DISPLAY_STATE,
+    tournamentStatus: snapshot?.table?.tournament?.status ?? null,
   });
   const loadingSlots = useMemo(
     () =>

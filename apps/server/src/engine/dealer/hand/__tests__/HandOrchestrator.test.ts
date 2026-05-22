@@ -201,6 +201,47 @@ describe("HandOrchestrator", () => {
     expect(executeHandLifecyclePlans).toHaveBeenCalledTimes(1);
   });
 
+  it("requests drive to reconcile tournament when fewer than two players are ready", async () => {
+    vi.useFakeTimers();
+    const state = createState();
+    state.tournamentMode = true;
+    addSeatedPlayer(state, "human_1", 0);
+    const requestDrive = vi.fn(async () => {});
+    const enqueueSerializedStateMutation = vi.fn(async (work: () => Promise<void>) => {
+      await work();
+    });
+    const orchestrator = new HandOrchestrator({
+      state,
+      handLifecycleService: {
+        startHand: async () => [],
+        advanceStreetOrShowdown: async () => [],
+        finishHandByLastStanding: async () => [],
+        finishHandShowdownWithSidePots: async () => [],
+      } as any,
+      clearPendingHumanTurnTimeout: () => {},
+      createHandContext: () => new HandContext(),
+      setCurrentHand: () => {},
+      getCurrentHand: () => null,
+      initPreflopFlagsForHand: () => {},
+      executeHandLifecyclePlans: async () => {},
+      requestDrive,
+      enqueueSerializedStateMutation,
+      sendTableSnapshotToAll: async () => {},
+      isDisposed: () => false,
+      getLastHandResult: () => undefined,
+      getOnHandEndedAwards: () => undefined,
+      getDealtHumanUserIds: () => [],
+      recordSessionHandResult: () => {},
+      getSessionState: () => ({ sessionId: "s1", sessionHands: 0, consecutiveWins: 0 }),
+    });
+
+    orchestrator.scheduleNextHand("HAND_END", 2500);
+    await vi.advanceTimersByTimeAsync(2500);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(requestDrive).toHaveBeenCalledWith("NEXT_HAND_TOURNAMENT_RECONCILE");
+  });
+
   it("transitionToWaiting resets roundState to HAND_COMPLETE", () => {
     const state = createState();
     state.street = "RIVER";
