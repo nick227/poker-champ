@@ -58,15 +58,19 @@ describe("resolveTournamentCta", () => {
     expect(cta.disabled).toBe(true);
   });
 
-  it("shows starting soon when registered but table not ready", () => {
+  it("enables join for registered player after start even with one entrant", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
     const cta = resolveTournamentCta(
       baseTournament({
-        status: "RUNNING",
+        status: "LATE_REG",
+        lateRegMinutes: 16,
+        startTime: pastStart,
         isRegistered: true,
+        registeredCount: 1,
       }),
       { authenticated: true },
     );
-    expect(cta).toEqual({ label: "Starting soon…", action: "join", disabled: true });
+    expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
   });
 
   it("shows register during late registration when not enrolled", () => {

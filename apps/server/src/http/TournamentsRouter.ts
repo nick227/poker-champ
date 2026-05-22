@@ -184,6 +184,45 @@ router.post("/", requireAuth, async (req, res) => {
   );
 });
 
+router.post("/:id/ensure-table", requireAuth, async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const prisma = getPrisma();
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  try {
+    const table = await tournamentDirector.ensureTournamentTableForJoin(id, req.user!.id);
+    const liveRoomIds = await loadLivePokerRoomIds();
+    const refreshed = await prisma.tournament.findUnique({
+      where: { id },
+      include: tournamentInclude,
+    });
+    if (!refreshed) {
+      res.status(404).json({ error: "Tournament not found" });
+      return;
+    }
+    res.json({
+      tableId: table.tableId,
+      roomId: table.roomId,
+      tournament: toTournamentResponse(refreshed, {
+        isRegistered: true,
+        tableLive: isTournamentRoomLive(table.roomId, liveRoomIds),
+      }),
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament table unavailable";
+    res.status(tournamentErrorStatus(message)).json({ error: message });
+  }
+});
+
 router.post("/:id/register", requireAuth, async (req, res) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   if (!id) {

@@ -42,7 +42,7 @@ import {
 } from "@/features/lobby";
 import {
   confirmTournamentRegister,
-  confirmTournamentTableJoin,
+  executeTournamentTableJoin,
   dispatchTournamentCta,
 } from "@/lib/tournament.actions";
 import { tournamentPath } from "@/lib/nav";
@@ -318,15 +318,18 @@ export default function LobbyScreen() {
   const handleConfirmTournamentJoin = useCallback(() => {
     if (!joinModalTournament) return;
     setTournamentActionBusy(true);
-    const ok = confirmTournamentTableJoin(joinModalTournament, {
+    void executeTournamentTableJoin(joinModalTournament, {
       openTable,
       router,
       setRoomForTable,
       showToast,
-    });
-    if (ok) setJoinModalTournament(null);
-    setTournamentActionBusy(false);
-  }, [joinModalTournament, openTable, router, setRoomForTable, showToast]);
+      refreshTournament: () => { void refreshTournaments(); },
+    })
+      .then((ok) => {
+        if (ok) setJoinModalTournament(null);
+      })
+      .finally(() => setTournamentActionBusy(false));
+  }, [joinModalTournament, openTable, refreshTournaments, router, setRoomForTable, showToast]);
 
   const handleConfirmTournamentRegister = useCallback(async () => {
     if (!registerModalTournament) return;

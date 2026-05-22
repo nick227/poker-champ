@@ -13,7 +13,8 @@ import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-li
 import { abandonTournamentAtMaxBlind } from "./tournament-abandon.js";
 import { isLateRegistrationClosed } from "./tournament-schedule.js";
 import {
-  MIN_TOURNAMENT_REGISTRATIONS_TO_START,
+  MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION,
+  MIN_TOURNAMENT_SEATED_TO_DEAL,
   type TryStartTournamentTableResult,
 } from "./tournament-table-start.js";
 
@@ -127,7 +128,7 @@ export class TournamentDirector {
         {
           tournamentId,
           registrationCount: start.registrationCount,
-          required: MIN_TOURNAMENT_REGISTRATIONS_TO_START,
+          required: MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION,
         },
         "TOURNAMENT_TABLE_AWAITING_PLAYERS",
       );
@@ -225,7 +226,7 @@ export class TournamentDirector {
     }
     const refreshed = await this.loadTournamentWithRegistrations(tournamentId);
     const registrationCount = refreshed?.registrations.length ?? 0;
-    if (!refreshed || registrationCount < MIN_TOURNAMENT_REGISTRATIONS_TO_START) {
+    if (!refreshed || registrationCount < MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION) {
       return { ok: false, reason: "insufficient_registrations", registrationCount };
     }
 
@@ -252,7 +253,14 @@ export class TournamentDirector {
         },
       },
     });
-    if (!tournament?.roomId || tournament.status !== "RUNNING") return;
+    if (
+      !tournament?.roomId ||
+      (tournament.status !== "RUNNING" &&
+        tournament.status !== "LATE_REG" &&
+        tournament.status !== "STARTING")
+    ) {
+      return;
+    }
 
     const reg = tournament.registrations[0];
     if (!reg || reg.isBot) return;
@@ -369,7 +377,7 @@ export class TournamentDirector {
             {
               tournamentId: tournament.id,
               registrationCount: start.registrationCount,
-              required: MIN_TOURNAMENT_REGISTRATIONS_TO_START,
+              required: MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION,
             },
             "TOURNAMENT_TABLE_AWAITING_PLAYERS",
           );
@@ -484,11 +492,13 @@ export class TournamentDirector {
     }
 
     const seated = (humanSeed?.seated ?? 0) + botSeated;
-    const seedResult = { ok: seated >= 2, seated };
+    const lobbyPhase =
+      tournament.status === "LATE_REG" || tournament.status === "STARTING";
+    const readyToDeal = seated >= MIN_TOURNAMENT_SEATED_TO_DEAL;
 
-    if (!seedResult?.ok) {
+    if (!lobbyPhase && !readyToDeal) {
       logger.error(
-        { tournamentId: tournament.id, roomId, seedResult },
+        { tournamentId: tournament.id, roomId, seated },
         "TOURNAMENT_SEED_FAILED",
       );
       await CashierService.processTournamentCancel({
@@ -499,10 +509,12 @@ export class TournamentDirector {
       return;
     }
 
+    const nextStatus = lobbyPhase && !readyToDeal ? tournament.status : "RUNNING";
+
     await prisma.tournament.update({
       where: { id: tournament.id },
       data: {
-        status: "RUNNING",
+        status: nextStatus,
         tableId: tableConfig.tableId,
         roomId,
         currentLevel: 1,
@@ -515,11 +527,56 @@ export class TournamentDirector {
         tournamentId: tournament.id,
         tableId: tableConfig.tableId,
         roomId,
-        seated: seedResult.seated,
+        seated,
         registeredCount: tournament.registrations.length,
+        status: nextStatus,
       },
-      "TOURNAMENT_STARTED",
+      readyToDeal ? "TOURNAMENT_STARTED" : "TOURNAMENT_TABLE_PROVISIONED",
     );
+  }
+
+  /** Ensure table exists and joining user is seated; promotes to RUNNING when deal threshold met. */
+  async ensureTournamentTableForJoin(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ tableId: string; roomId: string }> {
+    const start = await this.tryStartTournamentTable(tournamentId);
+    if (!start.ok) {
+      if (start.reason === "insufficient_registrations") {
+        throw new Error("TOURNAMENT_AWAITING_PLAYERS");
+      }
+      throw new Error("TOURNAMENT_TABLE_UNAVAILABLE");
+    }
+
+    await this.seatLateRegistrant(tournamentId, userId);
+    await this.promoteTournamentToRunningOnJoin(tournamentId);
+
+    const prisma = getPrisma();
+    const row = await prisma.tournament.findUniqueOrThrow({
+      where: { id: tournamentId },
+      select: { tableId: true, roomId: true },
+    });
+    if (!row.tableId || !row.roomId) {
+      throw new Error("TOURNAMENT_TABLE_UNAVAILABLE");
+    }
+    return { tableId: row.tableId, roomId: row.roomId };
+  }
+
+  /** First join after table provision — start the event; hands still need 2+ seated. */
+  private async promoteTournamentToRunningOnJoin(tournamentId: string): Promise<void> {
+    const prisma = getPrisma();
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { status: true },
+    });
+    if (!tournament || tournament.status === "RUNNING") return;
+    if (tournament.status !== "LATE_REG" && tournament.status !== "STARTING") return;
+
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: "RUNNING" },
+    });
+    logger.info({ tournamentId }, "TOURNAMENT_PROMOTED_TO_RUNNING");
   }
 
   async advanceDueBlindLevels(now: Date = new Date()): Promise<void> {

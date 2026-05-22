@@ -13,7 +13,7 @@ import { TournamentJoinModal, TournamentRegisterModal } from "@/features/lobby";
 import { TournamentDetailBody } from "@/features/tournaments";
 import {
   confirmTournamentRegister,
-  confirmTournamentTableJoin,
+  executeTournamentTableJoin,
   dispatchTournamentCta,
 } from "@/lib/tournament.actions";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
@@ -147,15 +147,18 @@ export default function TournamentDetailScreen() {
   const handleConfirmTournamentJoin = useCallback(() => {
     if (!joinModalTournament) return;
     setActionInFlight(true);
-    const ok = confirmTournamentTableJoin(joinModalTournament, {
+    void executeTournamentTableJoin(joinModalTournament, {
       openTable,
       router,
       setRoomForTable,
       showToast,
-    });
-    if (ok) setJoinModalTournament(null);
-    setActionInFlight(false);
-  }, [joinModalTournament, openTable, router, setRoomForTable, showToast]);
+      refreshTournament: () => { void loadTournament(); },
+    })
+      .then((ok) => {
+        if (ok) setJoinModalTournament(null);
+      })
+      .finally(() => setActionInFlight(false));
+  }, [joinModalTournament, loadTournament, openTable, router, setRoomForTable, showToast]);
 
   const handlePrimaryAction = useCallback(() => {
     if (!tournament) return;

@@ -72,33 +72,33 @@ describe("late registration lobby behavior", () => {
     });
   });
 
-  it("shows waiting for players when only one registration and no table", () => {
+  it("enables join when only one registration after start (table ensured on click)", () => {
     const t = lateRegTournament({
       isRegistered: true,
       registeredCount: 1,
       tableId: undefined,
       roomId: undefined,
     });
-    expect(canJoinTournament(t, nowMs)).toBe(false);
+    expect(canJoinTournament(t, nowMs)).toBe(true);
     expect(resolveTournamentCta(t, { authenticated: true, nowMs })).toEqual({
-      label: "Waiting for players",
+      label: "Join Table",
       action: "join",
-      disabled: true,
+      disabled: false,
     });
   });
 
-  it("shows starting soon when enough registrations but table not created yet", () => {
+  it("enables join before server table exists when two registered but no room yet", () => {
     const t = lateRegTournament({
       isRegistered: true,
       registeredCount: 2,
       tableId: undefined,
       roomId: undefined,
     });
-    expect(canJoinTournament(t, nowMs)).toBe(false);
+    expect(canJoinTournament(t, nowMs)).toBe(true);
     expect(resolveTournamentCta(t, { authenticated: true, nowMs })).toEqual({
-      label: "Starting soon…",
+      label: "Join Table",
       action: "join",
-      disabled: true,
+      disabled: false,
     });
   });
 

@@ -48,15 +48,13 @@ describe("confirmTournamentTableJoin", () => {
     expect(showToast).not.toHaveBeenCalled();
   });
 
-  it("fails when table or room is missing", () => {
-    const showToast = vi.fn();
+  it("returns false when table or room is missing", () => {
     const ok = confirmTournamentTableJoin(baseTournament({ tableId: undefined, roomId: undefined }), {
       openTable: vi.fn(),
       setRoomForTable: vi.fn(),
       router: { push: vi.fn() } as never,
-      showToast,
+      showToast: vi.fn(),
     });
     expect(ok).toBe(false);
-    expect(showToast).toHaveBeenCalled();
   });
 });

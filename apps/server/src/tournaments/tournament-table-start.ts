@@ -1,5 +1,11 @@
-/** Minimum registrations before spawning the Colyseus table. */
-export const MIN_TOURNAMENT_REGISTRATIONS_TO_START = 2;
+/** Minimum registrations before creating the tournament table (room can open empty). */
+export const MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION = 1;
+
+/** Minimum seated players before flipping to RUNNING and dealing. */
+export const MIN_TOURNAMENT_SEATED_TO_DEAL = 2;
+
+/** @deprecated Use MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION */
+export const MIN_TOURNAMENT_REGISTRATIONS_TO_START = MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION;
 
 export type TryStartTournamentTableResult =
   | { ok: true; roomId: string; tableId: string }

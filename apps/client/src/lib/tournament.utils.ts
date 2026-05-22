@@ -88,42 +88,27 @@ export function hasTournamentTableTarget(tournament: TournamentSummary): boolean
   return Boolean(tournament.tableId && tournament.roomId);
 }
 
-/** Matches server MIN_TOURNAMENT_REGISTRATIONS_TO_START. */
-export const MIN_TOURNAMENT_REGISTRATIONS_TO_START = 2;
-
-export function isTournamentAwaitingTablePlayers(tournament: TournamentSummary): boolean {
-  return (
-    tournament.isRegistered === true &&
-    isTournamentPlayActive(tournament) &&
-    !hasTournamentTableTarget(tournament) &&
-    tournament.registeredCount < MIN_TOURNAMENT_REGISTRATIONS_TO_START
-  );
-}
-
-export function resolveTournamentJoinWaitLabel(tournament: TournamentSummary): string {
-  if (isTournamentAwaitingTablePlayers(tournament)) {
-    return "Waiting for players";
-  }
-  return "Starting soon…";
+/** Join is offered when registered and the scheduled start / live phase has begun. */
+export function isTournamentJoinOffered(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  return tournament.isRegistered === true && isTournamentInJoinPhase(tournament, nowMs);
 }
 
 export function canJoinTournament(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),
 ): boolean {
-  if (!isTournamentInJoinPhase(tournament, nowMs) || !tournament.isRegistered) {
+  if (!isTournamentJoinOffered(tournament, nowMs)) return false;
+  if (
+    tournament.status === "RUNNING" &&
+    !isLateRegistrationOpen(tournament, nowMs) &&
+    !isTournamentTableLive(tournament)
+  ) {
     return false;
   }
-  if (tournament.status === "RUNNING") {
-    if (isLateRegistrationOpen(tournament, nowMs)) {
-      return hasTournamentTableTarget(tournament);
-    }
-    return isTournamentTableLive(tournament);
-  }
-  if (isTournamentPlayActive(tournament)) {
-    return hasTournamentTableTarget(tournament);
-  }
-  return isTournamentTableLive(tournament);
+  return true;
 }
 
 function resolveTournamentJoinCta(
@@ -131,29 +116,26 @@ function resolveTournamentJoinCta(
   authenticated: boolean,
   nowMs: number,
 ): TournamentCta {
-  const joinReady = canJoinTournament(tournament, nowMs);
-  if (!joinReady) {
-    if (!authenticated) {
+  if (!authenticated) {
+    if (isTournamentInJoinPhase(tournament, nowMs)) {
       return { label: "Log in to join", action: "join", disabled: true };
     }
-    if (tournament.isRegistered !== true) {
-      return { label: "Not registered", action: "none", disabled: true };
-    }
-    if (
-      tournament.tableLive === false &&
-      hasTournamentTableTarget(tournament) &&
-      tournament.status === "RUNNING" &&
-      !isLateRegistrationOpen(tournament, nowMs)
-    ) {
+  }
+  if (isTournamentJoinOffered(tournament, nowMs)) {
+    if (!canJoinTournament(tournament, nowMs)) {
       return { label: "Table ended", action: "join", disabled: true };
     }
-    return {
-      label: resolveTournamentJoinWaitLabel(tournament),
-      action: "join",
-      disabled: true,
-    };
+    return { label: "Join Table", action: "join", disabled: false };
   }
-  return { label: "Join Table", action: "join", disabled: false };
+  if (
+    tournament.tableLive === false &&
+    hasTournamentTableTarget(tournament) &&
+    tournament.status === "RUNNING" &&
+    !isLateRegistrationOpen(tournament, nowMs)
+  ) {
+    return { label: "Table ended", action: "join", disabled: true };
+  }
+  return { label: "Join Table", action: "join", disabled: true };
 }
 
 export function resolveTournamentCta(
@@ -368,6 +350,10 @@ export function mapTournamentErrorMessage(code: string): string {
       return "This tournament is not open for table joins.";
     case "TOURNAMENT_REBUY_NOT_ALLOWED":
       return "Rebuys are not allowed in this freezeout tournament.";
+    case "TOURNAMENT_AWAITING_PLAYERS":
+      return "Waiting for another player to register.";
+    case "TOURNAMENT_TABLE_UNAVAILABLE":
+      return "Tournament table is not ready yet. Try again in a moment.";
     case "TOURNAMENT_SPECTATOR_READONLY":
       return "Eliminated players can only watch this tournament table.";
     case "Invalid tournament payload":

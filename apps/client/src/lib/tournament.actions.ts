@@ -1,6 +1,7 @@
 import type { Router } from "expo-router";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
-import { mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
+import { hasTournamentTableTarget, mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
+import { postTournamentEnsureTable } from "@/services/post/tournaments.ensure-table";
 import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -27,7 +28,6 @@ export function confirmTournamentTableJoin(
   const tableId = tournament.tableId;
   const roomId = tournament.roomId;
   if (!tableId || !roomId) {
-    handlers.showToast("Tournament table is not available. Refresh the lobby and try again.", "danger");
     return false;
   }
   const buyInCents = tournament.startingStackCents;
@@ -35,6 +35,28 @@ export function confirmTournamentTableJoin(
   handlers.openTable(tableId, { buyInCents });
   handlers.router.push(tablePath(tableId, { buyInCents }));
   return true;
+}
+
+export async function executeTournamentTableJoin(
+  tournament: TournamentSummary,
+  handlers: Pick<
+    TournamentActionHandlers,
+    "openTable" | "router" | "setRoomForTable" | "showToast" | "refreshTournament"
+  >,
+): Promise<boolean> {
+  let ready = tournament;
+  if (!hasTournamentTableTarget(ready)) {
+    try {
+      const ensured = await postTournamentEnsureTable(ready.id);
+      ready = ensured.tournament;
+      handlers.refreshTournament();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Could not open tournament table";
+      handlers.showToast(mapTournamentApiError(message), "danger");
+      return false;
+    }
+  }
+  return confirmTournamentTableJoin(ready, handlers);
 }
 
 export async function confirmTournamentRegister(
@@ -67,12 +89,6 @@ export function dispatchTournamentCta(
     return;
   }
 
-  if (cta.action === "join" && cta.disabled) {
-    handlers.showToast("This tournament table is no longer available. Refresh the lobby.", "danger");
-    void handlers.refreshTournament();
-    return;
-  }
-
   if (cta.action === "none" || cta.disabled) return;
 
   if (cta.action === "register") {
@@ -97,7 +113,10 @@ export function dispatchTournamentCta(
   }
 
   if (cta.action === "join") {
-    handlers.onRequestJoin(tournament);
+    handlers.setActionInFlight(true);
+    void executeTournamentTableJoin(tournament, handlers).finally(() =>
+      handlers.setActionInFlight(false),
+    );
     return;
   }
 
