@@ -55,7 +55,11 @@ export function GamePanelHeader({
       </View>
       {canJoin !== undefined && onJoin && (
         <View className="ui-row justify-end items-end w-full flex-1">
-          <ConfirmButton title={isJoining ? "Joining..." : "Join Table"} onPress={onJoin} disabled={isJoining} />
+          <ConfirmButton
+            title={isJoining ? "Joining..." : "Join Table"}
+            onPress={onJoin}
+            disabled={isJoining || !canJoin}
+          />
         </View>
       )}
     </View>

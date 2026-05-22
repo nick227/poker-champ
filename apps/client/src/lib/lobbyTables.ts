@@ -19,6 +19,35 @@ export type LobbyTableRow = {
   connectedHumanCount?: number;
 };
 
+export type CashLobbyJoinBlockReason = "no_active_players" | "insufficient_balance";
+
+export function hasCashLobbyActiveHumans(
+  table: Pick<LobbyTableRow, "connectedHumanCount">,
+): boolean {
+  return (table.connectedHumanCount ?? 0) > 0;
+}
+
+export function resolveCashLobbyJoin(
+  table: Pick<LobbyTableRow, "connectedHumanCount" | "minBuyInCents">,
+  balanceCents: number,
+): { canJoin: boolean; joinBlockReason: CashLobbyJoinBlockReason | null } {
+  if (!hasCashLobbyActiveHumans(table)) {
+    return { canJoin: false, joinBlockReason: "no_active_players" };
+  }
+  if (balanceCents < table.minBuyInCents) {
+    return { canJoin: false, joinBlockReason: "insufficient_balance" };
+  }
+  return { canJoin: true, joinBlockReason: null };
+}
+
+export function formatCashLobbyJoinHint(
+  reason: CashLobbyJoinBlockReason | null,
+): string | null {
+  if (reason === "no_active_players") return "Waiting for players";
+  if (reason === "insufficient_balance") return "Insufficient balance for min buy-in";
+  return null;
+}
+
 const DEFAULT_MIN = 2000;
 const DEFAULT_MAX = 200000;
 

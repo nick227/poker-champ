@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Dealer } from "../engine/Dealer.js";
 import { PokerRoom } from "./PokerRoom.js";
 import { PlayerState } from "../state/PlayerState.js";
+import { PokerState } from "../state/PokerState.js";
 import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 import { CashierService } from "../engine/economy/CashierService.js";
 
@@ -33,25 +35,57 @@ function makeBot(params: { id: string; seat: number; stackCents: number }) {
   return p;
 }
 
-function createRoom(tableId: string) {
-  const room = new PokerRoom() as any;
+/** Lightweight room harness — avoids full onCreate (Dealer + Controller + lifecycle timers). */
+function buildSweepRoom(tableId: string) {
+  const boundClients = new Map<string, { sessionId: string }>();
+  const room = new PokerRoom() as PokerRoom & {
+    state: PokerState;
+    dealer: Dealer;
+    setMetadata: ReturnType<typeof vi.fn>;
+  };
   room.setMetadata = vi.fn().mockResolvedValue(undefined);
   room.roomId = `room_${tableId}`;
-  room.onCreate({
-    tableConfig: {
-      tableId,
-      name: "Sweep Test Table",
-      maxSeats: 6,
-      smallBlindCents: 50,
-      bigBlindCents: 100,
-      minBuyInCents: 2000,
-      maxBuyInCents: 20000,
-      visibility: "PUBLIC",
-      createdAt: Date.now(),
+
+  const state = new PokerState();
+  state.tableId = tableId;
+  state.tableName = "Sweep Test Table";
+  state.maxSeats = 6;
+  state.smallBlindCents = 50;
+  state.bigBlindCents = 100;
+  state.minBuyInCents = 2000;
+  state.maxBuyInCents = 20000;
+  state.street = "WAITING";
+  room.setState(state);
+
+  const removeFromState = (playerId: string) => {
+    room.state.playersById.delete(playerId);
+    const seatIdx = room.state.seats.indexOf(playerId);
+    if (seatIdx >= 0) room.state.seats[seatIdx] = "";
+  };
+
+  room.dealer = {
+    removePlayer: vi.fn(async (userId: string) => {
+      removeFromState(userId);
+    }),
+    removeBot: vi.fn(async (botId: string) => {
+      removeFromState(botId);
+    }),
+    bindClient: vi.fn((userId: string, client: { sessionId: string }) => {
+      boundClients.set(userId, client);
+    }),
+  } as unknown as Dealer;
+
+  (room as { controller?: { session: { getBoundClient: (userId: string) => unknown } } }).controller = {
+    session: {
+      getBoundClient: (userId: string) => boundClients.get(userId),
     },
-  });
-  room.state.street = "WAITING";
+  };
+
   return room;
+}
+
+function createRoom(tableId: string) {
+  return buildSweepRoom(tableId);
 }
 
 describe("table sitting-out abandoned purge sweep", () => {
@@ -69,6 +103,7 @@ describe("table sitting-out abandoned purge sweep", () => {
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
     process.env.FEATURE_PERSISTENT_SEATS = prevPersistentSeats;

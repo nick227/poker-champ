@@ -1,6 +1,12 @@
 import { Animated, Easing, Pressable, View } from "react-native";
 import { useRef, useState } from "react";
-import type { LobbyTableRow } from "@/lib/lobbyTables";
+import {
+  formatCashLobbyJoinHint,
+  hasCashLobbyActiveHumans,
+  resolveCashLobbyJoin,
+  type LobbyTableRow,
+} from "@/lib/lobbyTables";
+import { Text } from "@/components/base/Text";
 import { GamePanelFooter } from "./GamePanelFooter";
 import { GamePanelHeader } from "./GamePanelHeader";
 import { GamePanelPrimaryLine } from "./GamePanelPrimaryLine";
@@ -25,13 +31,14 @@ export function GameTablePanel({
 }) {
   const [pressed, setPressed] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
-  const canJoin = balanceCents >= table.minBuyInCents;
-  const connectedHumanCount = table.connectedHumanCount ?? 0;
+  const { canJoin, joinBlockReason } = resolveCashLobbyJoin(table, balanceCents);
+  const joinHint = formatCashLobbyJoinHint(joinBlockReason);
+  const hasActiveHumans = hasCashLobbyActiveHumans(table);
   const canDelete =
     onDelete &&
     currentUserId &&
     table.creatorId === currentUserId &&
-    connectedHumanCount === 0;
+    !hasActiveHumans;
 
   return (
     <Surface
@@ -47,7 +54,7 @@ export function GameTablePanel({
     >
       <Pressable
         onPress={onJoin}
-        disabled={isJoining}
+        disabled={isJoining || !canJoin}
         onPressIn={() => {
           setPressed(true);
           Animated.timing(scale, {
@@ -73,6 +80,11 @@ export function GameTablePanel({
             smallBlindCents={table.smallBlindCents}
             bigBlindCents={table.bigBlindCents}
           />
+          {!hasActiveHumans ? (
+            <Text variant="muted" className="text-[12px]">
+              Waiting for players
+            </Text>
+          ) : null}
           <GamePanelHeader
             creatorName={table.creatorName}
             creatorAvatarUrl={table.creatorAvatarUrl}
@@ -91,9 +103,7 @@ export function GameTablePanel({
           />
           <View>
             <GamePanelFooter
-              canJoin={canJoin}
-              onJoin={onJoin}
-              isJoining={isJoining}
+              joinHint={joinHint}
               canDelete={Boolean(canDelete)}
               onDelete={() => onDelete?.(table.id)}
             />
