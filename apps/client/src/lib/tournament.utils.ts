@@ -88,6 +88,25 @@ export function hasTournamentTableTarget(tournament: TournamentSummary): boolean
   return Boolean(tournament.tableId && tournament.roomId);
 }
 
+/** Matches server MIN_TOURNAMENT_REGISTRATIONS_TO_START. */
+export const MIN_TOURNAMENT_REGISTRATIONS_TO_START = 2;
+
+export function isTournamentAwaitingTablePlayers(tournament: TournamentSummary): boolean {
+  return (
+    tournament.isRegistered === true &&
+    isTournamentPlayActive(tournament) &&
+    !hasTournamentTableTarget(tournament) &&
+    tournament.registeredCount < MIN_TOURNAMENT_REGISTRATIONS_TO_START
+  );
+}
+
+export function resolveTournamentJoinWaitLabel(tournament: TournamentSummary): string {
+  if (isTournamentAwaitingTablePlayers(tournament)) {
+    return "Waiting for players";
+  }
+  return "Starting soon…";
+}
+
 export function canJoinTournament(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),
@@ -128,7 +147,11 @@ function resolveTournamentJoinCta(
     ) {
       return { label: "Table ended", action: "join", disabled: true };
     }
-    return { label: "Starting soon…", action: "join", disabled: true };
+    return {
+      label: resolveTournamentJoinWaitLabel(tournament),
+      action: "join",
+      disabled: true,
+    };
   }
   return { label: "Join Table", action: "join", disabled: false };
 }

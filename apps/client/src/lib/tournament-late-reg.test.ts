@@ -72,9 +72,25 @@ describe("late registration lobby behavior", () => {
     });
   });
 
-  it("shows starting soon when registered but table not created yet", () => {
+  it("shows waiting for players when only one registration and no table", () => {
     const t = lateRegTournament({
       isRegistered: true,
+      registeredCount: 1,
+      tableId: undefined,
+      roomId: undefined,
+    });
+    expect(canJoinTournament(t, nowMs)).toBe(false);
+    expect(resolveTournamentCta(t, { authenticated: true, nowMs })).toEqual({
+      label: "Waiting for players",
+      action: "join",
+      disabled: true,
+    });
+  });
+
+  it("shows starting soon when enough registrations but table not created yet", () => {
+    const t = lateRegTournament({
+      isRegistered: true,
+      registeredCount: 2,
       tableId: undefined,
       roomId: undefined,
     });
@@ -114,7 +130,7 @@ describe("late registration lobby behavior", () => {
 
   it("hint shows late registration countdown while window is open", () => {
     const hint = formatJoinedTournamentHint(lateRegTournament(), nowMs);
-    expect(hint).toMatch(/late registration closes in/i);
+    expect(hint).toMatch(/Late registration · closes in/);
   });
 
   it("disables register when tournament is full during late reg", () => {
