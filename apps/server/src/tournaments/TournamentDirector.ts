@@ -32,6 +32,7 @@ export class TournamentDirector {
     await this.processLateRegistrationWindows(now);
     await this.processLateRegistrationClosures(now);
     await this.resumeStuckStartingTournaments(now);
+    await this.resumeDeadTournamentRooms(now);
     await this.reconcileOrphanRunningTournaments();
     await this.advanceDueBlindLevels(now);
   }
@@ -267,6 +268,41 @@ export class TournamentDirector {
       });
     }
     logger.info({ tournamentId, registeredCount }, "TOURNAMENT_AUTO_CANCELLED_LOW_ENTRIES");
+  }
+
+  /** Colyseus room gone after restart — recreate table for late reg / starting. */
+  async resumeDeadTournamentRooms(now: Date = new Date()): Promise<void> {
+    const prisma = getPrisma();
+    const liveRoomIds = await loadLivePokerRoomIds();
+    const candidates = await prisma.tournament.findMany({
+      where: {
+        status: { in: ["STARTING", "LATE_REG"] },
+        roomId: { not: null },
+        startTime: { lte: now },
+      },
+      take: 10,
+    });
+
+    for (const row of candidates) {
+      if (isTournamentRoomLive(row.roomId, liveRoomIds)) continue;
+      await prisma.tournament.update({
+        where: { id: row.id },
+        data: { roomId: null },
+      });
+      try {
+        await this.tryStartTournamentTable(row.id);
+        logger.info({ tournamentId: row.id }, "TOURNAMENT_DEAD_ROOM_RESUMED");
+      } catch (err: unknown) {
+        logger.error(
+          {
+            err,
+            tournamentId: row.id,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "TOURNAMENT_DEAD_ROOM_RESUME_FAILED",
+        );
+      }
+    }
   }
 
   async resumeStuckStartingTournaments(now: Date = new Date()): Promise<void> {

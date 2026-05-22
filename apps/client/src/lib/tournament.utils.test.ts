@@ -69,10 +69,13 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Starting soon…", action: "join", disabled: true });
   });
 
-  it("shows not registered for live tournament when logged in but not enrolled", () => {
+  it("shows register during late registration when not enrolled", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
     const cta = resolveTournamentCta(
       baseTournament({
-        status: "RUNNING",
+        status: "LATE_REG",
+        startTime: pastStart,
+        lateRegMinutes: 16,
         isRegistered: false,
         tableId: "table_1",
         roomId: "room_1",
@@ -80,7 +83,24 @@ describe("resolveTournamentCta", () => {
       }),
       { authenticated: true },
     );
-    expect(cta).toEqual({ label: "Not registered", action: "none", disabled: true });
+    expect(cta).toEqual({ label: "Register", action: "register", disabled: false });
+  });
+
+  it("enables join during late registration when table ids exist even if room not live", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "LATE_REG",
+        startTime: pastStart,
+        lateRegMinutes: 16,
+        isRegistered: true,
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: false,
+      }),
+      { authenticated: true },
+    );
+    expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
   });
 
   it("shows log in to join only when unauthenticated", () => {
@@ -109,10 +129,13 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
   });
 
-  it("shows table ended when room is not live", () => {
+  it("shows table ended when running without late reg and room is not live", () => {
+    const pastStart = new Date(Date.now() - 120 * 60_000).toISOString();
     const cta = resolveTournamentCta(
       baseTournament({
         status: "RUNNING",
+        startTime: pastStart,
+        lateRegMinutes: 0,
         isRegistered: true,
         tableId: "table_1",
         roomId: "room_1",

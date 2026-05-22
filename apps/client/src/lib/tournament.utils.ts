@@ -70,20 +70,41 @@ export function isTournamentInJoinPhase(
   return tournament.status === "REGISTERING" && isTournamentStartDue(tournament, nowMs);
 }
 
+/** Tournament is actively dealing or in late reg — table may still be spinning up. */
+export function isTournamentPlayActive(tournament: TournamentSummary): boolean {
+  return (
+    tournament.status === "STARTING" ||
+    tournament.status === "LATE_REG" ||
+    tournament.status === "RUNNING"
+  );
+}
+
 export function isTournamentTableLive(tournament: TournamentSummary): boolean {
   if (!tournament.tableId || !tournament.roomId) return false;
   return tournament.tableLive === true;
+}
+
+export function hasTournamentTableTarget(tournament: TournamentSummary): boolean {
+  return Boolean(tournament.tableId && tournament.roomId);
 }
 
 export function canJoinTournament(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),
 ): boolean {
-  return (
-    isTournamentInJoinPhase(tournament, nowMs) &&
-    Boolean(tournament.isRegistered) &&
-    isTournamentTableLive(tournament)
-  );
+  if (!isTournamentInJoinPhase(tournament, nowMs) || !tournament.isRegistered) {
+    return false;
+  }
+  if (tournament.status === "RUNNING") {
+    if (isLateRegistrationOpen(tournament, nowMs)) {
+      return hasTournamentTableTarget(tournament);
+    }
+    return isTournamentTableLive(tournament);
+  }
+  if (isTournamentPlayActive(tournament)) {
+    return hasTournamentTableTarget(tournament);
+  }
+  return isTournamentTableLive(tournament);
 }
 
 function resolveTournamentJoinCta(
@@ -99,7 +120,12 @@ function resolveTournamentJoinCta(
     if (tournament.isRegistered !== true) {
       return { label: "Not registered", action: "none", disabled: true };
     }
-    if (tournament.tableLive === false) {
+    if (
+      tournament.tableLive === false &&
+      hasTournamentTableTarget(tournament) &&
+      tournament.status === "RUNNING" &&
+      !isLateRegistrationOpen(tournament, nowMs)
+    ) {
       return { label: "Table ended", action: "join", disabled: true };
     }
     return { label: "Starting soon…", action: "join", disabled: true };
@@ -126,23 +152,28 @@ export function resolveTournamentCta(
     return { label: "View Standings", action: "standings", disabled: false };
   }
 
-  if (isTournamentInJoinPhase(tournament, nowMs)) {
-    return resolveTournamentJoinCta(tournament, authenticated, nowMs);
-  }
-
   if (isTournamentRegistrationOpen(tournament, nowMs)) {
     if (!authenticated) {
       return { label: "Register", action: "register", disabled: false };
     }
-    if (tournament.isRegistered) {
+    if (!tournament.isRegistered) {
+      const full = tournament.registeredCount >= tournament.maxPlayers;
+      return {
+        label: "Register",
+        action: "register",
+        disabled: full,
+      };
+    }
+    if (
+      tournament.status === "REGISTERING" &&
+      !isTournamentStartDue(tournament, nowMs)
+    ) {
       return { label: "Unregister", action: "unregister", disabled: false };
     }
-    const full = tournament.registeredCount >= tournament.maxPlayers;
-    return {
-      label: "Register",
-      action: "register",
-      disabled: full,
-    };
+  }
+
+  if (isTournamentInJoinPhase(tournament, nowMs)) {
+    return resolveTournamentJoinCta(tournament, authenticated, nowMs);
   }
 
   return { label: "Unavailable", action: "none", disabled: true };
@@ -237,7 +268,12 @@ export function formatJoinedTournamentHint(
     return "Starting now · table opens shortly";
   }
   if (tournament.status === "RUNNING") {
-    if (tournament.tableLive === false) return "Ended · table no longer active";
+    if (
+      tournament.tableLive === false &&
+      !isLateRegistrationOpen(tournament, nowMs)
+    ) {
+      return "Ended · table no longer active";
+    }
     return `Live · level ${tournament.currentLevel}`;
   }
   if (tournament.status === "CANCELLED") {
