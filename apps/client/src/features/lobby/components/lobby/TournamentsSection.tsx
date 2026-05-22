@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { TOURNAMENT } from "@/constants/copy";
+import { useNowMs } from "@/hooks/useNowMs";
 import { TournamentCard } from "./TournamentCard";
 import { TournamentListFeedback } from "./TournamentListFeedback";
 import {
@@ -28,6 +29,7 @@ type TournamentsSectionProps = {
 function SectionBlock({
   title,
   items,
+  nowMs,
   authenticated,
   actionInFlight,
   onTournamentAction,
@@ -37,6 +39,7 @@ function SectionBlock({
 }: {
   title: string;
   items: TournamentSummary[];
+  nowMs: number;
   authenticated: boolean;
   actionInFlight?: boolean;
   onTournamentAction: (tournament: TournamentSummary) => void;
@@ -54,6 +57,7 @@ function SectionBlock({
         <TournamentCard
           key={t.id}
           tournament={t}
+          nowMs={nowMs}
           authenticated={authenticated}
           actionInFlight={actionInFlight}
           onOpenDetail={onOpenTournamentDetail}
@@ -82,6 +86,7 @@ export function TournamentsSection({
   const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
   const hasBrowse = groups.upcoming.length > 0 || groups.running.length > 0;
   const hasJoined = selectJoinedTournaments(tournaments).length > 0;
+  const nowMs = useNowMs();
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Check back soon."
     : "No tournaments scheduled yet. Log in to register when events are posted.";
@@ -106,6 +111,7 @@ export function TournamentsSection({
           <SectionBlock
             title="Upcoming"
             items={groups.upcoming}
+            nowMs={nowMs}
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}
@@ -116,6 +122,7 @@ export function TournamentsSection({
           <SectionBlock
             title="Running"
             items={groups.running}
+            nowMs={nowMs}
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onTournamentAction={onTournamentAction}

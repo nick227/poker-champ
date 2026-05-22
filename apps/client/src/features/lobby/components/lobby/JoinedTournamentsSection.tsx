@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { TournamentCard } from "./TournamentCard";
+import { useNowMs } from "@/hooks/useNowMs";
 import { selectJoinedTournaments } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { JoinedTournamentCard } from "./JoinedTournamentCard";
@@ -24,6 +24,7 @@ export function JoinedTournamentsSection({
   onDeleteTournament,
   deleteInFlightId,
 }: JoinedTournamentsSectionProps) {
+  const nowMs = useNowMs();
   if (!authenticated) return null;
 
   const joined = selectJoinedTournaments(tournaments);
@@ -34,7 +35,7 @@ export function JoinedTournamentsSection({
       <View className="ui-stack-1">
         <Text variant="h2">Your tournaments</Text>
         <Text variant="muted" className="text-sm">
-          Scheduled, live, and your recent results — including cancelled events.
+          Scheduled and live events you are registered for.
         </Text>
       </View>
       <View className="ui-stack-3">
@@ -42,6 +43,7 @@ export function JoinedTournamentsSection({
           <JoinedTournamentCard
             key={t.id}
             tournament={t}
+            nowMs={nowMs}
             authenticated={authenticated}
             actionInFlight={actionInFlight}
             onOpenDetail={onOpenTournamentDetail}

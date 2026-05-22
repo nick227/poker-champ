@@ -3,16 +3,19 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { Surface } from "@/components/containers/Surface";
 import { formatCents } from "@/lib/format";
+import { formatTournamentSupplementHint, isLobbyTimerVisible } from "@/lib/tournamentLobbyTimer";
 import {
   canCreatorDeleteTournament,
-  formatTournamentStartLocal,
+  formatTournamentBrowseHint,
   formatTournamentStatus,
   resolveTournamentCta,
 } from "@/lib/tournament.utils";
 import type { TournamentCta, TournamentSummary } from "@/services/tournaments.types";
+import { TournamentLobbyTimer } from "./TournamentLobbyTimer";
 
 type TournamentCardProps = {
   tournament: TournamentSummary;
+  nowMs: number;
   authenticated: boolean;
   actionInFlight?: boolean;
   statusHint?: string;
@@ -26,6 +29,7 @@ type TournamentCardProps = {
 
 export function TournamentCard({
   tournament,
+  nowMs,
   authenticated,
   actionInFlight,
   statusHint,
@@ -35,9 +39,15 @@ export function TournamentCard({
   onDelete,
   deleteInFlight,
 }: TournamentCardProps) {
-  const cta = ctaOverride ?? resolveTournamentCta(tournament, { authenticated });
+  const cta = ctaOverride ?? resolveTournamentCta(tournament, { authenticated, nowMs });
   const disabled = cta.disabled || actionInFlight;
   const showDelete = onDelete != null && canCreatorDeleteTournament(tournament);
+  const showTimer = isLobbyTimerVisible(tournament, nowMs);
+  const contextHint =
+    statusHint ??
+    (showTimer
+      ? formatTournamentSupplementHint(tournament, nowMs)
+      : formatTournamentBrowseHint(tournament, nowMs));
 
   return (
     <Surface styleId="surface.list.panel">
@@ -53,9 +63,12 @@ export function TournamentCard({
                 {formatTournamentStatus(tournament.status)}
               </Text>
             </View>
-            <Text variant="body" className="text-muted">
-              {statusHint ?? `Starts ${formatTournamentStartLocal(tournament.startTime)}`}
-            </Text>
+            {showTimer ? <TournamentLobbyTimer tournament={tournament} nowMs={nowMs} /> : null}
+            {contextHint ? (
+              <Text variant="body" className="text-muted">
+                {contextHint}
+              </Text>
+            ) : null}
             <View className="ui-row flex-wrap gap-x-3 gap-y-1">
               <Text variant="body">Entry {formatCents(tournament.entryFeeCents)}</Text>
               <Text variant="body">

@@ -1,10 +1,11 @@
-import { useNowMs } from "@/hooks/useNowMs";
-import { formatJoinedTournamentHint, resolveTournamentCta } from "@/lib/tournament.utils";
+import { formatTournamentSupplementHint } from "@/lib/tournamentLobbyTimer";
+import { resolveTournamentCta } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { TournamentCard } from "./TournamentCard";
 
 type JoinedTournamentCardProps = {
   tournament: TournamentSummary;
+  nowMs: number;
   authenticated: boolean;
   actionInFlight?: boolean;
   onOpenDetail: (tournament: TournamentSummary) => void;
@@ -13,18 +14,19 @@ type JoinedTournamentCardProps = {
 
 export function JoinedTournamentCard({
   tournament,
+  nowMs,
   authenticated,
   actionInFlight,
   onOpenDetail,
   onAction,
 }: JoinedTournamentCardProps) {
-  const nowMs = useNowMs();
-  const statusHint = formatJoinedTournamentHint(tournament, nowMs);
+  const statusHint = formatTournamentSupplementHint(tournament, nowMs) ?? undefined;
   const cta = resolveTournamentCta(tournament, { authenticated, nowMs });
 
   return (
     <TournamentCard
       tournament={tournament}
+      nowMs={nowMs}
       authenticated={authenticated}
       actionInFlight={actionInFlight}
       statusHint={statusHint}
