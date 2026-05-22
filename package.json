@@ -74,6 +74,7 @@
     "start:with-seed": "pnpm db:migrate && pnpm lessons:seed:content && pnpm start",
     "start:web": "node tools/static-server.js",
     "db:migrate": "prisma migrate deploy --schema packages/db/prisma/schema.prisma",
+    "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "server:typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
     "realtime:check": "pnpm -C packages/realtime-contract typecheck && pnpm server:typecheck && pnpm -C apps/client typecheck",
     "harness:headless": "tsx scripts/headless-two-client.ts",
