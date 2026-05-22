@@ -119,6 +119,7 @@ export function getLoadingSlots({
         phase={scene.loadPhase}
         lastError={scene.tableError}
         recoveryBusy={scene.loadRecoveryBusy}
+        canRecoverTable={scene.canRecoverTable}
         onRetry={actions.retryTableLoad}
         onRecover={actions.recoverTableLoad}
         onBackToLobby={actions.goToLobby}

@@ -485,6 +485,7 @@ export function useTablePageController({
   const [reconnectNonce, setReconnectNonce] = useState(0);
   const [loadRecoveryBusy, setLoadRecoveryBusy] = useState(false);
   const autoRecoveryAttemptedRef = useRef(false);
+  const cashRecoveryLoggedRef = useRef(false);
 
   const tournamentId =
     joinState?.tournamentId ?? snapshot?.table?.tournament?.tournamentId ?? undefined;
@@ -513,6 +514,16 @@ export function useTablePageController({
     () => loadPhaseStatusMessage(loadPhaseState.phase, loadPhaseState.timedOut),
     [loadPhaseState.phase, loadPhaseState.timedOut],
   );
+
+  const canRecoverTable = Boolean(tournamentId);
+
+  const clearTableLoadFailureState = useCallback(() => {
+    storeRegistry.table().resetSnapshotStream(tableId);
+    storeRegistry.table().clearTableLoadSignals(tableId);
+    loadPhaseState.resetForRetry();
+    autoRecoveryAttemptedRef.current = false;
+    cashRecoveryLoggedRef.current = false;
+  }, [tableId, loadPhaseState.resetForRetry]);
 
   const { sceneMode, tableTopBarFlags } = useTableScene({
     authHydrated,
@@ -566,47 +577,58 @@ export function useTablePageController({
   ]);
 
   const retryTableLoad = useCallback(() => {
-    storeRegistry.table().resetSnapshotStream(tableId);
-    loadPhaseState.resetForRetry();
+    clearTableLoadFailureState();
     setReconnectNonce((n) => n + 1);
-  }, [tableId, loadPhaseState.resetForRetry]);
+  }, [clearTableLoadFailureState]);
 
   const recoverTableLoad = useCallback(() => {
-    if (loadRecoveryBusy) return;
+    if (!canRecoverTable || loadRecoveryBusy) return;
     setLoadRecoveryBusy(true);
     loadPhaseState.beginRecovering();
     void (async () => {
       try {
-        if (tournamentId) {
-          const ok = await runTournamentEnsureRecover();
-          if (!ok && !autoRecoveryAttemptedRef.current) {
-            loadPhaseState.markFailed();
-          }
-        } else {
-          storeRegistry.table().resetSnapshotStream(tableId);
-          storeRegistry.table().clearTableLoadSignals(tableId);
-          loadPhaseState.resetForRetry();
-          setReconnectNonce((n) => n + 1);
+        const ok = await runTournamentEnsureRecover();
+        if (!ok && !autoRecoveryAttemptedRef.current) {
+          loadPhaseState.markFailed();
         }
       } finally {
         setLoadRecoveryBusy(false);
       }
     })();
   }, [
+    canRecoverTable,
     loadRecoveryBusy,
     loadPhaseState.beginRecovering,
     loadPhaseState.markFailed,
-    tournamentId,
     runTournamentEnsureRecover,
-    tableId,
   ]);
+
+  const goToLobby = useCallback(() => {
+    clearTableLoadFailureState();
+    setLoadRecoveryBusy(false);
+    router.replace(lobbyPath());
+  }, [clearTableLoadFailureState, router]);
 
   const handleTerminalJoinFailure = useCallback(
     (failedTableId: string, message: string) => {
       if (failedTableId !== tableId) return;
-      if (!tournamentId) return;
-      if (autoRecoveryAttemptedRef.current) return;
       if (!isRecoverableTableJoinFailure(message)) return;
+
+      if (!tournamentId) {
+        if (cashRecoveryLoggedRef.current) return;
+        cashRecoveryLoggedRef.current = true;
+        logTableLoadEvent("cash_table_recovery_unavailable", {
+          tableId,
+          message,
+          connectionStatus,
+          realtimeRoomId: persistedRoomId ?? tableId,
+          reason: "no_tournament_ensure_table",
+          autoRecovery: false,
+        });
+        return;
+      }
+
+      if (autoRecoveryAttemptedRef.current) return;
       if (loadPhaseState.recoveryAttemptCount >= MAX_TABLE_AUTO_RECOVERY_ATTEMPTS) return;
       autoRecoveryAttemptedRef.current = true;
       setLoadRecoveryBusy(true);
@@ -616,6 +638,8 @@ export function useTablePageController({
     [
       tableId,
       tournamentId,
+      persistedRoomId,
+      connectionStatus,
       loadPhaseState.recoveryAttemptCount,
       loadPhaseState.beginRecovering,
       runTournamentEnsureRecover,
@@ -626,11 +650,13 @@ export function useTablePageController({
     if (snapshot) {
       loadPhaseState.markReady();
       autoRecoveryAttemptedRef.current = false;
+      cashRecoveryLoggedRef.current = false;
     }
   }, [snapshot?.snapshotId, snapshot?.snapshotSeq, loadPhaseState.markReady]);
 
   useEffect(() => {
     autoRecoveryAttemptedRef.current = false;
+    cashRecoveryLoggedRef.current = false;
     storeRegistry.table().clearTableLoadSignals(tableId);
   }, [tableId]);
 
@@ -858,6 +884,7 @@ export function useTablePageController({
       showLoadRecovery: loadPhaseState.showRecovery,
       loadStatusMessage,
       loadRecoveryBusy,
+      canRecoverTable,
       realtimeRoomId,
       tableNextPath,
       hasValidBuyIn,
@@ -900,7 +927,7 @@ export function useTablePageController({
     },
     actions: {
       goToLogin,
-      goToLobby: () => router.replace(lobbyPath()),
+      goToLobby,
       retryTableLoad,
       recoverTableLoad,
       closeTableAndReturn,

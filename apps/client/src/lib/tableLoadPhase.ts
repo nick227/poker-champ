@@ -37,16 +37,16 @@ export type TableLoadPhaseState = {
   timedOut: boolean;
 };
 
-export function logTableLoadEvent(
-  event:
-    | "table_load_phase_changed"
-    | "table_load_timeout"
-    | "table_recovery_attempt"
-    | "table_recovery_success"
-    | "table_recovery_failed"
-    | "stale_roomid_replaced",
-  fields: Record<string, unknown>,
-): void {
+export type TableLoadLogEvent =
+  | "table_load_phase_changed"
+  | "table_load_timeout"
+  | "table_recovery_attempt"
+  | "table_recovery_success"
+  | "table_recovery_failed"
+  | "stale_roomid_replaced"
+  | "cash_table_recovery_unavailable";
+
+export function logTableLoadEvent(event: TableLoadLogEvent, fields: Record<string, unknown>): void {
   console.log(`[TABLE_LOAD] ${event}`, fields);
 }
 

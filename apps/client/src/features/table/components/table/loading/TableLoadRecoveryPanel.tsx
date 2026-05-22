@@ -8,6 +8,8 @@ export type TableLoadRecoveryPanelProps = {
   phase: TableLoadPhase;
   lastError?: string | null;
   recoveryBusy?: boolean;
+  /** Tournament tables can call ensure-table; cash tables use Retry only. */
+  canRecoverTable?: boolean;
   onRetry: () => void;
   onRecover: () => void;
   onBackToLobby: () => void;
@@ -19,12 +21,13 @@ export function TableLoadRecoveryPanel({
   phase,
   lastError,
   recoveryBusy = false,
+  canRecoverTable = false,
   onRetry,
   onRecover,
   onBackToLobby,
   devDiagnostics,
 }: TableLoadRecoveryPanelProps) {
-  const showRecover = phase !== "failed";
+  const showRecover = canRecoverTable && phase !== "failed";
 
   return (
     <View className="gap-y-3">
