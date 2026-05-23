@@ -96,6 +96,20 @@ if (typeof openApiMiddleware !== "function") {
   throw new Error("express-openapi-validator middleware export not found.");
 }
 
+const TOURNAMENT_ENSURE_TABLE_OPENAPI_PATH = "/api/tournaments/{id}/ensure-table";
+const openApiPaths = (openApiSpec as { paths?: Record<string, unknown> }).paths;
+if (!openApiPaths?.[TOURNAMENT_ENSURE_TABLE_OPENAPI_PATH]) {
+  logger.error(
+    { path: TOURNAMENT_ENSURE_TABLE_OPENAPI_PATH },
+    "OPENAPI_SPEC_MISSING_TOURNAMENT_ENSURE_TABLE — rebuild server (pnpm build) or run dev:server",
+  );
+} else {
+  logger.info(
+    { path: TOURNAMENT_ENSURE_TABLE_OPENAPI_PATH },
+    "OPENAPI_SPEC_TOURNAMENT_ENSURE_TABLE_OK",
+  );
+}
+
 app.use(
   openApiMiddleware({
     apiSpec: openApiSpec as unknown as Record<string, unknown>,

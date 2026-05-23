@@ -96,6 +96,7 @@ describe("Tournament M2 director and table flow", () => {
         maxPlayers,
         startingStackCents: 12_000,
         blindStructureId: "standard_8min",
+        lateRegMinutes: 16,
         status: "REGISTERING",
       },
     });

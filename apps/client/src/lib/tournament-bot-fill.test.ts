@@ -13,7 +13,7 @@ describe("tournament-bot-fill", () => {
       maxPlayers: 6,
       registeredCount: 1,
     });
-    expect(summary).toContain("Bot fill:");
+    expect(summary).toContain("Bot challenge:");
     expect(summary).toContain("5");
   });
 

@@ -35,14 +35,22 @@ function makeBot(params: { id: string; seat: number; stackCents: number }) {
   return p;
 }
 
+/** Test harness surface — avoids intersecting PokerRoom (private `dealer` becomes `never`). */
+type SweepTestRoom = {
+  state: PokerState;
+  dealer: Dealer;
+  setMetadata: ReturnType<typeof vi.fn>;
+  roomId: string;
+  setState(state: PokerState): void;
+  runSittingOutSweep(options: { nowTs: number; abandonedPurgeMs: number }): Promise<{ purgedUserIds: string[] }>;
+  beginDeleteIfNoConnectedHumans(): { ok: boolean; connectedHumanCount: number; reason?: string };
+  controller?: { session: { getBoundClient: (userId: string) => unknown } };
+};
+
 /** Lightweight room harness — avoids full onCreate (Dealer + Controller + lifecycle timers). */
-function buildSweepRoom(tableId: string) {
+function buildSweepRoom(tableId: string): SweepTestRoom {
   const boundClients = new Map<string, { sessionId: string }>();
-  const room = new PokerRoom() as PokerRoom & {
-    state: PokerState;
-    dealer: Dealer;
-    setMetadata: ReturnType<typeof vi.fn>;
-  };
+  const room = new PokerRoom() as unknown as SweepTestRoom;
   room.setMetadata = vi.fn().mockResolvedValue(undefined);
   room.roomId = `room_${tableId}`;
 

@@ -36,13 +36,14 @@ function lateRegTournament(overrides: Partial<TournamentSummary> = {}): Tourname
 describe("late registration lobby behavior", () => {
   const nowMs = Date.now();
 
-  it("registration stays open for LATE_REG and early RUNNING inside the window", () => {
+  it("registration stays open for LATE_REG and RUNNING inside the late-reg window", () => {
     const t = lateRegTournament();
     expect(isTournamentRegistrationOpen(t, nowMs)).toBe(true);
     expect(isLateRegistrationOpen(t, nowMs)).toBe(true);
 
     const running = lateRegTournament({ status: "RUNNING" });
     expect(isTournamentRegistrationOpen(running, nowMs)).toBe(true);
+    expect(isLateRegistrationOpen(running, nowMs)).toBe(true);
   });
 
   it("registration closes after late reg window ends", () => {
@@ -102,13 +103,16 @@ describe("late registration lobby behavior", () => {
     });
   });
 
-  it("join stays available on RUNNING while late reg window is open even if room not live", () => {
+  it("offers register on RUNNING while inside the late-reg window", () => {
     const t = lateRegTournament({
       status: "RUNNING",
-      isRegistered: true,
-      tableLive: false,
+      isRegistered: false,
     });
-    expect(canJoinTournament(t, nowMs)).toBe(true);
+    expect(resolveTournamentCta(t, { authenticated: true, nowMs })).toEqual({
+      label: "Register",
+      action: "register",
+      disabled: false,
+    });
   });
 
   it("requires live room to join after late reg closes on RUNNING", () => {

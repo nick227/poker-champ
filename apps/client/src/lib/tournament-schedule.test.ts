@@ -35,10 +35,16 @@ describe("tournament-schedule (client)", () => {
     ).toBe(false);
   });
 
-  it("is open during REGISTERING when late reg enabled", () => {
+  it("is open during REGISTERING before start and through late-reg window after start", () => {
     expect(isLateRegistrationOpen(tournament({ status: "REGISTERING" }), startMs - 60_000)).toBe(
       true,
     );
+    expect(isLateRegistrationOpen(tournament({ status: "REGISTERING" }), startMs)).toBe(true);
+    expect(isLateRegistrationOpen(tournament({ status: "REGISTERING" }), startMs + 10 * 60_000)).toBe(
+      true,
+    );
+    const closeMs = lateRegCloseMs(tournament({ status: "REGISTERING" }));
+    expect(isLateRegistrationOpen(tournament({ status: "REGISTERING" }), closeMs)).toBe(false);
   });
 
   it("is open during LATE_REG before close", () => {
@@ -47,11 +53,12 @@ describe("tournament-schedule (client)", () => {
     expect(isLateRegistrationOpen(tournament({ status: "LATE_REG" }), closeMs)).toBe(false);
   });
 
-  it("is open during RUNNING until close (not only LATE_REG status)", () => {
+  it("is open during RUNNING until late-reg close", () => {
     const closeMs = lateRegCloseMs(tournament({ status: "RUNNING" }));
     expect(isLateRegistrationOpen(tournament({ status: "RUNNING" }), startMs + 10 * 60_000)).toBe(
       true,
     );
+    expect(isLateRegistrationOpen(tournament({ status: "RUNNING" }), closeMs - 1)).toBe(true);
     expect(isLateRegistrationOpen(tournament({ status: "RUNNING" }), closeMs)).toBe(false);
   });
 

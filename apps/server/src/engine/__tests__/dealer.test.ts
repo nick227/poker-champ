@@ -52,6 +52,7 @@ describe("Dealer v2 smoke", () => {
     state.tableId = "table_stale_internal_action";
     state.handId = "hand_stale_internal_action";
     state.street = "TURN";
+    state.roundState = "WAITING_FOR_ACTION";
 
     const dealer = new Dealer(state);
 
@@ -59,5 +60,33 @@ describe("Dealer v2 smoke", () => {
     await expect((dealer as any)._handleAction("bot_missing", { action: "ALL_IN" }, "PLAYER")).rejects.toMatchObject({
       code: "BAD_STATE",
     });
+  });
+
+  it("discards scheduled bot action when a different player is to act at the same seat", async () => {
+    vi.useFakeTimers();
+    const state = new PokerState();
+    state.tableId = "table_bot_stale_actor";
+    state.handId = "hand_bot_stale_actor";
+    state.street = "PREFLOP";
+    state.handActionSeq = 1;
+    state.toActSeat = 0;
+    state.seats[0] = "bot_1";
+    state.seats[1] = "human_1";
+
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    const handleActionSpy = vi.spyOn(dealer, "handleAction").mockResolvedValue(undefined);
+    const driveGameSpy = vi.spyOn(dealer as any, "driveGame").mockResolvedValue(undefined);
+
+    (dealer as any).scheduleBotAction("bot_1", { action: "ALL_IN" }, 50);
+    state.seats[0] = "human_1";
+
+    await vi.advanceTimersByTimeAsync(50);
+    await Promise.resolve();
+
+    expect(handleActionSpy).not.toHaveBeenCalled();
+    expect(driveGameSpy).toHaveBeenCalledWith("BOT_SCHEDULED_ACTION_STALE");
+
+    vi.useRealTimers();
   });
 });

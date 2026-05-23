@@ -25,3 +25,15 @@ export class PokerError extends Error {
     this.meta = meta;
   }
 }
+
+/** Stale or expected rejections that must not crash the process or poison the action queue. */
+export function isSkippableActionRejection(err: unknown): boolean {
+  if (!(err instanceof PokerError)) return false;
+  return (
+    err.code === "HAND_NOT_STARTED" ||
+    err.code === "HAND_ALREADY_FINISHED" ||
+    err.code === "NOT_YOUR_TURN" ||
+    err.code === "NOT_ELIGIBLE" ||
+    err.code === "INVALID_ACTION"
+  );
+}

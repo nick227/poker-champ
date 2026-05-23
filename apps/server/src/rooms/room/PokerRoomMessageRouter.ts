@@ -8,6 +8,7 @@ import {
 } from "@poker-champ/realtime-contract";
 import { ActionPayloadSchema } from "@poker-champ/realtime-contract";
 import { PokerError } from "../../engine/errors.js";
+import type { SnapshotReason } from "../../engine/dealer/hand/SnapshotService.js";
 import { newBotId } from "../../engine/bots/botIds.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../../engine/bots/BotCatalog.js";
 import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionService.js";
@@ -34,6 +35,53 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
     if (err instanceof PokerError) return { code: err.code, message: err.message };
     if (err instanceof Error) return { message: err.message };
     return { message: String(err) };
+  }
+
+  private async emitUserSnapshotOrError(client: Client, userId: string, reason: SnapshotReason): Promise<void> {
+    const room = this.ctx.room;
+    try {
+      await this.ctx.dealer.emitSnapshotToUser(userId, reason);
+      this.ctx.logger.info(
+        {
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason,
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+        },
+        "POKER_JOIN_SNAPSHOT_EMITTED",
+      );
+    } catch (err: unknown) {
+      this.ctx.logger.error(
+        {
+          err,
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason,
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+          message: PokerRoomMessageRouter.asErrorLike(err).message,
+        },
+        "POKER_JOIN_SNAPSHOT_FAILED",
+      );
+      room.sendTableMessageInternal(client, "ERROR", {
+        code: "TABLE_SNAPSHOT_FAILED",
+        message: "Table state could not be restored. Please retry.",
+        recoveryReason: "SNAPSHOT_EMIT_FAILED",
+      });
+    }
   }
 
   registerAll(): void {
@@ -382,6 +430,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       try {
         await this.ctx.dealer.setPlayerSittingOut(userId, false);
         room.updateMetadataCountsInternal();
+        await this.emitUserSnapshotOrError(client, userId, "RECONNECT");
       } catch (err: unknown) {
         this.ctx.logger.warn(
           {
@@ -461,7 +510,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           joinMode: "NEW",
         });
         room.addTablePresenceInternal(client, userId, username);
-        await this.ctx.dealer.emitSnapshotToUser(userId, "JOIN");
+        await this.emitUserSnapshotOrError(client, userId, "JOIN");
       } catch (err: unknown) {
         this.ctx.logger.warn(
           {
@@ -482,4 +531,3 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
     });
   }
 }
-

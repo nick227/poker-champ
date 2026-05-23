@@ -12,10 +12,10 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
-    "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma"
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "prisma:generate": "node ../../node_modules/prisma/build/index.js generate --schema prisma/schema.prisma",
+    "prisma:migrate:deploy": "node ../../node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0"

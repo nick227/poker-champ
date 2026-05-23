@@ -7,7 +7,7 @@ import { TournamentCreateForm } from "@/features/tournaments/components/Tourname
 import { formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import { formatCents } from "@/lib/format";
 import { formatTournamentStartLocal, formatTournamentStatus, mapTournamentApiError } from "@/lib/tournament.utils";
-import { TournamentListFeedback } from "@/features/lobby/components/lobby/TournamentListFeedback";
+import { TournamentListFeedback } from "@/features/lobby";
 import { serviceRegistry } from "@/registry/service.registry";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { useToastStore } from "@/stores/toast.store";

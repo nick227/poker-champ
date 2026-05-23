@@ -9,6 +9,53 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
     private readonly session: PokerRoomSessionManager,
   ) {}
 
+  private async emitReconnectSnapshotOrError(client: Client, userId: string): Promise<void> {
+    const room = this.ctx.room;
+    try {
+      await room.emitSnapshotsToAllSafeInternal("RECONNECT");
+      this.ctx.logger.info(
+        {
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason: "RECONNECT",
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+        },
+        "POKER_JOIN_SNAPSHOT_EMITTED",
+      );
+    } catch (err: unknown) {
+      this.ctx.logger.error(
+        {
+          err,
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason: "RECONNECT",
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+          message: err instanceof Error ? err.message : String(err),
+        },
+        "POKER_JOIN_SNAPSHOT_FAILED",
+      );
+      room.sendTableMessageInternal(client, "ERROR", {
+        code: "TABLE_SNAPSHOT_FAILED",
+        message: "Table state could not be restored. Please retry.",
+        recoveryReason: "SNAPSHOT_EMIT_FAILED",
+      });
+    }
+  }
+
   async handleLeave(client: Client, code?: number): Promise<void> {
     const room = this.ctx.room;
     room.touchActivityInternal();
@@ -184,7 +231,7 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
         });
       }
       room.sendTableMessageInternal(reconnected, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-      await room.emitSnapshotsToAllSafeInternal("RECONNECT");
+      await this.emitReconnectSnapshotOrError(reconnected, userId);
       room.updateMetadataCountsInternal();
     } catch {
       if (room.persistentSeatsEnabledInternal) {

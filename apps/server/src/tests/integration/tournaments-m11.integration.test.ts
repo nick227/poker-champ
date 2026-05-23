@@ -108,6 +108,7 @@ describe("Tournament M11 bot-filled QA tournaments", () => {
         maxPlayers,
         startingStackCents: 8000,
         blindStructureId: "standard_8min",
+        lateRegMinutes: 16,
         status: "REGISTERING",
         fillBotsAtStart: true,
         fillBotCount,
@@ -218,13 +219,13 @@ describe("Tournament M11 bot-filled QA tournaments", () => {
     const humanRow = standings.find((row) => row.userId === testUsers.human);
     expect(botRow?.isBot).toBe(true);
     expect(humanRow?.finishPlace).toBe(1);
-    expect(humanRow?.payoutCents).toBe(4000);
+    expect(humanRow?.payoutCents).toBe(0);
     expect(botRow?.payoutCents).toBe(0);
 
     const humanPayout = await prisma.balanceTransaction.findUnique({
       where: { externalRef: tournamentPayoutExternalRef(tournamentId, 1, testUsers.human) },
     });
-    expect(humanPayout?.amountCents).toBe(4000);
+    expect(humanPayout).toBeNull();
 
     const botPayoutCount = await prisma.balanceTransaction.count({
       where: {

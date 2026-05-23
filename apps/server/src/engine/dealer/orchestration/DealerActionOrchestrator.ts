@@ -3,7 +3,7 @@ import type { ActionPayload, TableLastAction } from "@poker-champ/realtime-contr
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import type { PlayerState } from "../../../state/PlayerState.js";
-import { PokerError } from "../../errors.js";
+import { PokerError, isSkippableActionRejection } from "../../errors.js";
 import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
 import { HandContext } from "../HandContext.js";
 import type { SnapshotReason } from "../hand/SnapshotService.js";
@@ -211,6 +211,9 @@ export class DealerActionOrchestrator {
               message: "Action failed",
               context: this.deps.buildDiagnosticContext({ userId, action: msg.action }),
             });
+          }
+          if (isSkippableActionRejection(err)) {
+            return;
           }
           throw err;
         }

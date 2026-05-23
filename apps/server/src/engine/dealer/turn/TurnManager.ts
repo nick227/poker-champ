@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { logger } from "../../../lib/logger.js";
 import type { ActionPayload } from "@poker-champ/realtime-contract";
 import type { PokerState } from "../../../state/PokerState.js";
-import { PokerError } from "../../errors.js";
+import { PokerError, isSkippableActionRejection } from "../../errors.js";
 import {
   bettingRoundComplete,
   eligibleToAct,
@@ -757,6 +757,11 @@ class AutoActionDispatcher {
             if (this.deps.driveGame) {
               void this.deps.actionQueue.enqueueSerializedStateMutation(async () => {
                 await this.deps.driveGame?.("AUTO_ACTION_EXECUTED");
+              }).catch((err: unknown) => {
+                logger.warn(
+                  this.deps.buildDiagnosticContext({ userId, action: payload.action, err }),
+                  "AUTO_ACTION_EXECUTED_REDRIVE_FAILED",
+                );
               });
             }
           } catch (err) {
@@ -764,6 +769,10 @@ class AutoActionDispatcher {
               this.deps.buildDiagnosticContext({ userId, action: payload.action, err }),
               "AUTO_ACTION_FAILED",
             );
+            if (isSkippableActionRejection(err)) {
+              this.deps.onAutoActionDiscarded?.();
+              return;
+            }
             throw err;
           }
         },
@@ -861,14 +870,7 @@ class AutoActionDispatcher {
   }
 
   private isSkippableQueuedActionError(err: unknown): boolean {
-    if (!(err instanceof PokerError)) return false;
-    return (
-      err.code === "HAND_NOT_STARTED" ||
-      err.code === "HAND_ALREADY_FINISHED" ||
-      err.code === "NOT_YOUR_TURN" ||
-      err.code === "NOT_ELIGIBLE" ||
-      err.code === "INVALID_ACTION"
-    );
+    return isSkippableActionRejection(err);
   }
 }
 
@@ -1085,13 +1087,7 @@ export class TurnManager {
   }
 
   private isSkippableQueuedActionError(err: unknown): boolean {
-    if (!(err instanceof PokerError)) return false;
-    return (
-      err.code === "HAND_NOT_STARTED" ||
-      err.code === "HAND_ALREADY_FINISHED" ||
-      err.code === "NOT_YOUR_TURN" ||
-      err.code === "NOT_ELIGIBLE"
-    );
+    return isSkippableActionRejection(err);
   }
 
   private shouldEmitQueueRecoveryDiagnostic(err: unknown): boolean {

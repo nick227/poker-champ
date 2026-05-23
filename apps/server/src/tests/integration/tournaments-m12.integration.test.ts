@@ -113,6 +113,7 @@ describe("Tournament M12 bot demo polish", () => {
         maxPlayers: 3,
         startingStackCents: 8000,
         blindStructureId: "standard_8min",
+        lateRegMinutes: 16,
         status: "REGISTERING",
         fillBotsAtStart: true,
         fillBotCount: 2,
@@ -196,11 +197,11 @@ describe("Tournament M12 bot demo polish", () => {
     expect(humanStats.tournamentWins).toBe(1);
   });
 
-  it("rolls payout to human when bot has better finish place", async () => {
+  it("does not pay single-human bot challenges even when the human finishes first", async () => {
     const payouts = computeHumanPayoutAmountsByUserId(8000, 1, [
-      { userId: testUsers.human, finishPlace: 2 },
+      { userId: testUsers.human, finishPlace: 1 },
     ]);
-    expect(payouts.get(testUsers.human)).toBe(8000);
+    expect(payouts.size).toBe(0);
     expect(payouts.has(getTournamentBotUserId("chaos_carl"))).toBe(false);
   });
 });

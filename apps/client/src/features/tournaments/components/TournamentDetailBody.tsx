@@ -10,8 +10,10 @@ import {
 } from "@/lib/tournament-detail";
 import { formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import {
+  estimateTournamentHumanEntrants,
   formatTournamentStartLocal,
   formatTournamentStatus,
+  isTournamentStartLocked,
   resolveTournamentCta,
 } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
@@ -51,15 +53,19 @@ export function TournamentDetailBody({
   onPrimaryAction,
 }: TournamentDetailBodyProps) {
   const cta = resolveTournamentCta(tournament, { authenticated });
-  const payoutLines = buildPayoutSummaryLines(
-    tournament.prizePoolCents,
-    Math.max(tournament.registeredCount, 2),
-  );
+  const humanEntrants = Math.max(estimateTournamentHumanEntrants(tournament), 1);
+  const payoutLines = buildPayoutSummaryLines(tournament.prizePoolCents, humanEntrants, {
+    humansOnly: tournament.fillBotsAtStart || tournament.registeredCount > humanEntrants,
+  });
   const blindLines = buildBlindSummaryLines(tournament.blindStructureId, tournament.currentLevel);
   const timeline = buildTournamentTimeline(tournament.status);
-  const showFinishedStandings = tournament.status === "FINISHED";
+  const showFinishedStandings =
+    tournament.status === "FINISHED" ||
+    tournament.status === "ABANDONED" ||
+    tournament.status === "CANCELLED";
   const showRoster =
-    tournament.registeredCount > 0 && (tournament.status === "REGISTERING" || showFinishedStandings);
+    tournament.registeredCount > 0 &&
+    (tournament.status === "REGISTERING" || showFinishedStandings);
   const botFillSummary = formatTournamentBotFillSummary(tournament);
 
   return (
@@ -95,7 +101,22 @@ export function TournamentDetailBody({
             onPress={onPrimaryAction}
           />
           {tournament.status === "CANCELLED" ? (
-            <Text variant="muted">This tournament was cancelled. Entry fees were refunded.</Text>
+            <Text variant="muted">
+              This tournament was cancelled. Human entry fees were refunded. No prize payouts were
+              issued.
+            </Text>
+          ) : null}
+          {tournament.status === "ABANDONED" ? (
+            <Text variant="muted">
+              This tournament was abandoned with no winner. Human entry fees were refunded. No prize
+              payouts were issued.
+            </Text>
+          ) : null}
+          {isTournamentStartLocked(tournament) && tournament.isRegistered ? (
+            <Text variant="muted">
+              After the start time, unregister is not available. Late registration is a new paid
+              entry only.
+            </Text>
           ) : null}
         </View>
       </Surface>
@@ -119,7 +140,9 @@ export function TournamentDetailBody({
       <Surface styleId="surface.list.panel">
         <View className="ui-stack-2 p-4">
           <Text variant="h2">Payouts</Text>
-          <Text variant="muted">Based on current prize pool and registration count.</Text>
+          <Text variant="muted">
+            Based on current prize pool and human entrant count. Bots are not paid.
+          </Text>
           {payoutLines.map((line) => (
             <Text key={line} variant="body">
               {line}
@@ -141,11 +164,17 @@ export function TournamentDetailBody({
 
       {showRoster ? (
         <TournamentStandingsSection
-          title={showFinishedStandings ? "Final standings" : "Registered players"}
+          title={
+            tournament.status === "FINISHED"
+              ? "Final standings"
+              : tournament.status === "ABANDONED" || tournament.status === "CANCELLED"
+                ? "Standings"
+                : "Registered players"
+          }
           rows={rosterRows}
           busy={rosterBusy}
           error={rosterError}
-          showPayouts={showFinishedStandings}
+          tournamentStatus={tournament.status}
         />
       ) : null}
     </View>

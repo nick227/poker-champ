@@ -139,6 +139,9 @@ export interface PokerRoomFacade {
   clearSittingOutOnRestoreSafeInternal(userId: string): Promise<void>;
   markAbandonedSafeInternal(userId: string): Promise<void>;
   emitSnapshotsToAllSafeInternal(reason: string): Promise<void>;
+  readonly lastSnapshotSeqInternal: number | undefined;
+  getReadyPlayerCountInternal(): number;
+  getActivePlayerCountInternal(): number;
   isChatRateLimitedInternal(sessionId: string): boolean;
   isActionRateLimitedInternal(sessionId: string): boolean;
   setLastAcceptedActionInternal(

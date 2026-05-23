@@ -5,8 +5,10 @@ import { logger } from "../lib/logger.js";
 import { getBlindLevel } from "./blind-structure.js";
 import type { TournamentTableOverlay } from "./tournament-overlay.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
-import { resolveTournamentWinnerUserId } from "./tournament-finish-resolution.js";
-import { isHumanFieldEliminated } from "./tournament-human-field.js";
+import {
+  countTournamentSurvivorsWithChips,
+  resolveTournamentWinnerUserId,
+} from "./tournament-finish-resolution.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -20,20 +22,7 @@ export type TournamentReconcileContext = {
   emitSnapshot?: () => Promise<void>;
 };
 
-/** Players still in the freezeout (humans and bots). */
-export function countTournamentSurvivorsWithChips(state: PokerState): string[] {
-  const ids: string[] = [];
-  for (const player of state.playersById.values()) {
-    if (
-      player.stackCents > 0 &&
-      player.status !== "OUT" &&
-      player.status !== "ABANDONED"
-    ) {
-      ids.push(player.id);
-    }
-  }
-  return ids;
-}
+export { countTournamentSurvivorsWithChips };
 
 export class TournamentTableReconciler {
   async reconcileAfterHand(ctx: TournamentReconcileContext): Promise<void> {
@@ -116,15 +105,6 @@ export class TournamentTableReconciler {
       isBot: r.isBot,
       finishPlace: r.finishPlace,
     }));
-
-    if (isHumanFieldEliminated(registrationRows, ctx.state)) {
-      ctx.onPlayEnded();
-      logger.info(
-        { tournamentId: ctx.tournamentId },
-        "TOURNAMENT_HUMAN_FIELD_ELIMINATED",
-      );
-      return;
-    }
 
     const winnerId = resolveTournamentWinnerUserId(
       ctx.state,

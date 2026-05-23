@@ -5,9 +5,20 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { cleanAllWorkspaceHoistStubs } = require("./clean-pnpm-hoist-stubs.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
+const REPO_ROOT = path.resolve(ROOT, "../..");
 const TOKENS_CSS = path.join(ROOT, "src", "theme", "tokens.css");
+
+const removed = cleanAllWorkspaceHoistStubs(REPO_ROOT);
+if (removed.length > 0) {
+  const summary =
+    removed.length > 40
+      ? `${removed.length} entries`
+      : removed.join(", ");
+  console.warn(`Removed broken pnpm hoist stubs: ${summary}`);
+}
 
 function runSync() {
   require("./sync-tokens-web.cjs");
@@ -21,7 +32,7 @@ fs.watch(TOKENS_CSS, (eventType, filename) => {
   }
 });
 
-const expo = spawn("npx", ["expo", "start", "--web"], {
+const expo = spawn("pnpm", ["exec", "expo", "start", "--web"], {
   cwd: ROOT,
   stdio: "inherit",
   shell: true,

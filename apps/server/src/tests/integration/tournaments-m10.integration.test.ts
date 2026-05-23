@@ -167,6 +167,7 @@ describe("Tournament M10 awards and stats", () => {
         maxPlayers: 2,
         startingStackCents: 8000,
         blindStructureId: "standard_8min",
+        lateRegMinutes: 16,
         status: "REGISTERING",
       },
     });

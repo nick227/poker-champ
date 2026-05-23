@@ -55,22 +55,34 @@ export function computeHumanPayoutAmountsByUserId(
   humanEntrantCount: number,
   humanFinishers: { userId: string; finishPlace: number }[],
 ): Map<string, number> {
-  if (humanEntrantCount <= 0 || prizePoolCents <= 0) return new Map();
+  if (humanEntrantCount < 2 || prizePoolCents <= 0) return new Map();
 
-  const amountsByPlace = computePayoutAmountsByPlace(prizePoolCents, humanEntrantCount);
-  const paidPlaces = [...amountsByPlace.entries()]
-    .filter(([, cents]) => cents > 0)
-    .sort(([a], [b]) => a - b);
+  const paidSlots = getPayoutSlots(humanEntrantCount).sort((a, b) => a.place - b.place);
 
   const sortedHumans = humanFinishers
     .slice()
     .sort((a, b) => a.finishPlace - b.finishPlace);
+  const payableHumans = sortedHumans.slice(0, paidSlots.length);
+  if (payableHumans.length === 0) return new Map();
+
+  const payableSlots = paidSlots.slice(0, payableHumans.length);
+  const payablePercentTotal = payableSlots.reduce((sum, slot) => sum + slot.percent, 0);
+  if (payablePercentTotal <= 0) return new Map();
 
   const payouts = new Map<string, number>();
-  for (let i = 0; i < paidPlaces.length && i < sortedHumans.length; i++) {
-    const [, amountCents] = paidPlaces[i]!;
-    const human = sortedHumans[i]!;
+  let distributed = 0;
+  for (let i = 0; i < payableSlots.length; i++) {
+    const slot = payableSlots[i]!;
+    const human = payableHumans[i]!;
+    const amountCents = Math.floor((prizePoolCents * slot.percent) / payablePercentTotal);
     payouts.set(human.userId, amountCents);
+    distributed += amountCents;
+  }
+
+  const remainder = prizePoolCents - distributed;
+  if (remainder > 0) {
+    const firstHuman = payableHumans[0]!;
+    payouts.set(firstHuman.userId, (payouts.get(firstHuman.userId) ?? 0) + remainder);
   }
 
   return payouts;

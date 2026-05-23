@@ -27,6 +27,60 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
     return err instanceof Error ? err.message : String(err);
   }
 
+  private async emitJoinSnapshotOrError(
+    client: Client,
+    userId: string,
+    reason: string,
+    emit: () => Promise<void>,
+  ): Promise<boolean> {
+    const room = this.ctx.room;
+    try {
+      await emit();
+      this.ctx.logger.info(
+        {
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason,
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+        },
+        "POKER_JOIN_SNAPSHOT_EMITTED",
+      );
+      return true;
+    } catch (err: unknown) {
+      this.ctx.logger.error(
+        {
+          err,
+          roomId: room.roomId,
+          tableId: this.ctx.state.tableId,
+          tournamentId: room.getTournamentIdInternal(),
+          userId,
+          reason,
+          handId: this.ctx.state.handId,
+          street: this.ctx.state.street,
+          snapshotSeq: room.lastSnapshotSeqInternal,
+          nextHandAtTs: this.ctx.state.nextHandAtTs,
+          readyCount: room.getReadyPlayerCountInternal(),
+          activeCount: room.getActivePlayerCountInternal(),
+          message: PokerRoomJoinService.asErrorMessage(err),
+        },
+        "POKER_JOIN_SNAPSHOT_FAILED",
+      );
+      room.sendTableMessageInternal(client, "ERROR", {
+        code: "TABLE_SNAPSHOT_FAILED",
+        message: "Table state could not be restored. Please retry.",
+        recoveryReason: "SNAPSHOT_EMIT_FAILED",
+      });
+      return false;
+    }
+  }
+
   async handleJoin(client: Client, options: unknown, auth?: unknown): Promise<void> {
     const room = this.ctx.room;
     const authObj = PokerRoomJoinService.asRecord(auth);
@@ -135,7 +189,9 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
           });
         }
         room.sendTableMessageInternal(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-        await room.emitSnapshotsToAllSafeInternal("RECONNECT");
+        await this.emitJoinSnapshotOrError(client, userId, "RECONNECT", () =>
+          room.emitSnapshotsToAllSafeInternal("RECONNECT"),
+        );
         room.handleEmptyStateChangeInternal();
         return;
       }
@@ -175,7 +231,9 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
                 handIdSnapshot: this.ctx.state.handId || undefined,
               });
               room.sendTableMessageInternal(client, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
-              await room.emitSnapshotsToAllSafeInternal("RECONNECT");
+              await this.emitJoinSnapshotOrError(client, userId, "RECONNECT", () =>
+                room.emitSnapshotsToAllSafeInternal("RECONNECT"),
+              );
               this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_JOIN_REBOUND_PERSISTED");
               room.handleEmptyStateChangeInternal();
               return;
@@ -215,7 +273,9 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
               tableId: this.ctx.state.tableId,
               joinMode: "TOURNAMENT_SPECTATE",
             });
-            await this.ctx.dealer.emitSnapshotToUser(userId, "JOIN");
+            await this.emitJoinSnapshotOrError(client, userId, "JOIN", () =>
+              this.ctx.dealer.emitSnapshotToUser(userId, "JOIN"),
+            );
             this.ctx.logger.info(
               { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, finishPlace: resolution.finishPlace },
               "POKER_JOIN_TOURNAMENT_SPECTATE",
@@ -305,7 +365,9 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
           joinMode: "NEW",
         });
         room.addTablePresenceInternal(client, userId, username);
-        await room.emitSnapshotsToAllSafeInternal("JOIN");
+        await this.emitJoinSnapshotOrError(client, userId, "JOIN", () =>
+          room.emitSnapshotsToAllSafeInternal("JOIN"),
+        );
         this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_JOIN_SUCCESS");
         room.handleEmptyStateChangeInternal();
       } catch (err: unknown) {

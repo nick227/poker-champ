@@ -17,6 +17,16 @@ export function countHumanSurvivorsWithChips(state: PokerState): string[] {
   return ids;
 }
 
+export function countTournamentSurvivorsWithChips(state: PokerState): string[] {
+  const ids: string[] = [];
+  for (const player of state.playersById.values()) {
+    if (player.stackCents <= 0) continue;
+    if (player.status === "OUT" || player.status === "ABANDONED") continue;
+    ids.push(player.id);
+  }
+  return ids;
+}
+
 export function pickBestHumanFinisher(registrations: TournamentRegistrationRow[]): string | null {
   const ranked = registrations
     .filter((r) => !r.isBot && r.finishPlace != null)
@@ -24,14 +34,23 @@ export function pickBestHumanFinisher(registrations: TournamentRegistrationRow[]
   return ranked[0]?.userId ?? null;
 }
 
-/** When to close a freezeout: exactly one human still has chips. */
+/** Close a freezeout when a single stack remains; bots can win only non-money challenge results. */
 export function resolveTournamentWinnerUserId(
   state: PokerState,
   _registrations: TournamentRegistrationRow[],
 ): string | null {
+  const survivorsWithChips = countTournamentSurvivorsWithChips(state);
+  if (survivorsWithChips.length === 1) {
+    return survivorsWithChips[0]!;
+  }
+
   const humansWithChips = countHumanSurvivorsWithChips(state);
-  if (humansWithChips.length === 1) {
-    return humansWithChips[0]!;
+  if (humansWithChips.length === 0 && survivorsWithChips.length > 0) {
+    const survivors = survivorsWithChips
+      .map((id) => state.playersById.get(id))
+      .filter((player) => player != null);
+    survivors.sort((a, b) => b.stackCents - a.stackCents || a.seat - b.seat);
+    return survivors[0]?.id ?? null;
   }
   return null;
 }

@@ -553,15 +553,57 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
               {
                 roomId: this.roomId,
                 tableId: this.state.tableId,
+                tournamentId: this.tournamentId,
+                handId: this.state.handId,
+                street: this.state.street,
+                snapshotSeq: this.lastSnapshotSeq,
                 readyPlayerCount: betweenHandsReady.length,
+                readyCount: betweenHandsReady.length,
+                activeCount: this.getActivePlayerCountInternal(),
                 nextHandAtTs: this.state.nextHandAtTs,
                 snapshotSilenceMs,
+                reason: "next_hand_overdue",
+              },
+              "NEXT_HAND_OVERDUE",
+            );
+            logger.warn(
+              {
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                tournamentId: this.tournamentId,
+                handId: this.state.handId,
+                street: this.state.street,
+                snapshotSeq: this.lastSnapshotSeq,
+                readyCount: betweenHandsReady.length,
+                activeCount: this.getActivePlayerCountInternal(),
+                nextHandAtTs: this.state.nextHandAtTs,
+                snapshotSilenceMs,
+                reason: "between_hands_watchdog",
               },
               "BETWEEN_HANDS_STALL_RECOVERY_REDRIVE",
             );
             this.lastStallRedriveLogAtMs = now;
             dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
           }
+          void this.emitSnapshotsToAllSafeInternal("AUTO_TRANSITION").catch((err: unknown) => {
+            logger.error(
+              {
+                err,
+                roomId: this.roomId,
+                tableId: this.state.tableId,
+                tournamentId: this.tournamentId,
+                handId: this.state.handId,
+                street: this.state.street,
+                snapshotSeq: this.lastSnapshotSeq,
+                nextHandAtTs: this.state.nextHandAtTs,
+                readyCount: betweenHandsReady.length,
+                activeCount: this.getActivePlayerCountInternal(),
+                reason: "between_hands_watchdog_snapshot",
+                message: err instanceof Error ? err.message : String(err),
+              },
+              "WATCHDOG_SNAPSHOT_FAILED",
+            );
+          });
           this.dealer.recoverBetweenHandsPublic();
         }
         if (this.lastRuntimeMetricsLogAtMs + METRICS_LOG_INTERVAL_MS < now) {
@@ -641,17 +683,43 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 {
                   roomId: this.roomId,
                   tableId: this.state.tableId,
+                  tournamentId: this.tournamentId,
                   handId: this.state.handId,
+                  street: this.state.street,
                   stallReason,
+                  snapshotSeq: this.lastSnapshotSeq,
+                  nextHandAtTs: this.state.nextHandAtTs,
+                  readyCount: this.getReadyPlayerCountInternal(),
+                  activeCount: this.getActivePlayerCountInternal(),
                   stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
                   turnAgeMs,
                   decisionTraceId,
+                  reason: "active_hand_watchdog",
                 },
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;
               dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
             }
+            void this.emitSnapshotsToAllSafeInternal("AUTO_TRANSITION").catch((err: unknown) => {
+              logger.error(
+                {
+                  err,
+                  roomId: this.roomId,
+                  tableId: this.state.tableId,
+                  tournamentId: this.tournamentId,
+                  handId: this.state.handId,
+                  street: this.state.street,
+                  snapshotSeq: this.lastSnapshotSeq,
+                  nextHandAtTs: this.state.nextHandAtTs,
+                  readyCount: this.getReadyPlayerCountInternal(),
+                  activeCount: this.getActivePlayerCountInternal(),
+                  reason: "active_hand_watchdog_snapshot",
+                  message: err instanceof Error ? err.message : String(err),
+                },
+                "WATCHDOG_SNAPSHOT_FAILED",
+              );
+            });
             this.dealer.maybeActForBotPublic();
           }
         }
@@ -705,17 +773,43 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
                 {
                   roomId: this.roomId,
                   tableId: this.state.tableId,
+                  tournamentId: this.tournamentId,
                   handId: this.state.handId,
+                  street: this.state.street,
                   stallReason,
+                  snapshotSeq: this.lastSnapshotSeq,
+                  nextHandAtTs: this.state.nextHandAtTs,
+                  readyCount: this.getReadyPlayerCountInternal(),
+                  activeCount: this.getActivePlayerCountInternal(),
                   stallAgeMs: Number.isFinite(snapshotSilenceMs) ? snapshotSilenceMs : -1,
                   turnAgeMs,
                   decisionTraceId,
+                  reason: "active_hand_watchdog",
                 },
                 "TABLE_STALLED_RECOVERY_REDRIVE",
               );
               this.lastStallRedriveLogAtMs = now;
               dealerRuntimeMetrics.recordTableStallRecoveryRedrive();
             }
+            void this.emitSnapshotsToAllSafeInternal("AUTO_TRANSITION").catch((err: unknown) => {
+              logger.error(
+                {
+                  err,
+                  roomId: this.roomId,
+                  tableId: this.state.tableId,
+                  tournamentId: this.tournamentId,
+                  handId: this.state.handId,
+                  street: this.state.street,
+                  snapshotSeq: this.lastSnapshotSeq,
+                  nextHandAtTs: this.state.nextHandAtTs,
+                  readyCount: this.getReadyPlayerCountInternal(),
+                  activeCount: this.getActivePlayerCountInternal(),
+                  reason: "active_hand_watchdog_snapshot",
+                  message: err instanceof Error ? err.message : String(err),
+                },
+                "WATCHDOG_SNAPSHOT_FAILED",
+              );
+            });
             this.dealer.maybeActForBotPublic();
           }
         }
@@ -918,6 +1012,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
   emitSnapshotsToAllSafeInternal(reason: string): Promise<void> {
     return this.emitSnapshotsToAllSafe(reason);
+  }
+
+  get lastSnapshotSeqInternal(): number | undefined {
+    return this.lastSnapshotSeq;
+  }
+
+  getReadyPlayerCountInternal(): number {
+    return resolvePlayersReadyForNextHand(this.state).length;
+  }
+
+  getActivePlayerCountInternal(): number {
+    return Array.from(this.state.playersById.values()).filter((player) => player.status === "ACTIVE").length;
   }
 
   isChatRateLimitedInternal(sessionId: string): boolean {

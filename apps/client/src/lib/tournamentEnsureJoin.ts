@@ -1,5 +1,5 @@
+import { ApiError } from "@poker-champ/sdk";
 import {
-  isNotFoundJoinMessage,
   logTournamentEnsureRequest,
   logTournamentEnsureResponse,
   logTournamentJoinBlockedClient,
@@ -68,19 +68,34 @@ function mapEnsureBlockedMessage(input: {
   return mapTournamentApiError("TOURNAMENT_TABLE_UNAVAILABLE");
 }
 
+function ensureBlockedLogExtra(
+  source: string,
+  extra?: Record<string, unknown>,
+  apiError?: ApiError | null,
+): Record<string, unknown> {
+  return {
+    source,
+    code: apiError?.code ?? extra?.code ?? null,
+    status: apiError?.status ?? extra?.status ?? null,
+    ...extra,
+  };
+}
+
 function logEnsureBlocked(
   tournamentId: string,
   reason: string,
   sourceFunction: string,
   tournament?: TournamentSummary,
   extra?: Record<string, unknown>,
+  apiError?: ApiError | null,
 ): TournamentEnsureJoinBlocked {
+  const source = typeof extra?.source === "string" ? extra.source : "lobby_cta";
   logTournamentJoinBlockedClient({
     tournamentId,
     reason,
     sourceFunction,
     tournamentSnapshot: snapshotTournamentForJoinLog(tournament),
-    extra,
+    extra: ensureBlockedLogExtra(source, extra, apiError),
   });
   return { ok: false, message: reason };
 }
@@ -167,16 +182,15 @@ export async function resolveTournamentTableForJoin(
       buyInCents: tournament.startingStackCents,
     };
   } catch (e: unknown) {
-    const raw = e instanceof Error ? e.message : "Could not open tournament table";
-    const message = mapTournamentApiError(raw);
-    if (isNotFoundJoinMessage(raw) || isNotFoundJoinMessage(message)) {
-      logTournamentJoinBlockedClient({
-        tournamentId,
-        reason: message,
-        sourceFunction: "resolveTournamentTableForJoin:exception",
-        extra: { raw, source },
-      });
-    }
+    const apiError = e instanceof ApiError ? e : null;
+    const raw = apiError?.message ?? (e instanceof Error ? e.message : "Could not open tournament table");
+    const message = mapTournamentApiError(raw, apiError?.code);
+    logTournamentJoinBlockedClient({
+      tournamentId,
+      reason: message,
+      sourceFunction: "resolveTournamentTableForJoin:exception",
+      extra: ensureBlockedLogExtra(source, { raw }, apiError),
+    });
     return { ok: false, message };
   }
 }

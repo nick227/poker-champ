@@ -8,7 +8,7 @@ export const BOT_DEMO_PRESET = {
 } as const;
 
 export const BOT_DEMO_HELPER_COPY =
-  "Bot demo: one human can register; remaining seats fill with catalog bots at start. Prize pool and payouts use human entries only.";
+  "Bot challenge: one human can play vs catalog bots. Prize pool and payouts use human entries only.";
 
 type BotFillTournament = {
   fillBotsAtStart?: boolean;
@@ -39,5 +39,5 @@ export function formatTournamentBotFillSummary(tournament: BotFillTournament): s
     tournament.fillBotCount != null
       ? `up to ${target} bot${target === 1 ? "" : "s"}`
       : `fills open seats (up to ${target} bot${target === 1 ? "" : "s"})`;
-  return `Bot fill: ${countLabel} at start`;
+  return `Bot challenge: ${countLabel} at start · human payouts only`;
 }

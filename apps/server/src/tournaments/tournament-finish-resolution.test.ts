@@ -35,7 +35,7 @@ describe("tournament-finish-resolution", () => {
         { userId: "human_1", isBot: false, finishPlace: null },
         { userId: "bot_1", isBot: true, finishPlace: null },
       ]),
-    ).toBe("human_1");
+    ).toBeNull();
   });
 
   it("does not finish while two humans have chips", () => {
@@ -46,15 +46,16 @@ describe("tournament-finish-resolution", () => {
     expect(resolveTournamentWinnerUserId(state, [])).toBeNull();
   });
 
-  it("does not finish when all humans busted (abandon at max blind instead)", () => {
+  it("resolves a bot challenge winner when all humans are busted", () => {
     const state = new PokerState();
     seat(state, 0, "bot_1", "BOT", 10_000);
+    seat(state, 1, "bot_2", "BOT", 8_000);
 
     expect(
       resolveTournamentWinnerUserId(state, [
         { userId: "human_1", isBot: false, finishPlace: 2 },
         { userId: "human_2", isBot: false, finishPlace: 1 },
       ]),
-    ).toBeNull();
+    ).toBe("bot_1");
   });
 });

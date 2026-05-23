@@ -53,6 +53,7 @@ async function createRunningTournamentRoom() {
       maxPlayers: 2,
       startingStackCents: 8000,
       blindStructureId: "standard_8min",
+      lateRegMinutes: 16,
       status: "REGISTERING",
     },
   });

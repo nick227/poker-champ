@@ -3,7 +3,8 @@ import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
-import { formatTournamentStartLocal } from "@/lib/tournament.utils";
+import { isLateRegistrationOpen } from "@/lib/tournament-schedule";
+import { formatTournamentStartLocal, isTournamentStartLocked } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 type TournamentRegisterModalProps = {
@@ -26,6 +27,11 @@ export function TournamentRegisterModal({
   if (!tournament) return null;
 
   const canAfford = balanceCents >= tournament.entryFeeCents;
+  const lateRegEntry =
+    isTournamentStartLocked(tournament) && isLateRegistrationOpen(tournament);
+  const refundCopy = lateRegEntry
+    ? "Late registration is a new paid entry. Refunds are not available after the scheduled start time."
+    : "Entry fee is deducted immediately. Unregister before the scheduled start time for a full refund.";
 
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Register for tournament">
@@ -47,7 +53,7 @@ export function TournamentRegisterModal({
           <Text variant="body">{formatCents(balanceCents)}</Text>
         </View>
         <Text variant="body" className="text-muted">
-          Entry fee is deducted immediately. Unregister before start for a full refund.
+          {refundCopy}
         </Text>
         {!canAfford ? (
           <Text variant="body" className="text-danger">

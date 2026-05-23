@@ -37,10 +37,21 @@ describe("tournament payouts", () => {
     expect(payouts.has("bot_winner")).toBe(false);
   });
 
-  it("rolls full pool to sole human when only one human entered", () => {
+  it("does not pay money for a single-human bot challenge", () => {
     const payouts = computeHumanPayoutAmountsByUserId(5000, 1, [
       { userId: "human_only", finishPlace: 2 },
     ]);
-    expect(payouts.get("human_only")).toBe(5000);
+    expect(payouts.size).toBe(0);
+  });
+
+  it("normalizes unpaid payout slots across payable humans", () => {
+    const payouts = computeHumanPayoutAmountsByUserId(10_000, 6, [
+      { userId: "human_winner", finishPlace: 1 },
+      { userId: "human_runner_up", finishPlace: 2 },
+    ]);
+
+    expect(payouts.get("human_winner")).toBe(6250);
+    expect(payouts.get("human_runner_up")).toBe(3750);
+    expect([...payouts.values()].reduce((sum, amount) => sum + amount, 0)).toBe(10_000);
   });
 });

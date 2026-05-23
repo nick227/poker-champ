@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canCreatorDeleteTournament,
+  canUnregisterTournament,
   filterTournamentsForBrowseLobby,
   filterTournamentsForPublicLobby,
   formatCountdownTo,
@@ -8,6 +9,7 @@ import {
   formatTournamentStartLocal,
   groupTournamentsForLobby,
   isTournamentStartDue,
+  isTournamentStartLocked,
   mapTournamentApiError,
   mapTournamentErrorMessage,
   resolveTournamentCta,
@@ -46,7 +48,7 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Unregister", action: "unregister", disabled: false });
   });
 
-  it("disables join until registered with table link", () => {
+  it("shows registration closed for unregistered running tournament after late reg", () => {
     const cta = resolveTournamentCta(
       baseTournament({
         status: "RUNNING",
@@ -55,7 +57,7 @@ describe("resolveTournamentCta", () => {
         roomId: "room_1",
       }),
     );
-    expect(cta.disabled).toBe(true);
+    expect(cta).toEqual({ label: "Registration closed", action: "none", disabled: true });
   });
 
   it("enables join for registered player after start even with one entrant", () => {
@@ -90,6 +92,23 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Register", action: "register", disabled: false });
   });
 
+  it("shows register for unregistered running tournaments while late registration is open", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        startTime: pastStart,
+        lateRegMinutes: 16,
+        isRegistered: false,
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+      { authenticated: true },
+    );
+    expect(cta).toEqual({ label: "Register", action: "register", disabled: false });
+  });
+
   it("enables join during late registration when table ids exist even if room not live", () => {
     const pastStart = new Date(Date.now() - 60_000).toISOString();
     const cta = resolveTournamentCta(
@@ -107,7 +126,7 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
   });
 
-  it("shows log in to join only when unauthenticated", () => {
+  it("shows registration closed when unauthenticated and late reg is over", () => {
     const cta = resolveTournamentCta(
       baseTournament({
         status: "RUNNING",
@@ -117,7 +136,15 @@ describe("resolveTournamentCta", () => {
       }),
       { authenticated: false },
     );
-    expect(cta.label).toBe("Log in to join");
+    expect(cta).toEqual({ label: "Registration closed", action: "none", disabled: true });
+  });
+
+  it("shows log in to register when unauthenticated and registration is open", () => {
+    const futureStart = new Date(Date.now() + 60 * 60_000).toISOString();
+    const cta = resolveTournamentCta(baseTournament({ startTime: futureStart }), {
+      authenticated: false,
+    });
+    expect(cta).toEqual({ label: "Log in to register", action: "register", disabled: false });
   });
 
   it("enables join for registered running tournament with live table", () => {
@@ -153,6 +180,44 @@ describe("resolveTournamentCta", () => {
   it("shows standings CTA when finished", () => {
     const cta = resolveTournamentCta(baseTournament({ status: "FINISHED" }));
     expect(cta.action).toBe("standings");
+  });
+
+  it("does not offer unregister after scheduled start time", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "REGISTERING",
+        isRegistered: true,
+        startTime: pastStart,
+      }),
+      { nowMs: Date.now() },
+    );
+    expect(cta.action).not.toBe("unregister");
+    expect(canUnregisterTournament(
+      baseTournament({ status: "REGISTERING", isRegistered: true, startTime: pastStart }),
+      Date.now(),
+    )).toBe(false);
+    expect(isTournamentStartLocked(
+      baseTournament({ status: "REGISTERING", startTime: pastStart }),
+      Date.now(),
+    )).toBe(true);
+  });
+
+  it("does not offer unregister during LATE_REG", () => {
+    const pastStart = new Date(Date.now() - 60_000).toISOString();
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "LATE_REG",
+        lateRegMinutes: 16,
+        isRegistered: true,
+        startTime: pastStart,
+      }),
+      { authenticated: true },
+    );
+    expect(cta.action).toBe("join");
+    expect(canUnregisterTournament(
+      baseTournament({ status: "LATE_REG", isRegistered: true, startTime: pastStart }),
+    )).toBe(false);
   });
 
   it("offers join CTA after scheduled start time even if status is still REGISTERING", () => {
@@ -195,7 +260,8 @@ describe("mapTournamentApiError", () => {
 
   it("maps cancel and closed errors", () => {
     expect(mapTournamentErrorMessage("TOURNAMENT_NOT_CANCELLABLE")).toContain("registering");
-    expect(mapTournamentApiError("TOURNAMENT_CLOSED")).toContain("closed");
+    expect(mapTournamentApiError("TOURNAMENT_CLOSED")).toContain("paid entries");
+    expect(mapTournamentApiError("TOURNAMENT_UNREGISTER_LOCKED")).toContain("start time");
   });
 });
 
@@ -242,15 +308,16 @@ describe("filterTournamentsForPublicLobby", () => {
 });
 
 describe("selectJoinedTournaments", () => {
-  it("includes registered scheduled, live, and terminal states", () => {
+  it("includes registered scheduled and live states only", () => {
     const joined = selectJoinedTournaments([
       baseTournament({ id: "sched", isRegistered: true, status: "REGISTERING" }),
       baseTournament({ id: "live", isRegistered: true, status: "RUNNING", tableId: "t", roomId: "r" }),
       baseTournament({ id: "other", isRegistered: false, status: "REGISTERING" }),
       baseTournament({ id: "done", isRegistered: true, status: "FINISHED" }),
       baseTournament({ id: "gone", isRegistered: true, status: "CANCELLED" }),
+      baseTournament({ id: "abandoned", isRegistered: true, status: "ABANDONED" }),
     ]);
-    expect(joined.map((t) => t.id)).toEqual(["live", "sched", "done", "gone"]);
+    expect(joined.map((t) => t.id)).toEqual(["live", "sched"]);
   });
 
   it("removes joined active rows from browse list", () => {
@@ -292,7 +359,14 @@ describe("formatJoinedTournamentHint", () => {
   it("describes cancelled and finished joined tournaments", () => {
     expect(formatJoinedTournamentHint(baseTournament({ status: "CANCELLED" }))).toMatch(/Cancelled/i);
     expect(formatJoinedTournamentHint(baseTournament({ status: "FINISHED" }))).toMatch(/Finished/i);
-    expect(formatJoinedTournamentHint(baseTournament({ status: "ABANDONED" }))).toMatch(/Abandoned/i);
+    expect(
+      formatJoinedTournamentHint(
+        baseTournament({ status: "FINISHED", fillBotsAtStart: true, prizePoolCents: 0 }),
+      ),
+    ).toBe("Finished · bot challenge result · no money payout");
+    expect(formatJoinedTournamentHint(baseTournament({ status: "ABANDONED" }))).toMatch(
+      /refunded/i,
+    );
   });
 });
 

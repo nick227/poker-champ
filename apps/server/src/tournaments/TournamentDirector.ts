@@ -11,15 +11,35 @@ import { buildTournamentTableConfig } from "./tournament-table-config.js";
 import { processTournamentFinishResults } from "./tournament-result-processor.js";
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-live.js";
 import { abandonTournamentAtMaxBlind } from "./tournament-abandon.js";
-import { isLateRegistrationClosed } from "./tournament-schedule.js";
+import { isLateRegistrationClosed, isLateRegistrationOpen } from "./tournament-schedule.js";
 import {
   MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION,
+  MIN_TOURNAMENT_SEATED_HUMANS_TO_DEAL,
   MIN_TOURNAMENT_SEATED_TO_DEAL,
   type TryStartTournamentTableResult,
 } from "./tournament-table-start.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
+};
+
+export type TournamentEnsureTableJoinStatus =
+  | "READY"
+  | "RESTORED"
+  | "CREATING_TABLE"
+  | "ENDED"
+  | "NOT_ALLOWED"
+  | "FAILED";
+
+export type TournamentEnsureTableResult = {
+  tournamentId: string;
+  tournamentStatus: string;
+  playerStatus: "ACTIVE" | "ELIMINATED" | "NOT_REGISTERED";
+  tableId: string | null;
+  roomId: string | null;
+  tableLive: boolean;
+  joinStatus: TournamentEnsureTableJoinStatus;
+  recoveryReason?: string;
 };
 
 function resolveRoomId(created: unknown): string | undefined {
@@ -196,7 +216,8 @@ export class TournamentDirector {
     if (!refreshed) return;
 
     const registeredCount = refreshed.registrations.length;
-    if (registeredCount < 2) {
+    const humanRegisteredCount = refreshed.registrations.filter((reg) => !reg.isBot).length;
+    if (humanRegisteredCount < 1 || registeredCount < 2) {
       await this.cancelLowEntries(tournamentId, refreshed);
       return;
     }
@@ -213,6 +234,9 @@ export class TournamentDirector {
     const tournament = await this.loadTournamentWithRegistrations(tournamentId);
     if (!tournament) {
       return { ok: false, reason: "not_found" };
+    }
+    if (tournament.status === "REGISTERING" && tournament.startTime.getTime() > Date.now()) {
+      return { ok: false, reason: "not_due", registrationCount: tournament.registrations.length };
     }
     if (tournament.roomId && tournament.tableId) {
       return { ok: true, roomId: tournament.roomId, tableId: tournament.tableId };
@@ -412,7 +436,8 @@ export class TournamentDirector {
       if (!tournament) return;
     }
 
-    if (tournament.registrations.length < 2) {
+    const humanRegisteredCount = tournament.registrations.filter((reg) => !reg.isBot).length;
+    if (humanRegisteredCount < 1 || tournament.registrations.length < 2) {
       await this.cancelLowEntries(tournamentId, tournament);
       return;
     }
@@ -491,10 +516,13 @@ export class TournamentDirector {
       botSeated = botSeed?.seated ?? 0;
     }
 
-    const seated = (humanSeed?.seated ?? 0) + botSeated;
+    const humanSeated = humanSeed?.seated ?? 0;
+    const seated = humanSeated + botSeated;
     const lobbyPhase =
       tournament.status === "LATE_REG" || tournament.status === "STARTING";
-    const readyToDeal = seated >= MIN_TOURNAMENT_SEATED_TO_DEAL;
+    const readyToDeal =
+      humanSeated >= MIN_TOURNAMENT_SEATED_HUMANS_TO_DEAL &&
+      seated >= MIN_TOURNAMENT_SEATED_TO_DEAL;
 
     if (!lobbyPhase && !readyToDeal) {
       logger.error(
@@ -536,30 +564,236 @@ export class TournamentDirector {
   }
 
   /** Ensure table exists and joining user is seated; promotes to RUNNING when deal threshold met. */
-  async ensureTournamentTableForJoin(
+  async ensureTournamentTableForJoinDetailed(
     tournamentId: string,
     userId: string,
-  ): Promise<{ tableId: string; roomId: string }> {
+  ): Promise<TournamentEnsureTableResult> {
+    const prisma = getPrisma();
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        registrations: {
+          where: { userId },
+          select: { userId: true, eliminatedAt: true },
+        },
+      },
+    });
+    if (!tournament) {
+      logger.warn({ tournamentId, userId }, "TOURNAMENT_ENSURE_TABLE_NOT_FOUND");
+      return {
+        tournamentId,
+        tournamentStatus: "NOT_FOUND",
+        playerStatus: "NOT_REGISTERED",
+        tableId: null,
+        roomId: null,
+        tableLive: false,
+        joinStatus: "FAILED",
+        recoveryReason: "TOURNAMENT_NOT_FOUND",
+      };
+    }
+
+    const registration = tournament.registrations[0];
+    const playerStatus = !registration
+      ? "NOT_REGISTERED"
+      : registration.eliminatedAt
+        ? "ELIMINATED"
+        : "ACTIVE";
+    const terminal = ["FINISHED", "ABANDONED", "CANCELLED"].includes(tournament.status);
+    const lateRegOpen = isLateRegistrationOpen(tournament);
+    const liveRoomIds = await loadLivePokerRoomIds();
+    const tableLive = isTournamentRoomLive(tournament.roomId, liveRoomIds);
+    const logBase = {
+      tournamentId,
+      tableId: tournament.tableId,
+      roomId: tournament.roomId,
+      tournamentStatus: tournament.status,
+      playerStatus,
+      tableLive,
+      handId: null,
+      street: null,
+      snapshotSeq: null,
+      nextHandAtTs: null,
+      readyCount: null,
+      activeCount: null,
+      lateRegOpen,
+    };
+    logger.info({ ...logBase, reason: "ensure_table" }, "TOURNAMENT_ENSURE_TABLE_REQUESTED");
+
+    if (terminal) {
+      return {
+        tournamentId,
+        tournamentStatus: tournament.status,
+        playerStatus,
+        tableId: tournament.tableId,
+        roomId: tournament.roomId,
+        tableLive: false,
+        joinStatus: "ENDED",
+        recoveryReason: tournament.status,
+      };
+    }
+
+    if (playerStatus !== "ACTIVE") {
+      if (playerStatus === "NOT_REGISTERED") {
+        logger.warn(
+          {
+            ...logBase,
+            reason: lateRegOpen ? "not_registered_late_reg_open" : "not_registered_late_reg_closed",
+            contract: lateRegOpen ? "register_first_then_ensure_table" : "registration_closed",
+          },
+          "TOURNAMENT_ENSURE_TABLE_NOT_REGISTERED",
+        );
+        if (!lateRegOpen) {
+          logger.warn(
+            { ...logBase, reason: "late_reg_closed" },
+            "TOURNAMENT_ENSURE_TABLE_LATE_REG_CLOSED",
+          );
+        }
+      }
+      return {
+        tournamentId,
+        tournamentStatus: tournament.status,
+        playerStatus,
+        tableId: tournament.tableId,
+        roomId: tournament.roomId,
+        tableLive,
+        joinStatus: "NOT_ALLOWED",
+        recoveryReason: playerStatus === "ELIMINATED" ? "TOURNAMENT_PLAYER_ELIMINATED" : "TOURNAMENT_NOT_REGISTERED",
+      };
+    }
+
+    if (tournament.roomId && tournament.tableId && tableLive) {
+      await this.seatLateRegistrant(tournamentId, userId);
+      await this.promoteTournamentToRunningOnJoin(tournamentId);
+      const refreshed = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { status: true, tableId: true, roomId: true },
+      });
+      return {
+        tournamentId,
+        tournamentStatus: refreshed?.status ?? tournament.status,
+        playerStatus,
+        tableId: refreshed?.tableId ?? tournament.tableId,
+        roomId: refreshed?.roomId ?? tournament.roomId,
+        tableLive: true,
+        joinStatus: "READY",
+      };
+    }
+
+    const hadStaleRoom = Boolean(tournament.roomId || tournament.tableId);
+    if (hadStaleRoom) {
+      logger.warn({ ...logBase, reason: "stale_room_id" }, "TOURNAMENT_ENSURE_STALE_ROOM_ID");
+      await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { roomId: null, tableId: null },
+      });
+    } else {
+      logger.warn({ ...logBase, reason: "no_room_or_table_id" }, "TOURNAMENT_ENSURE_TABLE_ROOM_MISSING");
+    }
+
     const start = await this.tryStartTournamentTable(tournamentId);
     if (!start.ok) {
-      if (start.reason === "insufficient_registrations") {
-        throw new Error("TOURNAMENT_AWAITING_PLAYERS");
+      const refreshed = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { status: true, tableId: true, roomId: true },
+      });
+      logger.warn(
+        {
+          ...logBase,
+          tableId: refreshed?.tableId ?? tournament.tableId,
+          roomId: refreshed?.roomId ?? tournament.roomId,
+          tournamentStatus: refreshed?.status ?? tournament.status,
+          reason: start.reason,
+          registrationCount: start.registrationCount,
+        },
+        "TOURNAMENT_ENSURE_TABLE_FAILED",
+      );
+      if (start.reason === "start_failed") {
+        logger.warn(
+          {
+            ...logBase,
+            tableId: refreshed?.tableId ?? tournament.tableId,
+            roomId: refreshed?.roomId ?? tournament.roomId,
+            tournamentStatus: refreshed?.status ?? tournament.status,
+            reason: "start_failed_room_missing",
+          },
+          "TOURNAMENT_ENSURE_TABLE_ROOM_MISSING",
+        );
       }
-      throw new Error("TOURNAMENT_TABLE_UNAVAILABLE");
+      return {
+        tournamentId,
+        tournamentStatus: refreshed?.status ?? tournament.status,
+        playerStatus,
+        tableId: refreshed?.tableId ?? null,
+        roomId: refreshed?.roomId ?? null,
+        tableLive: false,
+        joinStatus: start.reason === "insufficient_registrations" || start.reason === "not_due" ? "NOT_ALLOWED" : "FAILED",
+        recoveryReason:
+          start.reason === "insufficient_registrations"
+            ? "TOURNAMENT_AWAITING_PLAYERS"
+            : start.reason === "not_due"
+              ? "TOURNAMENT_NOT_DUE"
+              : "TOURNAMENT_TABLE_UNAVAILABLE",
+      };
     }
 
     await this.seatLateRegistrant(tournamentId, userId);
     await this.promoteTournamentToRunningOnJoin(tournamentId);
 
-    const prisma = getPrisma();
     const row = await prisma.tournament.findUniqueOrThrow({
       where: { id: tournamentId },
-      select: { tableId: true, roomId: true },
+      select: { tableId: true, roomId: true, status: true },
     });
-    if (!row.tableId || !row.roomId) {
-      throw new Error("TOURNAMENT_TABLE_UNAVAILABLE");
+    const refreshedLiveRoomIds = await loadLivePokerRoomIds();
+    const refreshedLive = isTournamentRoomLive(row.roomId, refreshedLiveRoomIds);
+    const joinStatus: TournamentEnsureTableJoinStatus = hadStaleRoom ? "RESTORED" : "CREATING_TABLE";
+    logger.info(
+      {
+        ...logBase,
+        tableId: row.tableId,
+        roomId: row.roomId,
+        tournamentStatus: row.status,
+        tableLive: refreshedLive,
+        reason: hadStaleRoom ? "room_restored" : "table_created",
+      },
+      hadStaleRoom ? "TOURNAMENT_ENSURE_ROOM_RESTORED" : "TOURNAMENT_ENSURE_TABLE_CREATED",
+    );
+    if (hadStaleRoom) {
+      logger.info(
+        {
+          ...logBase,
+          tableId: row.tableId,
+          roomId: row.roomId,
+          tournamentStatus: row.status,
+          tableLive: refreshedLive,
+          recoveryReason: "STALE_ROOM_REPLACED",
+        },
+        "TOURNAMENT_ENSURE_TABLE_ROOM_RECOVERED",
+      );
     }
-    return { tableId: row.tableId, roomId: row.roomId };
+    return {
+      tournamentId,
+      tournamentStatus: row.status,
+      playerStatus,
+      tableId: row.tableId,
+      roomId: row.roomId,
+      tableLive: refreshedLive,
+      joinStatus,
+      recoveryReason: hadStaleRoom ? "STALE_ROOM_REPLACED" : undefined,
+    };
+  }
+
+  async ensureTournamentTableForJoin(
+    tournamentId: string,
+    userId: string,
+  ): Promise<{ tableId: string; roomId: string }> {
+    const ensured = await this.ensureTournamentTableForJoinDetailed(tournamentId, userId);
+    if (ensured.joinStatus === "NOT_ALLOWED" && ensured.recoveryReason === "TOURNAMENT_AWAITING_PLAYERS") {
+      throw new Error("TOURNAMENT_AWAITING_PLAYERS");
+    }
+    if (!ensured.tableId || !ensured.roomId || !["READY", "RESTORED", "CREATING_TABLE"].includes(ensured.joinStatus)) {
+      throw new Error(ensured.recoveryReason ?? "TOURNAMENT_TABLE_UNAVAILABLE");
+    }
+    return { tableId: ensured.tableId, roomId: ensured.roomId };
   }
 
   /** First join after table provision — start the event; hands still need 2+ seated. */

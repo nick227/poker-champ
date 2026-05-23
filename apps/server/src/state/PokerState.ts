@@ -49,6 +49,7 @@ export class PokerState extends Schema {
   @type("number") minBuyInCents: number = 2000;
   @type("number") maxBuyInCents: number = 20000;
   @type("boolean") showStats: boolean = false;
+  @type("boolean") tournamentMode: boolean = false;
 
   /**
    * Total contributed pot size for the hand (Pattern B).

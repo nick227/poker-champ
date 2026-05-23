@@ -10,8 +10,13 @@ import {
   TOURNAMENT_CLOSED,
   TOURNAMENT_FULL,
   TOURNAMENT_NOT_CANCELLABLE,
+  TOURNAMENT_REBUY_NOT_ALLOWED,
 } from "../../tournaments/tournament.errors.js";
-import { isLateRegistrationOpen } from "../../tournaments/tournament-schedule.js";
+import {
+  canRegisterForTournament,
+  canRebuyTournament,
+  canUnregisterFromTournament,
+} from "../../tournaments/tournament-schedule.js";
 
 export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
 
@@ -104,6 +109,94 @@ export class CashierService {
           type: "BUYIN",
           amountCents,
           externalRef,
+        },
+      });
+
+      return { success: true, newTableBalance: pb.balanceCents };
+    });
+  }
+
+  /**
+   * Tournament rebuy — debits bankroll, credits table stack, and adds to prize pool.
+   */
+  static async processTournamentRebuy(params: {
+    userId: string;
+    tableId: string;
+    tournamentId: string;
+    amountCents: number;
+    externalRef: string;
+    tableMeta: { name: string; creatorId?: string };
+  }): Promise<{ success: boolean; newTableBalance: number }> {
+    const prisma = getPrisma();
+    const { userId, tableId, tournamentId, amountCents, externalRef, tableMeta } = params;
+
+    return await prisma.$transaction(async (tx: any) => {
+      await CashierService.ensureTableExists(tx, tableId, tableMeta);
+
+      const existingTx = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingTx) {
+        const currentBal = await tx.playerBalance.findUnique({
+          where: { tableId_userId: { tableId, userId } },
+        });
+        return { success: true, newTableBalance: currentBal?.balanceCents ?? 0 };
+      }
+
+      const tournament = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
+      const registration = await tx.tournamentRegistration.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
+      });
+      const rebuyCount = await tx.balanceTransaction.count({
+        where: {
+          tournamentId,
+          userId,
+          type: "BUYIN",
+        },
+      });
+      if (!canRebuyTournament(tournament, { rebuyCount }, new Date())) {
+        throw new Error(TOURNAMENT_REBUY_NOT_ALLOWED);
+      }
+      if (!registration || registration.isBot) {
+        throw new Error(TOURNAMENT_CLOSED);
+      }
+
+      const debitResult = await tx.user.updateMany({
+        where: { id: userId, bankrollCents: { gte: amountCents } },
+        data: { bankrollCents: { decrement: amountCents } },
+      });
+      if (debitResult.count !== 1) {
+        throw new Error("INSUFFICIENT_BANKROLL");
+      }
+
+      const pb = await tx.playerBalance.upsert({
+        where: { tableId_userId: { tableId, userId } },
+        create: {
+          id: nanoid(),
+          tableId,
+          userId,
+          balanceCents: amountCents,
+          status: "ACTIVE",
+        },
+        update: {
+          balanceCents: { increment: amountCents },
+          status: "ACTIVE",
+        },
+      });
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { prizePoolCents: { increment: amountCents } },
+      });
+
+      await tx.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          tableId,
+          tournamentId,
+          type: "BUYIN",
+          amountCents,
+          externalRef,
+          metaJson: { kind: "TOURNAMENT_REBUY" },
         },
       });
 
@@ -206,11 +299,7 @@ export class CashierService {
       if (existingReg) return { success: true };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      const regOpen =
-        tourney.status === "REGISTERING" ||
-        tourney.status === "LATE_REG" ||
-        isLateRegistrationOpen(tourney, new Date());
-      if (!regOpen) {
+      if (!canRegisterForTournament(tourney, new Date())) {
         throw new Error(TOURNAMENT_CLOSED);
       }
 
@@ -372,11 +461,7 @@ export class CashierService {
       if (existingRef) return { success: true };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      const regOpen =
-        tourney.status === "REGISTERING" ||
-        tourney.status === "LATE_REG" ||
-        isLateRegistrationOpen(tourney, new Date());
-      if (!regOpen) {
+      if (!canUnregisterFromTournament(tourney)) {
         throw new Error(TOURNAMENT_CLOSED);
       }
 

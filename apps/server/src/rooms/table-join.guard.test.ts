@@ -1042,8 +1042,13 @@ describe("table join guardrails", () => {
     expect(before?.status === "ABANDONED" || before?.sittingOutUntilNextHand).toBe(true);
 
     const setSpy = vi.spyOn(room.dealer, "setPlayerSittingOut");
+    const snapshotCountBefore = client.send.mock.calls.filter(([type]) => type === "TABLE_SNAPSHOT").length;
     room.onMessageEvents.emit("REJOIN", client as any, {});
-    await delay(0);
+    await waitFor(
+      () => client.send.mock.calls.filter(([type]) => type === "TABLE_SNAPSHOT").length > snapshotCountBefore,
+      1000,
+      "rejoin snapshot",
+    );
 
     expect(setSpy).toHaveBeenCalledWith(userId, false);
     const after = room.state.playersById.get(userId);

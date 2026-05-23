@@ -213,12 +213,12 @@ describe("Tournament M9 eliminated spectator", () => {
   it("blocks table actions for eliminated tournament spectators", async () => {
     const tournament = await adminCreateTournament();
     const prisma = getPrisma();
+    await registerViaApi(tournament.id, testUsers.playerA);
+    await registerViaApi(tournament.id, testUsers.playerB);
     await prisma.tournament.update({
       where: { id: tournament.id },
       data: { startTime: new Date(Date.now() - 60_000) },
     });
-    await registerViaApi(tournament.id, testUsers.playerA);
-    await registerViaApi(tournament.id, testUsers.playerB);
     await tournamentDirector.processTournament(tournament.id);
 
     const running = await prisma.tournament.findUniqueOrThrow({ where: { id: tournament.id } });

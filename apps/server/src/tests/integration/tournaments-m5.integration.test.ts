@@ -188,15 +188,15 @@ describe("Tournament M5 hardening and E2E smoke", () => {
     const tournament = await adminCreateTournament(2, 5000);
     const prisma = getPrisma();
 
-    await prisma.tournament.update({
-      where: { id: tournament.id },
-      data: { startTime: new Date(Date.now() - 60_000) },
-    });
-
     currentUserId = testUsers.playerA;
     expect((await post(`/api/tournaments/${tournament.id}/register`)).status).toBe(200);
     currentUserId = testUsers.playerB;
     expect((await post(`/api/tournaments/${tournament.id}/register`)).status).toBe(200);
+
+    await prisma.tournament.update({
+      where: { id: tournament.id },
+      data: { startTime: new Date(Date.now() - 60_000) },
+    });
 
     await tournamentDirector.processTournament(tournament.id);
 
@@ -290,15 +290,16 @@ describe("Tournament M5 hardening and E2E smoke", () => {
   it("director tick is safe to retry while running", async () => {
     const tournament = await adminCreateTournament(2, 1000);
     const prisma = getPrisma();
-    await prisma.tournament.update({
-      where: { id: tournament.id },
-      data: { startTime: new Date(Date.now() - 60_000) },
-    });
 
     currentUserId = testUsers.playerA;
     await post(`/api/tournaments/${tournament.id}/register`);
     currentUserId = testUsers.playerB;
     await post(`/api/tournaments/${tournament.id}/register`);
+
+    await prisma.tournament.update({
+      where: { id: tournament.id },
+      data: { startTime: new Date(Date.now() - 60_000) },
+    });
 
     await tournamentDirector.tick(new Date());
     const first = await prisma.tournament.findUniqueOrThrow({ where: { id: tournament.id } });
@@ -315,15 +316,16 @@ describe("Tournament M5 hardening and E2E smoke", () => {
   it("resumes STARTING tournaments without a room after restart", async () => {
     const tournament = await adminCreateTournament(2, 1000);
     const prisma = getPrisma();
-    await prisma.tournament.update({
-      where: { id: tournament.id },
-      data: { startTime: new Date(Date.now() - 60_000) },
-    });
 
     currentUserId = testUsers.playerA;
     await post(`/api/tournaments/${tournament.id}/register`);
     currentUserId = testUsers.playerB;
     await post(`/api/tournaments/${tournament.id}/register`);
+
+    await prisma.tournament.update({
+      where: { id: tournament.id },
+      data: { startTime: new Date(Date.now() - 60_000) },
+    });
 
     await prisma.tournament.update({
       where: { id: tournament.id },
@@ -341,14 +343,14 @@ describe("Tournament M5 hardening and E2E smoke", () => {
   it("excludes tournament tables from lobby matchMaker query", async () => {
     const tournament = await adminCreateTournament(2, 1000);
     const prisma = getPrisma();
-    await prisma.tournament.update({
-      where: { id: tournament.id },
-      data: { startTime: new Date(Date.now() - 60_000) },
-    });
     currentUserId = testUsers.playerA;
     await post(`/api/tournaments/${tournament.id}/register`);
     currentUserId = testUsers.playerB;
     await post(`/api/tournaments/${tournament.id}/register`);
+    await prisma.tournament.update({
+      where: { id: tournament.id },
+      data: { startTime: new Date(Date.now() - 60_000) },
+    });
     await tournamentDirector.processTournament(tournament.id);
 
     const rooms = (await matchMaker.query({ name: "poker" })) as Array<{

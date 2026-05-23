@@ -1,0 +1,81 @@
+# .understandignore — patterns for files/dirs to exclude from analysis
+# Syntax: same as .gitignore (globs, # comments, ! negation, trailing / for dirs)
+# Lines below are suggestions — uncomment to activate.
+# Use ! prefix to force-include something excluded by defaults.
+#
+# Built-in defaults (always excluded unless negated):
+#   node_modules/, .git/, dist/, build/, obj/, *.lock, *.min.js, etc.
+#
+# --- From .gitignore (uncomment to exclude) ---
+
+# **/node_modules
+# .pnpm-store
+# **/dist
+# **/build
+# artifacts
+# **/artifacts
+# .expo
+# **/.expo
+# *.tsbuildinfo
+# .vercel
+# .env
+# .env.*
+# !.env.example
+# **/.env
+# **/.env.*
+# !**/.env.example
+# prisma/migrations/*
+# !prisma/migrations/**/
+# !prisma/migrations/**/migration.sql
+# !prisma/migrations/migration_lock.toml
+# npm-debug.log*
+# pnpm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
+# test_output.log
+# **/coverage
+# .nyc_output
+# apps/client/playwright-report
+# apps/client/test-results
+# .DS_Store
+# Thumbs.db
+# *.swp
+# *.swo
+# *~
+# apps/client/.expo
+# android/app/build
+# ios/build
+# ios/Pods
+# *.jks
+# *.p8
+# *.p12
+# *.key
+# *.mobileprovision
+# *.orig.*
+# web-build
+# apps/client/src-tauri/target
+# apps/client/tauri/target/
+# apps/client/tauri/target/**
+# apps/client/tauri/target/release/
+# apps/client/tauri/target/release/deps/
+# apps/client/dist/
+# apps/client/playwright-report/
+# apps/client/test-results/
+# tmp
+# temp
+# var
+# *.local
+# .aider*
+# .claude
+# .fallow/
+
+# --- Detected directories (uncomment to exclude) ---
+
+# docs/
+# scripts/
+
+# --- Test file patterns (uncomment to exclude) ---
+
+# *.test.*
+# *.spec.*
+# *.snap

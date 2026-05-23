@@ -85,7 +85,7 @@ router.post("/buy-in", async (req, res) => {
         tableId: parsed.data.tableId,
         status: { in: ["LATE_REG", "STARTING", "RUNNING"] },
       },
-      select: { playFormat: true },
+      select: { id: true, playFormat: true },
     });
     if (activeTournament && activeTournament.playFormat !== "REBUY") {
       res.status(400).json({ error: TOURNAMENT_REBUY_NOT_ALLOWED });
@@ -113,13 +113,22 @@ router.post("/buy-in", async (req, res) => {
     const rebuyRef =
       parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}_${Date.now()}_${nanoid(6)}`;
 
-    const result = await CashierService.processCashGameBuyIn({
-      userId: req.user!.id,
-      tableId: parsed.data.tableId,
-      amountCents: parsed.data.amountCents,
-      externalRef: rebuyRef,
-      tableMeta,
-    });
+    const result = activeTournament
+      ? await CashierService.processTournamentRebuy({
+          userId: req.user!.id,
+          tableId: parsed.data.tableId,
+          tournamentId: activeTournament.id,
+          amountCents: parsed.data.amountCents,
+          externalRef: rebuyRef,
+          tableMeta,
+        })
+      : await CashierService.processCashGameBuyIn({
+          userId: req.user!.id,
+          tableId: parsed.data.tableId,
+          amountCents: parsed.data.amountCents,
+          externalRef: rebuyRef,
+          tableMeta,
+        });
     const userId = req.user!.id;
     const { tableId, amountCents } = parsed.data;
     try {
@@ -135,6 +144,10 @@ router.post("/buy-in", async (req, res) => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "INSUFFICIENT_BANKROLL") {
+      res.status(400).json({ error: message });
+      return;
+    }
+    if (message === TOURNAMENT_REBUY_NOT_ALLOWED) {
       res.status(400).json({ error: message });
       return;
     }

@@ -1,0 +1,15 @@
+{
+  "fixedSectionOk": true,
+  "nodesRecovered": 1,
+  "edgesRestored": 3,
+  "crossBatchEdgesAdded": 0,
+  "typesRemapped": 10,
+  "complexityRemapped": 0,
+  "notes": [
+    "The playwright.config.ts file existed only as file:apps/client/playwright.config.ts (no config:-typed node). A config:apps/client/playwright.config.ts node was created and the 3 dropped configures edges were restored.",
+    "10 Prisma migration SQL files had type='table' despite their IDs carrying the 'file:' prefix. These are SQL script files that define tables — their type was corrected to 'file'. The actual table entity nodes (table:...:TableName) are separate and unaffected.",
+    "551 nodes are isolated (no edges). This is normal for config/tooling files, root-level docs, mock files, and standalone script files that are not imported by other analyzed files. No speculative edges were added.",
+    "All 660 import-map-backed relationships are already present in the graph as import edges. No cross-batch import gaps were found.",
+    "No unknown complexity values, no unknown node types, no dangling edges, and no near-duplicate nodes were found in the assembled graph."
+  ]
+}

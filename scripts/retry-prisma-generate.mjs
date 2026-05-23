@@ -18,9 +18,11 @@ function shouldRetryPrismaGenerate(message) {
 
 function runPrismaGenerate() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const schemaPath = path.resolve(scriptDir, "../packages/db/prisma/schema.prisma");
-  const result = spawnSync("pnpm", ["exec", "prisma", "generate", "--schema", schemaPath], {
-    shell: process.platform === "win32",
+  const repoRoot = path.resolve(scriptDir, "..");
+  const schemaPath = path.resolve(repoRoot, "packages/db/prisma/schema.prisma");
+  const prismaCli = path.resolve(repoRoot, "node_modules/prisma/build/index.js");
+  const result = spawnSync(process.execPath, [prismaCli, "generate", "--schema", schemaPath], {
+    cwd: repoRoot,
     encoding: "utf8",
   });
 

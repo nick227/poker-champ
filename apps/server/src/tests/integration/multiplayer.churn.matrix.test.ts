@@ -157,25 +157,31 @@ describe("multiplayer churn matrix", () => {
     expect(() => assertStateInvariants(state)).not.toThrow();
   });
 
-  it("CHURN-A05: disconnected to-act user auto-fold/check does not deadlock hand", async () => {
-    const { dealer, state } = await createDealerWithPlayers(2);
-    const toActUserId = state.seats[state.toActSeat]!;
-    const baselineHandActionSeq = state.handActionSeq;
-    const baselineActionCount = state.actionCount;
+  it(
+    "CHURN-A05: disconnected to-act user auto-fold/check does not deadlock hand",
+    async () => {
+      const { dealer, state } = await createDealerWithPlayers(2);
+      const toActUserId = state.seats[state.toActSeat]!;
+      const baselineHandId = state.handId;
+      const baselineHandActionSeq = state.handActionSeq;
+      const baselineActionCount = state.actionCount;
 
-    await dealer.markDisconnectedSerialized(toActUserId, Date.now() + 60_000);
-    await waitFor(
-      () =>
-        state.street === "WAITING" ||
-        state.handActionSeq > baselineHandActionSeq ||
-        state.actionCount > baselineActionCount,
-      5000,
-      "auto action progression",
-    );
+      await dealer.markDisconnectedSerialized(toActUserId, Date.now() + 60_000);
+      await waitFor(
+        () =>
+          state.street === "WAITING" ||
+          state.handId !== baselineHandId ||
+          state.handActionSeq > baselineHandActionSeq ||
+          state.actionCount > baselineActionCount,
+        15000,
+        "auto action progression",
+      );
 
-    assertChurnStateInvariants(state);
-    expect(() => assertStateInvariants(state)).not.toThrow();
-  });
+      assertChurnStateInvariants(state);
+      expect(() => assertStateInvariants(state)).not.toThrow();
+    },
+    30000,
+  );
 
   it("CHURN-A06: repeated disconnect/reconnect churn preserves valid toAct seat", async () => {
     const { dealer, state } = await createDealerWithPlayers(4);

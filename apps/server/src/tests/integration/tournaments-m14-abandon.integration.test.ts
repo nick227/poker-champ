@@ -95,6 +95,7 @@ describe("Tournament M14 abandon at max blind", () => {
         maxPlayers: 3,
         startingStackCents: 5000,
         blindStructureId: "standard_8min",
+        lateRegMinutes: 16,
         status: "REGISTERING",
         fillBotsAtStart: true,
         fillBotCount: 1,

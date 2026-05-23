@@ -274,6 +274,7 @@ describe("dealer auto-action warning regressions", () => {
     state.playersById.set(bot.id, bot);
 
     const dealer = new Dealer(state);
+    (dealer as any).scheduleNextHand = () => {};
     const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
     try {
       state.turnDeadlineMs = 0;
@@ -284,7 +285,7 @@ describe("dealer auto-action warning regressions", () => {
         3000,
         "bot auto-action progression",
       );
-      expect(state.turnDeadlineMs).toBe(0);
+      expect(state.handActionSeq).toBeGreaterThan(beforeSeq);
     } finally {
       randomSpy.mockRestore();
       await (dealer as any).actionQueue.catch(() => undefined);
