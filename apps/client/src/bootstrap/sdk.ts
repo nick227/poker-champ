@@ -4,6 +4,7 @@ import { createExpoAvPlayer } from "@/lib/soundPlayer";
 import { storeRegistry } from "@/registry/store.registry";
 import { parseProfileFromMe } from "@/lib/profileFromMe";
 import { DEFAULT_API_URL, PRELOAD_SOUNDS } from "@/constants";
+import { assertServerOpenApiHasTournamentEnsureTable } from "@/lib/openApiSpecGuard";
 
 let booted = false;
 let bootPromise: Promise<void> | null = null;
@@ -67,6 +68,9 @@ export function bootstrapSdk() {
 
       setSoundPlayer(createExpoAvPlayer());
       preloadSounds([...PRELOAD_SOUNDS]);
+      void assertServerOpenApiHasTournamentEnsureTable(sdkApiBaseUrl).catch((error) => {
+        console.error(error);
+      });
       void checkVersionMismatchOnce();
     } catch (error) {
       console.error("[bootstrapSdk] startup failed", error);
