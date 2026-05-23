@@ -26,6 +26,9 @@ export class PlayerState extends Schema {
   /** Whether player still needs to respond to current bet level this round. */
   @type("boolean") needsAction: boolean = false;
 
+  /** True after the player takes a betting action this street (blind posts do not set this). */
+  @type("boolean") hasActedThisStreet: boolean = false;
+
   /** Connection state for reconnect grace handling. */
   @type("boolean") connected: boolean = true;
 

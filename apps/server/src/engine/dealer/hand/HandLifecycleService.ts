@@ -46,6 +46,7 @@ import {
   eligibleToAct,
   eligibleForShowdown,
   noFurtherBettingPossible,
+  computePlayerNeedsAction,
   resetBettingRound,
   syncRoundCurrentBetCents,
 } from "../../rules/BettingRound.js";
@@ -277,7 +278,11 @@ export class HandLifecycleService {
   private applyNeedsActionForCurrentHand(): void {
     const { state } = this.deps;
     for (const player of state.playersById.values()) {
-      player.needsAction = this.currentHandInHandIds.has(player.id) && eligibleToAct(player);
+      if (!this.currentHandInHandIds.has(player.id)) {
+        player.needsAction = false;
+        continue;
+      }
+      player.needsAction = computePlayerNeedsAction(state, player);
     }
   }
 
@@ -539,6 +544,7 @@ export class HandLifecycleService {
       player.roundBetCents = 0;
       player.committedCents = 0;
       player.needsAction = false;
+      player.hasActedThisStreet = false;
       if (player.status !== "OUT" && player.status !== "ABANDONED") {
         player.status = player.stackCents > 0 ? "ACTIVE" : "OUT";
       }
@@ -657,18 +663,6 @@ export class HandLifecycleService {
     }
     state.minRaiseCents = state.bigBlindCents;
     this.applyNeedsActionForCurrentHand();
-
-    // Preflop at hand start: players already matched to the current blind level
-    // do not owe an action yet (e.g. BB before action reaches them).
-    if (state.roundCurrentBetCents > 0) {
-      for (const player of state.playersById.values()) {
-        if (!this.currentHandInHandIds.has(player.id)) continue;
-        if (!eligibleToAct(player)) continue;
-        if (player.roundBetCents >= state.roundCurrentBetCents) {
-          player.needsAction = false;
-        }
-      }
-    }
 
     // Preflop always begins from the seat left of the BB among players who still need action.
     // Heads-up naturally resolves to SB first when SB is actionable.

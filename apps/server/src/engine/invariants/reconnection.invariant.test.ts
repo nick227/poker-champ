@@ -10,6 +10,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     const state = new PokerState();
     state.tableId = "test-table";
     state.street = "FLOP";
+    state.roundState = "WAITING_FOR_ACTION";
     state.roundCurrentBetCents = 500;
     state.toActSeat = 1;
     state.potCents = 500; // Match A's bet
@@ -23,6 +24,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerA.connected = true;
     playerA.roundBetCents = 500;
     playerA.committedCents = 500;
+    playerA.hasActedThisStreet = true;
     playerA.needsAction = false; // A just acted
     
     const playerB = new PlayerState();
@@ -50,6 +52,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     const state = new PokerState();
     state.tableId = "test-table";
     state.street = "FLOP";
+    state.roundState = "WAITING_FOR_ACTION";
     state.roundCurrentBetCents = 500;
     state.toActSeat = 1;
     state.potCents = 500;
@@ -73,6 +76,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerA.connected = true;
     playerA.roundBetCents = 500;
     playerA.committedCents = 500;
+    playerA.hasActedThisStreet = true;
     playerA.needsAction = false;
     
     state.seats.push("A", "B");
@@ -104,6 +108,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     const state = new PokerState();
     state.tableId = "test-table";
     state.street = "FLOP"; // Active hand
+    state.roundState = "WAITING_FOR_ACTION";
     state.roundCurrentBetCents = 500;
     state.toActSeat = 1;
     state.potCents = 500;
@@ -127,6 +132,7 @@ describe("Reconnection Bug - STATE_INVARIANT_VIOLATION", () => {
     playerA.connected = true;
     playerA.roundBetCents = 500;
     playerA.committedCents = 500;
+    playerA.hasActedThisStreet = true;
     playerA.needsAction = false;
     
     state.seats.push("A", "B");

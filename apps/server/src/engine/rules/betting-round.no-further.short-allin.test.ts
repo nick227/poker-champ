@@ -12,6 +12,7 @@ function makePlayer(input: {
   committedCents: number;
   stackCents: number;
   needsAction: boolean;
+  hasActedThisStreet?: boolean;
 }): PlayerState {
   const p = new PlayerState();
   p.id = input.id;
@@ -24,6 +25,7 @@ function makePlayer(input: {
   p.committedCents = input.committedCents;
   p.stackCents = input.stackCents;
   p.needsAction = input.needsAction;
+  p.hasActedThisStreet = input.hasActedThisStreet ?? !input.needsAction;
   p.connected = true;
   return p;
 }

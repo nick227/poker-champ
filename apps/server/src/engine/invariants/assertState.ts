@@ -1,5 +1,6 @@
 import type { PokerState } from "../../state/PokerState.js";
 import { bettingRoundComplete, eligibleForShowdown, eligibleToAct, noFurtherBettingPossible } from "../rules/BettingRound.js";
+import { countNotFoldedPlayers } from "../dealer/utils/TableNavigator.js";
 
 function fail(message: string): never {
   throw new Error(`STATE_INVARIANT_VIOLATION: ${message}`);
@@ -84,6 +85,7 @@ export function assertStateInvariants(state: PokerState): void {
 
   if (
     state.street !== "WAITING" &&
+    countNotFoldedPlayers(state) > 1 &&
     actionablePlayers > 0 &&
     !bettingRoundComplete(state) &&
     !noFurtherBettingPossible(state) &&

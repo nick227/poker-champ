@@ -9,6 +9,7 @@ import {
   bettingRoundComplete,
   clearPlayerNeedsAction,
   eligibleToAct,
+  markPlayerActed,
   noFurtherBettingPossible,
   onNewBetLevel,
   syncRoundCurrentBetCents,
@@ -148,7 +149,7 @@ export class ActionService {
     if (allRemainingPlayersAllInOrFolded(state)) {
       for (const p of state.playersById.values()) {
         this.logNeedsActionClear(state, p, "ACTION_SERVICE_ALL_REMAINING_ALL_IN_OR_FOLDED");
-        clearPlayerNeedsAction(p);
+        markPlayerActed(p);
       }
       state.runoutMode = "STAGED";
       return this.finish(state, { kind: "STREET_COMPLETE" });
@@ -236,7 +237,7 @@ export class ActionService {
     });
     player.status = "FOLDED";
     this.logNeedsActionClear(state, player, "ACTION_SERVICE_APPLY_FOLD");
-    clearPlayerNeedsAction(player);
+    markPlayerActed(player);
     syncRoundCurrentBetCents(state);
     return this.buildLastAction({
       state,
@@ -323,7 +324,7 @@ export class ActionService {
           potAfterCents: potBefore,
         });
         this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_CHECK");
-        clearPlayerNeedsAction(player);
+        markPlayerActed(player);
         syncRoundCurrentBetCents(state);
         lastAction = this.buildLastAction({
           state,
@@ -360,7 +361,7 @@ export class ActionService {
           origin,
         });
         this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_CALL");
-        clearPlayerNeedsAction(player);
+        markPlayerActed(player);
         syncRoundCurrentBetCents(state);
         break;
       }
@@ -395,6 +396,7 @@ export class ActionService {
         });
         state.roundCurrentBetCents = player.roundBetCents;
         state.minRaiseCents = Math.max(state.bigBlindCents, amount);
+        markPlayerActed(player);
         onNewBetLevel(state, player.id);
         break;
       }
@@ -464,6 +466,7 @@ export class ActionService {
         const raiseSize = newLevel - state.roundCurrentBetCents;
         state.roundCurrentBetCents = newLevel;
         state.minRaiseCents = Math.max(state.minRaiseCents, raiseSize);
+        markPlayerActed(player);
         onNewBetLevel(state, player.id);
         break;
       }
@@ -500,16 +503,17 @@ export class ActionService {
           state.roundCurrentBetCents = player.roundBetCents;
           if (delta >= prevMinRaise) {
             state.minRaiseCents = Math.max(state.minRaiseCents, delta);
+            markPlayerActed(player);
             onNewBetLevel(state, player.id);
           } else {
             // Short all-in does not meet minRaise, so action is not reopened for players
             // who already acted at the current bet level (correct poker rules).
             this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_ALL_IN_MATCHED");
-            clearPlayerNeedsAction(player);
+            markPlayerActed(player);
           }
         } else {
           this.logNeedsActionClear(state, player, "ACTION_SERVICE_EXECUTE_ALL_IN_NONRAISING");
-          clearPlayerNeedsAction(player);
+          markPlayerActed(player);
         }
         break;
       }

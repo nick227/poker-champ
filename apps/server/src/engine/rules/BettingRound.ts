@@ -18,7 +18,21 @@ export function resetBettingRound(state: PokerState) {
   state.minRaiseCents = state.bigBlindCents;
   for (const p of state.playersById.values()) {
     p.roundBetCents = 0;
+    p.hasActedThisStreet = false;
     // needsAction set when round begins
+  }
+}
+
+/** Whether an ACTIVE seated player still owes a decision this street. */
+export function computePlayerNeedsAction(state: PokerState, p: PlayerState): boolean {
+  if (!eligibleToAct(p) || !isSeatSchedulable(state, p)) return false;
+  if (!p.hasActedThisStreet) return true;
+  return p.roundBetCents < state.roundCurrentBetCents;
+}
+
+export function syncAllPlayerNeedsAction(state: PokerState): void {
+  for (const p of state.playersById.values()) {
+    p.needsAction = computePlayerNeedsAction(state, p);
   }
 }
 
@@ -32,7 +46,10 @@ export function onNewBetLevel(state: PokerState, actorId: string) {
       p.needsAction = false;
       continue;
     }
-    p.needsAction = (p.id !== actorId);
+    if (p.id !== actorId) {
+      p.hasActedThisStreet = false;
+      p.needsAction = true;
+    }
   }
 }
 
@@ -53,6 +70,7 @@ export function syncRoundCurrentBetCents(state: PokerState): void {
  */
 export function beginRound(state: PokerState) {
   for (const p of state.playersById.values()) {
+    p.hasActedThisStreet = false;
     p.needsAction = eligibleToAct(p) && isSeatSchedulable(state, p);
   }
 }
@@ -64,13 +82,16 @@ export function clearPlayerNeedsAction(p: PlayerState) {
   p.needsAction = false;
 }
 
+/** Record a betting action this street (blind posts must not call this). */
+export function markPlayerActed(p: PlayerState): void {
+  p.hasActedThisStreet = true;
+  clearPlayerNeedsAction(p);
+}
+
 export function bettingRoundComplete(state: PokerState): boolean {
   for (const p of state.playersById.values()) {
-    if (p.needsAction) return false;
-  }
-  // also ensure all ACTIVE players have matched current bet (or have 0 stack due to all-in handled elsewhere)
-  for (const p of state.playersById.values()) {
     if (!eligibleToAct(p) || !isSeatSchedulable(state, p)) continue;
+    if (!p.hasActedThisStreet) return false;
     if (p.roundBetCents !== state.roundCurrentBetCents) return false;
   }
   return true;
@@ -91,12 +112,19 @@ export function noFurtherBettingPossible(state: PokerState): boolean {
   // and has matched the current level.
   if (active.length === 1 && allIn.length >= 1) {
     const onlyActive = active[0]!;
-    const hasPendingDecision = onlyActive.needsAction || onlyActive.roundBetCents < state.roundCurrentBetCents;
+    const hasPendingDecision =
+      onlyActive.needsAction ||
+      !onlyActive.hasActedThisStreet ||
+      onlyActive.roundBetCents < state.roundCurrentBetCents;
     if (!hasPendingDecision) return true;
   }
   // Short all-in can increase roundCurrentBetCents without reopening action for players that already acted.
   // If at least one contender is all-in and no ACTIVE player has needsAction, betting is closed.
-  if (allIn.length >= 1 && active.length >= 1 && active.every((p) => !p.needsAction)) {
+  if (
+    allIn.length >= 1 &&
+    active.length >= 1 &&
+    active.every((p) => !p.needsAction && p.hasActedThisStreet)
+  ) {
     return true;
   }
   return false;
