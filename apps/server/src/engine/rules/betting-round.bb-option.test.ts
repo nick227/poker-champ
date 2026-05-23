@@ -172,6 +172,25 @@ describe("betting round BB option", () => {
     expect(state.playersById.get(sbUserId)?.hasActedThisStreet).toBe(false);
   });
 
+  it("HU flop check-check advances to turn with hasActed reset on new street", async () => {
+    const { dealer, state, sbUserId, bbUserId } = await startHeadsUpHand();
+
+    await dealer.handleAction(sbUserId, { action: "CALL" });
+    await dealer.handleAction(bbUserId, { action: "CHECK" });
+    expect(state.street).toBe("FLOP");
+
+    const firstId = String(state.seats[state.toActSeat]);
+    const secondId = firstId === sbUserId ? bbUserId : sbUserId;
+
+    await dealer.handleAction(firstId, { action: "CHECK" });
+    expect(state.street).toBe("FLOP");
+    await dealer.handleAction(secondId, { action: "CHECK" });
+
+    expect(state.street).toBe("TURN");
+    expect(state.playersById.get(sbUserId)?.hasActedThisStreet).toBe(false);
+    expect(state.playersById.get(bbUserId)?.hasActedThisStreet).toBe(false);
+  });
+
   it("everyone folds to BB ends hand without BB acting", async () => {
     const { dealer, state, sbUserId, bbUserId } = await startHeadsUpHand();
 
@@ -181,4 +200,5 @@ describe("betting round BB option", () => {
     expect(state.playersById.get(bbUserId)?.hasActedThisStreet).toBe(false);
     expect(state.handId).toBe("");
   });
+
 });
