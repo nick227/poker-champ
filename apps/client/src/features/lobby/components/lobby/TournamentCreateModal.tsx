@@ -14,6 +14,7 @@ export function TournamentCreateModal({ visible, onClose, onCreated }: Tournamen
     <ModalSheet visible={visible} onClose={onClose} title={TOURNAMENT.create} heightFraction={0.92}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
         <TournamentCreateForm
+          visible={visible}
           showBotPreset={false}
           onCreated={async () => {
             await onCreated?.();

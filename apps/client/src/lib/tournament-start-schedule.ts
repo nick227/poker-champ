@@ -8,7 +8,7 @@ export type TournamentStartSchedule = {
 };
 
 export const HOUR12_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
-export const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
+export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => i);
 
 export function todayDateYmd(now = new Date()): string {
   const y = now.getFullYear();
@@ -27,9 +27,20 @@ export function defaultTournamentStartSchedule(
   const meridiem: Meridiem = hour24 >= 12 ? "PM" : "AM";
   let hour12 = hour24 % 12;
   if (hour12 === 0) hour12 = 12;
-  const snappedMinute = Math.round(start.getMinutes() / 5) * 5;
-  const minute = snappedMinute === 60 ? 55 : snappedMinute;
+  const minute = start.getMinutes();
   return { dateYmd, hour12, minute, meridiem };
+}
+
+export function floorToMinute(date: Date): Date {
+  const floored = new Date(date);
+  floored.setSeconds(0, 0);
+  return floored;
+}
+
+export function isTournamentStartInPast(iso: string, now: Date = new Date()): boolean {
+  const start = floorToMinute(new Date(iso));
+  if (Number.isNaN(start.getTime())) return true;
+  return start.getTime() < floorToMinute(now).getTime();
 }
 
 export function buildTournamentStartIsoFromSchedule(schedule: TournamentStartSchedule): string | null {

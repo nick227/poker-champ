@@ -3,6 +3,7 @@ import {
   buildTournamentStartIsoFromSchedule,
   defaultTournamentStartSchedule,
   formatSchedulePreview,
+  isTournamentStartInPast,
 } from "./tournament-start-schedule";
 
 describe("tournament-start-schedule", () => {
@@ -54,5 +55,31 @@ describe("tournament-start-schedule", () => {
     const diffMs = new Date(iso).getTime() - now.getTime();
     expect(diffMs).toBeGreaterThanOrEqual(59 * 60 * 1000);
     expect(diffMs).toBeLessThanOrEqual(61 * 60 * 1000);
+  });
+
+  it("detects past start times at minute precision", () => {
+    const now = new Date("2026-05-20T14:30:45");
+    const pastIso = buildTournamentStartIsoFromSchedule({
+      dateYmd: "2026-05-20",
+      hour12: 2,
+      minute: 29,
+      meridiem: "PM",
+    })!;
+    const sameMinuteIso = buildTournamentStartIsoFromSchedule({
+      dateYmd: "2026-05-20",
+      hour12: 2,
+      minute: 30,
+      meridiem: "PM",
+    })!;
+    const futureIso = buildTournamentStartIsoFromSchedule({
+      dateYmd: "2026-05-20",
+      hour12: 2,
+      minute: 31,
+      meridiem: "PM",
+    })!;
+
+    expect(isTournamentStartInPast(pastIso, now)).toBe(true);
+    expect(isTournamentStartInPast(sameMinuteIso, now)).toBe(false);
+    expect(isTournamentStartInPast(futureIso, now)).toBe(false);
   });
 });

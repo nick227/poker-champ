@@ -2,19 +2,22 @@ import { tournaments } from "@poker-champ/sdk";
 import { withApiError } from "@/services/_helpers/withApiError";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
+import type { TournamentBlindStructureId } from "@/lib/tournament-blind-structures";
+
 export type CreateTournamentInput = {
   name: string;
   entryFeeCents: number;
   startTime: string;
   maxPlayers: number;
   startingStackCents?: number;
-  blindStructureId?: "standard_8min";
+  blindStructureId?: TournamentBlindStructureId;
   lateRegMinutes?: number;
   fillBotsAtStart?: boolean;
   fillBotCount?: number;
   playFormat?: "FREEZEOUT" | "REBUY";
   maxRebuysPerPlayer?: number;
   rebuyPeriodMinutes?: number;
+  instantStart?: boolean;
 };
 
 export async function postTournamentCreate(input: CreateTournamentInput): Promise<TournamentSummary> {

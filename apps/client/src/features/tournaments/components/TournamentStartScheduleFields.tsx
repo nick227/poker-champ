@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Platform, TextInput, View } from "react-native";
+import { Platform, ScrollView, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
 import { ChipButton } from "@/components/base/ChipButton";
 import { Text } from "@/components/base/Text";
@@ -8,7 +8,9 @@ import {
   HOUR12_OPTIONS,
   MINUTE_OPTIONS,
   formatSchedulePreview,
+  isTournamentStartInPast,
   todayDateYmd,
+  buildTournamentStartIsoFromSchedule,
   type Meridiem,
   type TournamentStartSchedule,
 } from "@/lib/tournament-start-schedule";
@@ -54,7 +56,7 @@ function ChipRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View className="ui-stack-2">
       <Text variant="muted">{label}</Text>
-      <View className="flex-row flex-wrap gap-2">{children}</View>
+      {children}
     </View>
   );
 }
@@ -62,6 +64,8 @@ function ChipRow({ label, children }: { label: string; children: ReactNode }) {
 export function TournamentStartScheduleFields({ value, onChange }: TournamentStartScheduleFieldsProps) {
   const preview = formatSchedulePreview(value);
   const minDate = todayDateYmd();
+  const startIso = buildTournamentStartIsoFromSchedule(value);
+  const isPast = startIso ? isTournamentStartInPast(startIso) : false;
 
   const patch = (partial: Partial<TournamentStartSchedule>) => onChange({ ...value, ...partial });
 
@@ -71,40 +75,46 @@ export function TournamentStartScheduleFields({ value, onChange }: TournamentSta
       <View className="ui-stack-3 rounded-lg bg-panel p-4">
         <Text variant="muted">Start time (local)</Text>
         <ChipRow label="Hour">
-          {HOUR12_OPTIONS.map((hour) => (
-            <ChipButton
-              key={hour}
-              title={String(hour)}
-              selected={value.hour12 === hour}
-              onPress={() => patch({ hour12: hour })}
-            />
-          ))}
+          <View className="flex-row flex-wrap gap-2">
+            {HOUR12_OPTIONS.map((hour) => (
+              <ChipButton
+                key={hour}
+                title={String(hour)}
+                selected={value.hour12 === hour}
+                onPress={() => patch({ hour12: hour })}
+              />
+            ))}
+          </View>
         </ChipRow>
         <ChipRow label="Minute">
-          {MINUTE_OPTIONS.map((minute) => (
-            <ChipButton
-              key={minute}
-              title={String(minute).padStart(2, "0")}
-              selected={value.minute === minute}
-              onPress={() => patch({ minute })}
-            />
-          ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {MINUTE_OPTIONS.map((minute) => (
+              <ChipButton
+                key={minute}
+                title={String(minute).padStart(2, "0")}
+                selected={value.minute === minute}
+                onPress={() => patch({ minute })}
+              />
+            ))}
+          </ScrollView>
         </ChipRow>
         <ChipRow label="AM / PM">
-          {(["AM", "PM"] as Meridiem[]).map((meridiem) => (
-            <ChipButton
-              key={meridiem}
-              title={meridiem}
-              selected={value.meridiem === meridiem}
-              onPress={() => patch({ meridiem })}
-              className="min-w-[72px]"
-            />
-          ))}
+          <View className="flex-row flex-wrap gap-2">
+            {(["AM", "PM"] as Meridiem[]).map((meridiem) => (
+              <ChipButton
+                key={meridiem}
+                title={meridiem}
+                selected={value.meridiem === meridiem}
+                onPress={() => patch({ meridiem })}
+                className="min-w-[72px]"
+              />
+            ))}
+          </View>
         </ChipRow>
       </View>
       {preview ? (
-        <Text variant="body" className="text-muted">
-          Scheduled for {preview}
+        <Text variant="body" className={isPast ? "text-danger" : "text-muted"}>
+          {isPast ? "Start time is in the past — choose a future date and time" : `Scheduled for ${preview}`}
         </Text>
       ) : null}
     </View>

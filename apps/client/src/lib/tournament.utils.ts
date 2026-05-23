@@ -1,3 +1,4 @@
+import { resolveTournamentBotFillTarget } from "@/lib/tournament-bot-fill";
 import { isLateRegistrationOpen, lateRegCloseMs } from "@/lib/tournament-schedule";
 import type { TournamentCta, TournamentSummary } from "@/services/tournaments.types";
 
@@ -48,11 +49,40 @@ export function isTournamentStartDue(
   return Number.isFinite(startTs) && startTs <= nowMs;
 }
 
+/** After start lock: no unregister; late reg is paid entry only. */
+export function isTournamentStartLocked(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  if (tournament.status !== "REGISTERING") return true;
+  return isTournamentStartDue(tournament, nowMs);
+}
+
+export function canUnregisterTournament(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): boolean {
+  return (
+    tournament.isRegistered === true &&
+    tournament.status === "REGISTERING" &&
+    !isTournamentStartDue(tournament, nowMs)
+  );
+}
+
+export function isTournamentBotChallengeMode(tournament: TournamentSummary): boolean {
+  return tournament.fillBotsAtStart === true;
+}
+
+/** Humans only — bots excluded from payout structure display. */
+export function estimateTournamentHumanEntrants(tournament: TournamentSummary): number {
+  const bots = resolveTournamentBotFillTarget(tournament) ?? 0;
+  return Math.max(0, tournament.registeredCount - bots);
+}
+
 export function isTournamentRegistrationOpen(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),
 ): boolean {
-  if (tournament.status === "REGISTERING") return true;
   return isLateRegistrationOpen(tournament, nowMs);
 }
 
@@ -111,31 +141,15 @@ export function canJoinTournament(
   return true;
 }
 
-function resolveTournamentJoinCta(
+function resolveRegisteredWaitingCta(
   tournament: TournamentSummary,
-  authenticated: boolean,
   nowMs: number,
 ): TournamentCta {
-  if (!authenticated) {
-    if (isTournamentInJoinPhase(tournament, nowMs)) {
-      return { label: "Log in to join", action: "join", disabled: true };
-    }
+  const startMs = tournamentStartMs(tournament);
+  if (Number.isFinite(startMs) && nowMs < startMs) {
+    return { label: "Starts soon", action: "none", disabled: true };
   }
-  if (isTournamentJoinOffered(tournament, nowMs)) {
-    if (!canJoinTournament(tournament, nowMs)) {
-      return { label: "Table ended", action: "join", disabled: true };
-    }
-    return { label: "Join Table", action: "join", disabled: false };
-  }
-  if (
-    tournament.tableLive === false &&
-    hasTournamentTableTarget(tournament) &&
-    tournament.status === "RUNNING" &&
-    !isLateRegistrationOpen(tournament, nowMs)
-  ) {
-    return { label: "Table ended", action: "join", disabled: true };
-  }
-  return { label: "Join Table", action: "join", disabled: true };
+  return { label: "Registered", action: "none", disabled: true };
 }
 
 export function resolveTournamentCta(
@@ -144,6 +158,9 @@ export function resolveTournamentCta(
 ): TournamentCta {
   const authenticated = opts?.authenticated !== false;
   const nowMs = opts?.nowMs ?? Date.now();
+  const registrationOpen = isTournamentRegistrationOpen(tournament, nowMs);
+  const inJoinPhase = isTournamentInJoinPhase(tournament, nowMs);
+  const registered = tournament.isRegistered === true;
 
   if (tournament.status === "CANCELLED") {
     return { label: "Cancelled", action: "none", disabled: true };
@@ -157,28 +174,43 @@ export function resolveTournamentCta(
     return { label: "View Standings", action: "standings", disabled: false };
   }
 
-  if (isTournamentRegistrationOpen(tournament, nowMs)) {
+  if (registered && canJoinTournament(tournament, nowMs)) {
+    return { label: "Join Table", action: "join", disabled: false };
+  }
+
+  if (registrationOpen) {
     if (!authenticated) {
-      return { label: "Register", action: "register", disabled: false };
+      return { label: "Log in to register", action: "register", disabled: false };
     }
-    if (!tournament.isRegistered) {
+    if (!registered) {
       const full = tournament.registeredCount >= tournament.maxPlayers;
-      return {
-        label: "Register",
-        action: "register",
-        disabled: full,
-      };
+      return { label: "Register", action: "register", disabled: full };
     }
-    if (
-      tournament.status === "REGISTERING" &&
-      !isTournamentStartDue(tournament, nowMs)
-    ) {
+    if (canUnregisterTournament(tournament, nowMs)) {
       return { label: "Unregister", action: "unregister", disabled: false };
     }
   }
 
-  if (isTournamentInJoinPhase(tournament, nowMs)) {
-    return resolveTournamentJoinCta(tournament, authenticated, nowMs);
+  if (inJoinPhase) {
+    if (!registered) {
+      return { label: "Registration closed", action: "none", disabled: true };
+    }
+    if (isTournamentJoinOffered(tournament, nowMs)) {
+      return { label: "Table ended", action: "join", disabled: true };
+    }
+    return resolveRegisteredWaitingCta(tournament, nowMs);
+  }
+
+  if (registered) {
+    return resolveRegisteredWaitingCta(tournament, nowMs);
+  }
+
+  if (tournament.status === "REGISTERING") {
+    if (!authenticated) {
+      return { label: "Log in to register", action: "register", disabled: false };
+    }
+    const full = tournament.registeredCount >= tournament.maxPlayers;
+    return { label: "Register", action: "register", disabled: full };
   }
 
   return { label: "Unavailable", action: "none", disabled: true };
@@ -188,13 +220,8 @@ export type TournamentLobbySection = "upcoming" | "running";
 
 const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "LATE_REG", "STARTING", "RUNNING"]);
 
-/** Active + recent terminal states so joined rows do not vanish after cancel/finish. */
-const JOINED_VISIBLE_STATUSES = new Set([
-  ...PUBLIC_LOBBY_STATUSES,
-  "FINISHED",
-  "ABANDONED",
-  "CANCELLED",
-]);
+/** Joined lobby rows should stay focused on scheduled and live tournaments. */
+const JOINED_VISIBLE_STATUSES = PUBLIC_LOBBY_STATUSES;
 
 export function isJoinedVisibleTournament(tournament: TournamentSummary): boolean {
   return Boolean(tournament.isRegistered) && JOINED_VISIBLE_STATUSES.has(tournament.status);
@@ -205,7 +232,7 @@ export function isJoinedActiveTournament(tournament: TournamentSummary): boolean
   return isJoinedVisibleTournament(tournament);
 }
 
-/** Registered tournaments: scheduled, live, and recent cancelled/finished. */
+/** Registered tournaments: scheduled and live only. */
 export function selectJoinedTournaments(tournaments: TournamentSummary[]): TournamentSummary[] {
   return tournaments
     .filter(isJoinedVisibleTournament)
@@ -213,8 +240,7 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
       const rank = (status: string) => {
         if (status === "RUNNING" || status === "STARTING" || status === "LATE_REG") return 0;
         if (status === "REGISTERING") return 1;
-        if (status === "FINISHED" || status === "ABANDONED") return 2;
-        return 3;
+        return 2;
       };
       const byPhase = rank(a.status) - rank(b.status);
       if (byPhase !== 0) return byPhase;
@@ -256,13 +282,24 @@ export function formatJoinedTournamentHint(
     }
     return `Scheduled · ${formatTournamentStartLocal(tournament.startTime)}`;
   }
-  if (tournament.status === "LATE_REG" || isLateRegistrationOpen(tournament, nowMs)) {
+  if (tournament.status === "LATE_REG" && isLateRegistrationOpen(tournament, nowMs)) {
     const closeTs = lateRegCloseMs(tournament);
     const lateCountdown = formatCountdownTo(closeTs, nowMs);
+    const botChallenge = isTournamentBotChallengeMode(tournament);
     if (isTournamentTableLive(tournament)) {
+      if (botChallenge) {
+        return lateCountdown
+          ? `Bot challenge · live · late reg closes in ${lateCountdown}`
+          : "Bot challenge · live";
+      }
       return lateCountdown
         ? `Live · late registration closes in ${lateCountdown}`
         : "Live · late registration closed";
+    }
+    if (botChallenge) {
+      return lateCountdown
+        ? `Bot challenge · late reg closes in ${lateCountdown}`
+        : "Bot challenge · waiting for players";
     }
     return lateCountdown
       ? `Late registration · closes in ${lateCountdown}`
@@ -282,13 +319,16 @@ export function formatJoinedTournamentHint(
     return `Live · level ${tournament.currentLevel}`;
   }
   if (tournament.status === "CANCELLED") {
-    return "Cancelled · entry fee refunded";
+    return "Cancelled · entry refunded · no payouts";
   }
   if (tournament.status === "FINISHED") {
-    return "Finished · view standings for results";
+    if (isTournamentBotChallengeMode(tournament) && tournament.prizePoolCents <= 0) {
+      return "Finished · bot challenge result · no money payout";
+    }
+    return "Finished · human payouts in standings";
   }
   if (tournament.status === "ABANDONED") {
-    return "Abandoned · no winner · entry fee refunded";
+    return "Abandoned · entry refunded · no payouts";
   }
   return formatTournamentStatus(tournament.status);
 }
@@ -309,6 +349,25 @@ export function groupTournamentsForLobby(tournaments: TournamentSummary[]): Reco
   running.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   return { upcoming, running };
+}
+
+export function formatTournamentBrowseHint(
+  tournament: TournamentSummary,
+  nowMs: number = Date.now(),
+): string {
+  if (isTournamentBotChallengeMode(tournament)) {
+    return "Bot challenge · one human can play vs bots · human payouts only";
+  }
+  if (tournament.status === "LATE_REG" && isLateRegistrationOpen(tournament, nowMs)) {
+    return "Late registration · new paid entries only";
+  }
+  if (tournament.status === "CANCELLED") {
+    return "Cancelled · refunds issued · no payouts";
+  }
+  if (tournament.status === "ABANDONED") {
+    return "Abandoned · refunds issued · no payouts";
+  }
+  return `Starts ${formatTournamentStartLocal(tournament.startTime)}`;
 }
 
 export function formatCountdownTo(
@@ -336,7 +395,9 @@ export function mapTournamentErrorMessage(code: string): string {
     case "TOURNAMENT_FULL":
       return "This tournament is full.";
     case "TOURNAMENT_CLOSED":
-      return "Registration is closed for this tournament.";
+      return "Registration is closed. Late registration accepts new paid entries only until the window ends.";
+    case "TOURNAMENT_UNREGISTER_LOCKED":
+      return "Unregister is only available before the scheduled start time.";
     case "NOT_REGISTERED":
     case "TOURNAMENT_NOT_REGISTERED":
       return "You are not registered for this tournament.";
@@ -354,8 +415,16 @@ export function mapTournamentErrorMessage(code: string): string {
       return "Waiting for another player to register.";
     case "TOURNAMENT_TABLE_UNAVAILABLE":
       return "Tournament table is not ready yet. Try again in a moment.";
+    case "TOURNAMENT_NOT_DUE":
+      return "This tournament has not started yet.";
+    case "TOURNAMENT_PLAYER_ELIMINATED":
+      return "You have been eliminated from this tournament.";
     case "TOURNAMENT_SPECTATOR_READONLY":
       return "Eliminated players can only watch this tournament table.";
+    case "TOURNAMENT_START_IN_PAST":
+      return "Start time cannot be in the past.";
+    case "TOURNAMENT_REBUY_CONFIG_INVALID":
+      return "Rebuy tournaments need a rebuy limit and rebuy window.";
     case "Invalid tournament payload":
       return "Check tournament details and try again.";
     case "Tournament not found":
@@ -363,7 +432,7 @@ export function mapTournamentErrorMessage(code: string): string {
     case "Tournament registration failed":
       return "Could not register for this tournament. Please try again.";
     case "Tournament unregister failed":
-      return "Could not unregister. Please try again.";
+      return "Could not unregister. Refunds are only available before the tournament start time.";
     case "Tournament cancel failed":
       return "Could not cancel this tournament. Please try again.";
     default:
@@ -374,6 +443,13 @@ export function mapTournamentErrorMessage(code: string): string {
 /** Map API error message and/or code to a player-friendly string. */
 export function mapTournamentApiError(message: string, code?: string): string {
   const trimmed = message.trim();
+  const normalized = trimmed.toLowerCase();
+  if (
+    code === "REQUEST_VALIDATION_ERROR" &&
+    (normalized.includes("not found") || normalized === "not found")
+  ) {
+    return "Server API is out of date. Restart the game server (pnpm build && pnpm start, or pnpm dev:server).";
+  }
   if (code) {
     const fromCode = mapTournamentErrorMessage(code);
     if (fromCode !== code) return fromCode;

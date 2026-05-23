@@ -1809,10 +1809,15 @@ export interface operations {
                     maxPlayers: number;
                     startingStackCents?: number;
                     /** @enum {string} */
-                    blindStructureId?: "standard_8min";
+                    blindStructureId?: "fast_4min" | "standard_8min" | "long_12min";
                     lateRegMinutes?: number;
                     fillBotsAtStart?: boolean;
                     fillBotCount?: number;
+                    /** @enum {string} */
+                    playFormat?: "FREEZEOUT" | "REBUY";
+                    maxRebuysPerPlayer?: number;
+                    rebuyPeriodMinutes?: number;
+                    instantStart?: boolean;
                 };
             };
         };
