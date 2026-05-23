@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { useMemo } from "react";
 import { Text } from "@/components/base/Text";
 import { PlayingCard } from "../PlayingCard";
 import { CalculationsStrip } from "../CalculationsStrip";
@@ -13,6 +14,7 @@ import { CARDS } from "./layout";
 import { useTableLayoutHeight } from "../table-layout";
 import { heroZoneStyles as s } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 
 
 export type HeroZoneProps = {
@@ -34,6 +36,7 @@ export type HeroZoneProps = {
   showStats?: boolean;
   potCents?: number;
   onToggleSittingOut?: () => void;
+  roundBetCents?: number;
   /** Override height when viewport is small. */
   height?: number;
 };
@@ -89,8 +92,10 @@ export function HeroZone({
   potCents = 0,
   showStats = false,
   onToggleSittingOut,
+  roundBetCents = 0,
   height: heightProp,
 }: HeroZoneProps) {
+  const { formatStack, formatBet } = useTableMoneyDisplay();
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const layoutHeight = useTableLayoutHeight();
   const zoneHeight =
@@ -101,6 +106,10 @@ export function HeroZone({
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
+  const bottomLabel = useMemo(() => {
+    if (roundBetCents > 0) return `Bet ${formatBet(roundBetCents)}`;
+    return statusLabel;
+  }, [formatBet, roundBetCents, statusLabel]);
   const isSittingOut = heroStatus === "SITTING_OUT";
   const sitOutDisabled =
     heroStatus === "RECONNECTING" ||
@@ -153,9 +162,10 @@ export function HeroZone({
           initial={userName?.slice(0, 1).toUpperCase() ?? "?"}
           playerName={userName ?? ""}
           stackCents={stackCents}
+          stackDisplay={formatStack(stackCents)}
           avatarUrl={avatarUrl}
           isDealer={isDealer}
-          bottomText={statusLabel ?? undefined}
+          bottomText={bottomLabel ?? undefined}
           onAvatarPress={onAvatarPress}
           testID="hero-stack"
           dataStackCents={String(stackCents)}

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { PlayingCard } from "../PlayingCard";
-import { formatCents } from "@/lib/format";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { CARDS } from "../opponent-strip/layout";
@@ -46,6 +46,7 @@ export function OpponentStripItem({
   cardFacePackId,
   fillSlot = false,
 }: OpponentStripItemProps) {
+  const { formatStack, formatBet } = useTableMoneyDisplay();
   const { inactive, actionText, isWinner, showTurnBar } = useOpponentStripItem(
     opponent,
     winnerName,
@@ -90,8 +91,11 @@ export function OpponentStripItem({
     isDealer: opponent.isDealer,
     isActive: opponent.isActive,
     inactive,
-    stackFormatted: formatCents(opponent.stackCents ?? 0),
-    actionText,
+    stackFormatted: formatStack(opponent.stackCents ?? 0),
+    actionText:
+      opponent.roundBetCents != null && opponent.roundBetCents > 0
+        ? `Bet ${formatBet(opponent.roundBetCents)}`
+        : actionText,
     actionTextClassName: opponent.status === "folded" ? "text-danger" : undefined,
     isWinner,
     showTurnBar,

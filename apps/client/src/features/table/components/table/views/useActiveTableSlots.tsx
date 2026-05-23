@@ -354,8 +354,14 @@ export function useActiveTableSlots(
       userName={heroName}
       avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
       potCents={potCents}
+      roundBetCents={
+        snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
+      }
       onAvatarPress={undefined}
       onToggleSittingOut={actions.toggleHeroSittingOut}
+      roundBetCents={
+        snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
+      }
     />
   );
 

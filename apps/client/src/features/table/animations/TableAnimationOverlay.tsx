@@ -36,6 +36,7 @@ import { resolveRenderableLayers } from "./overlayRenderable";
 import { renderAnimationLayer } from "./renderAnimationLayer";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 
 // Constants
 /** One animation per channel at a time; different channels run concurrently. */
@@ -148,6 +149,7 @@ export function TableAnimationOverlay({
   onPreloadAssets,
   atmosphereLayers,
 }: TableAnimationOverlayProps) {
+  const { formatBet } = useTableMoneyDisplay();
   const settings = settingsProp ?? DEFAULT_SETTINGS;
   const [activeByChannel, setActiveByChannel] = useState<Partial<Record<AnimationChannel, ActiveSlot>>>({});
   const cleanupByChannelRef = useRef<Partial<Record<AnimationChannel, () => void>>>({});
@@ -283,7 +285,8 @@ export function TableAnimationOverlay({
                   index * 1000 + slotIndex,
                   req.payload,
                   DEFAULT_HEADLINES[req.event] ?? "",
-                  theme
+                  theme,
+                  formatBet,
                 ),
                 key: `${key}-slot-${slotIndex}`,
               })
@@ -296,7 +299,8 @@ export function TableAnimationOverlay({
         index,
         req.payload,
         DEFAULT_HEADLINES[req.event] ?? "",
-        theme
+        theme,
+        formatBet,
       );
       if (layerRect) return renderAnchoredFx({ rect: layerRect, children: content, key });
       return (

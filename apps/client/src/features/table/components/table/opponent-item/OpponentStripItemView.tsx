@@ -90,6 +90,7 @@ export function OpponentStripItemView({
           initial={initial}
           playerName={nameDisplay}
           stackCents={stackCents}
+          stackDisplay={stackFormatted}
           avatarUrl={avatarUrl}
           isDealer={false}
           bottomText={actionText}

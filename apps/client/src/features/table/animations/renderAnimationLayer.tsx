@@ -42,6 +42,7 @@ type RenderCtx = {
   theme: AnimationTheme;
   durationMs: number;
   delayMs: number;
+  formatAmount: (amount: number) => string;
 };
 
 type ProceduralLayerRenderer = (layer: ProceduralLayerDefinition, ctx: RenderCtx) => ReactNode;
@@ -52,10 +53,11 @@ type ProceduralLayerType = ProceduralLayerDefinition["type"];
 // Helpers
 function getTextForRole(
   role: "headline" | "amount",
-  payload: TableAnimationRequest["payload"]
+  payload: TableAnimationRequest["payload"],
+  formatAmount: (amount: number) => string,
 ): string {
   if (role === TEXT_ROLE_HEADLINE) return payload?.headline ?? "";
-  if (role === TEXT_ROLE_AMOUNT && payload?.amountCents != null) return formatCents(payload.amountCents);
+  if (role === TEXT_ROLE_AMOUNT && payload?.amountCents != null) return formatAmount(payload.amountCents);
   return "";
 }
 
@@ -148,7 +150,7 @@ function renderText(layer: ProceduralLayerDefinition, ctx: RenderCtx): ReactNode
   const text =
     role === TEXT_ROLE_HEADLINE
       ? (payload?.headline ?? defaultHeadline)
-      : getTextForRole(role, payload);
+      : getTextForRole(role, payload, ctx.formatAmount);
   if (!text) return null;
   type TextSize = keyof AnimationTheme["textScale"];
   const size = (layer.textSize ?? TEXT_SIZE_DEFAULT) as TextSize;
@@ -234,13 +236,14 @@ export function renderAnimationLayer(
   index: number,
   payload: TableAnimationRequest["payload"],
   defaultHeadline: string,
-  theme: AnimationTheme
+  theme: AnimationTheme,
+  formatAmount: (amount: number) => string = formatCents,
 ): ReactNode {
   const durationMs =
     "durationMs" in layer ? (layer.durationMs ?? LAYER_DURATION_DEFAULT_MS) : LAYER_DURATION_DEFAULT_MS;
   const delayMs = layer.delayMs ?? 0;
 
-  const ctx: RenderCtx = { index, payload, defaultHeadline, theme, durationMs, delayMs };
+  const ctx: RenderCtx = { index, payload, defaultHeadline, theme, durationMs, delayMs, formatAmount };
   if (layer.type === "ASSET") return renderAsset(layer, ctx);
   const renderer = PROCEDURAL_RENDERERS[layer.type];
   if (!renderer) return null;

@@ -3,7 +3,7 @@ import type { UiCard } from "../table.adapter";
 import { FeltBackground } from "./FeltBackground";
 import { CommunityBoard } from "./CommunityBoard";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { BOARD_AREA_HEIGHT } from "../constants/table-layout.constants";
 import { useTableLayoutHeight } from "../table-layout/TableLayoutHeightContext";
@@ -24,7 +24,8 @@ export function BoardArea({
   animateReset = false,
   onCardSlotBounds,
 }: BoardAreaProps) {
-  const potValue = typeof potCents === "number" ? formatCents(potCents) : "--";
+  const { formatPot } = useTableMoneyDisplay();
+  const potValue = typeof potCents === "number" ? formatPot(potCents) : "--";
   const layoutHeights = useTableLayoutHeight();
   const fadeOpacity = useRef(new Animated.Value(1)).current;
 

@@ -3,6 +3,7 @@ import { AccessibilityInfo, Share, View, Image } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
 import { TableSceneShell, TABLE_REVEAL_MS } from "@/features/table";
+import { TableMoneyDisplayProvider } from "@/features/table/context/TableMoneyDisplayContext";
 import { useTableSceneSlots } from "./useTableSceneSlots";
 
 import { Button } from "@/components/base/Button";
@@ -218,13 +219,15 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
   });
 
   return (
-    <TableSceneShell
-      {...slots}
-      showStatusView={showStatusView}
-      revealed={revealed}
-      revealDurationMs={TABLE_REVEAL_MS}
-      reducedMotion={reducedMotion}
-    />
+    <TableMoneyDisplayProvider snapshot={snapshot ?? null}>
+      <TableSceneShell
+        {...slots}
+        showStatusView={showStatusView}
+        revealed={revealed}
+        revealDurationMs={TABLE_REVEAL_MS}
+        reducedMotion={reducedMotion}
+      />
+    </TableMoneyDisplayProvider>
   );
 }
 

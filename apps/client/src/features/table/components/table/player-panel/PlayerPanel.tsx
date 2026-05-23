@@ -9,6 +9,8 @@ export type PlayerPanelProps = {
   initial: string;
   playerName: string;
   stackCents: number;
+  /** When set, shown instead of formatCents(stackCents) (tournament chips/BB). */
+  stackDisplay?: string;
   avatarUrl?: string | null;
   isDealer?: boolean;
   /** Shown in the lower area of the panel (e.g. status, action message). */
@@ -33,6 +35,7 @@ export function PlayerPanel({
   initial,
   playerName,
   stackCents,
+  stackDisplay,
   avatarUrl,
   isDealer = false,
   bottomText,
@@ -96,7 +99,7 @@ export function PlayerPanel({
             className="text-2xl font-semibold"
             allowFontScaling={false}
           >
-            {formatCents(stackCents)}
+            {stackDisplay ?? formatCents(stackCents)}
           </Text>
           {bottomText != null && bottomText !== "" ? (
             <View style={s.bottomRow}>
