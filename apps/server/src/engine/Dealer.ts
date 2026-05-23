@@ -51,7 +51,6 @@ import {
   countNonOutPlayers,
   countNotFoldedPlayers,
   findNextToActSeat,
-  resolveActivePlayersForHand,
   resolvePlayersReadyForNextHand,
 } from "./dealer/utils/TableNavigator.js";
 import {
@@ -255,16 +254,22 @@ export class Dealer {
     const capturedStreet = this.state.street;
     const capturedHandActionSeq = this.state.handActionSeq;
     const capturedToActSeat = this.state.toActSeat;
+    const capturedToActUserId =
+      capturedToActSeat >= 0 ? (this.state.seats[capturedToActSeat] ?? "") : "";
     const fire = () => {
       if (this.disposed) return;
       if (capturedHandId && this.activeTerminalLifecycle?.handId === capturedHandId) {
         return;
       }
+      const currentToActUserId =
+        this.state.toActSeat >= 0 ? (this.state.seats[this.state.toActSeat] ?? "") : "";
       const stale =
         this.state.handId !== capturedHandId ||
         this.state.street !== capturedStreet ||
         this.state.handActionSeq !== capturedHandActionSeq ||
-        this.state.toActSeat !== capturedToActSeat;
+        this.state.toActSeat !== capturedToActSeat ||
+        currentToActUserId !== capturedToActUserId ||
+        currentToActUserId !== botId;
       if (stale) {
         const crossedHandBoundary = this.state.handId !== capturedHandId;
         const crossedStreetBoundary = this.state.street !== capturedStreet;
@@ -287,7 +292,20 @@ export class Dealer {
         // Explicitly re-drive rather than silently discarding.
         // Must serialize through the queue: driveGame() can call lifecycle functions
         // directly, and unqueued state mutations would race with the action queue.
-        void this.enqueueSerializedStateMutation(() => this.driveGame("BOT_SCHEDULED_ACTION_STALE"));
+        void this.enqueueSerializedStateMutation(() => this.driveGame("BOT_SCHEDULED_ACTION_STALE")).catch((err: unknown) => {
+          logger.error(
+            {
+              err,
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              botId,
+              action: payload.action,
+              message: err instanceof Error ? err.message : String(err),
+            },
+            "BOT_SCHEDULED_ACTION_STALE_REDRIVE_FAILED",
+          );
+        });
         return;
       }
       // Route through the serialized queue so concurrent player actions interleave safely.
@@ -302,12 +320,40 @@ export class Dealer {
               { err, botId, action: payload.action, code: err.code },
               "BOT_SCHEDULED_ACTION_REJECTED",
             );
-            await this.driveGame("BOT_SCHEDULED_ACTION_REJECTED");
+            await this.driveGame("BOT_SCHEDULED_ACTION_REJECTED").catch((driveErr: unknown) => {
+              logger.error({ err: driveErr, botId, action: payload.action }, "BOT_SCHEDULED_ACTION_REJECTED_REDRIVE_FAILED");
+            });
             return;
           }
-          throw err;
+          logger.error(
+            {
+              err,
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              botId,
+              action: payload.action,
+              message: err instanceof Error ? err.message : String(err),
+            },
+            "BOT_SCHEDULED_ACTION_FAILED",
+          );
+          await this.driveGame("BOT_SCHEDULED_ACTION_FAILED").catch((driveErr: unknown) => {
+            logger.error({ err: driveErr, botId, action: payload.action }, "BOT_SCHEDULED_ACTION_FAILED_REDRIVE_FAILED");
+          });
         }
-      })();
+      })().catch((err: unknown) => {
+        logger.error(
+          {
+            err,
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            botId,
+            action: payload.action,
+            message: err instanceof Error ? err.message : String(err),
+          },
+          "BOT_SCHEDULED_ACTION_UNHANDLED",
+        );
+      });
     };
 
     const effectiveDelayMs = delayMs <= 0 ? 0 : delayMs;
@@ -1955,7 +2001,7 @@ export class Dealer {
           if (this.activeTerminalLifecycle) break;
 
           const driveNow = Date.now();
-          const activePlayers = resolveActivePlayersForHand(this.state);
+          const readyPlayers = resolvePlayersReadyForNextHand(this.state);
 
           // 🔴 SETTLEMENT BARRIER: same-hand settlement only (handId cleared on TRANSITION_TO_WAITING)
           const completedTerminalLifecycleId = this.completedTerminalLifecycle?.handId ?? null;
@@ -1996,7 +2042,7 @@ export class Dealer {
 
           if (terminalLifecycleCompletedThisDrive) break;
 
-          if (isNextHandStartDue(this.state, driveNow) && activePlayers.length >= 2) {
+          if (isNextHandStartDue(this.state, driveNow) && readyPlayers.length >= 2) {
             this.state.nextHandAtTs = 0;
             if (!this.state.handId) {
               this.completedTerminalLifecycle = null;
@@ -2575,10 +2621,10 @@ export class Dealer {
 
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
-      const activePlayers = resolveActivePlayersForHand(this.state);
-      const hasHumanReady = activePlayers.some((player) => player.kind === "HUMAN");
+      const readyPlayers = resolvePlayersReadyForNextHand(this.state);
+      const hasHumanReady = readyPlayers.some((player) => player.kind === "HUMAN");
       if (
-        activePlayers.length >= 2 &&
+        readyPlayers.length >= 2 &&
         hasHumanReady &&
         isNextHandStartDue(this.state, Date.now())
       ) {
@@ -3082,12 +3128,34 @@ export class Dealer {
    * Delegates to the private maybeActForBot so the encapsulation boundary is clear.
    */
   maybeActForBotPublic(): void {
-    void this.enqueueSerializedStateMutation(() => this.driveGame("STALL_MONITOR_RECOVERY"));
+    void this.enqueueSerializedStateMutation(() => this.driveGame("STALL_MONITOR_RECOVERY")).catch((err: unknown) => {
+      logger.error(
+        {
+          err,
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        "STALL_MONITOR_REDRIVE_FAILED",
+      );
+    });
   }
 
   /** Between-hands recovery when next-hand scheduling did not progress the table. */
   recoverBetweenHandsPublic(): void {
-    void this.enqueueSerializedStateMutation(() => this.driveGame("BETWEEN_HANDS_STALL_RECOVERY"));
+    void this.enqueueSerializedStateMutation(() => this.driveGame("BETWEEN_HANDS_STALL_RECOVERY")).catch((err: unknown) => {
+      logger.error(
+        {
+          err,
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        "BETWEEN_HANDS_REDRIVE_FAILED",
+      );
+    });
   }
 
   suspendGameplayTransitions(reason: string): void {
