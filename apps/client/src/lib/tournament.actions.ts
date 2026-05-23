@@ -1,5 +1,13 @@
 import type { Router } from "expo-router";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
+import {
+  isNotFoundJoinMessage,
+  logTableOpenTarget,
+  logTournamentJoinBlockedClient,
+  logTournamentJoinClick,
+  logTournamentRegisterRequest,
+  snapshotTournamentForJoinLog,
+} from "@/lib/tournamentJoinDiagnostics";
 import { mapTournamentApiError, resolveTournamentCta } from "@/lib/tournament.utils";
 import { resolveTournamentTableForJoin } from "@/lib/tournamentEnsureJoin";
 import { postTournamentRegister, postTournamentUnregister } from "@/services/post/tournaments.post";
@@ -19,19 +27,36 @@ export type TournamentActionHandlers = {
   refreshTournament: () => void;
   refreshBankroll: () => void;
   loginReturnPath: string;
+  /** Latest lobby/detail list row for stale-click audits. */
+  lookupTournament?: (tournamentId: string) => TournamentSummary | undefined;
+  joinSource?: string;
 };
 
 export function confirmTournamentTableJoin(
   tournament: TournamentSummary,
   handlers: Pick<TournamentActionHandlers, "openTable" | "router" | "setRoomForTable" | "showToast">,
-  targets?: { tableId: string; roomId: string; buyInCents: number },
+  targets: { tableId: string; roomId: string; buyInCents: number },
+  source = "tournament_lobby",
 ): boolean {
-  const tableId = targets?.tableId ?? tournament.tableId;
-  const roomId = targets?.roomId ?? tournament.roomId;
+  const tableId = targets.tableId;
+  const roomId = targets.roomId;
   if (!tableId || !roomId) {
+    logTournamentJoinBlockedClient({
+      tournamentId: tournament.id,
+      reason: "missing_table_or_room_target",
+      sourceFunction: "confirmTournamentTableJoin",
+      tournamentSnapshot: snapshotTournamentForJoinLog(tournament),
+      extra: { tableId: tableId || null, roomId: roomId || null, source },
+    });
     return false;
   }
-  const buyInCents = targets?.buyInCents ?? tournament.startingStackCents;
+  const buyInCents = targets.buyInCents;
+  logTableOpenTarget({
+    tournamentId: tournament.id,
+    tableId,
+    roomId,
+    source,
+  });
   handlers.setRoomForTable(tableId, roomId);
   handlers.openTable(tableId, { buyInCents, tournamentId: tournament.id });
   handlers.router.push(tablePath(tableId, { buyInCents }));
@@ -44,25 +69,44 @@ export async function executeTournamentTableJoin(
     TournamentActionHandlers,
     "openTable" | "router" | "setRoomForTable" | "showToast" | "refreshTournament"
   >,
+  options?: { source?: string; clickedSnapshot?: TournamentSummary },
 ): Promise<boolean> {
-  const resolved = await resolveTournamentTableForJoin(tournament.id);
+  const source = options?.source ?? "lobby_cta";
+  const clicked = options?.clickedSnapshot ?? tournament;
+  const resolved = await resolveTournamentTableForJoin(tournament.id, source);
   if (!resolved.ok) {
+    if (isNotFoundJoinMessage(resolved.message)) {
+      logTournamentJoinBlockedClient({
+        tournamentId: tournament.id,
+        reason: resolved.message,
+        sourceFunction: "executeTournamentTableJoin",
+        tournamentSnapshot: snapshotTournamentForJoinLog(clicked),
+        extra: { ensureSource: source },
+      });
+    }
     handlers.showToast(resolved.message, "danger");
     return false;
   }
   handlers.refreshTournament();
-  return confirmTournamentTableJoin(resolved.tournament, handlers, {
-    tableId: resolved.tableId,
-    roomId: resolved.roomId,
-    buyInCents: resolved.buyInCents,
-  });
+  return confirmTournamentTableJoin(
+    resolved.tournament,
+    handlers,
+    {
+      tableId: resolved.tableId,
+      roomId: resolved.roomId,
+      buyInCents: resolved.buyInCents,
+    },
+    source === "lobby_cta" ? "tournament_lobby" : source,
+  );
 }
 
 export async function confirmTournamentRegister(
   tournamentId: string,
   handlers: Pick<TournamentActionHandlers, "showToast" | "refreshTournament" | "refreshBankroll">,
+  source = "register_modal",
 ): Promise<boolean> {
   try {
+    logTournamentRegisterRequest(tournamentId, source);
     await postTournamentRegister(tournamentId);
     handlers.showToast("Registered for tournament", "success");
     handlers.refreshTournament();
@@ -70,6 +114,14 @@ export async function confirmTournamentRegister(
     return true;
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Registration failed";
+    if (isNotFoundJoinMessage(message)) {
+      logTournamentJoinBlockedClient({
+        tournamentId,
+        reason: message,
+        sourceFunction: "confirmTournamentRegister",
+        extra: { source },
+      });
+    }
     handlers.showToast(mapTournamentApiError(message), "danger");
     return false;
   }
@@ -79,16 +131,40 @@ export function dispatchTournamentCta(
   tournament: TournamentSummary,
   handlers: TournamentActionHandlers,
 ): void {
-  if (handlers.actionInFlight) return;
+  const nowMs = Date.now();
+  const cta = resolveTournamentCta(tournament, { authenticated: handlers.authenticated, nowMs });
+  const storeRow = handlers.lookupTournament?.(tournament.id);
+  logTournamentJoinClick(tournament, cta, nowMs, storeRow);
 
-  const cta = resolveTournamentCta(tournament, { authenticated: handlers.authenticated });
+  if (handlers.actionInFlight) {
+    if (cta.action === "join") {
+      logTournamentJoinBlockedClient({
+        tournamentId: tournament.id,
+        reason: "action_in_flight",
+        sourceFunction: "dispatchTournamentCta",
+        tournamentSnapshot: snapshotTournamentForJoinLog(tournament),
+      });
+    }
+    return;
+  }
 
   if (!handlers.authenticated && (cta.action === "register" || cta.action === "join")) {
     handlers.router.push(loginPathWithNext(handlers.loginReturnPath));
     return;
   }
 
-  if (cta.action === "none" || cta.disabled) return;
+  if (cta.action === "none" || cta.disabled) {
+    if (cta.action === "join" || (cta.action === "none" && tournament.status === "RUNNING")) {
+      logTournamentJoinBlockedClient({
+        tournamentId: tournament.id,
+        reason: cta.disabled ? "cta_disabled" : "cta_none",
+        sourceFunction: "dispatchTournamentCta",
+        tournamentSnapshot: snapshotTournamentForJoinLog(tournament),
+        extra: { ctaLabel: cta.label, ctaAction: cta.action },
+      });
+    }
+    return;
+  }
 
   if (cta.action === "register") {
     handlers.onRequestRegister(tournament);
@@ -113,9 +189,11 @@ export function dispatchTournamentCta(
 
   if (cta.action === "join") {
     handlers.setActionInFlight(true);
-    void executeTournamentTableJoin(tournament, handlers).finally(() =>
-      handlers.setActionInFlight(false),
-    );
+    const joinSource = handlers.joinSource ?? "lobby_cta";
+    void executeTournamentTableJoin(tournament, handlers, {
+      source: joinSource,
+      clickedSnapshot: tournament,
+    }).finally(() => handlers.setActionInFlight(false));
     return;
   }
 

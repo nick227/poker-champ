@@ -1,8 +1,21 @@
+import {
+  isNotFoundJoinMessage,
+  logTournamentEnsureRequest,
+  logTournamentEnsureResponse,
+  logTournamentJoinBlockedClient,
+  snapshotTournamentForJoinLog,
+} from "@/lib/tournamentJoinDiagnostics";
 import { mapTournamentApiError } from "@/lib/tournament.utils";
 import { postTournamentEnsureTable } from "@/services/post/tournaments.ensure-table";
+import type { TournamentEnsureJoinStatus } from "@/services/post/tournaments.ensure-table";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 const BLOCKED_TOURNAMENT_STATUSES = new Set(["FINISHED", "CANCELLED", "ABANDONED"]);
+const NAVIGABLE_ENSURE_STATUSES = new Set<TournamentEnsureJoinStatus>([
+  "READY",
+  "RESTORED",
+  "CREATING_TABLE",
+]);
 
 export type TournamentEnsureJoinOk = {
   ok: true;
@@ -27,35 +40,124 @@ export function isTournamentTableJoinBlocked(status: string): boolean {
   return BLOCKED_TOURNAMENT_STATUSES.has(status);
 }
 
+function mapEnsureBlockedMessage(input: {
+  joinStatus?: TournamentEnsureJoinStatus;
+  recoveryReason?: string;
+  tournamentStatus?: string;
+  playerStatus?: string;
+}): string {
+  if (input.joinStatus === "ENDED" || (input.tournamentStatus && isTournamentTableJoinBlocked(input.tournamentStatus))) {
+    return input.tournamentStatus === "FINISHED"
+      ? "This tournament has ended."
+      : input.tournamentStatus === "CANCELLED"
+        ? "This tournament was cancelled."
+        : "This tournament is no longer available.";
+  }
+  if (input.playerStatus === "ELIMINATED") {
+    return "You have been eliminated from this tournament.";
+  }
+  if (input.recoveryReason) {
+    return mapTournamentApiError(input.recoveryReason);
+  }
+  if (input.joinStatus === "NOT_ALLOWED") {
+    return mapTournamentApiError("TOURNAMENT_JOIN_CLOSED");
+  }
+  if (input.joinStatus === "FAILED") {
+    return mapTournamentApiError("TOURNAMENT_TABLE_UNAVAILABLE");
+  }
+  return mapTournamentApiError("TOURNAMENT_TABLE_UNAVAILABLE");
+}
+
+function logEnsureBlocked(
+  tournamentId: string,
+  reason: string,
+  sourceFunction: string,
+  tournament?: TournamentSummary,
+  extra?: Record<string, unknown>,
+): TournamentEnsureJoinBlocked {
+  logTournamentJoinBlockedClient({
+    tournamentId,
+    reason,
+    sourceFunction,
+    tournamentSnapshot: snapshotTournamentForJoinLog(tournament),
+    extra,
+  });
+  return { ok: false, message: reason };
+}
+
 /** Always resolve a live table via ensure-table; cached ids are hints only. */
 export async function resolveTournamentTableForJoin(
   tournamentId: string,
+  source = "lobby_cta",
 ): Promise<TournamentEnsureJoinResult> {
+  logTournamentEnsureRequest(tournamentId, source);
   try {
     const ensured = await postTournamentEnsureTable(tournamentId);
-    const tournament = ensured.tournament;
-    if (isTournamentTableJoinBlocked(tournament.status)) {
-      const endedCopy =
-        tournament.status === "FINISHED"
-          ? "This tournament has ended."
-          : tournament.status === "CANCELLED"
-            ? "This tournament was cancelled."
-            : "This tournament is no longer available.";
-      return { ok: false, message: endedCopy };
+    logTournamentEnsureResponse(tournamentId, {
+      joinStatus: ensured.joinStatus,
+      playerStatus: ensured.playerStatus,
+      tableId: ensured.tableId,
+      roomId: ensured.roomId,
+      tableLive: ensured.tableLive,
+      recoveryReason: ensured.recoveryReason,
+      tournamentStatus: ensured.tournamentStatus ?? ensured.tournament.status,
+    });
+    const tournamentStatus = ensured.tournamentStatus ?? ensured.tournament.status;
+    const hasNewEnsureContract = Boolean(ensured.joinStatus);
+    const tableId = hasNewEnsureContract
+      ? ensured.tableId
+      : (ensured.tableId ?? ensured.tournament.tableId);
+    const roomId = hasNewEnsureContract
+      ? ensured.roomId
+      : (ensured.roomId ?? ensured.tournament.roomId);
+    const tournament = {
+      ...ensured.tournament,
+      status: tournamentStatus,
+      tableId,
+      roomId,
+      tableLive: ensured.tableLive ?? ensured.tournament.tableLive,
+    };
+    if (hasNewEnsureContract && !NAVIGABLE_ENSURE_STATUSES.has(ensured.joinStatus!)) {
+      const message = mapEnsureBlockedMessage({
+        joinStatus: ensured.joinStatus,
+        recoveryReason: ensured.recoveryReason,
+        tournamentStatus,
+        playerStatus: ensured.playerStatus,
+      });
+      return logEnsureBlocked(tournamentId, message, "resolveTournamentTableForJoin:joinStatus", tournament, {
+        joinStatus: ensured.joinStatus,
+        playerStatus: ensured.playerStatus,
+        source,
+      });
     }
-    const tableId = ensured.tableId || tournament.tableId;
-    const roomId = ensured.roomId || tournament.roomId;
+    if (!hasNewEnsureContract && isTournamentTableJoinBlocked(tournament.status)) {
+      const message = mapEnsureBlockedMessage({ tournamentStatus: tournament.status });
+      return logEnsureBlocked(tournamentId, message, "resolveTournamentTableForJoin:status", tournament, { source });
+    }
     if (!tableId || !roomId) {
-      return {
-        ok: false,
-        message: mapTournamentApiError("TOURNAMENT_TABLE_UNAVAILABLE"),
-      };
+      const message = mapEnsureBlockedMessage({
+        joinStatus: ensured.joinStatus,
+        recoveryReason: ensured.recoveryReason,
+        tournamentStatus,
+        playerStatus: ensured.playerStatus,
+      });
+      return logEnsureBlocked(tournamentId, message, "resolveTournamentTableForJoin:missing_targets", tournament, {
+        joinStatus: ensured.joinStatus,
+        tableId,
+        roomId,
+        source,
+      });
     }
     if (!isNavigateReady({ ...tournament, tableId, roomId })) {
-      return {
-        ok: false,
-        message: mapTournamentApiError("TOURNAMENT_TABLE_UNAVAILABLE"),
-      };
+      const message = mapEnsureBlockedMessage({
+        joinStatus: ensured.joinStatus,
+        recoveryReason: ensured.recoveryReason,
+        tournamentStatus,
+        playerStatus: ensured.playerStatus,
+      });
+      return logEnsureBlocked(tournamentId, message, "resolveTournamentTableForJoin:not_navigate_ready", tournament, {
+        source,
+      });
     }
     return {
       ok: true,
@@ -66,6 +168,15 @@ export async function resolveTournamentTableForJoin(
     };
   } catch (e: unknown) {
     const raw = e instanceof Error ? e.message : "Could not open tournament table";
-    return { ok: false, message: mapTournamentApiError(raw) };
+    const message = mapTournamentApiError(raw);
+    if (isNotFoundJoinMessage(raw) || isNotFoundJoinMessage(message)) {
+      logTournamentJoinBlockedClient({
+        tournamentId,
+        reason: message,
+        sourceFunction: "resolveTournamentTableForJoin:exception",
+        extra: { raw, source },
+      });
+    }
+    return { ok: false, message };
   }
 }

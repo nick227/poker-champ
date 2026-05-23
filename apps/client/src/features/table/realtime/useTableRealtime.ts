@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useRealtimeChannel } from "@/realtime/useRealtimeChannel";
 import { storeRegistry } from "@/registry/store.registry";
 import { syncTableRoomIdFromProp } from "@/lib/tableRoomIdHint";
+import { isNotFoundJoinMessage, logTournamentJoinBlockedClient } from "@/lib/tournamentJoinDiagnostics";
 import { handleTableRealtimeInboundMessage } from "@/realtime/tableRealtime.message";
 
 export type TableRealtimeRoom = {
@@ -115,6 +116,15 @@ export function useTableRealtime({
       const normalized = message && message.trim().length > 0 ? message : "Connection closed unexpectedly";
       storeRegistry.table().setError(tableId, normalized);
       debugLog("TRANSPORT_ERROR", { tableId, message: normalized });
+      const joinState = storeRegistry.tables().tableJoinById?.[tableId];
+      if (joinState?.tournamentId && isNotFoundJoinMessage(normalized)) {
+        logTournamentJoinBlockedClient({
+          tournamentId: joinState.tournamentId,
+          reason: normalized,
+          sourceFunction: "useTableRealtime:onError",
+          extra: { tableId, roomId: roomId ?? null },
+        });
+      }
       onErrorRef.current?.(normalized);
       onTerminalJoinFailureRef.current?.(tableId, normalized);
     },

@@ -44,6 +44,10 @@ describe("confirmTournamentTableJoin", () => {
       setRoomForTable,
       router: router as never,
       showToast,
+    }, {
+      tableId: "table_stale",
+      roomId: "room_stale",
+      buyInCents: 10000,
     });
 
     expect(ok).toBe(true);
@@ -59,6 +63,10 @@ describe("confirmTournamentTableJoin", () => {
       setRoomForTable: vi.fn(),
       router: { push: vi.fn() } as never,
       showToast: vi.fn(),
+    }, {
+      tableId: "",
+      roomId: "",
+      buyInCents: 10000,
     });
     expect(ok).toBe(false);
   });
@@ -91,7 +99,7 @@ describe("executeTournamentTableJoin", () => {
       refreshTournament,
     });
 
-    expect(resolveTournamentTableForJoin).toHaveBeenCalledWith("t1");
+    expect(resolveTournamentTableForJoin).toHaveBeenCalledWith("t1", "lobby_cta");
     expect(refreshTournament).toHaveBeenCalled();
     expect(ok).toBe(true);
     expect(setRoomForTable).toHaveBeenCalledWith("table_fresh", "room_fresh");

@@ -310,6 +310,8 @@ export default function LobbyScreen() {
         refreshTournament: () => { void refreshTournaments(); },
         refreshBankroll: () => { void refreshBankroll(); },
         loginReturnPath: "/lobby",
+        lookupTournament: (id) => tournamentList.find((t) => t.id === id),
+        joinSource: "lobby_cta",
       });
     },
     [
@@ -322,19 +324,27 @@ export default function LobbyScreen() {
       setRoomForTable,
       showToast,
       tournamentActionBusy,
+      tournamentList,
     ],
   );
 
   const handleConfirmTournamentJoin = useCallback(() => {
     if (!joinModalTournament) return;
     setTournamentActionBusy(true);
-    void executeTournamentTableJoin(joinModalTournament, {
-      openTable,
-      router,
-      setRoomForTable,
-      showToast,
-      refreshTournament: () => { void refreshTournaments(); },
-    })
+    void executeTournamentTableJoin(
+      joinModalTournament,
+      {
+        openTable,
+        router,
+        setRoomForTable,
+        showToast,
+        refreshTournament: () => { void refreshTournaments(); },
+      },
+      {
+        source: "join_modal",
+        clickedSnapshot: joinModalTournament,
+      },
+    )
       .then((ok) => {
         if (ok) setJoinModalTournament(null);
       })
@@ -344,11 +354,15 @@ export default function LobbyScreen() {
   const handleConfirmTournamentRegister = useCallback(async () => {
     if (!registerModalTournament) return;
     setRegisterBusy(true);
-    const ok = await confirmTournamentRegister(registerModalTournament.id, {
-      showToast,
-      refreshTournament: () => { void refreshTournaments(); },
-      refreshBankroll: () => { void refreshBankroll(); },
-    });
+    const ok = await confirmTournamentRegister(
+      registerModalTournament.id,
+      {
+        showToast,
+        refreshTournament: () => { void refreshTournaments(); },
+        refreshBankroll: () => { void refreshBankroll(); },
+      },
+      "lobby_register_modal",
+    );
     if (ok) setRegisterModalTournament(null);
     setRegisterBusy(false);
   }, [registerModalTournament, refreshBankroll, refreshTournaments, showToast]);
