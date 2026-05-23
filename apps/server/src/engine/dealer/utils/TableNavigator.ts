@@ -136,8 +136,26 @@ export function resolvePlayersReadyForNextHand(state: PokerState): PlayerState[]
   return [...iterPlayersInSeatOrder(state)].filter(
     (p) =>
       p.status !== "OUT" &&
-      p.status !== "ABANDONED" &&
+      (p.status !== "ABANDONED" || state.tournamentMode) &&
       p.stackCents > 0 &&
       p.sittingOutUntilNextHand !== true,
   );
+}
+
+/** Reset between-hand statuses so eligibility checks match deal intent (FOLDED/ABANDONED → ACTIVE). */
+export function preparePlayersForNextHand(state: PokerState): void {
+  for (const player of state.playersById.values()) {
+    player.sittingOutUntilNextHand = false;
+    if (player.stackCents <= 0) continue;
+    if (player.status === "OUT") continue;
+    if (player.status === "ABANDONED") {
+      if (player.connected || state.tournamentMode) {
+        player.status = "ACTIVE";
+      }
+      continue;
+    }
+    if (player.status !== "ACTIVE") {
+      player.status = "ACTIVE";
+    }
+  }
 }

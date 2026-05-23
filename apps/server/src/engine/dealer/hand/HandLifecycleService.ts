@@ -62,7 +62,9 @@ import { SettlementService } from "../settlement/SettlementService.js";
 import {
   countActiveHumanPlayers,
   findNextToActSeat,
+  preparePlayersForNextHand,
   resolveActivePlayersForHand,
+  resolvePlayersReadyForNextHand,
   seatOrderLeftOfDealer,
 } from "../utils/TableNavigator.js";
 
@@ -478,7 +480,37 @@ export class HandLifecycleService {
     this.currentHandIncludesBotParticipants = false;
     this.currentHandInHandIds.clear();
     this.getHandStartingStacksByPlayerIdSafe().clear();
-    if (countActiveHumanPlayers(state) === 0) return plans;
+    preparePlayersForNextHand(state);
+    const readyForNextHand = resolvePlayersReadyForNextHand(state);
+    if (readyForNextHand.length < 2) {
+      logger.warn(
+        {
+          tableId: state.tableId,
+          handId: state.handId,
+          readyCount: readyForNextHand.length,
+          players: readyForNextHand.map((player) => ({
+            id: player.id,
+            status: player.status,
+            connected: player.connected,
+            stackCents: player.stackCents,
+          })),
+        },
+        "START_HAND_SKIPPED_INSUFFICIENT_READY_PLAYERS",
+      );
+      return plans;
+    }
+    if (countActiveHumanPlayers(state) === 0) {
+      logger.warn(
+        {
+          tableId: state.tableId,
+          handId: state.handId,
+          tournamentMode: state.tournamentMode,
+          readyCount: readyForNextHand.length,
+        },
+        "START_HAND_SKIPPED_NO_ACTIVE_HUMANS",
+      );
+      return plans;
+    }
     state.runningSinceTs = Date.now();
 
     const handId = newId("hand");
@@ -502,16 +534,8 @@ export class HandLifecycleService {
 
     resetBettingRound(state);
 
-    // Consume one-hand sit-out tokens and reset player states in single pass
+    // Consume one-hand sit-out tokens and reset betting fields in single pass
     for (const player of state.playersById.values()) {
-      player.sittingOutUntilNextHand = false;
-      if (
-        (player.connected || state.tournamentMode) &&
-        player.status === "ABANDONED" &&
-        player.stackCents > 0
-      ) {
-        player.status = "ACTIVE";
-      }
       player.roundBetCents = 0;
       player.committedCents = 0;
       player.needsAction = false;

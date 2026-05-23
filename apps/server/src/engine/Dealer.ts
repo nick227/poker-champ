@@ -1998,7 +1998,22 @@ export class Dealer {
         // WAITING: between-hands timer running or not enough players.
         if (street === "WAITING") {
           mark("loop:waiting_branch");
-          if (this.activeTerminalLifecycle) break;
+          if (this.activeTerminalLifecycle) {
+            if (!this.state.handId) {
+              logger.warn(
+                {
+                  tableId: this.state.tableId,
+                  handId: this.state.handId,
+                  activeTerminalLifecycle: this.activeTerminalLifecycle,
+                  trigger,
+                },
+                "STALE_ACTIVE_TERMINAL_LIFECYCLE_CLEARED",
+              );
+              this.activeTerminalLifecycle = null;
+            } else {
+              break;
+            }
+          }
 
           const driveNow = Date.now();
           const readyPlayers = resolvePlayersReadyForNextHand(this.state);
