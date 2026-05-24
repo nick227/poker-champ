@@ -198,4 +198,54 @@ describe("dealer between-hands lifecycle integration", () => {
       teardownDealer(dealer);
     }
   });
+
+  it("cash: deferred bot seat release in WAITING deals next hand without drive deadlock", async () => {
+    const state = new PokerState();
+    initSeatRows(state, 3);
+    state.smallBlindCents = 25;
+    state.bigBlindCents = 50;
+    state.street = "WAITING";
+    state.roundState = "HAND_COMPLETE";
+    state.handId = "";
+    state.toActSeat = -1;
+    state.nextHandAtTs = 0;
+    state.potCents = 2496;
+
+    seatPlayer(state, 0, "player_a", "ACTIVE", true);
+    seatPlayer(state, 1, "player_b", "FOLDED", true);
+
+    const pendingBot = new PlayerState();
+    pendingBot.id = "bot_pending";
+    pendingBot.userId = "";
+    pendingBot.botId = "chaos_carl";
+    pendingBot.name = "Bot";
+    pendingBot.kind = "BOT";
+    pendingBot.seat = 2;
+    pendingBot.status = "ABANDONED";
+    pendingBot.connected = false;
+    pendingBot.stackCents = 5000;
+    pendingBot.pendingLeave = true;
+    pendingBot.pendingRemovalReason = "BOT_AUTO_REMOVE";
+    state.playersById.set("bot_pending", pendingBot);
+    state.seats[2] = "bot_pending";
+
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    (dealer as { pendingSeatReleaseUserIds: Set<string> }).pendingSeatReleaseUserIds.add("bot_pending");
+
+    try {
+      expect(resolvePlayersReadyForNextHand(state).length).toBeGreaterThanOrEqual(2);
+
+      await (dealer as { driveGame: (reason: string) => Promise<void> }).driveGame(
+        "TEST_BOT_RELEASE_WAITING",
+      );
+
+      expect(state.playersById.has("bot_pending")).toBe(false);
+      expect(state.seats[2]).toBe("");
+      expect(state.street).toBe("PREFLOP");
+      expect(state.handId).toMatch(/^hand_/);
+    } finally {
+      teardownDealer(dealer);
+    }
+  });
 });
