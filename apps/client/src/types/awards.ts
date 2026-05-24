@@ -7,6 +7,6 @@ export type AwardGrant = {
   tierWeight: number;
   priorityWeight: number;
   reason: string;
-  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION";
+  contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | "TOURNAMENT";
   contextId?: string;
 };

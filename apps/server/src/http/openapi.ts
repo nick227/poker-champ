@@ -370,7 +370,7 @@ export const openApiSpec = {
           contextType: {
             type: "string",
             nullable: true,
-            enum: ["LESSON", "HAND", "REPLAY", "SESSION"],
+            enum: ["LESSON", "HAND", "REPLAY", "SESSION", "TOURNAMENT"],
           },
           contextId: { type: "string", nullable: true },
         },

@@ -820,11 +820,12 @@ export interface components {
             registeredCount: number;
             isRegistered?: boolean;
             tableLive?: boolean;
-            playerStatus?: "ACTIVE" | "ELIMINATED" | "REBUY_PENDING" | "WINNER" | "NOT_REGISTERED";
             fillBotsAtStart: boolean;
             fillBotCount?: number | null;
             createdByUserId?: string | null;
             isCreator?: boolean;
+            /** @enum {string} */
+            playerStatus?: "ACTIVE" | "ELIMINATED" | "REBUY_PENDING" | "WINNER" | "NOT_REGISTERED";
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -976,7 +977,7 @@ export interface components {
             lastEarnedAt: string;
             count: number;
             /** @enum {string|null} */
-            contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | null;
+            contextType?: "LESSON" | "HAND" | "REPLAY" | "SESSION" | "TOURNAMENT" | null;
             contextId?: string | null;
         };
         RootStatus: {

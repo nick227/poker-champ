@@ -277,6 +277,16 @@
           "isCreator": {
             "type": "boolean"
           },
+          "playerStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ELIMINATED",
+              "REBUY_PENDING",
+              "WINNER",
+              "NOT_REGISTERED"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -858,7 +868,8 @@
               "LESSON",
               "HAND",
               "REPLAY",
-              "SESSION"
+              "SESSION",
+              "TOURNAMENT"
             ]
           },
           "contextId": {
@@ -2387,7 +2398,9 @@
                   "blindStructureId": {
                     "type": "string",
                     "enum": [
-                      "standard_8min"
+                      "fast_4min",
+                      "standard_8min",
+                      "long_12min"
                     ]
                   },
                   "lateRegMinutes": {
@@ -2402,6 +2415,26 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 8
+                  },
+                  "playFormat": {
+                    "type": "string",
+                    "enum": [
+                      "FREEZEOUT",
+                      "REBUY"
+                    ]
+                  },
+                  "maxRebuysPerPlayer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "rebuyPeriodMinutes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 120
+                  },
+                  "instantStart": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
