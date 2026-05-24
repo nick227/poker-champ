@@ -58,4 +58,27 @@ describe("tournament-finish-resolution", () => {
       ]),
     ).toBe("bot_1");
   });
+
+  it("does not finish bot-only table while a human is registered but not seated", () => {
+    const state = new PokerState();
+    seat(state, 0, "bot_1", "BOT", 10_000);
+    seat(state, 1, "bot_2", "BOT", 8_000);
+
+    expect(
+      resolveTournamentWinnerUserId(state, [
+        { userId: "human_1", isBot: false, finishPlace: null },
+      ]),
+    ).toBeNull();
+  });
+
+  it("does not finish when one bot remains and a human could still join", () => {
+    const state = new PokerState();
+    seat(state, 0, "bot_1", "BOT", 12_000);
+
+    expect(
+      resolveTournamentWinnerUserId(state, [
+        { userId: "human_1", isBot: false, finishPlace: null },
+      ]),
+    ).toBeNull();
+  });
 });

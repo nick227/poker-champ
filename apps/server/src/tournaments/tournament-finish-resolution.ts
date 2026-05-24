@@ -34,18 +34,30 @@ export function pickBestHumanFinisher(registrations: TournamentRegistrationRow[]
   return ranked[0]?.userId ?? null;
 }
 
+function hasActiveHumanRegistrations(registrations: TournamentRegistrationRow[]): boolean {
+  return registrations.some((r) => !r.isBot && r.finishPlace == null);
+}
+
 /** Close a freezeout when a single stack remains; bots can win only non-money challenge results. */
 export function resolveTournamentWinnerUserId(
   state: PokerState,
-  _registrations: TournamentRegistrationRow[],
+  registrations: TournamentRegistrationRow[],
 ): string | null {
   const survivorsWithChips = countTournamentSurvivorsWithChips(state);
   if (survivorsWithChips.length === 1) {
-    return survivorsWithChips[0]!;
+    const soleSurvivorId = survivorsWithChips[0]!;
+    const soleSurvivor = state.playersById.get(soleSurvivorId);
+    if (soleSurvivor?.kind === "BOT" && hasActiveHumanRegistrations(registrations)) {
+      return null;
+    }
+    return soleSurvivorId;
   }
 
   const humansWithChips = countHumanSurvivorsWithChips(state);
   if (humansWithChips.length === 0 && survivorsWithChips.length > 0) {
+    if (hasActiveHumanRegistrations(registrations)) {
+      return null;
+    }
     const survivors = survivorsWithChips
       .map((id) => state.playersById.get(id))
       .filter((player) => player != null);

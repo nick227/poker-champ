@@ -81,8 +81,13 @@ export class TournamentDirector {
     const staleBefore = new Date(now.getTime() - 12 * 60 * 60 * 1000);
 
     for (const tournament of open) {
-      const roomDead = !isTournamentRoomLive(tournament.roomId, liveRoomIds);
+      const hasStoredRoom = Boolean(tournament.roomId);
+      const roomDead =
+        hasStoredRoom && !isTournamentRoomLive(tournament.roomId, liveRoomIds);
       const staleByTime = tournament.startTime < staleBefore;
+      if (tournament.status === "RUNNING" && !hasStoredRoom) {
+        continue;
+      }
       if (!roomDead && !staleByTime) continue;
 
       await prisma.tournament.update({

@@ -34,7 +34,19 @@ vi.mock("@colyseus/core", async () => {
         }
         return room[method](...(args as unknown[]));
       },
-      query: vi.fn().mockResolvedValue([]),
+      query: vi.fn(async () =>
+        [...pokerRooms.entries()].map(([roomId, room]) => ({
+          roomId,
+          name: "poker",
+          clients: 0,
+          maxClients: 9,
+          metadata: {
+            tableId: room.state.tableId,
+            name: room.state.tableName,
+            tournamentId: room.getTournamentIdInternal(),
+          },
+        })),
+      ),
     },
   };
 });

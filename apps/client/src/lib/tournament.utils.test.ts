@@ -363,7 +363,7 @@ describe("filterTournamentsForPublicLobby", () => {
 });
 
 describe("selectJoinedTournaments", () => {
-  it("includes registered scheduled, live, and finished states", () => {
+  it("includes registered scheduled and live states only", () => {
     const joined = selectJoinedTournaments([
       baseTournament({ id: "sched", isRegistered: true, status: "REGISTERING" }),
       baseTournament({ id: "live", isRegistered: true, status: "RUNNING", tableId: "t", roomId: "r" }),
@@ -372,7 +372,7 @@ describe("selectJoinedTournaments", () => {
       baseTournament({ id: "gone", isRegistered: true, status: "CANCELLED" }),
       baseTournament({ id: "abandoned", isRegistered: true, status: "ABANDONED" }),
     ]);
-    expect(joined.map((t) => t.id)).toEqual(["live", "sched", "done", "abandoned"]);
+    expect(joined.map((t) => t.id)).toEqual(["live", "sched"]);
   });
 
   it("removes joined active rows from browse list", () => {

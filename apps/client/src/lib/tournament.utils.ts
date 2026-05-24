@@ -256,14 +256,12 @@ export type TournamentLobbySection = "upcoming" | "running";
 
 const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "LATE_REG", "STARTING", "RUNNING"]);
 
-/** Joined lobby rows: scheduled, live, and recently finished for registered players. */
+/** Joined lobby rows: scheduled and live for registered players. */
 const JOINED_VISIBLE_STATUSES = new Set([
   "REGISTERING",
   "LATE_REG",
   "STARTING",
   "RUNNING",
-  "FINISHED",
-  "ABANDONED",
 ]);
 
 export function isJoinedVisibleTournament(tournament: TournamentSummary): boolean {
@@ -289,10 +287,7 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
           return 0;
         }
         if (tournament.status === "REGISTERING") return 1;
-        if (tournament.status === "FINISHED" || tournament.status === "ABANDONED") {
-          return 2;
-        }
-        return 3;
+        return 2;
       };
       const byPhase = rank(a) - rank(b);
       if (byPhase !== 0) return byPhase;
