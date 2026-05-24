@@ -2344,6 +2344,15 @@ export class Dealer {
     void this.requestDrive(reason);
   }
 
+  /** Queue when already inside driveGame; await only for external entry points. */
+  private async scheduleDrive(reason: string): Promise<void> {
+    if (this.driveInProgress) {
+      this.queueDrive(reason);
+      return;
+    }
+    await this.requestDrive(reason);
+  }
+
   private stageExternalPlayerLifecyclePlans(plans: PlayerLifecyclePlan[], source: string): void {
     if (plans.length === 0) return;
     this.pendingExternalPlayerLifecycleBatches.push({ source, plans });
@@ -2663,14 +2672,14 @@ export class Dealer {
         hasHumanReady &&
         isNextHandStartDue(this.state, Date.now())
       ) {
-        await this.requestDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
+        await this.scheduleDrive("START_HAND:ENSURE_HAND_ADVANCE_WAITING");
       }
       return;
     }
     if (this.state.runoutMode === "STAGED") return;
 
     if (countNotFoldedPlayers(this.state) <= 1) {
-      await this.requestDrive("FINISH_HAND_LAST_STANDING:ENSURE_HAND_ADVANCE_LAST_PLAYER");
+      await this.scheduleDrive("FINISH_HAND_LAST_STANDING:ENSURE_HAND_ADVANCE_LAST_PLAYER");
       return;
     }
 
@@ -2678,11 +2687,11 @@ export class Dealer {
     const toAct = toActId ? this.state.playersById.get(toActId) : undefined;
     if (!toAct || !eligibleToAct(toAct) || !toAct.needsAction) {
       if (bettingRoundComplete(this.state) || noFurtherBettingPossible(this.state)) {
-        await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_BETTING_CLOSED");
+        await this.scheduleDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_BETTING_CLOSED");
       } else {
         const nextSeat = findNextToActSeat(this.state, removedSeat);
         if (nextSeat === -1) {
-          await this.requestDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_NO_NEXT_SEAT");
+          await this.scheduleDrive("ADVANCE_STREET_OR_SHOWDOWN:ENSURE_HAND_ADVANCE_NO_NEXT_SEAT");
           return;
         }
         this.assignToActSeatWithTrace(nextSeat, "ENSURE_HAND_ADVANCE_REASSIGN_TO_ACT");
