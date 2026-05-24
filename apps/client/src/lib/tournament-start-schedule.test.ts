@@ -57,12 +57,12 @@ describe("tournament-start-schedule", () => {
     expect(diffMs).toBeLessThanOrEqual(61 * 60 * 1000);
   });
 
-  it("detects past start times at minute precision", () => {
+  it("detects past start times at five-minute precision", () => {
     const now = new Date("2026-05-20T14:30:45");
     const pastIso = buildTournamentStartIsoFromSchedule({
       dateYmd: "2026-05-20",
       hour12: 2,
-      minute: 29,
+      minute: 25,
       meridiem: "PM",
     })!;
     const sameMinuteIso = buildTournamentStartIsoFromSchedule({
@@ -74,12 +74,17 @@ describe("tournament-start-schedule", () => {
     const futureIso = buildTournamentStartIsoFromSchedule({
       dateYmd: "2026-05-20",
       hour12: 2,
-      minute: 31,
+      minute: 35,
       meridiem: "PM",
     })!;
 
     expect(isTournamentStartInPast(pastIso, now)).toBe(true);
     expect(isTournamentStartInPast(sameMinuteIso, now)).toBe(false);
     expect(isTournamentStartInPast(futureIso, now)).toBe(false);
+  });
+
+  it("snaps default minute to nearest five", () => {
+    const schedule = defaultTournamentStartSchedule(new Date("2026-01-15T10:07:00"));
+    expect(schedule.minute % 5).toBe(0);
   });
 });

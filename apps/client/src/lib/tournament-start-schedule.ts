@@ -8,7 +8,12 @@ export type TournamentStartSchedule = {
 };
 
 export const HOUR12_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
-export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => i);
+export const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5);
+
+export function snapMinuteToFive(minute: number): number {
+  const rounded = Math.round(minute / 5) * 5;
+  return rounded === 60 ? 55 : Math.min(55, Math.max(0, rounded));
+}
 
 export function todayDateYmd(now = new Date()): string {
   const y = now.getFullYear();
@@ -27,7 +32,7 @@ export function defaultTournamentStartSchedule(
   const meridiem: Meridiem = hour24 >= 12 ? "PM" : "AM";
   let hour12 = hour24 % 12;
   if (hour12 === 0) hour12 = 12;
-  const minute = start.getMinutes();
+  const minute = snapMinuteToFive(start.getMinutes());
   return { dateYmd, hour12, minute, meridiem };
 }
 

@@ -28,22 +28,21 @@ export type TableDisplayState = {
 export const RECONNECTING_COPY = "Reconnecting...";
 export const DISCONNECTED_COPY = "Disconnected...";
 
-function buildWinnerMessage(
-  handResultNotice: HandResultMessage | null,
-): string | null {
-  return buildWinnerMessageText(handResultNotice);
-}
+export type DeriveTableDisplayStateOptions = {
+  formatChipAmount?: (amount: number) => string;
+};
 
 export function deriveTableDisplayState({
   viewState,
   actionNotice,
   handResultNotice,
+  formatChipAmount,
 }: {
   viewState: TableViewState;
   actionNotice: ActionNotice | null;
   handResultNotice: HandResultMessage | null;
-}): TableDisplayState {
-  const winnerMessage = buildWinnerMessage(handResultNotice);
+} & DeriveTableDisplayStateOptions): TableDisplayState {
+  const winnerMessage = buildWinnerMessageText(handResultNotice, formatChipAmount);
   const completedHandId = handResultNotice?.handId ?? null;
 
   let phase: TableDisplayPhase = "betweenHands";

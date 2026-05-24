@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Platform, ScrollView, TextInput, View } from "react-native";
+import { Platform, TextInput, View } from "react-native";
 import type { TextInputProps } from "react-native";
 import { ChipButton } from "@/components/base/ChipButton";
 import { Text } from "@/components/base/Text";
@@ -87,7 +87,7 @@ export function TournamentStartScheduleFields({ value, onChange }: TournamentSta
           </View>
         </ChipRow>
         <ChipRow label="Minute">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <View className="flex-row flex-wrap gap-2">
             {MINUTE_OPTIONS.map((minute) => (
               <ChipButton
                 key={minute}
@@ -96,7 +96,7 @@ export function TournamentStartScheduleFields({ value, onChange }: TournamentSta
                 onPress={() => patch({ minute })}
               />
             ))}
-          </ScrollView>
+          </View>
         </ChipRow>
         <ChipRow label="AM / PM">
           <View className="flex-row flex-wrap gap-2">

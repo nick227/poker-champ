@@ -7,7 +7,7 @@ import {
   buildWinnerBannerFromSnapshot,
 } from "../displayMessages";
 
-function buildActionNotice(
+export function buildTableActionNotice(
   snapshot: TableSnapshotPayload | undefined,
   formatAmount: (amount: number) => string,
 ): ActionNotice | null {
@@ -35,7 +35,7 @@ export function useTableDisplayEvents(
   const { formatBet } = useTableMoneyDisplay();
   return useMemo(
     () => ({
-      actionNotice: buildActionNotice(snapshot, formatBet),
+      actionNotice: buildTableActionNotice(snapshot, formatBet),
       winnerBanner: buildWinnerBannerFromSnapshot(snapshot),
     }),
     [formatBet, snapshot],

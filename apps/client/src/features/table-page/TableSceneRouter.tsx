@@ -67,7 +67,11 @@ function copyShareTableUrl(url: string, showToast: (msg: string, variant?: "defa
     });
 }
 
-export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRouterProps) {
+function TableSceneRouterContent({
+  scene,
+  renderModel,
+  actions,
+}: TableSceneRouterProps) {
   const { snapshot, currentUserAvatarUrl } = renderModel;
   const { mode } = scene;
   const showToast = useToastStore((s) => s.show);
@@ -219,14 +223,20 @@ export function TableSceneRouter({ scene, renderModel, actions }: TableSceneRout
   });
 
   return (
-    <TableMoneyDisplayProvider snapshot={snapshot ?? null}>
-      <TableSceneShell
-        {...slots}
-        showStatusView={showStatusView}
-        revealed={revealed}
-        revealDurationMs={TABLE_REVEAL_MS}
-        reducedMotion={reducedMotion}
-      />
+    <TableSceneShell
+      {...slots}
+      showStatusView={showStatusView}
+      revealed={revealed}
+      revealDurationMs={TABLE_REVEAL_MS}
+      reducedMotion={reducedMotion}
+    />
+  );
+}
+
+export function TableSceneRouter(props: TableSceneRouterProps) {
+  return (
+    <TableMoneyDisplayProvider snapshot={props.renderModel.snapshot ?? null}>
+      <TableSceneRouterContent {...props} />
     </TableMoneyDisplayProvider>
   );
 }
