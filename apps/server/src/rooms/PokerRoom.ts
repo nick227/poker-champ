@@ -463,6 +463,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.tournamentId;
   }
 
+  getTournamentSeatedHumanUserIds(): string[] {
+    const ids: string[] = [];
+    for (const player of this.state.playersById.values()) {
+      if (player.kind === "HUMAN") ids.push(player.id);
+    }
+    return ids;
+  }
+
+  getTournamentSeatedPlayerCount(): number {
+    return this.state.playersById.size;
+  }
+
   getTournamentStartingStackCentsInternal(): number | undefined {
     return this.tournamentStartingStackCents;
   }

@@ -12,6 +12,7 @@ import { processTournamentFinishResults } from "./tournament-result-processor.js
 import { isTournamentRoomLive, loadLivePokerRoomIds } from "./tournament-room-live.js";
 import { abandonTournamentAtMaxBlind } from "./tournament-abandon.js";
 import { isLateRegistrationClosed, isLateRegistrationOpen } from "./tournament-schedule.js";
+import { eliminateLateRegistrationNoShows } from "./tournament-late-reg-no-shows.js";
 import {
   MIN_TOURNAMENT_REGISTRATIONS_TO_PROVISION,
   MIN_TOURNAMENT_SEATED_HUMANS_TO_DEAL,
@@ -237,7 +238,73 @@ export class TournamentDirector {
       await this.startTournamentWithTable(refreshed);
     }
 
+    const afterTable = await this.loadTournamentWithRegistrations(tournamentId);
+    if (afterTable?.roomId) {
+      const seatedHumanUserIds = await this.loadTournamentSeatedHumanUserIds(afterTable.roomId);
+      await eliminateLateRegistrationNoShows(tournamentId, seatedHumanUserIds, now);
+      await this.promoteRunningAfterLateRegClose(tournamentId, afterTable.roomId);
+    }
+
     logger.info({ tournamentId }, "TOURNAMENT_LATE_REG_CLOSED");
+  }
+
+  /** After late reg locks, flip to RUNNING when the table meets deal thresholds (including bot-only fields). */
+  private async promoteRunningAfterLateRegClose(tournamentId: string, roomId: string): Promise<void> {
+    const prisma = getPrisma();
+    const tournament = await this.loadTournamentWithRegistrations(tournamentId);
+    if (!tournament || tournament.status !== "LATE_REG") return;
+
+    const seatedCount = await this.loadTournamentSeatedPlayerCount(roomId);
+    const seatedHumanUserIds = await this.loadTournamentSeatedHumanUserIds(roomId);
+    const activeHumans = tournament.registrations.filter((r) => !r.isBot && r.finishPlace == null).length;
+
+    const botOnlyField = activeHumans === 0 && seatedCount >= MIN_TOURNAMENT_SEATED_TO_DEAL;
+    const normalField =
+      seatedHumanUserIds.size >= MIN_TOURNAMENT_SEATED_HUMANS_TO_DEAL &&
+      seatedCount >= MIN_TOURNAMENT_SEATED_TO_DEAL;
+
+    if (!botOnlyField && !normalField) return;
+
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: "RUNNING" },
+    });
+    logger.info({ tournamentId, seatedCount, humanSeatedCount: seatedHumanUserIds.size, botOnlyField }, "TOURNAMENT_PROMOTED_AFTER_LATE_REG_CLOSE");
+  }
+
+  private async loadTournamentSeatedPlayerCount(roomId: string): Promise<number> {
+    try {
+      const count = (await matchMaker.remoteRoomCall(
+        roomId,
+        "getTournamentSeatedPlayerCount" as never,
+        [],
+        10_000,
+      )) as number;
+      return typeof count === "number" ? count : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async loadTournamentSeatedHumanUserIds(roomId: string): Promise<Set<string>> {
+    try {
+      const ids = (await matchMaker.remoteRoomCall(
+        roomId,
+        "getTournamentSeatedHumanUserIds" as never,
+        [],
+        10_000,
+      )) as string[];
+      return new Set(ids);
+    } catch (err: unknown) {
+      logger.warn(
+        {
+          roomId,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        "TOURNAMENT_SEATED_HUMANS_LOOKUP_FAILED",
+      );
+      return new Set();
+    }
   }
 
   async tryStartTournamentTable(tournamentId: string): Promise<TryStartTournamentTableResult> {

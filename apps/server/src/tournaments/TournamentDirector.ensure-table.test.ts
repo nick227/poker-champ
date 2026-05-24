@@ -68,7 +68,7 @@ describe("TournamentDirector.ensureTournamentTableForJoinDetailed", () => {
     };
     const fullRegistrations = [
       { userId, isBot: false, user: { displayName: "Active Player" } },
-      { userId: "bot_1", isBot: true, user: { displayName: "Bot" } },
+      { userId: "tournament_bot_chaos_carl", isBot: true, user: { displayName: "Bot" } },
     ];
 
     mocks.prisma.tournament.findUnique.mockImplementation(async (args: any) => {
