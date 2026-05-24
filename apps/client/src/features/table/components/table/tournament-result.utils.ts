@@ -24,15 +24,44 @@ export function getTournamentResultTier(
   return "podium";
 }
 
+export type TournamentViewerOverlayInput = {
+  isEliminated?: boolean;
+  isWinner?: boolean;
+  finishPlace?: number | null;
+};
+
 export function shouldShowTournamentResultOverlay(
-  isEliminated: boolean | undefined,
+  viewer: TournamentViewerOverlayInput | undefined,
   tournamentStatus: string,
 ): boolean {
-  return (
-    isEliminated === true ||
-    tournamentStatus === "FINISHED" ||
-    tournamentStatus === "ABANDONED"
-  );
+  if (viewer?.isEliminated === true) return true;
+  if (viewer?.isWinner === true) return true;
+  return tournamentStatus === "FINISHED" || tournamentStatus === "ABANDONED";
+}
+
+export function resolveTournamentResultHeadline(params: {
+  isEliminated: boolean;
+  isWinner: boolean;
+  finished: boolean;
+  finishPlace: number | null | undefined;
+  playFormat?: string;
+}): string {
+  if (params.isWinner) {
+    return "Tournament complete";
+  }
+  if (params.isEliminated) {
+    if (!params.playFormat || params.playFormat === "FREEZEOUT") {
+      return "You were eliminated. This is a freezeout — you cannot re-enter.";
+    }
+    return "You were eliminated from this tournament.";
+  }
+  if (params.finished) {
+    return "This tournament has finished.";
+  }
+  if (params.finishPlace != null) {
+    return `You finished in ${formatFinishPlace(params.finishPlace)} place.`;
+  }
+  return "You were eliminated from this tournament.";
 }
 
 export function buildTournamentResultRevealKey(

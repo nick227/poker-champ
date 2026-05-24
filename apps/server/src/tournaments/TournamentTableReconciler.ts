@@ -55,6 +55,7 @@ export class TournamentTableReconciler {
       bigBlindCents: level.bigBlindCents,
       anteCents: level.anteCents,
       nextLevelAtTs: tournament.nextLevelAt?.getTime() ?? null,
+      playFormat: tournament.playFormat as "FREEZEOUT" | "REBUY",
     });
 
     for (const player of ctx.state.playersById.values()) {
@@ -144,6 +145,7 @@ export class TournamentTableReconciler {
         bigBlindCents: level.bigBlindCents,
         anteCents: level.anteCents,
         nextLevelAtTs: null,
+        playFormat: refreshed.playFormat as "FREEZEOUT" | "REBUY",
       });
 
       logger.info({ tournamentId: ctx.tournamentId, winnerId, reason: "human_field_closed" }, "TOURNAMENT_FINISHED");

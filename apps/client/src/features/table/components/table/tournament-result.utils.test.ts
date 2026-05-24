@@ -3,6 +3,7 @@ import {
   buildTournamentResultRevealKey,
   formatFinishPlace,
   getTournamentResultTier,
+  resolveTournamentResultHeadline,
   shouldShowTournamentResultOverlay,
 } from "./tournament-result.utils";
 
@@ -22,10 +23,33 @@ describe("tournament-result.utils", () => {
     expect(getTournamentResultTier(null, 100)).toBe("none");
   });
 
-  it("shows overlay when eliminated or tournament finished", () => {
-    expect(shouldShowTournamentResultOverlay(true, "RUNNING")).toBe(true);
-    expect(shouldShowTournamentResultOverlay(false, "FINISHED")).toBe(true);
-    expect(shouldShowTournamentResultOverlay(false, "RUNNING")).toBe(false);
+  it("shows overlay when eliminated, winner, or tournament finished", () => {
+    expect(shouldShowTournamentResultOverlay({ isEliminated: true }, "RUNNING")).toBe(true);
+    expect(shouldShowTournamentResultOverlay({ isWinner: true }, "RUNNING")).toBe(true);
+    expect(shouldShowTournamentResultOverlay(undefined, "FINISHED")).toBe(true);
+    expect(shouldShowTournamentResultOverlay(undefined, "RUNNING")).toBe(false);
+  });
+
+  it("uses freezeout elimination copy by default", () => {
+    expect(
+      resolveTournamentResultHeadline({
+        isEliminated: true,
+        isWinner: false,
+        finished: false,
+        finishPlace: 2,
+      }),
+    ).toBe("You were eliminated. This is a freezeout — you cannot re-enter.");
+  });
+
+  it("uses tournament complete headline for winners", () => {
+    expect(
+      resolveTournamentResultHeadline({
+        isEliminated: false,
+        isWinner: true,
+        finished: true,
+        finishPlace: 1,
+      }),
+    ).toBe("Tournament complete");
   });
 
   it("builds stable reveal keys", () => {

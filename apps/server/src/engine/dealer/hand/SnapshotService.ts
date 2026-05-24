@@ -677,7 +677,40 @@ export class SnapshotService {
         bigBlindCents: overlay.bigBlindCents,
         anteCents: overlay.anteCents,
         ...(overlay.nextLevelAtTs != null ? { nextLevelAtTs: overlay.nextLevelAtTs } : {}),
+        ...(overlay.playFormat != null ? { playFormat: overlay.playFormat } : {}),
       },
+    };
+  }
+
+  private async buildTournamentViewer(
+    userId: string,
+    overlay: TournamentTableOverlay,
+  ): Promise<TableSnapshotPayload["hero"]["tournamentViewer"] | undefined> {
+    const prisma = getPrisma();
+    const registration = await prisma.tournamentRegistration.findUnique({
+      where: {
+        tournamentId_userId: { tournamentId: overlay.tournamentId, userId },
+      },
+      select: { finishPlace: true },
+    });
+    if (registration?.finishPlace == null) {
+      return undefined;
+    }
+
+    const payoutTx = await prisma.balanceTransaction.findFirst({
+      where: {
+        tournamentId: overlay.tournamentId,
+        userId,
+        type: "TOURNAMENT_PAYOUT",
+      },
+      select: { amountCents: true },
+    });
+    const isWinner = registration.finishPlace === 1 && overlay.status === "FINISHED";
+    return {
+      isEliminated: !isWinner && registration.finishPlace > 1,
+      isWinner,
+      finishPlace: registration.finishPlace,
+      payoutCents: payoutTx?.amountCents ?? 0,
     };
   }
 
@@ -713,31 +746,10 @@ export class SnapshotService {
 
     const hasCalc = mode === "full" && (Boolean(calc) || potOddsPct !== undefined);
     let tournamentViewer: TableSnapshotPayload["hero"]["tournamentViewer"];
-    if (mode === "full" && !hero) {
+    if (mode === "full") {
       const overlay = this.deps.getTournamentTableOverlay?.();
       if (overlay) {
-        const prisma = getPrisma();
-        const registration = await prisma.tournamentRegistration.findUnique({
-          where: {
-            tournamentId_userId: { tournamentId: overlay.tournamentId, userId },
-          },
-          select: { finishPlace: true },
-        });
-        if (registration?.finishPlace != null) {
-          const payoutTx = await prisma.balanceTransaction.findFirst({
-            where: {
-              tournamentId: overlay.tournamentId,
-              userId,
-              type: "TOURNAMENT_PAYOUT",
-            },
-            select: { amountCents: true },
-          });
-          tournamentViewer = {
-            isEliminated: true,
-            finishPlace: registration.finishPlace,
-            payoutCents: payoutTx?.amountCents ?? 0,
-          };
-        }
+        tournamentViewer = await this.buildTournamentViewer(userId, overlay);
       }
     }
 

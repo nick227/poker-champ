@@ -7,8 +7,8 @@ import { formatCents } from "@/lib/format";
 import { TournamentInTheMoneyReveal } from "./TournamentInTheMoneyReveal";
 import {
   buildTournamentResultRevealKey,
-  formatFinishPlace,
   getTournamentResultTier,
+  resolveTournamentResultHeadline,
   shouldShowTournamentResultOverlay,
 } from "./tournament-result.utils";
 
@@ -29,8 +29,9 @@ export function TournamentResultBanner({
   onBackToLobby,
 }: TournamentResultBannerProps) {
   const eliminated = tournamentViewer?.isEliminated === true;
+  const isWinner = tournamentViewer?.isWinner === true;
   const finished = tournament.status === "FINISHED";
-  const showOverlay = shouldShowTournamentResultOverlay(eliminated, tournament.status);
+  const showOverlay = shouldShowTournamentResultOverlay(tournamentViewer, tournament.status);
 
   const place = tournamentViewer?.finishPlace;
   const payoutCents = tournamentViewer?.payoutCents ?? 0;
@@ -64,12 +65,13 @@ export function TournamentResultBanner({
     );
   }
 
-  let headline = "You were eliminated from this tournament.";
-  if (finished && !eliminated) {
-    headline = "This tournament has finished.";
-  } else if (place != null) {
-    headline = `You finished in ${formatFinishPlace(place)} place.`;
-  }
+  const headline = resolveTournamentResultHeadline({
+    isEliminated: eliminated,
+    isWinner,
+    finished,
+    finishPlace: place,
+    playFormat: tournament.playFormat,
+  });
 
   const detail =
     payoutCents > 0

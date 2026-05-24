@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
+import { buildTableActionNotice } from "@/features/table/components/table/hooks/useTableDisplayEvents";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import { formatCents } from "@/lib/format";
 import {
@@ -90,24 +91,32 @@ export function useTableSceneSlots({
         : undefined,
     [scene.connectionStatus, snapshot],
   );
+  const actionNotice = useMemo(
+    () => buildTableActionNotice(snapshot, formatBet),
+    [formatBet, snapshot],
+  );
   const tableDisplayState = useMemo(
     () =>
       liveViewState
         ? deriveTableDisplayState({
             viewState: liveViewState,
-            actionNotice: renderModel.displayEvents.actionNotice,
+            actionNotice,
             handResultNotice: renderModel.displayEvents.winnerBanner,
+            formatChipAmount,
           })
         : null,
     [
+      actionNotice,
+      formatChipAmount,
       liveViewState,
-      renderModel.displayEvents,
+      renderModel.displayEvents.winnerBanner,
     ],
   );
   const liveStatusStripState = useLiveTableStatusStripState({
     tableId: renderModel.tableId,
     displayState: tableDisplayState ?? EMPTY_DISPLAY_STATE,
     tournamentStatus: snapshot?.table?.tournament?.status ?? null,
+    tournamentViewer: snapshot?.hero?.tournamentViewer ?? null,
   });
   const loadingSlots = useMemo(
     () =>

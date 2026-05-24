@@ -486,6 +486,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       bigBlindCents: level.bigBlindCents,
       anteCents: level.anteCents,
       nextLevelAtTs: tournament.nextLevelAt?.getTime() ?? null,
+      playFormat: tournament.playFormat as "FREEZEOUT" | "REBUY",
     };
   }
 
@@ -503,6 +504,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.state.smallBlindCents = payload.smallBlindCents;
     this.state.bigBlindCents = payload.bigBlindCents;
     this.tournamentOverlay = {
+      ...this.tournamentOverlay,
       tournamentId: this.tournamentId,
       status: payload.status,
       currentLevel: payload.currentLevel,

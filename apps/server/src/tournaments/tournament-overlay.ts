@@ -1,3 +1,5 @@
+export type TournamentPlayFormat = "FREEZEOUT" | "REBUY";
+
 export type TournamentTableOverlay = {
   tournamentId: string;
   status: string;
@@ -6,4 +8,5 @@ export type TournamentTableOverlay = {
   bigBlindCents: number;
   anteCents: number;
   nextLevelAtTs: number | null;
+  playFormat?: TournamentPlayFormat;
 };

@@ -11,6 +11,12 @@ export type LiveTableStatusPhase =
 
 export const DEALING_NEXT_HAND_COPY = "Dealing next hand...";
 export const TOURNAMENT_FINISHED_COPY = "Tournament complete";
+export const TOURNAMENT_ELIMINATED_COPY = "You were eliminated";
+
+export type TournamentViewerStripInput = {
+  isEliminated?: boolean;
+  isWinner?: boolean;
+};
 
 export const MIN_MESSAGE_DURATION_MS = 400;
 export const WINNER_HOLD_MS = 900;
@@ -25,8 +31,37 @@ type LiveTableStatusInputs = {
   tableId: string;
   displayState: TableDisplayState;
   tournamentStatus?: string | null;
+  tournamentViewer?: TournamentViewerStripInput | null;
   debugNowTs?: number;
 };
+
+export function isTerminalTournamentStatus(status: string | null | undefined): boolean {
+  return status === "FINISHED" || status === "ABANDONED" || status === "CANCELLED";
+}
+
+export function isTournamentTerminalStripState(
+  tournamentStatus: string | null | undefined,
+  tournamentViewer?: TournamentViewerStripInput | null,
+): boolean {
+  return (
+    isTerminalTournamentStatus(tournamentStatus) ||
+    tournamentViewer?.isEliminated === true ||
+    tournamentViewer?.isWinner === true
+  );
+}
+
+export function resolveBetweenHandsTournamentMessage(
+  tournamentStatus: string | null | undefined,
+  tournamentViewer?: TournamentViewerStripInput | null,
+): string {
+  if (tournamentViewer?.isEliminated === true) {
+    return TOURNAMENT_ELIMINATED_COPY;
+  }
+  if (isTerminalTournamentStatus(tournamentStatus) || tournamentViewer?.isWinner === true) {
+    return TOURNAMENT_FINISHED_COPY;
+  }
+  return DEALING_NEXT_HAND_COPY;
+}
 
 type NoticeFingerprint = {
   handId: string;
@@ -458,21 +493,23 @@ function resolveDerivedState(
   if (transportMessage != null) {
     message = transportMessage;
   } else if (state.phase === "betweenHands") {
-    message =
-      inputs.tournamentStatus === "FINISHED" ||
-      inputs.tournamentStatus === "ABANDONED" ||
-      inputs.tournamentStatus === "CANCELLED"
-        ? TOURNAMENT_FINISHED_COPY
-        : DEALING_NEXT_HAND_COPY;
+    message = resolveBetweenHandsTournamentMessage(
+      inputs.tournamentStatus,
+      inputs.tournamentViewer,
+    );
   } else if (state.phase === "winnerHold" || state.phase === "boardReset") {
     message = state.displayedMessage;
   } else {
     message = resolveInHandMessage(state, inputs, currentHandId);
   }
 
+  const tournamentTerminal = isTournamentTerminalStripState(
+    inputs.tournamentStatus,
+    inputs.tournamentViewer,
+  );
   const showSpinner =
     transportMessage != null ||
-    state.phase === "betweenHands";
+    (state.phase === "betweenHands" && !tournamentTerminal);
   const showBoardOverride =
     state.phase === "boardReset" || state.phase === "betweenHands";
 
@@ -504,6 +541,8 @@ export function useLiveTableStatusStripState(
       rawInputs.debugNowTs,
       rawInputs.displayState,
       rawInputs.tableId,
+      rawInputs.tournamentStatus,
+      rawInputs.tournamentViewer,
     ],
   );
   const [state, dispatch] = useReducer(

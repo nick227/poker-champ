@@ -23,6 +23,8 @@ import {
   DEALING_NEXT_HAND_COPY,
   MIN_MESSAGE_DURATION_MS,
   TERMINAL_TIMEOUT_MS,
+  TOURNAMENT_ELIMINATED_COPY,
+  TOURNAMENT_FINISHED_COPY,
   WINNER_HOLD_MS,
   useLiveTableStatusStripState,
 } from "./useLiveTableStatusStripState";
@@ -36,6 +38,8 @@ import type { TableDisplayState } from "./tableDisplayState";
 type HookProps = {
   tableId: string;
   displayState: TableDisplayState;
+  tournamentStatus?: string | null;
+  tournamentViewer?: { isEliminated?: boolean; isWinner?: boolean } | null;
   debugNowTs?: number;
 };
 type ScenarioOverrides = {
@@ -50,6 +54,8 @@ type ScenarioOverrides = {
   pendingAction?: PendingAction;
   sceneMode?: "idle" | "active";
   debugNowTs?: number;
+  tournamentStatus?: string | null;
+  tournamentViewer?: { isEliminated?: boolean; isWinner?: boolean } | null;
 };
 
 function makeSnapshot({
@@ -278,6 +284,8 @@ function makeProps(overrides: ScenarioOverrides = {}): HookProps {
           handResultNotice: overrides.handResultNotice ?? null,
         })
       : emptyDisplayState,
+    tournamentStatus: overrides.tournamentStatus ?? null,
+    tournamentViewer: overrides.tournamentViewer ?? null,
     debugNowTs: overrides.debugNowTs,
   };
 }
@@ -864,5 +872,78 @@ describe("useLiveTableStatusStripState", () => {
     });
 
     expect(result.current.message).toBe("Callie to act");
+  });
+
+  it("shows tournament complete without spinner when tournamentStatus becomes FINISHED in betweenHands", () => {
+    const winnerNotice = makeHandResultNotice("hand-1");
+    const { result, rerender } = renderHook(
+      (props: HookProps) => useLiveTableStatusStripState(props),
+      {
+        initialProps: makeProps({
+          sceneMode: "idle",
+          snapshot: makeSnapshot({ handId: null }),
+          handResultNotice: winnerNotice,
+          tournamentStatus: "RUNNING",
+        }),
+      },
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(WINNER_HOLD_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(BOARD_RESET_FADE_MS);
+    });
+    expect(result.current.statusPhase).toBe("betweenHands");
+    expect(result.current.message).toBe(DEALING_NEXT_HAND_COPY);
+    expect(result.current.showSpinner).toBe(true);
+
+    rerender(
+      makeProps({
+        sceneMode: "idle",
+        snapshot: makeSnapshot({ handId: null }),
+        handResultNotice: winnerNotice,
+        tournamentStatus: "FINISHED",
+        tournamentViewer: { isWinner: true },
+      }),
+    );
+    expect(result.current.message).toBe(TOURNAMENT_FINISHED_COPY);
+    expect(result.current.showSpinner).toBe(false);
+  });
+
+  it("shows eliminated copy without spinner for busted player in betweenHands", () => {
+    const winnerNotice = makeHandResultNotice("hand-1");
+    const { result, rerender } = renderHook(
+      (props: HookProps) => useLiveTableStatusStripState(props),
+      {
+        initialProps: makeProps({
+          sceneMode: "idle",
+          snapshot: makeSnapshot({ handId: null }),
+          handResultNotice: winnerNotice,
+          tournamentStatus: "RUNNING",
+        }),
+      },
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(WINNER_HOLD_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(BOARD_RESET_FADE_MS);
+    });
+    expect(result.current.statusPhase).toBe("betweenHands");
+
+    rerender(
+      makeProps({
+        sceneMode: "idle",
+        snapshot: makeSnapshot({ handId: null }),
+        handResultNotice: winnerNotice,
+        tournamentStatus: "FINISHED",
+        tournamentViewer: { isEliminated: true },
+      }),
+    );
+    expect(result.current.message).toBe(TOURNAMENT_ELIMINATED_COPY);
+    expect(result.current.showSpinner).toBe(false);
+    expect(result.current.message).not.toBe(DEALING_NEXT_HAND_COPY);
   });
 });

@@ -207,6 +207,7 @@ export const TableSnapshotPayloadSchema = z.object({
         bigBlindCents: z.number().int().positive(),
         anteCents: z.number().int().nonnegative(),
         nextLevelAtTs: z.number().int().nonnegative().optional(),
+        playFormat: z.enum(["FREEZEOUT", "REBUY"]).optional(),
       })
       .optional(),
   }),
@@ -245,8 +246,12 @@ export const TableSnapshotPayloadSchema = z.object({
     tournamentViewer: z
       .object({
         isEliminated: z.boolean(),
+        isWinner: z.boolean().optional(),
         finishPlace: z.number().int().positive().nullable().optional(),
         payoutCents: z.number().int().nonnegative(),
+        rebuyPending: z.boolean().optional(),
+        rebuysRemaining: z.number().int().nonnegative().optional(),
+        rebuyWindowClosesAtTs: z.number().int().nonnegative().nullable().optional(),
       })
       .optional(),
   }),
