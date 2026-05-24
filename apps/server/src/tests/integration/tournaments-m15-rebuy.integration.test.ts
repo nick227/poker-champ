@@ -138,6 +138,17 @@ async function waitForDealerIdle(room: PokerRoom, timeoutMs = 10_000): Promise<v
   }
 }
 
+/** Block between-hand dealing while we drive bust/rebuy steps deterministically. */
+function holdDealerHands(room: PokerRoom): void {
+  room.dealerRef.suspendGameplayTransitions("M15_TEST_HOLD");
+  room.state.nextHandAtTs = Date.now() + 60 * 60 * 1000;
+}
+
+function releaseDealerHold(room: PokerRoom): void {
+  room.dealerRef.resumeGameplayTransitions("M15_TEST_HOLD");
+  room.state.nextHandAtTs = 0;
+}
+
 async function waitForTableWaiting(room: PokerRoom, timeoutMs = 15_000): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -386,13 +397,14 @@ describe.skipIf(!hasDatabase)("Tournament M15 rebuy E2E", () => {
       await prisma.user.findUniqueOrThrow({ where: { id: testUsers.playerB } })
     ).bankrollCents;
 
+    holdDealerHands(room);
     const buyInRes = await post("/api/economy/buy-in", {
       tableId: running.tableId,
       amountCents: startingStackCents,
     });
     expect(buyInRes.status).toBe(200);
 
-    await waitForTableWaiting(room);
+    await waitForDealerIdle(room);
 
     const regBAfterRebuy = await prisma.tournamentRegistration.findUniqueOrThrow({
       where: { tournamentId_userId: { tournamentId: tournament.id, userId: testUsers.playerB } },
@@ -418,9 +430,6 @@ describe.skipIf(!hasDatabase)("Tournament M15 rebuy E2E", () => {
 
     const seatedWithChips = [...room.state.playersById.values()].filter((p) => p.stackCents > 0);
     expect(seatedWithChips.length).toBe(2);
-
-    room.state.nextHandAtTs = 0;
-    await waitForTableWaiting(room);
 
     const { playEnded: endedAfterSecondBust } = await bustPlayerAndReconcile({
       tournamentId: tournament.id,
@@ -465,5 +474,7 @@ describe.skipIf(!hasDatabase)("Tournament M15 rebuy E2E", () => {
     const detailWinner = await get(`/api/tournaments/${tournament.id}`);
     const detailWinnerBody = await detailWinner.json();
     expect(detailWinnerBody.playerStatus).toBe("WINNER");
+
+    releaseDealerHold(room);
   });
 });
