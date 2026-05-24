@@ -99,8 +99,6 @@ export class TournamentTableReconciler {
         tableMeta: { name: ctx.tableName },
       });
 
-      await ctx.removeBustedPlayer(player.id);
-
       if (rebuyEligible) {
         await prisma.tournamentRegistration.update({
           where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: player.id } },
@@ -127,6 +125,8 @@ export class TournamentTableReconciler {
           "TOURNAMENT_PLAYER_ELIMINATED",
         );
       }
+
+      await ctx.removeBustedPlayer(player.id);
 
       if (ctx.emitSnapshot) {
         await ctx.emitSnapshot();
