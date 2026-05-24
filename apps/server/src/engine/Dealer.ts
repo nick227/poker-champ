@@ -940,6 +940,26 @@ export class Dealer {
     });
   }
 
+  /** Tournament rebuy after bust: re-seat when removed, add chips when still seated. */
+  async applyTournamentRebuy(
+    userId: string,
+    displayName: string,
+    amountCents: number,
+    rebuyRef?: string,
+  ): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = this.state.playersById.has(userId)
+        ? await this.playerLifecycleService.addChipsToSeatedPlayer(userId, amountCents, rebuyRef)
+        : await this.playerLifecycleService.reseatTournamentRebuyPlayer(
+            userId,
+            displayName,
+            amountCents,
+            rebuyRef,
+          );
+      await this.applyExternalPlayerLifecyclePlans(plans, "APPLY_TOURNAMENT_REBUY");
+    });
+  }
+
   async handleConsentedLeave(userId: string) {
     await this.enqueueSerializedStateMutation(async () => {
       const plans = await this.playerLifecycleService.removePlayer(userId, { cashOutAfterRemoval: true });

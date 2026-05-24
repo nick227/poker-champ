@@ -9,6 +9,12 @@ import {
   countTournamentSurvivorsWithChips,
   resolveTournamentWinnerUserId,
 } from "./tournament-finish-resolution.js";
+import { canRebuyTournament } from "./tournament-schedule.js";
+import {
+  countRebuyPendingRegistrations,
+  countTournamentRebuysForUser,
+  sweepExpiredRebuyPendingPlayers,
+} from "./tournament-rebuy.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -58,23 +64,32 @@ export class TournamentTableReconciler {
       playFormat: tournament.playFormat as "FREEZEOUT" | "REBUY",
     });
 
+    const now = new Date();
+    await sweepExpiredRebuyPendingPlayers(ctx.tournamentId, tournament, now);
+
+    const refreshedAfterSweep = await prisma.tournament.findUnique({
+    where: { id: ctx.tournamentId },
+    include: {
+      registrations: {
+        include: { user: { select: { displayName: true } } },
+      },
+    },
+  });
+  if (!refreshedAfterSweep || refreshedAfterSweep.status !== "RUNNING") return;
+
     for (const player of ctx.state.playersById.values()) {
       if (player.stackCents > 0) continue;
 
-      const registration = tournament.registrations.find((r) => r.userId === player.id);
-      if (!registration || registration.finishPlace != null) continue;
+      const registration = refreshedAfterSweep.registrations.find((r) => r.userId === player.id);
+      if (!registration || registration.finishPlace != null || registration.rebuyPendingAt != null) {
+        continue;
+      }
 
-      const pendingCount = await prisma.tournamentRegistration.count({
-        where: { tournamentId: ctx.tournamentId, finishPlace: null },
-      });
-
-      await prisma.tournamentRegistration.update({
-        where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: player.id } },
-        data: {
-          finishPlace: pendingCount,
-          eliminatedAt: new Date(),
-        },
-      });
+      const rebuyCount = await countTournamentRebuysForUser(ctx.tournamentId, player.id);
+      const rebuyEligible =
+        !registration.isBot &&
+        refreshedAfterSweep.playFormat === "REBUY" &&
+        canRebuyTournament(refreshedAfterSweep, { rebuyCount }, now);
 
       await CashierService.forfeitTournamentTableBalance({
         userId: player.id,
@@ -86,10 +101,33 @@ export class TournamentTableReconciler {
 
       await ctx.removeBustedPlayer(player.id);
 
-      logger.info(
-        { tournamentId: ctx.tournamentId, userId: player.id, finishPlace: pendingCount },
-        "TOURNAMENT_PLAYER_ELIMINATED",
-      );
+      if (rebuyEligible) {
+        await prisma.tournamentRegistration.update({
+          where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: player.id } },
+          data: { rebuyPendingAt: now, eliminatedAt: null },
+        });
+        logger.info(
+          { tournamentId: ctx.tournamentId, userId: player.id, rebuyCount },
+          "TOURNAMENT_PLAYER_REBUY_PENDING",
+        );
+      } else {
+        const pendingCount = await prisma.tournamentRegistration.count({
+          where: { tournamentId: ctx.tournamentId, finishPlace: null },
+        });
+        await prisma.tournamentRegistration.update({
+          where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: player.id } },
+          data: {
+            finishPlace: pendingCount,
+            eliminatedAt: now,
+            rebuyPendingAt: null,
+          },
+        });
+        logger.info(
+          { tournamentId: ctx.tournamentId, userId: player.id, finishPlace: pendingCount },
+          "TOURNAMENT_PLAYER_ELIMINATED",
+        );
+      }
+
       if (ctx.emitSnapshot) {
         await ctx.emitSnapshot();
       }
@@ -107,14 +145,15 @@ export class TournamentTableReconciler {
       finishPlace: r.finishPlace,
     }));
 
-    const winnerId = resolveTournamentWinnerUserId(
-      ctx.state,
-      registrationRows,
-    );
+    const rebuyPendingCount = countRebuyPendingRegistrations(refreshed.registrations);
+    const winnerId =
+      rebuyPendingCount === 0
+        ? resolveTournamentWinnerUserId(ctx.state, registrationRows)
+        : null;
     if (winnerId) {
       await prisma.tournamentRegistration.update({
         where: { tournamentId_userId: { tournamentId: ctx.tournamentId, userId: winnerId } },
-        data: { finishPlace: 1, eliminatedAt: null },
+        data: { finishPlace: 1, eliminatedAt: null, rebuyPendingAt: null },
       });
 
       await prisma.tournament.update({

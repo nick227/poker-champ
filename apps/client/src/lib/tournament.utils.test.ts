@@ -198,6 +198,20 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Spectate", action: "spectate", disabled: false });
   });
 
+  it("shows rebuy for rebuy-pending player while tournament is running", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: true,
+        playerStatus: "REBUY_PENDING",
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+    );
+    expect(cta).toEqual({ label: "Rebuy", action: "rebuy", disabled: false });
+  });
+
   it("shows join table for active registered player", () => {
     const cta = resolveTournamentCta(
       baseTournament({

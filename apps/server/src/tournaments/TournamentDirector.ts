@@ -20,9 +20,10 @@ import {
 } from "./tournament-table-start.js";
 import {
   isTournamentSpectateEligible,
-  resolveTournamentPlayerStatus,
+  resolveRegisteredTournamentPlayerStatus,
   type TournamentPlayerStatus,
 } from "./tournament-player-status.js";
+import { countTournamentRebuysForUser } from "./tournament-rebuy.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
@@ -579,7 +580,12 @@ export class TournamentDirector {
       include: {
         registrations: {
           where: { userId },
-          select: { userId: true, finishPlace: true, eliminatedAt: true },
+          select: {
+            userId: true,
+            finishPlace: true,
+            eliminatedAt: true,
+            rebuyPendingAt: true,
+          },
         },
       },
     });
@@ -598,12 +604,13 @@ export class TournamentDirector {
     }
 
     const registration = tournament.registrations[0];
-    const playerStatus = resolveTournamentPlayerStatus({
-      isRegistered: Boolean(registration),
-      tournamentStatus: tournament.status,
-      finishPlace: registration?.finishPlace ?? null,
-      eliminatedAt: registration?.eliminatedAt ?? null,
-    });
+    const rebuyCount =
+      registration?.rebuyPendingAt != null
+        ? await countTournamentRebuysForUser(tournamentId, userId)
+        : 0;
+    const playerStatus = registration
+      ? resolveRegisteredTournamentPlayerStatus(tournament, registration, rebuyCount)
+      : ("NOT_REGISTERED" as TournamentPlayerStatus);
     const terminal = ["FINISHED", "ABANDONED", "CANCELLED"].includes(tournament.status);
     const lateRegOpen = isLateRegistrationOpen(tournament);
     const liveRoomIds = await loadLivePokerRoomIds();
@@ -639,7 +646,7 @@ export class TournamentDirector {
     }
 
     if (playerStatus !== "ACTIVE") {
-      if (playerStatus === "ELIMINATED") {
+      if (playerStatus === "ELIMINATED" || playerStatus === "REBUY_PENDING") {
         const canSpectate = isTournamentSpectateEligible({
           tournamentStatus: tournament.status,
           tableId: tournament.tableId,
@@ -654,7 +661,10 @@ export class TournamentDirector {
             roomId: tournament.roomId,
             tableLive,
             joinStatus: "READY",
-            recoveryReason: "TOURNAMENT_PLAYER_ELIMINATED",
+            recoveryReason:
+              playerStatus === "REBUY_PENDING"
+                ? "TOURNAMENT_REBUY_PENDING"
+                : "TOURNAMENT_PLAYER_ELIMINATED",
           };
         }
       }

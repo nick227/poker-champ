@@ -50,6 +50,8 @@ import { snapshotMetrics } from "../metrics/snapshotMetrics.js";
 import { TableOutboundMessageSchema, type HeroActionOptions, type TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { getPrisma } from "@poker-champ/db";
 import type { TournamentTableOverlay } from "../../../tournaments/tournament-overlay.js";
+import { canRebuyTournament } from "../../../tournaments/tournament-schedule.js";
+import { rebuyWindowClosesAtMs } from "../../../tournaments/tournament-rebuy.js";
 
 // ============================================================================
 // TYPE DEFINITIONS & CONSTANTS
@@ -691,27 +693,80 @@ export class SnapshotService {
       where: {
         tournamentId_userId: { tournamentId: overlay.tournamentId, userId },
       },
-      select: { finishPlace: true },
+      select: { finishPlace: true, rebuyPendingAt: true, eliminatedAt: true },
     });
-    if (registration?.finishPlace == null) {
+    if (!registration) {
       return undefined;
     }
 
-    const payoutTx = await prisma.balanceTransaction.findFirst({
-      where: {
-        tournamentId: overlay.tournamentId,
-        userId,
-        type: "TOURNAMENT_PAYOUT",
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: overlay.tournamentId },
+      select: {
+        playFormat: true,
+        startTime: true,
+        rebuyPeriodMinutes: true,
+        maxRebuysPerPlayer: true,
+        status: true,
       },
-      select: { amountCents: true },
     });
-    const isWinner = registration.finishPlace === 1 && overlay.status === "FINISHED";
+    if (!tournament) {
+      return undefined;
+    }
+
+    const rebuyCount = await prisma.balanceTransaction.count({
+      where: { tournamentId: overlay.tournamentId, userId, type: "BUYIN" },
+    });
+    const rebuyWindowClosesAtTs = rebuyWindowClosesAtMs(tournament);
+    const rebuyEligible = canRebuyTournament(tournament, { rebuyCount });
+
+    if (registration.finishPlace != null) {
+      const payoutTx = await prisma.balanceTransaction.findFirst({
+        where: {
+          tournamentId: overlay.tournamentId,
+          userId,
+          type: "TOURNAMENT_PAYOUT",
+        },
+        select: { amountCents: true },
+      });
+      const isWinner = registration.finishPlace === 1 && overlay.status === "FINISHED";
+      return {
+        isEliminated: !isWinner && registration.finishPlace > 1,
+        isWinner,
+        finishPlace: registration.finishPlace,
+        payoutCents: payoutTx?.amountCents ?? 0,
+      };
+    }
+
+    if (registration.rebuyPendingAt != null) {
+      if (rebuyEligible) {
+        return {
+          isEliminated: false,
+          isWinner: false,
+          finishPlace: null,
+          payoutCents: 0,
+          rebuyPending: true,
+          rebuysRemaining: Math.max(0, tournament.maxRebuysPerPlayer - rebuyCount),
+          rebuyWindowClosesAtTs,
+        };
+      }
+      return {
+        isEliminated: true,
+        isWinner: false,
+        finishPlace: null,
+        payoutCents: 0,
+      };
+    }
+
+  if (registration.eliminatedAt != null) {
     return {
-      isEliminated: !isWinner && registration.finishPlace > 1,
-      isWinner,
-      finishPlace: registration.finishPlace,
-      payoutCents: payoutTx?.amountCents ?? 0,
+      isEliminated: true,
+      isWinner: false,
+      finishPlace: null,
+      payoutCents: 0,
     };
+  }
+
+    return undefined;
   }
 
   private async buildHeroPatch(

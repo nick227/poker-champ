@@ -137,7 +137,7 @@ export function dispatchTournamentCta(
   logTournamentJoinClick(tournament, cta, nowMs, storeRow);
 
   if (handlers.actionInFlight) {
-    if (cta.action === "join" || cta.action === "spectate") {
+    if (cta.action === "join" || cta.action === "spectate" || cta.action === "rebuy") {
       logTournamentJoinBlockedClient({
         tournamentId: tournament.id,
         reason: "action_in_flight",
@@ -148,7 +148,7 @@ export function dispatchTournamentCta(
     return;
   }
 
-  if (!handlers.authenticated && (cta.action === "register" || cta.action === "join" || cta.action === "spectate")) {
+  if (!handlers.authenticated && (cta.action === "register" || cta.action === "join" || cta.action === "spectate" || cta.action === "rebuy")) {
     handlers.router.push(loginPathWithNext(handlers.loginReturnPath));
     return;
   }
@@ -187,7 +187,7 @@ export function dispatchTournamentCta(
     return;
   }
 
-  if (cta.action === "join" || cta.action === "spectate") {
+  if (cta.action === "join" || cta.action === "spectate" || cta.action === "rebuy") {
     handlers.setActionInFlight(true);
     const joinSource = handlers.joinSource ?? "lobby_cta";
     void executeTournamentTableJoin(tournament, handlers, {

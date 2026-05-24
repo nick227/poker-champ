@@ -113,7 +113,7 @@ export const openApiSpec = {
           isCreator: { type: "boolean" },
           playerStatus: {
             type: "string",
-            enum: ["ACTIVE", "ELIMINATED", "WINNER", "NOT_REGISTERED"],
+            enum: ["ACTIVE", "ELIMINATED", "REBUY_PENDING", "WINNER", "NOT_REGISTERED"],
           },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },

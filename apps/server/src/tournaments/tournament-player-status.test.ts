@@ -48,6 +48,32 @@ describe("resolveTournamentPlayerStatus", () => {
       }),
     ).toBe("WINNER");
   });
+
+  it("returns REBUY_PENDING while rebuy window is open", () => {
+    expect(
+      resolveTournamentPlayerStatus({
+        isRegistered: true,
+        tournamentStatus: "RUNNING",
+        finishPlace: null,
+        eliminatedAt: null,
+        rebuyPendingAt: new Date(),
+        rebuyEligible: true,
+      }),
+    ).toBe("REBUY_PENDING");
+  });
+
+  it("returns ELIMINATED when rebuy window expired for pending player", () => {
+    expect(
+      resolveTournamentPlayerStatus({
+        isRegistered: true,
+        tournamentStatus: "RUNNING",
+        finishPlace: null,
+        eliminatedAt: null,
+        rebuyPendingAt: new Date(),
+        rebuyEligible: false,
+      }),
+    ).toBe("ELIMINATED");
+  });
 });
 
 describe("isTournamentSpectateEligible", () => {

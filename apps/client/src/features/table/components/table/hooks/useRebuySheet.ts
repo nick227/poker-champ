@@ -16,21 +16,23 @@ export function useRebuySheet(
 
   const canRebuy = useMemo(() => {
     if (!snapshot) return false;
-    if (snapshot.table?.tournament) return false;
-    if (snapshot.hero.tournamentViewer?.isEliminated) return false;
 
-    // Must currently be seated to safely reason about stack/status.
+    const tournamentViewer = snapshot.hero.tournamentViewer;
+    if (snapshot.table?.tournament) {
+      return tournamentViewer?.rebuyPending === true;
+    }
+
+    if (tournamentViewer?.isEliminated) return false;
+
     if (!snapshot.hero.youAreSeated) return false;
 
     const heroSeat =
       snapshot.hero.seat != null
-        ? snapshot.seats.find((s: any) => s.seat === snapshot.hero.seat)
+        ? snapshot.seats.find((s) => s.seat === snapshot.hero.seat)
         : undefined;
 
     if (!heroSeat) return false;
 
-    // Busted (stack 0): allow rebuy when OUT, WAITING, ABANDONED, or residual ALL_IN
-    // after an all-in pot where hand is already over.
     if (heroSeat.stackCents !== 0) return false;
     const allowedBustedStatuses = ["WAITING", "OUT", "ABANDONED", "ALL_IN"];
     if (!allowedBustedStatuses.includes(heroSeat.status)) return false;
@@ -40,6 +42,14 @@ export function useRebuySheet(
     if (!Number.isInteger(maxBuyInCents) || maxBuyInCents <= 0) return false;
 
     return true;
+  }, [snapshot]);
+
+  const defaultBuyInCents = useMemo(() => {
+    if (!snapshot) return undefined;
+    if (snapshot.table?.tournament) {
+      return snapshot.table.minBuyInCents;
+    }
+    return undefined;
   }, [snapshot]);
 
   const handleRebuyApply = useCallback(
@@ -59,6 +69,7 @@ export function useRebuySheet(
     rebuySheetVisible: visible,
     setRebuySheetVisible: setVisible,
     canRebuy,
+    defaultBuyInCents,
     handleRebuyApply,
   };
 }

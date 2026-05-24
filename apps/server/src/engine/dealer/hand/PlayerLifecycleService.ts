@@ -320,6 +320,63 @@ export class PlayerLifecycleService {
     return plans;
   }
 
+  /**
+   * Re-seat a rebuy-pending tournament player after economy buy-in.
+   * Stack is already on the table ledger; do not grant starting stack again.
+   */
+  async reseatTournamentRebuyPlayer(
+    userId: string,
+    name: string,
+    stackCents: number,
+    rebuyRef?: string,
+  ): Promise<PlayerLifecyclePlan[]> {
+    const plans: PlayerLifecyclePlan[] = [];
+    if (this.deps.state.playersById.has(userId)) {
+      return this.addChipsToSeatedPlayer(userId, stackCents, rebuyRef);
+    }
+    this.cashedOutUserIds.delete(userId);
+    this.assertValidBuyIn(stackCents);
+
+    if (rebuyRef) {
+      const rebuyKey = `${userId}:${rebuyRef}`;
+      if (this.appliedRebuyKeys.has(rebuyKey)) {
+        logger.warn({ userId, rebuyRef }, "Duplicate tournament rebuy reseat prevented");
+        return plans;
+      }
+      this.appliedRebuyKeys.add(rebuyKey);
+    }
+
+    const seat = findOpenSeat(this.deps.state);
+    if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
+
+    const player = new PlayerState();
+    player.id = userId;
+    player.userId = userId;
+    player.kind = "HUMAN";
+    player.name = name;
+    player.seat = seat;
+    player.status = "ACTIVE";
+    player.connected = false;
+    player.disconnectDeadlineTs = 0;
+    player.stackCents = stackCents;
+    player.roundBetCents = 0;
+    player.committedCents = 0;
+    player.needsAction = false;
+    player.sittingOutUntilNextHand = false;
+
+    this.deps.state.playersById.set(userId, player);
+    this.deps.state.seats[seat] = userId;
+
+    await this.deps.ensurePlayerPersistence(player);
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    logger.info({ userId, stackCents, seat }, "tournament rebuy reseat applied");
+
+    if (this.deps.state.street === "WAITING" && countNonOutPlayers(this.deps.state) >= 2) {
+      plans.push({ kind: "START_HAND" });
+    }
+    return plans;
+  }
+
   async addTournamentBotPlayer(
     userId: string,
     name: string,

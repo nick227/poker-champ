@@ -133,7 +133,21 @@ router.post("/buy-in", async (req, res) => {
     const { tableId, amountCents } = parsed.data;
     try {
       if (room?.roomId) {
-        await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents, rebuyRef]);
+        if (activeTournament) {
+          const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { displayName: true },
+          });
+          const displayName = user?.displayName?.trim() || "Player";
+          await matchMaker.remoteRoomCall(room.roomId, "applyTournamentRebuy", [
+            userId,
+            displayName,
+            amountCents,
+            rebuyRef,
+          ]);
+        } else {
+          await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents, rebuyRef]);
+        }
       }
     } catch (roomErr) {
       logger.error({ err: roomErr, tableId, userId }, "applyRebuy to room failed after buy-in");

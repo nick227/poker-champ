@@ -193,7 +193,21 @@ export function resolveTournamentCta(
 
   if (
     registered &&
+    playerStatus === "REBUY_PENDING" &&
+    isTournamentPlayActive(tournament)
+  ) {
+    const canRebuy = hasTournamentTableTarget(tournament);
+    return {
+      label: "Rebuy",
+      action: "rebuy",
+      disabled: !canRebuy,
+    };
+  }
+
+  if (
+    registered &&
     playerStatus !== "ELIMINATED" &&
+    playerStatus !== "REBUY_PENDING" &&
     playerStatus !== "WINNER" &&
     canJoinTournament(tournament, nowMs)
   ) {
@@ -348,6 +362,9 @@ export function formatJoinedTournamentHint(
     return "Starting now · table opens shortly";
   }
   if (tournament.status === "RUNNING") {
+    if (tournament.playerStatus === "REBUY_PENDING") {
+      return "Busted · rebuy available";
+    }
     if (tournament.playerStatus === "ELIMINATED") {
       return "Eliminated · spectate the table";
     }

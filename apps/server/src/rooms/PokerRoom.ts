@@ -1227,6 +1227,29 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 
+  async applyTournamentRebuy(
+    userId: string,
+    displayName: string,
+    amountCents: number,
+    rebuyRef?: string,
+  ): Promise<void> {
+    await this.dealer.applyTournamentRebuy(userId, displayName, amountCents, rebuyRef);
+    if (this.persistentSeatsEnabled) {
+      const seat = this.findPlayerSeat(userId);
+      const stackCents = this.getPlayerStackCents(userId);
+      if (seat !== null) {
+        await TableSeatSessionService.upsertActiveSeat({
+          tableId: this.state.tableId,
+          userId,
+          seat,
+          stackCentsSnapshot: stackCents,
+          buyInCents: amountCents,
+          handIdSnapshot: this.state.handId || undefined,
+        });
+      }
+    }
+  }
+
   private async processJoinBuyInForZeroStackSeat(userId: string, buyInCents: number): Promise<void> {
     const externalRef = `join_buyin_${this.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
     await CashierService.processCashGameBuyIn({

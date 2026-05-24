@@ -395,6 +395,7 @@ model TournamentRegistration {
 
   finishPlace  Int?
   eliminatedAt DateTime?
+  rebuyPendingAt DateTime?
 
   isBot Boolean @default(false)
 

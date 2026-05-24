@@ -11,7 +11,14 @@ export type TournamentStandingRow = {
   isBot: boolean;
 };
 
-export type TournamentCtaAction = "register" | "unregister" | "join" | "spectate" | "standings" | "none";
+export type TournamentCtaAction =
+  | "register"
+  | "unregister"
+  | "join"
+  | "spectate"
+  | "rebuy"
+  | "standings"
+  | "none";
 
 export type TournamentCta = {
   label: string;

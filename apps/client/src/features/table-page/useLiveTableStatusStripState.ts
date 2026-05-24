@@ -12,10 +12,12 @@ export type LiveTableStatusPhase =
 export const DEALING_NEXT_HAND_COPY = "Dealing next hand...";
 export const TOURNAMENT_FINISHED_COPY = "Tournament complete";
 export const TOURNAMENT_ELIMINATED_COPY = "You were eliminated";
+export const TOURNAMENT_REBUY_AVAILABLE_COPY = "Rebuy available";
 
 export type TournamentViewerStripInput = {
   isEliminated?: boolean;
   isWinner?: boolean;
+  rebuyPending?: boolean;
 };
 
 export const MIN_MESSAGE_DURATION_MS = 400;
@@ -54,6 +56,9 @@ export function resolveBetweenHandsTournamentMessage(
   tournamentStatus: string | null | undefined,
   tournamentViewer?: TournamentViewerStripInput | null,
 ): string {
+  if (tournamentViewer?.rebuyPending === true) {
+    return TOURNAMENT_REBUY_AVAILABLE_COPY;
+  }
   if (tournamentViewer?.isEliminated === true) {
     return TOURNAMENT_ELIMINATED_COPY;
   }
@@ -507,9 +512,10 @@ function resolveDerivedState(
     inputs.tournamentStatus,
     inputs.tournamentViewer,
   );
+  const rebuyPending = inputs.tournamentViewer?.rebuyPending === true;
   const showSpinner =
     transportMessage != null ||
-    (state.phase === "betweenHands" && !tournamentTerminal);
+    (state.phase === "betweenHands" && !tournamentTerminal && !rebuyPending);
   const showBoardOverride =
     state.phase === "boardReset" || state.phase === "betweenHands";
 

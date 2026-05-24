@@ -279,6 +279,8 @@ export function useActiveTableSlots(
         </View>
       </View>
     );
+  } else if (renderModel.canRebuy && actions.openRebuySheet) {
+    bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
   } else if (!heroIsSeated) {
     bottom = (
       <View className="ui-p-inline-4 gap-y-2">
@@ -303,8 +305,6 @@ export function useActiveTableSlots(
         isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
       />
     );
-  } else if (renderModel.canRebuy && actions.openRebuySheet) {
-    bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
   } else if (optimisticAction) {
     bottom = renderStatusStripPanel(
       getOptimisticActionMessage(optimisticAction),

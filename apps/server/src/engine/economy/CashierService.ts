@@ -158,6 +158,9 @@ export class CashierService {
       if (!registration || registration.isBot) {
         throw new Error(TOURNAMENT_CLOSED);
       }
+      if (registration.finishPlace != null || registration.rebuyPendingAt == null) {
+        throw new Error(TOURNAMENT_REBUY_NOT_ALLOWED);
+      }
 
       const debitResult = await tx.user.updateMany({
         where: { id: userId, bankrollCents: { gte: amountCents } },
@@ -198,6 +201,11 @@ export class CashierService {
           externalRef,
           metaJson: { kind: "TOURNAMENT_REBUY" },
         },
+      });
+
+      await tx.tournamentRegistration.update({
+        where: { tournamentId_userId: { tournamentId, userId } },
+        data: { rebuyPendingAt: null },
       });
 
       return { success: true, newTableBalance: pb.balanceCents };

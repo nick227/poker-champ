@@ -3,7 +3,7 @@ import { TOURNAMENT_JOIN_CLOSED, TOURNAMENT_NOT_REGISTERED } from "./tournament.
 
 export type TournamentJoinResolution =
   | { mode: "PLAY"; startingStackCents: number }
-  | { mode: "SPECTATE"; finishPlace: number; payoutCents: number };
+  | { mode: "SPECTATE"; finishPlace: number | null; payoutCents: number; rebuyPending?: boolean };
 
 const OPEN_STATUSES = new Set(["STARTING", "LATE_REG", "RUNNING", "FINISHED"]);
 
@@ -33,11 +33,21 @@ export async function resolveTournamentJoin(params: {
     },
     select: {
       finishPlace: true,
+      rebuyPendingAt: true,
     },
   });
 
   if (!registration) {
     throw new Error(TOURNAMENT_NOT_REGISTERED);
+  }
+
+  if (registration.rebuyPendingAt != null && registration.finishPlace == null) {
+    return {
+      mode: "SPECTATE",
+      finishPlace: null,
+      payoutCents: 0,
+      rebuyPending: true,
+    };
   }
 
   if (registration.finishPlace != null) {

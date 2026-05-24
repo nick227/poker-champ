@@ -29,7 +29,10 @@ import {
   isTournamentStartInPast,
 } from "../tournaments/tournament-schedule.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
-import { resolveTournamentPlayerStatus } from "../tournaments/tournament-player-status.js";
+import {
+  resolveRegisteredTournamentPlayerStatus,
+} from "../tournaments/tournament-player-status.js";
+import { countTournamentRebuysForUser } from "../tournaments/tournament-rebuy.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
 const router = express.Router();
@@ -74,7 +77,7 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
   const registeredIds = new Set<string>();
   const registrationByTournamentId = new Map<
     string,
-    { finishPlace: number | null; eliminatedAt: Date | null }
+    { finishPlace: number | null; eliminatedAt: Date | null; rebuyPendingAt: Date | null }
   >();
   if (req.user && tournaments.length > 0) {
     const regs = await prisma.tournamentRegistration.findMany({
@@ -82,18 +85,42 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
         userId: req.user.id,
         tournamentId: { in: tournaments.map((t) => t.id) },
       },
-      select: { tournamentId: true, finishPlace: true, eliminatedAt: true },
+      select: {
+        tournamentId: true,
+        finishPlace: true,
+        eliminatedAt: true,
+        rebuyPendingAt: true,
+      },
     });
     for (const reg of regs) {
       registeredIds.add(reg.tournamentId);
       registrationByTournamentId.set(reg.tournamentId, {
         finishPlace: reg.finishPlace,
         eliminatedAt: reg.eliminatedAt,
+        rebuyPendingAt: reg.rebuyPendingAt,
       });
     }
   }
 
   const liveRoomIds = await loadLivePokerRoomIds();
+
+  const playerStatusByTournamentId = new Map<
+    string,
+    ReturnType<typeof resolveRegisteredTournamentPlayerStatus>
+  >();
+  if (req.user) {
+    for (const t of tournaments) {
+      const registration = registrationByTournamentId.get(t.id);
+      if (!registration) continue;
+      const rebuyCount = registration.rebuyPendingAt
+        ? await countTournamentRebuysForUser(t.id, req.user.id)
+        : 0;
+      playerStatusByTournamentId.set(
+        t.id,
+        resolveRegisteredTournamentPlayerStatus(t, registration, rebuyCount),
+      );
+    }
+  }
 
   res.json({
     tournaments: tournaments.map((t) => {
@@ -106,15 +133,7 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
           t.status === "STARTING" || t.status === "LATE_REG" || t.status === "RUNNING"
             ? isTournamentRoomLive(t.roomId, liveRoomIds)
             : undefined,
-        playerStatus:
-          req.user && isRegistered
-            ? resolveTournamentPlayerStatus({
-                isRegistered: true,
-                tournamentStatus: t.status,
-                finishPlace: registration?.finishPlace ?? null,
-                eliminatedAt: registration?.eliminatedAt ?? null,
-              })
-            : undefined,
+        playerStatus: req.user && isRegistered ? playerStatusByTournamentId.get(t.id) : undefined,
       });
     }),
   });
@@ -156,20 +175,18 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
   }
 
   let isRegistered: boolean | undefined;
-  let playerStatus: ReturnType<typeof resolveTournamentPlayerStatus> | undefined;
+  let playerStatus: ReturnType<typeof resolveRegisteredTournamentPlayerStatus> | undefined;
   if (req.user) {
     const reg = await prisma.tournamentRegistration.findUnique({
       where: { tournamentId_userId: { tournamentId: id, userId: req.user.id } },
-      select: { finishPlace: true, eliminatedAt: true },
+      select: { finishPlace: true, eliminatedAt: true, rebuyPendingAt: true },
     });
     isRegistered = Boolean(reg);
     if (reg) {
-      playerStatus = resolveTournamentPlayerStatus({
-        isRegistered: true,
-        tournamentStatus: tournament.status,
-        finishPlace: reg.finishPlace,
-        eliminatedAt: reg.eliminatedAt,
-      });
+      const rebuyCount = reg.rebuyPendingAt
+        ? await countTournamentRebuysForUser(id, req.user.id)
+        : 0;
+      playerStatus = resolveRegisteredTournamentPlayerStatus(tournament, reg, rebuyCount);
     }
   }
 

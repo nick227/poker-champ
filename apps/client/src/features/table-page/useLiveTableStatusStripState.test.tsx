@@ -24,6 +24,8 @@ import {
   MIN_MESSAGE_DURATION_MS,
   TERMINAL_TIMEOUT_MS,
   TOURNAMENT_ELIMINATED_COPY,
+  TOURNAMENT_REBUY_AVAILABLE_COPY,
+  resolveBetweenHandsTournamentMessage,
   TOURNAMENT_FINISHED_COPY,
   WINNER_HOLD_MS,
   useLiveTableStatusStripState,
@@ -945,5 +947,11 @@ describe("useLiveTableStatusStripState", () => {
     expect(result.current.message).toBe(TOURNAMENT_ELIMINATED_COPY);
     expect(result.current.showSpinner).toBe(false);
     expect(result.current.message).not.toBe(DEALING_NEXT_HAND_COPY);
+  });
+
+  it("resolveBetweenHandsTournamentMessage shows rebuy available for pending viewer", () => {
+    expect(
+      resolveBetweenHandsTournamentMessage("RUNNING", { rebuyPending: true }),
+    ).toBe(TOURNAMENT_REBUY_AVAILABLE_COPY);
   });
 });
