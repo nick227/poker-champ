@@ -18,6 +18,11 @@ import {
   MIN_TOURNAMENT_SEATED_TO_DEAL,
   type TryStartTournamentTableResult,
 } from "./tournament-table-start.js";
+import {
+  isTournamentSpectateEligible,
+  resolveTournamentPlayerStatus,
+  type TournamentPlayerStatus,
+} from "./tournament-player-status.js";
 
 type TournamentWithRegistrations = Tournament & {
   registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
@@ -34,7 +39,7 @@ export type TournamentEnsureTableJoinStatus =
 export type TournamentEnsureTableResult = {
   tournamentId: string;
   tournamentStatus: string;
-  playerStatus: "ACTIVE" | "ELIMINATED" | "NOT_REGISTERED";
+  playerStatus: TournamentPlayerStatus;
   tableId: string | null;
   roomId: string | null;
   tableLive: boolean;
@@ -574,7 +579,7 @@ export class TournamentDirector {
       include: {
         registrations: {
           where: { userId },
-          select: { userId: true, eliminatedAt: true },
+          select: { userId: true, finishPlace: true, eliminatedAt: true },
         },
       },
     });
@@ -593,11 +598,12 @@ export class TournamentDirector {
     }
 
     const registration = tournament.registrations[0];
-    const playerStatus = !registration
-      ? "NOT_REGISTERED"
-      : registration.eliminatedAt
-        ? "ELIMINATED"
-        : "ACTIVE";
+    const playerStatus = resolveTournamentPlayerStatus({
+      isRegistered: Boolean(registration),
+      tournamentStatus: tournament.status,
+      finishPlace: registration?.finishPlace ?? null,
+      eliminatedAt: registration?.eliminatedAt ?? null,
+    });
     const terminal = ["FINISHED", "ABANDONED", "CANCELLED"].includes(tournament.status);
     const lateRegOpen = isLateRegistrationOpen(tournament);
     const liveRoomIds = await loadLivePokerRoomIds();
@@ -633,6 +639,25 @@ export class TournamentDirector {
     }
 
     if (playerStatus !== "ACTIVE") {
+      if (playerStatus === "ELIMINATED") {
+        const canSpectate = isTournamentSpectateEligible({
+          tournamentStatus: tournament.status,
+          tableId: tournament.tableId,
+          roomId: tournament.roomId,
+        });
+        if (canSpectate) {
+          return {
+            tournamentId,
+            tournamentStatus: tournament.status,
+            playerStatus,
+            tableId: tournament.tableId,
+            roomId: tournament.roomId,
+            tableLive,
+            joinStatus: "READY",
+            recoveryReason: "TOURNAMENT_PLAYER_ELIMINATED",
+          };
+        }
+      }
       if (playerStatus === "NOT_REGISTERED") {
         logger.warn(
           {

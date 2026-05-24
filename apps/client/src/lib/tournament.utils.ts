@@ -161,20 +161,42 @@ export function resolveTournamentCta(
   const registrationOpen = isTournamentRegistrationOpen(tournament, nowMs);
   const inJoinPhase = isTournamentInJoinPhase(tournament, nowMs);
   const registered = tournament.isRegistered === true;
+  const playerStatus = tournament.playerStatus;
 
   if (tournament.status === "CANCELLED") {
     return { label: "Cancelled", action: "none", disabled: true };
   }
 
-  if (tournament.status === "FINISHED") {
+  if (tournament.status === "FINISHED" || tournament.status === "ABANDONED") {
+    if (registered) {
+      return { label: "View Standings", action: "standings", disabled: false };
+    }
+    return { label: "Unavailable", action: "none", disabled: true };
+  }
+
+  if (registered && playerStatus === "WINNER") {
     return { label: "View Standings", action: "standings", disabled: false };
   }
 
-  if (tournament.status === "ABANDONED") {
-    return { label: "View Standings", action: "standings", disabled: false };
+  if (
+    registered &&
+    playerStatus === "ELIMINATED" &&
+    isTournamentPlayActive(tournament)
+  ) {
+    const canSpectate = hasTournamentTableTarget(tournament);
+    return {
+      label: "Spectate",
+      action: "spectate",
+      disabled: !canSpectate,
+    };
   }
 
-  if (registered && canJoinTournament(tournament, nowMs)) {
+  if (
+    registered &&
+    playerStatus !== "ELIMINATED" &&
+    playerStatus !== "WINNER" &&
+    canJoinTournament(tournament, nowMs)
+  ) {
     return { label: "Join Table", action: "join", disabled: false };
   }
 
@@ -220,8 +242,15 @@ export type TournamentLobbySection = "upcoming" | "running";
 
 const PUBLIC_LOBBY_STATUSES = new Set(["REGISTERING", "LATE_REG", "STARTING", "RUNNING"]);
 
-/** Joined lobby rows should stay focused on scheduled and live tournaments. */
-const JOINED_VISIBLE_STATUSES = PUBLIC_LOBBY_STATUSES;
+/** Joined lobby rows: scheduled, live, and recently finished for registered players. */
+const JOINED_VISIBLE_STATUSES = new Set([
+  "REGISTERING",
+  "LATE_REG",
+  "STARTING",
+  "RUNNING",
+  "FINISHED",
+  "ABANDONED",
+]);
 
 export function isJoinedVisibleTournament(tournament: TournamentSummary): boolean {
   return Boolean(tournament.isRegistered) && JOINED_VISIBLE_STATUSES.has(tournament.status);
@@ -237,12 +266,21 @@ export function selectJoinedTournaments(tournaments: TournamentSummary[]): Tourn
   return tournaments
     .filter(isJoinedVisibleTournament)
     .sort((a, b) => {
-      const rank = (status: string) => {
-        if (status === "RUNNING" || status === "STARTING" || status === "LATE_REG") return 0;
-        if (status === "REGISTERING") return 1;
-        return 2;
+      const rank = (tournament: TournamentSummary) => {
+        if (
+          tournament.status === "RUNNING" ||
+          tournament.status === "STARTING" ||
+          tournament.status === "LATE_REG"
+        ) {
+          return 0;
+        }
+        if (tournament.status === "REGISTERING") return 1;
+        if (tournament.status === "FINISHED" || tournament.status === "ABANDONED") {
+          return 2;
+        }
+        return 3;
       };
-      const byPhase = rank(a.status) - rank(b.status);
+      const byPhase = rank(a) - rank(b);
       if (byPhase !== 0) return byPhase;
       return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
     });
@@ -310,6 +348,9 @@ export function formatJoinedTournamentHint(
     return "Starting now · table opens shortly";
   }
   if (tournament.status === "RUNNING") {
+    if (tournament.playerStatus === "ELIMINATED") {
+      return "Eliminated · spectate the table";
+    }
     if (
       tournament.tableLive === false &&
       !isLateRegistrationOpen(tournament, nowMs)
@@ -322,6 +363,12 @@ export function formatJoinedTournamentHint(
     return "Cancelled · entry refunded · no payouts";
   }
   if (tournament.status === "FINISHED") {
+    if (tournament.playerStatus === "WINNER") {
+      return "Finished · you won this tournament";
+    }
+    if (tournament.playerStatus === "ELIMINATED") {
+      return "Finished · view your final standing";
+    }
     if (isTournamentBotChallengeMode(tournament) && tournament.prizePoolCents <= 0) {
       return "Finished · bot challenge result · no money payout";
     }

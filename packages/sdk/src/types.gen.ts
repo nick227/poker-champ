@@ -820,6 +820,7 @@ export interface components {
             registeredCount: number;
             isRegistered?: boolean;
             tableLive?: boolean;
+            playerStatus?: "ACTIVE" | "ELIMINATED" | "WINNER" | "NOT_REGISTERED";
             fillBotsAtStart: boolean;
             fillBotCount?: number | null;
             createdByUserId?: string | null;

@@ -29,6 +29,7 @@ import {
   isTournamentStartInPast,
 } from "../tournaments/tournament-schedule.js";
 import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
+import { resolveTournamentPlayerStatus } from "../tournaments/tournament-player-status.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 
 const router = express.Router();
@@ -71,32 +72,51 @@ router.get("/", attachAuthIfPresent, async (req, res) => {
   });
 
   const registeredIds = new Set<string>();
+  const registrationByTournamentId = new Map<
+    string,
+    { finishPlace: number | null; eliminatedAt: Date | null }
+  >();
   if (req.user && tournaments.length > 0) {
     const regs = await prisma.tournamentRegistration.findMany({
       where: {
         userId: req.user.id,
         tournamentId: { in: tournaments.map((t) => t.id) },
       },
-      select: { tournamentId: true },
+      select: { tournamentId: true, finishPlace: true, eliminatedAt: true },
     });
     for (const reg of regs) {
       registeredIds.add(reg.tournamentId);
+      registrationByTournamentId.set(reg.tournamentId, {
+        finishPlace: reg.finishPlace,
+        eliminatedAt: reg.eliminatedAt,
+      });
     }
   }
 
   const liveRoomIds = await loadLivePokerRoomIds();
 
   res.json({
-    tournaments: tournaments.map((t) =>
-      toTournamentResponse(t, {
-        isRegistered: req.user ? registeredIds.has(t.id) : undefined,
+    tournaments: tournaments.map((t) => {
+      const registration = registrationByTournamentId.get(t.id);
+      const isRegistered = req.user ? registeredIds.has(t.id) : undefined;
+      return toTournamentResponse(t, {
+        isRegistered,
         isCreator: req.user ? t.createdByUserId === req.user.id : undefined,
         tableLive:
           t.status === "STARTING" || t.status === "LATE_REG" || t.status === "RUNNING"
             ? isTournamentRoomLive(t.roomId, liveRoomIds)
             : undefined,
-      }),
-    ),
+        playerStatus:
+          req.user && isRegistered
+            ? resolveTournamentPlayerStatus({
+                isRegistered: true,
+                tournamentStatus: t.status,
+                finishPlace: registration?.finishPlace ?? null,
+                eliminatedAt: registration?.eliminatedAt ?? null,
+              })
+            : undefined,
+      });
+    }),
   });
 });
 
@@ -136,17 +156,28 @@ router.get("/:id", attachAuthIfPresent, async (req, res) => {
   }
 
   let isRegistered: boolean | undefined;
+  let playerStatus: ReturnType<typeof resolveTournamentPlayerStatus> | undefined;
   if (req.user) {
     const reg = await prisma.tournamentRegistration.findUnique({
       where: { tournamentId_userId: { tournamentId: id, userId: req.user.id } },
+      select: { finishPlace: true, eliminatedAt: true },
     });
     isRegistered = Boolean(reg);
+    if (reg) {
+      playerStatus = resolveTournamentPlayerStatus({
+        isRegistered: true,
+        tournamentStatus: tournament.status,
+        finishPlace: reg.finishPlace,
+        eliminatedAt: reg.eliminatedAt,
+      });
+    }
   }
 
   const liveRoomIds = await loadLivePokerRoomIds();
   res.json(
     toTournamentResponse(tournament, {
       isRegistered,
+      playerStatus,
       isCreator: req.user ? tournament.createdByUserId === req.user.id : undefined,
       tableLive:
         tournament.status === "STARTING" ||

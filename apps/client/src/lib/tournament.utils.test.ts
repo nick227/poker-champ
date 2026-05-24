@@ -177,9 +177,50 @@ describe("resolveTournamentCta", () => {
     expect(cta).toEqual({ label: "Table ended", action: "join", disabled: true });
   });
 
-  it("shows standings CTA when finished", () => {
-    const cta = resolveTournamentCta(baseTournament({ status: "FINISHED" }));
-    expect(cta.action).toBe("standings");
+  it("shows standings CTA when finished for registered players", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({ status: "FINISHED", isRegistered: true, playerStatus: "ELIMINATED" }),
+    );
+    expect(cta).toEqual({ label: "View Standings", action: "standings", disabled: false });
+  });
+
+  it("shows spectate for eliminated player while tournament is running", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: true,
+        playerStatus: "ELIMINATED",
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+    );
+    expect(cta).toEqual({ label: "Spectate", action: "spectate", disabled: false });
+  });
+
+  it("shows join table for active registered player", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "RUNNING",
+        isRegistered: true,
+        playerStatus: "ACTIVE",
+        tableId: "table_1",
+        roomId: "room_1",
+        tableLive: true,
+      }),
+    );
+    expect(cta).toEqual({ label: "Join Table", action: "join", disabled: false });
+  });
+
+  it("shows standings for winner after tournament finishes", () => {
+    const cta = resolveTournamentCta(
+      baseTournament({
+        status: "FINISHED",
+        isRegistered: true,
+        playerStatus: "WINNER",
+      }),
+    );
+    expect(cta).toEqual({ label: "View Standings", action: "standings", disabled: false });
   });
 
   it("does not offer unregister after scheduled start time", () => {
@@ -308,16 +349,16 @@ describe("filterTournamentsForPublicLobby", () => {
 });
 
 describe("selectJoinedTournaments", () => {
-  it("includes registered scheduled and live states only", () => {
+  it("includes registered scheduled, live, and finished states", () => {
     const joined = selectJoinedTournaments([
       baseTournament({ id: "sched", isRegistered: true, status: "REGISTERING" }),
       baseTournament({ id: "live", isRegistered: true, status: "RUNNING", tableId: "t", roomId: "r" }),
       baseTournament({ id: "other", isRegistered: false, status: "REGISTERING" }),
-      baseTournament({ id: "done", isRegistered: true, status: "FINISHED" }),
+      baseTournament({ id: "done", isRegistered: true, status: "FINISHED", playerStatus: "ELIMINATED" }),
       baseTournament({ id: "gone", isRegistered: true, status: "CANCELLED" }),
       baseTournament({ id: "abandoned", isRegistered: true, status: "ABANDONED" }),
     ]);
-    expect(joined.map((t) => t.id)).toEqual(["live", "sched"]);
+    expect(joined.map((t) => t.id)).toEqual(["live", "sched", "done", "abandoned"]);
   });
 
   it("removes joined active rows from browse list", () => {
@@ -359,6 +400,16 @@ describe("formatJoinedTournamentHint", () => {
   it("describes cancelled and finished joined tournaments", () => {
     expect(formatJoinedTournamentHint(baseTournament({ status: "CANCELLED" }))).toMatch(/Cancelled/i);
     expect(formatJoinedTournamentHint(baseTournament({ status: "FINISHED" }))).toMatch(/Finished/i);
+    expect(
+      formatJoinedTournamentHint(
+        baseTournament({ status: "FINISHED", playerStatus: "WINNER" }),
+      ),
+    ).toBe("Finished · you won this tournament");
+    expect(
+      formatJoinedTournamentHint(
+        baseTournament({ status: "RUNNING", playerStatus: "ELIMINATED", currentLevel: 4 }),
+      ),
+    ).toBe("Eliminated · spectate the table");
     expect(
       formatJoinedTournamentHint(
         baseTournament({ status: "FINISHED", fillBotsAtStart: true, prizePoolCents: 0 }),

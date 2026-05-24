@@ -111,6 +111,10 @@ export const openApiSpec = {
           fillBotCount: { type: "integer", nullable: true },
           createdByUserId: { type: "string", nullable: true },
           isCreator: { type: "boolean" },
+          playerStatus: {
+            type: "string",
+            enum: ["ACTIVE", "ELIMINATED", "WINNER", "NOT_REGISTERED"],
+          },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
         },
