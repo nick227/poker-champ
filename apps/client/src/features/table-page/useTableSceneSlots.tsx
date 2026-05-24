@@ -2,7 +2,7 @@
  * Phase 1: Single source of slot content for TableSceneShell.
  * Router calls this and passes result to one TableSceneShell.
  */
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import { buildTableActionNotice } from "@/features/table/components/table/hooks/useTableDisplayEvents";
@@ -17,7 +17,7 @@ import {
   useIdleTableSlots,
   useActiveTableSlots,
 } from "@/features/table";
-import { useLiveTableStatusStripState } from "./useLiveTableStatusStripState";
+import { useLiveTableStatusStripState, mergeTournamentViewer } from "./useLiveTableStatusStripState";
 import { deriveTableDisplayState } from "./tableDisplayState";
 
 const EMPTY_DISPLAY_STATE = {
@@ -112,11 +112,33 @@ export function useTableSceneSlots({
       renderModel.displayEvents.winnerBanner,
     ],
   );
+  const latchedTournamentViewerRef = useRef<
+    TableSnapshotPayload["hero"]["tournamentViewer"]
+  >(undefined);
+  const tournamentViewer = useMemo(() => {
+    const merged = mergeTournamentViewer(
+      snapshot?.hero?.tournamentViewer,
+      latchedTournamentViewerRef.current,
+    );
+    latchedTournamentViewerRef.current = merged;
+    return merged;
+  }, [snapshot?.hero?.tournamentViewer]);
+  const displaySnapshot = useMemo(() => {
+    if (!snapshot) return null;
+    if (tournamentViewer === snapshot.hero.tournamentViewer) return snapshot;
+    return {
+      ...snapshot,
+      hero: {
+        ...snapshot.hero,
+        tournamentViewer,
+      },
+    };
+  }, [snapshot, tournamentViewer]);
   const liveStatusStripState = useLiveTableStatusStripState({
     tableId: renderModel.tableId,
     displayState: tableDisplayState ?? EMPTY_DISPLAY_STATE,
     tournamentStatus: snapshot?.table?.tournament?.status ?? null,
-    tournamentViewer: snapshot?.hero?.tournamentViewer ?? null,
+    tournamentViewer,
   });
   const loadingSlots = useMemo(
     () =>
@@ -145,7 +167,7 @@ export function useTableSceneSlots({
   );
 
   const idleSlots = useIdleTableSlots(
-    snapshot,
+    displaySnapshot,
     scene,
     renderModel,
     actions,
@@ -156,7 +178,7 @@ export function useTableSceneSlots({
     },
   );
   const activeSlots = useActiveTableSlots(
-    snapshot,
+    displaySnapshot,
     scene,
     renderModel,
     actions,

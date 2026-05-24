@@ -57,7 +57,7 @@
     "test:server:fuzz:ci": "vitest run apps/server/src/tests/integration/dealer.fuzz.invariants.ci.test.ts",
     "test:server:churn:matrix": "vitest run apps/server/src/engine/hand-end-fold-detection.regression.test.ts apps/server/src/tests/integration/multiplayer.churn.matrix.test.ts apps/server/src/engine/dealer.auto-action-warning.regression.test.ts",
     "test:server:churn:integration": "vitest run apps/server/src/tests/integration/table-multiplayer-churn.integration.test.ts",
-    "test:server:between-hands": "vitest run apps/server/src/tests/integration/dealer.between-hands-lifecycle.integration.test.ts apps/server/src/engine/dealer.hand-terminal-idempotence.test.ts apps/server/src/engine/dealer/utils/TableNavigator.tournament.test.ts",
+    "test:server:between-hands": "vitest run apps/server/src/tests/integration/dealer.between-hands-lifecycle.integration.test.ts apps/server/src/engine/dealer/hand/SnapshotService.tournament-viewer.test.ts apps/server/src/engine/dealer.hand-terminal-idempotence.test.ts apps/server/src/engine/dealer/utils/TableNavigator.tournament.test.ts",
     "test:server:bot:heatmap": "vitest run apps/server/src/engine/bots/brains/tight_aggressive/tight-aggressive-axis-heatmap.test.ts",
     "test:server:bot:heatmap:update": "set UPDATE_HEATMAP=1&& vitest run apps/server/src/engine/bots/brains/tight_aggressive/tight-aggressive-axis-heatmap.test.ts",
     "test:server:bot:heatmap:assert": "set HEATMAP_ASSERT=1&& vitest run apps/server/src/engine/bots/brains/tight_aggressive/tight-aggressive-axis-heatmap.test.ts",

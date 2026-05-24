@@ -52,6 +52,21 @@ export function isTournamentTerminalStripState(
   );
 }
 
+export function mergeTournamentViewer<T extends TournamentViewerStripInput | null | undefined>(
+  current: T,
+  latched: T,
+): T {
+  if (current?.isEliminated || current?.isWinner || current?.rebuyPending) {
+    return current;
+  }
+  if (latched?.isEliminated || latched?.isWinner || latched?.rebuyPending) {
+    return latched;
+  }
+  return (current ?? latched ?? null) as T;
+}
+
+export const mergeTournamentViewerStripInput = mergeTournamentViewer;
+
 export function resolveBetweenHandsTournamentMessage(
   tournamentStatus: string | null | undefined,
   tournamentViewer?: TournamentViewerStripInput | null,

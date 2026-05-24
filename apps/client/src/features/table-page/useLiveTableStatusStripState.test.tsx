@@ -26,6 +26,7 @@ import {
   TOURNAMENT_ELIMINATED_COPY,
   TOURNAMENT_REBUY_AVAILABLE_COPY,
   resolveBetweenHandsTournamentMessage,
+  mergeTournamentViewer,
   TOURNAMENT_FINISHED_COPY,
   WINNER_HOLD_MS,
   useLiveTableStatusStripState,
@@ -953,5 +954,17 @@ describe("useLiveTableStatusStripState", () => {
     expect(
       resolveBetweenHandsTournamentMessage("RUNNING", { rebuyPending: true }),
     ).toBe(TOURNAMENT_REBUY_AVAILABLE_COPY);
+  });
+
+  it("mergeTournamentViewer keeps eliminated viewer across lightweight snapshots", () => {
+    expect(
+      mergeTournamentViewer(undefined, { isEliminated: true, finishPlace: 7 }),
+    ).toMatchObject({ isEliminated: true, finishPlace: 7 });
+    expect(mergeTournamentViewer(null, { isEliminated: true })).toMatchObject({
+      isEliminated: true,
+    });
+    expect(
+      mergeTournamentViewer({ isWinner: true }, { isEliminated: true }),
+    ).toMatchObject({ isWinner: true });
   });
 });

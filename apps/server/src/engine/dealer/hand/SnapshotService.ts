@@ -801,11 +801,9 @@ export class SnapshotService {
 
     const hasCalc = mode === "full" && (Boolean(calc) || potOddsPct !== undefined);
     let tournamentViewer: TableSnapshotPayload["hero"]["tournamentViewer"];
-    if (mode === "full") {
-      const overlay = this.deps.getTournamentTableOverlay?.();
-      if (overlay) {
-        tournamentViewer = await this.buildTournamentViewer(userId, overlay);
-      }
+    const overlay = this.deps.getTournamentTableOverlay?.();
+    if (overlay) {
+      tournamentViewer = await this.buildTournamentViewer(userId, overlay);
     }
 
     const heroSection = {
