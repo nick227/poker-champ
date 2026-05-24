@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import { TABLE } from "@/constants/copy";
 import type { HandResultMessage } from "./table.types";
 import { Surface } from "@/components/containers/Surface";
@@ -18,13 +18,15 @@ function deriveMessage(
   hand: Hand | undefined,
   actionMessage: string | undefined,
   handResultMessage: HandResultMessage | undefined,
+  formatPot: (amount: number) => string,
+  formatWinAmount: (amount: number) => string,
   tableStatus?: string,
 ): string {
   if (handResultMessage) {
-    return buildWinnerMessageText(handResultMessage) ?? TABLE.waitingForHand;
+    return buildWinnerMessageText(handResultMessage, formatWinAmount) ?? TABLE.waitingForHand;
   }
   if (hand && actionMessage) return actionMessage;
-  if (hand) return `${hand.street} - Pot ${formatCents(hand.potCents)}`;
+  if (hand) return `${hand.street} - Pot ${formatPot(hand.potCents)}`;
 
   // For a healthy connected table, show the generic "waiting for next hand" copy.
   if (!tableStatus || tableStatus === "CONNECTED") {
@@ -53,6 +55,7 @@ export function DealerAnnounceBar({
   nextHandAtTs,
   statusMessage,
 }: DealerAnnounceBarProps) {
+  const { formatPot, formatBet } = useTableMoneyDisplay();
   const [remaining, setRemaining] = useState<number>(0);
 
   useEffect(() => {
@@ -72,7 +75,8 @@ export function DealerAnnounceBar({
   }, [nextHandAtTs]);
 
   const message =
-    statusMessage ?? deriveMessage(hand, actionMessage, handResultMessage, tableStatus);
+    statusMessage ??
+    deriveMessage(hand, actionMessage, handResultMessage, formatPot, formatBet, tableStatus);
 
   const styleId = remaining > 0
     ? "surface.sim.table.announce.highlight"

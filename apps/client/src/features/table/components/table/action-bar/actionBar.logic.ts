@@ -4,30 +4,11 @@ import { useMemo } from "react";
 
 export type ActionBarConnectionStatus = ConnectionStatus | undefined;
 
-/** Format cents as decimal string for input e.g. 1100 -> "11.00" */
-export function formatInputFromCents(cents: number): string {
-  return (Math.max(0, cents) / 100).toFixed(2);
-}
-
-/** Parse money input string to cents. Empty/invalid returns 0. */
-export function parseInputToCents(input: string): number {
-  const trimmed = input.trim();
-  if (!trimmed) return 0;
-  const numeric = Number.parseFloat(trimmed);
-  if (!Number.isFinite(numeric) || numeric < 0) return 0;
-  return Math.round(numeric * 100);
-}
-
-/** Restrict input to money pattern: digits, optional decimal, max 2 decimal places. */
-export function normalizeMoneyInput(text: string): string {
-  const digitsAndDot = text.replace(/[^0-9.]/g, "");
-  const parts = digitsAndDot.split(".");
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0].slice(0, 12);
-  const integer = parts[0].slice(0, 12);
-  const decimal = parts.slice(1).join("").slice(0, 2);
-  return decimal.length > 0 ? `${integer}.${decimal}` : integer || "0";
-}
+export {
+  formatInputFromCents,
+  normalizeMoneyInput,
+  parseInputToCents,
+} from "@/lib/money/wager-input";
 
 // Default betting increment in cents
 // TODO: Make this configurable per table when tournament chips or different currencies are supported

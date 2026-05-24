@@ -177,14 +177,19 @@ function getShortName(name: string | null | undefined): string {
   return firstToken || "Player";
 }
 
+export type DeriveTableViewStateOptions = {
+  formatChipAmount?: (amount: number) => string;
+};
+
 function buildHeroPrompt(
   isHeroToAct: boolean,
   actionOptions: HeroActionOptions | undefined,
+  formatChipAmount: (amount: number) => string,
 ): string | null {
   if (!isHeroToAct) return null;
   if (!actionOptions) return YOUR_MOVE_COPY;
   if (actionOptions.canCall && (actionOptions.callAmount ?? 0) > 0) {
-    return `${formatCents(actionOptions.callAmount)} to call`;
+    return `${formatChipAmount(actionOptions.callAmount ?? 0)} to call`;
   }
   if (actionOptions.canCheck) return "Check";
   if (actionOptions.canAllIn && !actionOptions.canBet && !actionOptions.canRaise) return ALL_IN_COPY;
@@ -228,7 +233,9 @@ function derivePhase(snapshot: TableSnapshotPayload): TableRenderPhase {
 export function deriveTableViewState(
   snapshot: TableSnapshotPayload,
   connectionStatus?: ConnectionStatus,
+  options?: DeriveTableViewStateOptions,
 ): TableViewState {
+  const formatChipAmount = options?.formatChipAmount ?? formatCents;
   const hand = snapshot.hand;
   const seatContext = buildSeatContext(snapshot);
   const heroStatus = getHeroDisplayStatus(snapshot, seatContext);
@@ -306,7 +313,7 @@ export function deriveTableViewState(
     seats: snapshot.seats,
     potCents,
     heroTurn: isHeroToAct,
-    heroPrompt: buildHeroPrompt(isHeroToAct, heroPromptOptions),
+    heroPrompt: buildHeroPrompt(isHeroToAct, heroPromptOptions, formatChipAmount),
     passiveMessage: buildPassiveMessage(snapshot),
     turnCue: isHeroToAct && connectionStatus === "CONNECTED",
     actionsInteractive,

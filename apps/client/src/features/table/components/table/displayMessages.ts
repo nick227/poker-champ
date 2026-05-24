@@ -15,8 +15,13 @@ function getShortActorName(actorName: string): string {
 export function buildActionMessage(
   action: TableLastAction,
   actorName: string,
-  options?: { shortenActorName?: boolean; includeOriginSuffix?: boolean },
+  options?: {
+    shortenActorName?: boolean;
+    includeOriginSuffix?: boolean;
+    formatAmount?: (amount: number) => string;
+  },
 ): string {
+  const formatAmount = options?.formatAmount ?? formatCents;
   const resolvedActorName = options?.shortenActorName === false
     ? actorName
     : getShortActorName(actorName);
@@ -35,15 +40,15 @@ export function buildActionMessage(
     case "CHECK":
       return `${resolvedActorName} checks${originSuffix}`;
     case "CALL":
-      return `${resolvedActorName} calls ${formatCents(action.amountCents)}${originSuffix}`;
+      return `${resolvedActorName} calls ${formatAmount(action.amountCents)}${originSuffix}`;
     case "BET":
-      return `${resolvedActorName} bets ${formatCents(action.amountCents)}${originSuffix}`;
+      return `${resolvedActorName} bets ${formatAmount(action.amountCents)}${originSuffix}`;
     case "RAISE":
       return action.raiseToCents != null
-        ? `${resolvedActorName} raises to ${formatCents(action.raiseToCents)}${originSuffix}`
-        : `${resolvedActorName} raises ${formatCents(action.amountCents)}${originSuffix}`;
+        ? `${resolvedActorName} raises to ${formatAmount(action.raiseToCents)}${originSuffix}`
+        : `${resolvedActorName} raises ${formatAmount(action.amountCents)}${originSuffix}`;
     case "ALL_IN":
-      return `${resolvedActorName} is all-in for ${formatCents(action.amountCents)}${originSuffix}`;
+      return `${resolvedActorName} is all-in for ${formatAmount(action.amountCents)}${originSuffix}`;
     default:
       return "";
   }
@@ -51,11 +56,12 @@ export function buildActionMessage(
 
 export function buildWinnerMessageText(
   handResultMessage: HandResultMessage | null | undefined,
+  formatAmount: (amount: number) => string = formatCents,
 ): string | null {
   if (!handResultMessage) {
     return null;
   }
-  const base = `${handResultMessage.winnerName} wins ${formatCents(handResultMessage.amountCents)}`;
+  const base = `${handResultMessage.winnerName} wins ${formatAmount(handResultMessage.amountCents)}`;
   return handResultMessage.winningHandDescr
     ? `${base} - ${handResultMessage.winningHandDescr}`
     : base;

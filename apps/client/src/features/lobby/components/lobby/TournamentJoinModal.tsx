@@ -2,8 +2,11 @@ import { View } from "react-native";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
-import { getBlindLevelsForPreset } from "@/lib/tournament-detail";
+import {
+  formatBlindLevelRow,
+  formatTournamentStackChips,
+  getBlindLevelsForPreset,
+} from "@/lib/tournament-detail";
 import { formatTournamentStatus } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -19,7 +22,7 @@ function currentBlindsLabel(tournament: TournamentSummary): string {
   const levels = getBlindLevelsForPreset(tournament.blindStructureId);
   const row = levels.find((l) => l.level === tournament.currentLevel) ?? levels[0];
   if (!row) return "Blinds unavailable";
-  return `Level ${row.level}: ${formatCents(row.smallBlindCents)} / ${formatCents(row.bigBlindCents)}`;
+  return formatBlindLevelRow(row);
 }
 
 export function TournamentJoinModal({
@@ -47,7 +50,7 @@ export function TournamentJoinModal({
             Players: {tournament.registeredCount} / {tournament.maxPlayers}
           </Text>
           <Text variant="body">Current blinds: {currentBlindsLabel(tournament)}</Text>
-          <Text variant="body">Your stack: {formatCents(tournament.startingStackCents)}</Text>
+          <Text variant="body">Your stack: {formatTournamentStackChips(tournament.startingStackCents)}</Text>
           <Text variant="muted" className="text-sm">
             Entry fee was paid at registration. You will join your assigned seat — no additional buy-in.
           </Text>

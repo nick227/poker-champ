@@ -1,4 +1,5 @@
-import { formatInputFromCents, parseInputToCents } from "./actionBar.logic";
+import type { WagerInputHelpers } from "@/lib/money/wager-input";
+import { USD_WAGER_INPUT_HELPERS } from "@/lib/money/wager-input";
 
 export type WagerState = {
   cents: number;
@@ -11,7 +12,11 @@ export type WagerAction =
   | { type: "NORMALIZE"; resolve: (raw: number) => number }
   | { type: "RESET_TO_MIN"; min: number };
 
-export function wagerReducer(state: WagerState, action: WagerAction): WagerState {
+export function wagerReducer(
+  state: WagerState,
+  action: WagerAction,
+  helpers: WagerInputHelpers = USD_WAGER_INPUT_HELPERS,
+): WagerState {
   switch (action.type) {
     case "SET_INPUT":
       return { ...state, display: action.display };
@@ -19,22 +24,22 @@ export function wagerReducer(state: WagerState, action: WagerAction): WagerState
     case "SET_CENTS":
       return {
         cents: action.cents,
-        display: formatInputFromCents(action.cents),
+        display: helpers.formatFromChips(action.cents),
       };
 
     case "NORMALIZE": {
-      const parsed = parseInputToCents(state.display);
+      const parsed = helpers.parseToChips(state.display);
       const resolved = action.resolve(parsed);
       return {
         cents: resolved,
-        display: formatInputFromCents(resolved),
+        display: helpers.formatFromChips(resolved),
       };
     }
 
     case "RESET_TO_MIN":
       return {
         cents: action.min,
-        display: formatInputFromCents(action.min),
+        display: helpers.formatFromChips(action.min),
       };
 
     default:
@@ -42,9 +47,13 @@ export function wagerReducer(state: WagerState, action: WagerAction): WagerState
   }
 }
 
-export function initialWagerState(minCents: number): WagerState {
+export function initialWagerState(minCents: number, helpers: WagerInputHelpers = USD_WAGER_INPUT_HELPERS): WagerState {
   return {
     cents: minCents,
-    display: formatInputFromCents(minCents),
+    display: helpers.formatFromChips(minCents),
   };
+}
+
+export function createWagerReducer(helpers: WagerInputHelpers) {
+  return (state: WagerState, action: WagerAction) => wagerReducer(state, action, helpers);
 }

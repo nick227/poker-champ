@@ -1,4 +1,6 @@
 import { formatCents } from "@/lib/format";
+import { formatChipCount } from "@/lib/money/table-money";
+import { chips } from "@/lib/money/types";
 
 export type PayoutSlot = { place: number; percent: number };
 
@@ -113,7 +115,11 @@ export function getBlindLevelsForPreset(blindStructureId: string): BlindLevelRow
 }
 
 export function formatBlindLevelRow(row: BlindLevelRow): string {
-  return `Level ${row.level}: ${formatCents(row.smallBlindCents)} / ${formatCents(row.bigBlindCents)} · ${row.durationMinutes}m`;
+  return `Level ${row.level}: ${formatChipCount(chips(row.smallBlindCents))} / ${formatChipCount(chips(row.bigBlindCents))} · ${row.durationMinutes}m`;
+}
+
+export function formatTournamentStackChips(stackChips: number): string {
+  return formatChipCount(chips(stackChips));
 }
 
 export function buildBlindSummaryLines(blindStructureId: string, currentLevel: number): string[] {

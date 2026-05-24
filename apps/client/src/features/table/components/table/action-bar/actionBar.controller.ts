@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useMemo, useReducer } from "react";
-import { formatCents } from "@/lib/format";
 import { TABLE } from "@/constants/copy";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import type { HeroStatus } from "../table.adapter";
 import {
   ActionContext,
-  formatInputFromCents,
   getActionBarPermissions,
-  parseInputToCents,
-  normalizeMoneyInput,
   useWagerCalculations,
 } from "./actionBar.logic";
 import type { ActionBarPermissions } from "./actionBar.logic";
 import {
-  wagerReducer,
+  createWagerReducer,
   initialWagerState,
 } from "./actionBar.wagerReducer";
 
@@ -72,12 +69,14 @@ export type ActionBarControllerParams = {
 export function useActionBarController(params: ActionBarControllerParams): ActionBarController {
   const { actionContext, heroStatus, actionOptions, potCents = 0, onAction } = params;
   const { showActions, wager, capabilities } = actionContext;
+  const { formatBet, wagerInput } = useTableMoneyDisplay();
   const permissions = useMemo(() => getActionBarPermissions(actionContext), [actionContext]);
+  const wagerReducerFn = useMemo(() => createWagerReducer(wagerInput), [wagerInput]);
 
   const [wagerState, dispatch] = useReducer(
-    wagerReducer,
+    wagerReducerFn,
     wager?.bounds.min ?? 0,
-    (minCents) => initialWagerState(minCents),
+    (minCents) => initialWagerState(minCents, wagerInput),
   );
 
   const wagerMinCents = wager?.bounds.min ?? null;
@@ -87,14 +86,14 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
       return;
     }
     dispatch({ type: "RESET_TO_MIN", min: wagerMinCents });
-  }, [wagerMinCents]);
+  }, [wagerMinCents, wagerInput]);
 
   const wagerCalculations = useWagerCalculations(wager, potCents);
   const { display } = wagerState;
-  const parsedDisplayCents = useMemo(() => parseInputToCents(display), [display]);
+  const parsedDisplayChips = useMemo(() => wagerInput.parseToChips(display), [display, wagerInput]);
   const resolvedFromDisplay = useMemo(
-    () => (wager && parsedDisplayCents > 0 ? wager.resolveAmount(parsedDisplayCents) : 0),
-    [wager, parsedDisplayCents],
+    () => (wager && parsedDisplayChips > 0 ? wager.resolveAmount(parsedDisplayChips) : 0),
+    [wager, parsedDisplayChips],
   );
 
   const submitWager = useCallback(
@@ -109,34 +108,37 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
 
   const normalizeBetInput = useCallback((): number => {
     if (!wager) return 0;
-    const parsed = parseInputToCents(display);
+    const parsed = wagerInput.parseToChips(display);
     const resolved = wager.resolveAmount(parsed);
     dispatch({ type: "NORMALIZE", resolve: wager.resolveAmount });
     return resolved;
-  }, [wager, display]);
+  }, [wager, display, wagerInput]);
 
-  const handleBetInputChange = useCallback((text: string) => {
-    dispatch({ type: "SET_INPUT", display: normalizeMoneyInput(text) });
-  }, []);
+  const handleBetInputChange = useCallback(
+    (text: string) => {
+      dispatch({ type: "SET_INPUT", display: wagerInput.normalizeInput(text) });
+    },
+    [wagerInput],
+  );
 
   const statusFallbackLabel = showActions ? TABLE.yourTurn : HERO_STATUS_LABEL[heroStatus];
   const checkCallLabel = capabilities.canCheck
     ? TABLE.check
     : capabilities.canCall
-      ? `Call ${formatCents(actionOptions?.callAmount ?? 0)}`
+      ? `Call ${formatBet(actionOptions?.callAmount ?? 0)}`
       : `${TABLE.check}/${TABLE.bet}`;
 
   const enteredBelowMin = Boolean(wager && resolvedFromDisplay < wager.bounds.min);
   const betRaiseDisabled = !permissions.canWager || enteredBelowMin;
-  const selectedWagerCents = wager
-    ? (resolvedFromDisplay > 0 ? resolvedFromDisplay : wager.bounds.min)
+  const selectedWagerChips = wager
+    ? resolvedFromDisplay > 0
+      ? resolvedFromDisplay
+      : wager.bounds.min
     : 0;
   const primaryActionVerb = wager?.primaryVerb;
   const betRaiseVerb =
     primaryActionVerb === "RAISE" ? TABLE.raise : primaryActionVerb === "BET" ? TABLE.bet : TABLE.betRaise;
-  const betRaiseLabel = wager
-    ? `${betRaiseVerb}: ${formatCents(selectedWagerCents)}`
-    : betRaiseVerb;
+  const betRaiseLabel = wager ? `${betRaiseVerb}: ${formatBet(selectedWagerChips)}` : betRaiseVerb;
 
   const showBetInput = showActions && !!wager && permissions.canWager;
 
@@ -194,7 +196,7 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
     allIn: handleAllIn,
   };
 
-  const ctrl: ActionBarController = {
+  return {
     statusFallbackLabel,
     checkCallLabel,
     showActions,
@@ -203,7 +205,7 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
     actions,
     wager: {
       display,
-      placeholder: wager ? formatInputFromCents(wager.bounds.min) : "0.00",
+      placeholder: wager ? wagerInput.formatFromChips(wager.bounds.min) : "0",
       label: betRaiseLabel,
       disabled: betRaiseDisabled,
       visible: showBetInput,
@@ -211,5 +213,4 @@ export function useActionBarController(params: ActionBarControllerParams): Actio
     handleBetInputChange,
     normalizeBetInput,
   };
-  return ctrl;
 }

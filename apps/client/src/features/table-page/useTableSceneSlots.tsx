@@ -5,6 +5,8 @@
 import { useMemo } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
+import { formatCents } from "@/lib/format";
 import {
   buildTableSceneModel,
   deriveTableViewState,
@@ -67,12 +69,19 @@ export function useTableSceneSlots({
   emptyOpponentsState,
   heroAvatarUrl,
 }: UseTableSceneSlotsParams): TableSceneShellProps {
+  const { formatBet, isTournamentTable } = useTableMoneyDisplay();
+  const formatChipAmount = isTournamentTable ? formatBet : formatCents;
+  const deriveOptions = useMemo(
+    () => ({ formatChipAmount }),
+    [formatChipAmount],
+  );
+
   const liveViewState = useMemo(
     () =>
       snapshot
-        ? deriveTableViewState(snapshot, scene.connectionStatus)
+        ? deriveTableViewState(snapshot, scene.connectionStatus, deriveOptions)
         : undefined,
-    [scene.connectionStatus, snapshot],
+    [deriveOptions, scene.connectionStatus, snapshot],
   );
   const liveSceneModel = useMemo(
     () =>

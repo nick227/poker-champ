@@ -7,6 +7,7 @@ import {
   buildBlindSummaryLines,
   buildPayoutSummaryLines,
   buildTournamentTimeline,
+  formatTournamentStackChips,
 } from "@/lib/tournament-detail";
 import { formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import {
@@ -86,7 +87,7 @@ export function TournamentDetailBody({
             label="Registered"
             value={`${tournament.registeredCount} / ${tournament.maxPlayers}`}
           />
-          <InfoRow label="Starting stack" value={tournament.startingStackCents.toLocaleString()} />
+          <InfoRow label="Starting stack" value={formatTournamentStackChips(tournament.startingStackCents)} />
           <InfoRow label="Blind preset" value={tournament.blindStructureId} />
           <InfoRow label="Prize pool" value={formatCents(tournament.prizePoolCents)} />
           {botFillSummary ? <InfoRow label="Bot fill" value={botFillSummary} /> : null}
