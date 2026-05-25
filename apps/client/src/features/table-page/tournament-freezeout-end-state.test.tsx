@@ -4,6 +4,7 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TournamentResultBanner } from "@/features/table/components/table/TournamentResultBanner";
+import type { TableDisplayState } from "./tableDisplayState";
 import {
   BOARD_RESET_FADE_MS,
   DEALING_NEXT_HAND_COPY,
@@ -13,6 +14,7 @@ import {
   TOURNAMENT_FINISHED_COPY,
   WINNER_HOLD_MS,
   useLiveTableStatusStripState,
+  type LiveTableStatusStripState,
 } from "./useLiveTableStatusStripState";
 
 const tournamentOverlay = {
@@ -77,12 +79,17 @@ describe("2-player freezeout end state", () => {
       connectionLabel: null,
     };
 
-    const { result, rerender } = renderHook(
-      (props: {
-        displayState: TableDisplayState;
-        tournamentStatus: string | null;
-        tournamentViewer: { isWinner: boolean } | null;
-      }) =>
+    type StripHookProps = {
+      displayState: TableDisplayState;
+      tournamentStatus: string | null;
+      tournamentViewer: { isWinner: boolean } | null;
+    };
+
+    const { result, rerender } = renderHook<
+      LiveTableStatusStripState,
+      StripHookProps
+    >(
+      (props) =>
         useLiveTableStatusStripState({
           tableId: "table-1",
           displayState: props.displayState,
@@ -102,7 +109,7 @@ describe("2-player freezeout end state", () => {
       vi.advanceTimersByTime(WINNER_HOLD_MS);
     });
     rerender({
-      displayState: { ...winnerNoticeDisplay, boardReset: true, phase: "boardReset" },
+      displayState: { ...winnerNoticeDisplay, boardReset: true, phase: "winnerHold" },
       tournamentStatus: "RUNNING",
       tournamentViewer: null,
     });

@@ -42,4 +42,4 @@ export const test = base.extend({
 });
 
 export { expect };
-export type { APIRequestContext, Page } from "@playwright/test";
+export type { APIRequestContext, ConsoleMessage, Page } from "@playwright/test";

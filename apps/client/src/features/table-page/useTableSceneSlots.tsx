@@ -92,7 +92,7 @@ export function useTableSceneSlots({
     [scene.connectionStatus, snapshot],
   );
   const actionNotice = useMemo(
-    () => buildTableActionNotice(snapshot, formatBet),
+    () => buildTableActionNotice(snapshot ?? undefined, formatBet),
     [formatBet, snapshot],
   );
   const tableDisplayState = useMemo(

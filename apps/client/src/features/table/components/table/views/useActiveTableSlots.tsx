@@ -359,9 +359,6 @@ export function useActiveTableSlots(
       }
       onAvatarPress={undefined}
       onToggleSittingOut={actions.toggleHeroSittingOut}
-      roundBetCents={
-        snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
-      }
     />
   );
 
