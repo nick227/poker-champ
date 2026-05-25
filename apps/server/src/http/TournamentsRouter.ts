@@ -279,8 +279,13 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
+  const created = await prisma.tournament.findUniqueOrThrow({
+    where: { id: tournament.id },
+    include: tournamentInclude,
+  });
+
   res.status(201).json(
-    toTournamentResponse(tournament, { isCreator: true }),
+    toTournamentResponse(created, { isCreator: true }),
   );
 });
 

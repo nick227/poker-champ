@@ -420,7 +420,7 @@ export class TournamentDirector {
     const liveRoomIds = await loadLivePokerRoomIds();
     const candidates = await prisma.tournament.findMany({
       where: {
-        status: { in: ["STARTING", "LATE_REG"] },
+        status: { in: ["STARTING", "LATE_REG", "RUNNING"] },
         roomId: { not: null },
         startTime: { lte: now },
       },

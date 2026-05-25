@@ -697,17 +697,22 @@ export class CashierService {
         data: { balanceCents: 0, status: "CASHED_OUT" },
       });
 
-      await tx.balanceTransaction.create({
-        data: {
-          id: nanoid(),
-          userId,
-          tableId,
-          tournamentId,
-          type: "TOURNAMENT_BUST",
-          amountCents: 0,
-          externalRef,
-        },
-      });
+      try {
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId,
+            tableId,
+            tournamentId,
+            type: "TOURNAMENT_BUST",
+            amountCents: 0,
+            externalRef,
+          },
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code !== "P2002") throw err;
+      }
 
       return { success: true };
     });
