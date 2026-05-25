@@ -161,7 +161,7 @@ After adding files, append paths to the `test:tournaments` script in root `packa
 |----|------|-----|--------|
 | C1 | Bust strip / viewer latch | Run existing `useLiveTableStatusStripState.test.tsx` | **Add file to `test:tournaments` script** |
 | C2 | Joined list hides `FINISHED` | Render `JoinedTournamentsSection` with mock rows; assert filter | `JoinedTournamentsSection.test.tsx` |
-| E1 | Join → table → bust message | Playwright: register, join table, force bust (or mock snapshot), assert banner text | `apps/client/e2e/tournament-bust.spec.ts` |
+| E1 | Bust/winner strip + banner (mocked snapshot) | Dev harness `/dev/tournament-bust-e2e?fixture=` + Playwright | `app/dev/tournament-bust-e2e.tsx`, `e2e/tournament-bust.spec.ts` |
 
 ---
 
@@ -174,7 +174,7 @@ After adding files, append paths to the `test:tournaments` script in root `packa
 5. [x] M22 dealer-driven reconcile  
 6. [x] Add `useLiveTableStatusStripState.test.tsx` to `test:tournaments`  
 7. [x] C2 joined section filter  
-8. [x] M23 — E1 Playwright deferred  
+8. [x] E1 Playwright bust/winner UX (`e2e:tournament-bust`)  
 
 Each new integration file: register in `package.json` → `test:tournaments`, run full suite before commit.
 

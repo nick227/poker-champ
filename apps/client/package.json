@@ -25,6 +25,7 @@
     "e2e:churn": "node node_modules/@playwright/test/cli.js test e2e/churn-seat-dealin.spec.ts",
     "e2e:auth-guard": "node node_modules/@playwright/test/cli.js test e2e/auth-guard-settings.spec.ts e2e/auth-guard-table.spec.ts",
     "e2e:auth-guard:table": "node node_modules/@playwright/test/cli.js test e2e/auth-guard-table.spec.ts",
+    "e2e:tournament-bust": "node node_modules/@playwright/test/cli.js test e2e/tournament-bust.spec.ts",
     "e2e:backgrounds": "node node_modules/@playwright/test/cli.js test e2e/app-backgrounds.spec.ts",
     "e2e:ui": "node node_modules/@playwright/test/cli.js test --ui",
     "e2e:install": "node node_modules/@playwright/test/cli.js install chromium",
