@@ -27,7 +27,7 @@ import {
 import { countTournamentRebuysForUser } from "./tournament-rebuy.js";
 
 type TournamentWithRegistrations = Tournament & {
-  registrations: { userId: string; isBot: boolean; user: { displayName: string } }[];
+  registrations: { userId: string; isBot: boolean; finishPlace: number | null; user: { displayName: string } }[];
 };
 
 export type TournamentEnsureTableJoinStatus =

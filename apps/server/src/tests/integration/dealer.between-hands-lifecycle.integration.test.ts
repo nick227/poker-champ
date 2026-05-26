@@ -62,7 +62,7 @@ async function createHeadsUpDealer(options?: { tournamentMode?: boolean }): Prom
 }
 
 function teardownDealer(dealer: Dealer): void {
-  (dealer as { turnManager?: { clearPendingHumanTurnTimeout: () => void } }).turnManager
+  (dealer as unknown as { turnManager?: { clearPendingHumanTurnTimeout: () => void } }).turnManager
     ?.clearPendingHumanTurnTimeout();
   dealer.stopDisconnectSweep();
   dealer.dispose();
@@ -89,7 +89,7 @@ describe("dealer between-hands lifecycle integration", () => {
   it("full lifecycle: fold ends hand, scheduleNextHand runs, next hand deals without manual startHand", async () => {
     vi.useFakeTimers();
     const { dealer, state } = await createHeadsUpDealer({ tournamentMode: true });
-    const scheduleSpy = vi.spyOn((dealer as { handOrchestrator: { scheduleNextHand: (...args: unknown[]) => void } }).handOrchestrator, "scheduleNextHand");
+    const scheduleSpy = vi.spyOn((dealer as unknown as { handOrchestrator: { scheduleNextHand: (...args: unknown[]) => void } }).handOrchestrator, "scheduleNextHand");
 
     try {
       const hand1 = state.handId;
@@ -157,7 +157,7 @@ describe("dealer between-hands lifecycle integration", () => {
       expect(resolvePlayersReadyForNextHand(state).length).toBe(2);
       expect([...state.playersById.values()].filter((p) => p.status === "ACTIVE").length).toBe(0);
 
-      await (dealer as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
+      await (dealer as unknown as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
         "NEXT_HAND_START_IMMEDIATE",
       );
 
@@ -188,7 +188,7 @@ describe("dealer between-hands lifecycle integration", () => {
       expect(resolvePlayersReadyForNextHand(state).length).toBe(2);
       expect([...state.playersById.values()].filter((p) => p.status === "ACTIVE").length).toBe(0);
 
-      await (dealer as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
+      await (dealer as unknown as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
         "NEXT_HAND_START_IMMEDIATE",
       );
 
@@ -231,12 +231,12 @@ describe("dealer between-hands lifecycle integration", () => {
 
     const dealer = new Dealer(state);
     dealer.stopDisconnectSweep();
-    (dealer as { pendingSeatReleaseUserIds: Set<string> }).pendingSeatReleaseUserIds.add("bot_pending");
+    (dealer as unknown as { pendingSeatReleaseUserIds: Set<string> }).pendingSeatReleaseUserIds.add("bot_pending");
 
     try {
       expect(resolvePlayersReadyForNextHand(state).length).toBeGreaterThanOrEqual(2);
 
-      await (dealer as { driveGame: (reason: string) => Promise<void> }).driveGame(
+      await (dealer as unknown as { driveGame: (reason: string) => Promise<void> }).driveGame(
         "TEST_BOT_RELEASE_WAITING",
       );
 

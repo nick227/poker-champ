@@ -155,7 +155,7 @@ describe.skipIf(!hasDatabase)("Tournament M22 — dealer triggers tournament rec
 
     const reconcileSpy = vi.spyOn(tournamentTableReconciler, "reconcileAfterHand");
 
-    await (room.dealerRef as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
+    await (room.dealerRef as unknown as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
       "M22_BUST_RECONCILE",
     );
     await flushAsyncWork();
