@@ -6,21 +6,20 @@ import {
 } from "@/lib/lobbyTables";
 
 describe("cash lobby join", () => {
-  it("treats missing connectedHumanCount as no active players", () => {
+  it("allows join to empty tables when bankroll is sufficient", () => {
     expect(hasCashLobbyActiveHumans({})).toBe(false);
     expect(resolveCashLobbyJoin({ minBuyInCents: 2000 }, 10_000)).toEqual({
-      canJoin: false,
-      joinBlockReason: "no_active_players",
+      canJoin: true,
+      joinBlockReason: null,
     });
-    expect(formatCashLobbyJoinHint("no_active_players")).toBe("Waiting for players");
   });
 
-  it("blocks join when connectedHumanCount is zero even with sufficient bankroll", () => {
+  it("allows join when connectedHumanCount is zero and bankroll is sufficient", () => {
     expect(
       resolveCashLobbyJoin({ connectedHumanCount: 0, minBuyInCents: 2000 }, 50_000),
     ).toEqual({
-      canJoin: false,
-      joinBlockReason: "no_active_players",
+      canJoin: true,
+      joinBlockReason: null,
     });
   });
 
@@ -33,9 +32,15 @@ describe("cash lobby join", () => {
     });
   });
 
-  it("blocks join for insufficient balance when humans are present", () => {
+  it("blocks join for insufficient balance regardless of active players", () => {
     expect(
       resolveCashLobbyJoin({ connectedHumanCount: 2, minBuyInCents: 5000 }, 1000),
+    ).toEqual({
+      canJoin: false,
+      joinBlockReason: "insufficient_balance",
+    });
+    expect(
+      resolveCashLobbyJoin({ connectedHumanCount: 0, minBuyInCents: 5000 }, 1000),
     ).toEqual({
       canJoin: false,
       joinBlockReason: "insufficient_balance",

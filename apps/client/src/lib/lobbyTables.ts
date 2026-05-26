@@ -19,7 +19,7 @@ export type LobbyTableRow = {
   connectedHumanCount?: number;
 };
 
-export type CashLobbyJoinBlockReason = "no_active_players" | "insufficient_balance";
+export type CashLobbyJoinBlockReason = "insufficient_balance";
 
 export function hasCashLobbyActiveHumans(
   table: Pick<LobbyTableRow, "connectedHumanCount">,
@@ -31,9 +31,6 @@ export function resolveCashLobbyJoin(
   table: Pick<LobbyTableRow, "connectedHumanCount" | "minBuyInCents">,
   balanceCents: number,
 ): { canJoin: boolean; joinBlockReason: CashLobbyJoinBlockReason | null } {
-  if (!hasCashLobbyActiveHumans(table)) {
-    return { canJoin: false, joinBlockReason: "no_active_players" };
-  }
   if (balanceCents < table.minBuyInCents) {
     return { canJoin: false, joinBlockReason: "insufficient_balance" };
   }
@@ -43,7 +40,6 @@ export function resolveCashLobbyJoin(
 export function formatCashLobbyJoinHint(
   reason: CashLobbyJoinBlockReason | null,
 ): string | null {
-  if (reason === "no_active_players") return "Waiting for players";
   if (reason === "insufficient_balance") return "Insufficient balance for min buy-in";
   return null;
 }
