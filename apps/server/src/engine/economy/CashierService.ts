@@ -17,8 +17,32 @@ import {
   canRebuyTournament,
   canUnregisterFromTournament,
 } from "../../tournaments/tournament-schedule.js";
+import {
+  tournamentAbandonRefundExternalRef,
+  tournamentCancelRefundExternalRef,
+} from "../../tournaments/tournament.constants.js";
+import { logger } from "../../lib/logger.js";
 
 export const TABLE_NAME_REQUIRED = "TABLE_NAME_REQUIRED" as const;
+
+/**
+ * Default number of per-player refund transfers processed inside a single DB
+ * transaction when batch-refunding a tournament field (cancel / abandon).
+ * Keeping each transaction bounded avoids hitting the DB transaction timeout
+ * on large fields, while each individual transfer remains atomic + idempotent
+ * via its own deterministic externalRef so a retry after a partial failure
+ * never double-refunds or drops a refund.
+ */
+const DEFAULT_REFUND_BATCH_SIZE = 50;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const boundedSize = Math.max(1, size);
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += boundedSize) {
+    out.push(items.slice(i, i + boundedSize));
+  }
+  return out;
+}
 
 export class CashierService {
   private static assertTableMeta(tableMeta: { name: string; creatorId?: string }): void {
@@ -226,11 +250,16 @@ export class CashierService {
     const prisma = getPrisma();
     const { userId, tableId, amountCents, externalRef, tableMeta } = params;
 
+    // Real-money transfer: attempt-insert idempotency guard + atomic balance
+    // guard, kept in one transaction so every step stays atomic together.
+    // fallow-ignore-next-line complexity
     return await prisma.$transaction(async (tx: any) => {
        // Ensure FK target exists for BalanceTransaction writes.
        await CashierService.ensureTableExists(tx, tableId, tableMeta);
 
-       // 1. Idempotency Check
+       // 1. Idempotency fast-path: if this externalRef already fully applied
+       // (e.g. a genuine client retry after the first request's response was
+       // lost), short-circuit without touching balances again.
        const existingTx = await tx.balanceTransaction.findUnique({
         where: { externalRef },
       });
@@ -238,44 +267,63 @@ export class CashierService {
           return { success: true };
       }
 
-      // 2. Validate current table balance
-      const pb = await tx.playerBalance.findUnique({
-          where: { tableId_userId: { tableId, userId } }
-      });
-
-      if (!pb || pb.balanceCents < amountCents) {
-          // In a forceful cashout (all-in), this shouldn't happen unless race condition
-          // If we are cashing out *all*, amountCents should match pb.balanceCents
-          throw new Error("INSUFFICIENT_TABLE_BALANCE"); 
+      // 2. Attempt-insert the transaction row *before* moving any money.
+      // This claims the externalRef atomically via the unique constraint:
+      // if two requests race on the exact same externalRef (a literal
+      // double-submit), only one insert can win; the loser hits P2002 here
+      // and returns "already applied" without ever touching the balance —
+      // exactly like the buy-in path. If it fails for any other reason (or
+      // if the balance turns out to be insufficient in step 3 below), the
+      // whole transaction — including this insert — rolls back.
+      try {
+        await tx.balanceTransaction.create({
+            data: {
+                id: nanoid(),
+                userId,
+                tableId,
+                type: "CASHOUT",
+                amountCents,
+                externalRef,
+            }
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code === "P2002") {
+          return { success: true };
+        }
+        throw err;
       }
 
-      // 3. Debit PlayerBalance (Set to 0 if full cashout, or decrement)
-      // Usually cashout is "leave table", so we might want to set status too
-      const remaining = pb.balanceCents - amountCents;
-      await tx.playerBalance.update({
-          where: { tableId_userId: { tableId, userId } },
-          data: { 
-              balanceCents: { decrement: amountCents },
-              status: remaining === 0 ? "CASHED_OUT" : "ACTIVE"
-          }
+      // 3. Atomically debit only if the table balance is sufficient. Using
+      // updateMany with a `gte` guard (instead of a plain read-then-write)
+      // closes a race where two *different* cash-out requests for the same
+      // player/table (e.g. two browser tabs both cashing out the full
+      // stack) could both pass a balance check before either commits and
+      // double-decrement/double-credit. This mirrors the atomic bankroll
+      // debit already used in processCashGameBuyIn.
+      const debitResult = await tx.playerBalance.updateMany({
+          where: { tableId, userId, balanceCents: { gte: amountCents } },
+          data: { balanceCents: { decrement: amountCents } },
       });
+      if (debitResult.count !== 1) {
+          // In a forceful cashout (all-in), this shouldn't happen unless race condition
+          throw new Error("INSUFFICIENT_TABLE_BALANCE");
+      }
+
+      const pb = await tx.playerBalance.findUniqueOrThrow({
+          where: { tableId_userId: { tableId, userId } }
+      });
+      if (pb.balanceCents === 0) {
+        await tx.playerBalance.update({
+            where: { tableId_userId: { tableId, userId } },
+            data: { status: "CASHED_OUT" },
+        });
+      }
 
       // 4. Credit User
       await tx.user.update({
           where: { id: userId },
           data: { bankrollCents: { increment: amountCents } }
-      });
-
-      // 5. Record Transaction
-      await tx.balanceTransaction.create({
-          data: {
-              id: nanoid(),
-              userId,
-              tableId,
-              type: "CASHOUT",
-              amountCents,
-              externalRef,
-          }
       });
 
       return { success: true };
@@ -513,25 +561,35 @@ export class CashierService {
 
   /**
    * Admin cancel — refunds all registrations and marks tournament CANCELLED.
+   *
+   * Refunds are processed in bounded batches (each its own DB transaction)
+   * rather than one transaction spanning the whole field, so a large field
+   * cannot blow a single transaction's timeout. Each individual refund keeps
+   * its own deterministic externalRef so it stays atomic + idempotent
+   * regardless of batch boundaries: a crash/retry mid-run only re-processes
+   * players who weren't refunded yet.
    */
   static async processTournamentCancel(params: {
     tournamentId: string;
     adminUserId: string;
     externalRef: string;
+    batchSize?: number;
   }): Promise<{ success: boolean; refundedCount: number }> {
     const prisma = getPrisma();
     const { tournamentId, adminUserId, externalRef } = params;
+    const batchSize = params.batchSize ?? DEFAULT_REFUND_BATCH_SIZE;
 
-    return await prisma.$transaction(async (tx: any) => {
+    // Step 1: idempotency + cancellability guard, snapshot the entry fee and
+    // the eligible (non-bot) registrants. Cheap, single short transaction.
+    // Guard-clause cascade (idempotency + tournament-status checks) needed
+    // before it's safe to snapshot the refund field for batching below.
+    // fallow-ignore-next-line complexity
+    const setup = await prisma.$transaction(async (tx: any) => {
       const existingCancel = await tx.balanceTransaction.findUnique({ where: { externalRef } });
-      if (existingCancel) {
-        return { success: true, refundedCount: 0 };
-      }
+      if (existingCancel) return { done: true as const, refundedCount: 0 };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
-      if (tourney.status === "CANCELLED") {
-        return { success: true, refundedCount: 0 };
-      }
+      if (tourney.status === "CANCELLED") return { done: true as const, refundedCount: 0 };
       if (
         tourney.status !== "REGISTERING" &&
         tourney.status !== "LATE_REG" &&
@@ -541,136 +599,205 @@ export class CashierService {
       }
 
       const registrations = await tx.tournamentRegistration.findMany({
-        where: { tournamentId },
+        where: { tournamentId, isBot: false },
+        select: { userId: true },
       });
 
-      if (registrations.length === 0) {
-        await tx.tournament.update({
-          where: { id: tournamentId },
-          data: { status: "CANCELLED", prizePoolCents: 0 },
-        });
-        return { success: true, refundedCount: 0 };
-      }
+      return {
+        done: false as const,
+        entryFeeCents: tourney.entryFeeCents,
+        userIds: registrations.map((r: { userId: string }) => r.userId),
+      };
+    });
 
-      let refundedCount = 0;
-      for (const reg of registrations) {
-        if (reg.isBot) continue;
+    if (setup.done) {
+      return { success: true, refundedCount: setup.refundedCount };
+    }
 
-        const refundRef = `tournament_cancel_refund_${tournamentId}_${reg.userId}`;
-        await tx.user.update({
-          where: { id: reg.userId },
-          data: { bankrollCents: { increment: tourney.entryFeeCents } },
-        });
+    // Step 2: refund in bounded batches, one transaction per batch. Each
+    // per-player refund checks its own externalRef first so re-running a
+    // batch (e.g. after a crash) never double-credits.
+    let refundedCount = 0;
+    // Per-player check-then-write inside a bounded batch transaction; this
+    // is the core Gap-1 fix and keeps each player's refund atomic per batch.
+    for (const batch of chunk(setup.userIds as string[], batchSize)) {
+      // fallow-ignore-next-line complexity
+      refundedCount += await prisma.$transaction(async (tx: any) => {
+        let batchRefunded = 0;
+        for (const userId of batch) {
+          const refundRef = tournamentCancelRefundExternalRef(tournamentId, userId);
+          const existingRefund = await tx.balanceTransaction.findUnique({ where: { externalRef: refundRef } });
+          if (existingRefund) {
+            batchRefunded += 1;
+            continue;
+          }
 
-        await tx.balanceTransaction.create({
-          data: {
-            id: nanoid(),
-            userId: reg.userId,
-            tournamentId,
-            type: "REFUND",
-            amountCents: tourney.entryFeeCents,
-            externalRef: refundRef,
-          },
-        });
-        refundedCount += 1;
-      }
+          await tx.user.update({
+            where: { id: userId },
+            data: { bankrollCents: { increment: setup.entryFeeCents } },
+          });
+
+          await tx.balanceTransaction.create({
+            data: {
+              id: nanoid(),
+              userId,
+              tournamentId,
+              type: "REFUND",
+              amountCents: setup.entryFeeCents,
+              externalRef: refundRef,
+            },
+          });
+          batchRefunded += 1;
+        }
+        return batchRefunded;
+      });
+    }
+
+    // Step 3: mark the tournament CANCELLED and write the outer idempotency
+    // marker. Guarded again so a retried run that reached this point before
+    // (but crashed before committing) is safe to re-run.
+    await prisma.$transaction(async (tx: any) => {
+      const existingCancel = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingCancel) return;
 
       await tx.tournament.update({
         where: { id: tournamentId },
-        data: {
-          status: "CANCELLED",
-          prizePoolCents: 0,
-        },
+        data: { status: "CANCELLED", prizePoolCents: 0 },
       });
 
-      await tx.balanceTransaction.create({
-        data: {
-          id: nanoid(),
-          userId: adminUserId,
-          tournamentId,
-          type: "REFUND",
-          amountCents: 0,
-          externalRef,
-          metaJson: { kind: "TOURNAMENT_CANCEL", refundedCount },
-        },
-      });
-
-      return { success: true, refundedCount };
+      try {
+        await tx.balanceTransaction.create({
+          data: {
+            id: nanoid(),
+            userId: adminUserId,
+            tournamentId,
+            type: "REFUND",
+            amountCents: 0,
+            externalRef,
+            metaJson: { kind: "TOURNAMENT_CANCEL", refundedCount },
+          },
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code !== "P2002") throw err;
+      }
     });
+
+    return { success: true, refundedCount };
   }
 
   /**
    * All humans eliminated — refund each human entry from prize pool; no payouts.
+   *
+   * Same bounded-batch approach as processTournamentCancel: refunds run in
+   * chunks of `batchSize`, each its own transaction, so a large field cannot
+   * exceed the DB transaction timeout. Per-player idempotency (check-before-
+   * write on a deterministic externalRef) is unchanged from before.
    */
   static async processTournamentAbandonRefunds(params: {
     tournamentId: string;
     externalRef: string;
+    batchSize?: number;
   }): Promise<{ success: boolean; refundedCount: number }> {
     const prisma = getPrisma();
     const { tournamentId, externalRef } = params;
+    const batchSize = params.batchSize ?? DEFAULT_REFUND_BATCH_SIZE;
 
-    return await prisma.$transaction(async (tx: any) => {
+    // Same idempotency + status guard shape as processTournamentCancel's
+    // setup step; see that method's comment for the single-transaction why.
+    // fallow-ignore-next-line complexity
+    const setup = await prisma.$transaction(async (tx: any) => {
       const existing = await tx.balanceTransaction.findUnique({ where: { externalRef } });
-      if (existing) return { success: true, refundedCount: 0 };
+      if (existing) return { done: true as const, refundedCount: 0 };
 
       const tourney = await tx.tournament.findUniqueOrThrow({ where: { id: tournamentId } });
       if (tourney.status !== "RUNNING") {
-        return { success: true, refundedCount: 0 };
+        return { done: true as const, refundedCount: 0 };
       }
 
       const registrations = await tx.tournamentRegistration.findMany({
         where: { tournamentId, isBot: false },
+        select: { userId: true },
       });
 
-      let refundedCount = 0;
-      for (const reg of registrations) {
-        const refundRef = `tournament_abandon_refund_${tournamentId}_${reg.userId}`;
-        const existingRefund = await tx.balanceTransaction.findUnique({ where: { externalRef: refundRef } });
-        if (existingRefund) {
-          refundedCount += 1;
-          continue;
+      return {
+        done: false as const,
+        entryFeeCents: tourney.entryFeeCents,
+        userIds: registrations.map((r: { userId: string }) => r.userId),
+      };
+    });
+
+    if (setup.done) {
+      return { success: true, refundedCount: setup.refundedCount };
+    }
+
+    let refundedCount = 0;
+    // Per-player idempotency check-then-write inside a bounded batch
+    // transaction; see processTournamentCancel's equivalent batch step.
+    for (const batch of chunk(setup.userIds as string[], batchSize)) {
+      // fallow-ignore-next-line complexity
+      refundedCount += await prisma.$transaction(async (tx: any) => {
+        let batchRefunded = 0;
+        for (const userId of batch) {
+          const refundRef = tournamentAbandonRefundExternalRef(tournamentId, userId);
+          const existingRefund = await tx.balanceTransaction.findUnique({ where: { externalRef: refundRef } });
+          if (existingRefund) {
+            batchRefunded += 1;
+            continue;
+          }
+
+          await tx.user.update({
+            where: { id: userId },
+            data: { bankrollCents: { increment: setup.entryFeeCents } },
+          });
+
+          await tx.balanceTransaction.create({
+            data: {
+              id: nanoid(),
+              userId,
+              tournamentId,
+              type: "REFUND",
+              amountCents: setup.entryFeeCents,
+              externalRef: refundRef,
+              metaJson: { kind: "TOURNAMENT_ABANDON" },
+            },
+          });
+          batchRefunded += 1;
         }
+        return batchRefunded;
+      });
+    }
 
-        await tx.user.update({
-          where: { id: reg.userId },
-          data: { bankrollCents: { increment: tourney.entryFeeCents } },
-        });
-
-        await tx.balanceTransaction.create({
-          data: {
-            id: nanoid(),
-            userId: reg.userId,
-            tournamentId,
-            type: "REFUND",
-            amountCents: tourney.entryFeeCents,
-            externalRef: refundRef,
-            metaJson: { kind: "TOURNAMENT_ABANDON" },
-          },
-        });
-        refundedCount += 1;
-      }
+    await prisma.$transaction(async (tx: any) => {
+      const existing = await tx.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existing) return;
 
       await tx.tournament.update({
         where: { id: tournamentId },
         data: { prizePoolCents: 0 },
       });
 
-      if (registrations.length > 0) {
-        await tx.balanceTransaction.create({
-          data: {
-            id: nanoid(),
-            userId: registrations[0]!.userId,
-            tournamentId,
-            type: "REFUND",
-            amountCents: 0,
-            externalRef,
-            metaJson: { kind: "TOURNAMENT_ABANDON", refundedCount },
-          },
-        });
+      if (setup.userIds.length > 0) {
+        try {
+          await tx.balanceTransaction.create({
+            data: {
+              id: nanoid(),
+              userId: setup.userIds[0]!,
+              tournamentId,
+              type: "REFUND",
+              amountCents: 0,
+              externalRef,
+              metaJson: { kind: "TOURNAMENT_ABANDON", refundedCount },
+            },
+          });
+        } catch (err: unknown) {
+          const code = (err as { code?: string })?.code;
+          if (code !== "P2002") throw err;
+        }
       }
-
-      return { success: true, refundedCount };
     });
+
+    return { success: true, refundedCount };
   }
 
   /**
@@ -794,6 +921,124 @@ export class CashierService {
 
       return { success: true, paidCount };
     });
+  }
+
+  /**
+   * Bounded retry-with-backoff for the "sync the live room after a buy-in
+   * commit" step. By the time this runs, the bankroll debit + PlayerBalance
+   * credit (processCashGameBuyIn / processTournamentRebuy) has already
+   * committed — there's no safe automatic rollback of paid-for chips once a
+   * player may be relying on them, so on transient failure we retry a few
+   * times with backoff, and if still failing, durably mark the originating
+   * BalanceTransaction so an operator can find and manually reconcile the
+   * "paid but not seated" buy-in instead of it being silently invisible.
+   */
+  // Bounded retry loop with backoff + dead-letter fallback (Gap 3): attempt
+  // loop, per-attempt catch/backoff, and the final dead-letter call.
+  // fallow-ignore-next-line complexity
+  static async syncRoomAfterBuyIn(params: {
+    userId: string;
+    tableId: string;
+    externalRef: string;
+    roomSync: () => Promise<void>;
+    maxAttempts?: number;
+    baseDelayMs?: number;
+  }): Promise<{ synced: boolean; attempts: number }> {
+    const maxAttempts = Math.max(1, params.maxAttempts ?? 3);
+    const baseDelayMs = params.baseDelayMs ?? 200;
+
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await params.roomSync();
+        return { synced: true, attempts: attempt };
+      } catch (err) {
+        lastErr = err;
+        logger.warn(
+          {
+            err,
+            attempt,
+            maxAttempts,
+            userId: params.userId,
+            tableId: params.tableId,
+            externalRef: params.externalRef,
+          },
+          "BUYIN_ROOM_SYNC_ATTEMPT_FAILED",
+        );
+        if (attempt < maxAttempts) {
+          const delayMs = baseDelayMs * 2 ** (attempt - 1);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+
+    await CashierService.markBuyInRoomSyncFailed({
+      userId: params.userId,
+      tableId: params.tableId,
+      externalRef: params.externalRef,
+      attempts: maxAttempts,
+      lastError: lastErr instanceof Error ? lastErr.message : String(lastErr),
+    });
+
+    return { synced: false, attempts: maxAttempts };
+  }
+
+  /**
+   * Durable dead-letter marker for a buy-in whose funds committed but whose
+   * live-room sync never succeeded. Reuses the BalanceTransaction row the
+   * buy-in itself created (found via its externalRef) instead of inventing a
+   * new queue/table, so an admin sweep can filter on metaJson.roomSyncStatus.
+   */
+  // Best-effort dead-letter writer; branches are defensive (missing
+  // transaction row, non-object metaJson, write failure) so a bug here can
+  // never mask the caller's original room-sync error.
+  // fallow-ignore-next-line complexity
+  private static async markBuyInRoomSyncFailed(params: {
+    userId: string;
+    tableId: string;
+    externalRef: string;
+    attempts: number;
+    lastError: string;
+  }): Promise<void> {
+    const prisma = getPrisma();
+    try {
+      const existing = await prisma.balanceTransaction.findUnique({
+        where: { externalRef: params.externalRef },
+      });
+      if (!existing) {
+        logger.error({ ...params }, "BUYIN_ROOM_SYNC_DEAD_LETTER_MISSING_TRANSACTION");
+        return;
+      }
+      const priorMeta =
+        existing.metaJson && typeof existing.metaJson === "object" && !Array.isArray(existing.metaJson)
+          ? (existing.metaJson as Record<string, unknown>)
+          : {};
+      await prisma.balanceTransaction.update({
+        where: { externalRef: params.externalRef },
+        data: {
+          metaJson: {
+            ...priorMeta,
+            roomSyncStatus: "FAILED",
+            roomSyncAttempts: params.attempts,
+            roomSyncLastError: params.lastError,
+            roomSyncFailedAt: new Date().toISOString(),
+          },
+        },
+      });
+      logger.error(
+        {
+          userId: params.userId,
+          tableId: params.tableId,
+          externalRef: params.externalRef,
+          attempts: params.attempts,
+        },
+        "BUYIN_ROOM_SYNC_DEAD_LETTER_RECORDED",
+      );
+    } catch (err) {
+      // Best-effort: dead-letter bookkeeping must never mask the original
+      // room-sync failure from the caller.
+      logger.error({ err, ...params }, "BUYIN_ROOM_SYNC_DEAD_LETTER_WRITE_FAILED");
+    }
   }
 }
 
