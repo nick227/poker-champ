@@ -55,6 +55,7 @@ export const openApiSpec = {
           isBanned: { type: "boolean" },
           deletedAt: { type: "string", format: "date-time", nullable: true },
           trustLevel: { type: "integer" },
+          emailVerifiedAt: { type: "string", format: "date-time", nullable: true },
           bankrollCents: { type: "integer" },
           avatarUrl: { type: "string", nullable: true },
           avatarVersion: { type: "integer", nullable: true },
@@ -579,6 +580,134 @@ export const openApiSpec = {
         responses: {
           "200": {
             description: "Logged out all sessions",
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/forgot-password": {
+      post: {
+        tags: ["auth"],
+        operationId: "authForgotPassword",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { email: { type: "string", format: "email" } },
+                required: ["email"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Generic success (does not reveal whether the email is registered)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" }, message: { type: "string" } },
+                  required: ["success", "message"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/reset-password": {
+      post: {
+        tags: ["auth"],
+        operationId: "authResetPassword",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  token: { type: "string", minLength: 1 },
+                  password: { type: "string", minLength: 1 },
+                },
+                required: ["token", "password"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Password reset",
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request / invalid or expired token",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/verify-email": {
+      post: {
+        tags: ["auth"],
+        operationId: "authVerifyEmail",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { token: { type: "string", minLength: 1 } },
+                required: ["token"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Email verified",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" }, user: { $ref: "#/components/schemas/User" } },
+                  required: ["success", "user"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request / invalid or expired token",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/resend-verification": {
+      post: {
+        tags: ["auth"],
+        operationId: "authResendVerification",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Verification email resent (or already verified — no-op)",
             content: {
               "application/json": {
                 schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },

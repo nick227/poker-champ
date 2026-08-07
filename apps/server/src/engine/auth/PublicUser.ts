@@ -1,9 +1,28 @@
 import type { User } from "@prisma/client";
 
-export type PublicUser = Omit<User, "passwordHash">;
+const SENSITIVE_FIELDS = [
+  "passwordHash",
+  "passwordResetTokenHash",
+  "passwordResetTokenExpiresAt",
+  "emailVerificationTokenHash",
+  "emailVerificationTokenExpiresAt",
+] as const;
+
+export type PublicUser = Omit<User, (typeof SENSITIVE_FIELDS)[number]>;
 
 export function toPublicUser(user: User): PublicUser {
-  const { passwordHash, ...publicUser } = user;
+  const {
+    passwordHash,
+    passwordResetTokenHash,
+    passwordResetTokenExpiresAt,
+    emailVerificationTokenHash,
+    emailVerificationTokenExpiresAt,
+    ...publicUser
+  } = user;
   void passwordHash;
+  void passwordResetTokenHash;
+  void passwordResetTokenExpiresAt;
+  void emailVerificationTokenHash;
+  void emailVerificationTokenExpiresAt;
   return publicUser;
 }
