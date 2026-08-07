@@ -1182,6 +1182,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     }
     await this.dealer.kickUser(userId, reason);
+    // Mirror every other removal path (consented leave, abandon-timeout, sweep, TTL cleanup):
+    // refresh counts and, if this was the last seated human, clear bots. kickUser only marks
+    // the player ABANDONED (does not delete the seat), so this is usually a no-op for bot
+    // clearing today, but keeps behavior consistent and correct once/if the seat is released.
+    await this.maybeRemoveBotsIfNoHumans();
+    this.updateMetadataCounts();
   }
 
   /**

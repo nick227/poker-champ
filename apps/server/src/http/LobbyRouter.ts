@@ -7,6 +7,7 @@ import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
 import { getPrisma } from "@poker-champ/db";
 import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
+import { findLiveCashRoomByTableId } from "../tables/cash-table-room.js";
 
 const router = express.Router();
 const InstantPresetIdSchema = z.enum(["MULTIPLAYER_RING", "HEADS_UP_BOT"]);
@@ -99,6 +100,26 @@ router.get("/tables", async (_req, res) => {
     return { ...t, creatorAvatarUrl: typeof avatar === "string" ? avatar : null };
   });
   res.json({ tables: enriched });
+});
+
+// Canonical connect-target resolution: resolves a tableId to its live {tableId, roomId}
+// the same way JOIN_TABLE / findLiveCashRoomByTableId already do, so the client has a
+// stable HTTP endpoint to re-resolve a room on reconnect instead of client-side heuristics.
+// See docs/proposals/gameplay-session-reconnect-deep-dive-and-proposal.md (Phase 3).
+router.get("/tables/:tableId/connect-target", async (req, res) => {
+  const tableId = typeof req.params.tableId === "string" ? req.params.tableId : req.params.tableId?.[0];
+  if (!tableId) {
+    res.status(400).json({ error: "Missing tableId" });
+    return;
+  }
+
+  const liveRoom = await findLiveCashRoomByTableId(tableId);
+  if (!liveRoom) {
+    res.status(404).json({ error: "Table not found" });
+    return;
+  }
+
+  res.json({ tableId: liveRoom.tableId, roomId: liveRoom.roomId });
 });
 
 router.post("/tables", requireAuth, async (req, res) => {
