@@ -667,3 +667,18 @@ model ContentAccess {
 
   @@unique([contentId, type])
 }
+
+// Durable dedup ledger for Stripe webhook events. Source of truth for "have we
+// already processed this event" — replaces the in-memory Set that used to live
+// in apps/server/src/http/webhooks/stripe.ts (not durable across restarts).
+// Dedup uses an idempotent-insert pattern: attempt to create a row, and treat a
+// unique-constraint violation on `eventId` as "already processed" (same pattern
+// as LedgerService's applyTransaction / BalanceTransaction.externalRef).
+model StripeEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // Stripe event id, e.g. evt_...
+  type        String
+  processedAt DateTime @default(now())
+
+  @@index([type])
+}

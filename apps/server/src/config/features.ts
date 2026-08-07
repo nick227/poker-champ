@@ -25,6 +25,14 @@ export function isLessonsV1Enabled(): boolean {
   return process.env.ENABLE_LESSONS_V1 === "true";
 }
 
+// Fake-money deposit endpoint (POST /economy/deposit). Unconditionally credits a fixed
+// amount with no real payment provider involved — dev/demo only. Must be explicitly
+// opted into, and is always disabled in production regardless of the env var.
+export function isFakeDepositsEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  return process.env.ALLOW_FAKE_DEPOSITS === "true";
+}
+
 // Monetization (server uses this file; root config/features.ts is for client/reference)
 export const MONETIZATION_FEATURES = {
   PAY_GATING_ENABLED: process.env.ENABLE_PAY_GATING === "true",

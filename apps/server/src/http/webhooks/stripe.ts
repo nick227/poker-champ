@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { createRequire } from 'node:module';
+import { Prisma } from '@prisma/client';
+import { getPrisma } from '@poker-champ/db';
+import { nanoid } from 'nanoid';
 import { MembershipService } from '../../api/memberships.js';
 import { STRIPE_CONFIG } from '../../config/features.js';
 
@@ -29,19 +32,46 @@ function getStripeClient() {
   return stripeClient;
 }
 
-const MAX_PROCESSED_EVENT_IDS = 10_000;
-const processedEventIds = new Set<string>();
-
-function hasProcessedEvent(eventId: string): boolean {
-  return processedEventIds.has(eventId);
+/**
+ * Durable webhook dedup, backed by the StripeEvent table (source of truth).
+ * Replaces the old in-memory Set<string>, which was wiped on every process
+ * restart/redeploy and would silently re-process (and potentially double-credit)
+ * every previously-seen Stripe event.
+ *
+ * Uses an idempotent-insert pattern — attempt the insert and treat a unique-
+ * constraint violation on `eventId` as "already processed" — rather than a
+ * check-then-insert race. Same house style as LedgerService.applyTransaction's
+ * externalRef idempotency (apps/server/src/engine/persistence/LedgerService.ts).
+ *
+ * The claim is taken before processing (closing the race for near-simultaneous
+ * duplicate deliveries) and released if processing fails, so a genuine Stripe
+ * retry after a transient error isn't swallowed as a "duplicate".
+ */
+async function claimStripeEvent(eventId: string, type: string): Promise<boolean> {
+  const prisma = getPrisma();
+  try {
+    await prisma.stripeEvent.create({
+      data: { id: nanoid(), eventId, type },
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return false;
+    }
+    throw err;
+  }
 }
 
-function markEventProcessed(eventId: string): void {
-  if (processedEventIds.size >= MAX_PROCESSED_EVENT_IDS) {
-    const first = processedEventIds.values().next().value;
-    if (first) processedEventIds.delete(first);
+async function releaseStripeEventClaim(eventId: string): Promise<void> {
+  const prisma = getPrisma();
+  try {
+    await prisma.stripeEvent.delete({ where: { eventId } });
+  } catch (err) {
+    // Best-effort: if the row is already gone (e.g. raced with another release)
+    // there's nothing to clean up. Any other error is logged but must not mask
+    // the original processing failure being reported to the caller.
+    console.error(`Failed to release StripeEvent claim for ${eventId}:`, err);
   }
-  processedEventIds.add(eventId);
 }
 
 export async function handleStripeWebhook(req: Request, res: Response) {
@@ -67,7 +97,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     return res.status(400).json({ error: `Webhook signature verification failed: ${message}` });
   }
 
-  if (hasProcessedEvent(event.id)) {
+  const claimed = await claimStripeEvent(event.id, event.type);
+  if (!claimed) {
     return res.json({ received: true, duplicate: true });
   }
 
@@ -77,14 +108,15 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   try {
     const result = await MembershipService.handleWebhookEvent(event);
     if (result.success) {
-      markEventProcessed(event.id);
       res.json({ received: true, ...result });
     } else {
       console.error('Webhook processing failed:', result.error);
+      await releaseStripeEventClaim(event.id);
       res.status(500).json({ error: result.error });
     }
   } catch (error) {
     console.error('Unexpected error in webhook handler:', error);
+    await releaseStripeEventClaim(event.id);
     res.status(500).json({ error: 'Internal webhook processing error' });
   }
 }
