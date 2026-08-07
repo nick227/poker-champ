@@ -5,7 +5,10 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    environmentMatchGlobs: [["src/features/table/components/table/hooks/__tests__/**/*.test.ts", "happy-dom"]],
+    environmentMatchGlobs: [
+      ["src/features/table/components/table/hooks/__tests__/**/*.test.ts", "happy-dom"],
+      ["src/voice/sdk/LocalAudioTrack.test.ts", "happy-dom"],
+    ],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["src/test/setup.ts"],
     server: {
