@@ -283,7 +283,47 @@ model User {
   // Monetization
   membership Membership?
 
+  // Admin audit trail
+  adminLogsAsActor  AdminLog[] @relation("AdminLogActor")
+  adminLogsAsTarget AdminLog[] @relation("AdminLogTarget")
+
   @@index([usernameNormalized])
+}
+
+// Append-only audit trail for every admin-initiated action (ban, promote,
+// role change, table close/kick, balance recovery run, etc). Rows are never
+// updated or deleted by application code.
+model AdminLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Admin user who performed the action.
+  actorUserId String
+  actor       User   @relation("AdminLogActor", fields: [actorUserId], references: [id])
+
+  // BAN | UNBAN | PROMOTE | ROLE_CHANGE | SOFT_DELETE | RESTORE |
+  // CREATE_ADMIN_USER | BALANCE_RECOVERY | TABLE_CLOSE | TABLE_KICK
+  action String
+
+  // Target user, when the action affects a specific user account.
+  // Nullable because some actions (e.g. table close) target a table, not a user.
+  targetUserId String?
+  targetUser   User?   @relation("AdminLogTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  // Target table/room, when the action affects a live table rather than (or
+  // in addition to) a user account.
+  targetTableId String?
+
+  // State snapshots for the affected fields, before and after the action.
+  beforeJson Json?
+  afterJson  Json?
+
+  // Optional operator-supplied justification for the action.
+  reason String?
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action, createdAt])
 }
 
 model LeaderboardSnapshot {

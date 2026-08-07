@@ -44,6 +44,12 @@ export const openApiSpec = {
         },
         required: ["error", "code", "retryAfterSeconds"],
       },
+      AdminActionReasonRequest: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+        },
+      },
       User: {
         type: "object",
         properties: {
@@ -2179,6 +2185,7 @@ export const openApiSpec = {
                   password: { type: "string", minLength: 6 },
                   displayName: { type: "string", minLength: 1, maxLength: 80 },
                   username: { type: "string", minLength: 3, maxLength: 24 },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
                 },
                 required: ["email", "password"],
               },
@@ -2207,6 +2214,12 @@ export const openApiSpec = {
         operationId: "adminPromoteUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Promoted user",
@@ -2225,6 +2238,12 @@ export const openApiSpec = {
         operationId: "adminBanUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Banned user",
@@ -2243,6 +2262,12 @@ export const openApiSpec = {
         operationId: "adminUnbanUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Unbanned user",
@@ -2267,7 +2292,10 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                properties: { role: { type: "string", enum: ["USER", "MODERATOR", "ADMIN"] } },
+                properties: {
+                  role: { type: "string", enum: ["USER", "MODERATOR", "ADMIN"] },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+                },
                 required: ["role"],
               },
             },
@@ -2295,6 +2323,12 @@ export const openApiSpec = {
         operationId: "adminDeleteUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Soft-deleted user",
@@ -2313,6 +2347,12 @@ export const openApiSpec = {
         operationId: "adminRestoreUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Restored user",
@@ -2320,6 +2360,99 @@ export const openApiSpec = {
           },
           "404": {
             description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/tables/{roomId}/close": {
+      post: {
+        tags: ["admin"],
+        operationId: "adminCloseTable",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Table closed; every seated human player was kicked and cashed out",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    roomId: { type: "string" },
+                    kickedUserIds: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["ok", "roomId", "kickedUserIds"],
+                },
+              },
+            },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Table not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/tables/{roomId}/kick": {
+      post: {
+        tags: ["admin"],
+        operationId: "adminKickFromTable",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  userId: { type: "string" },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+                },
+                required: ["userId"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "User kicked from the table",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    roomId: { type: "string" },
+                    targetUserId: { type: "string" },
+                  },
+                  required: ["ok", "roomId", "targetUserId"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing userId",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Table not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

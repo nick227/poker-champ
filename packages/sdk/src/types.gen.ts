@@ -756,6 +756,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/tables/{roomId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminCloseTable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tables/{roomId}/kick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminKickFromTable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -768,6 +800,10 @@ export interface components {
             /** @enum {string} */
             code: "RATE_LIMITED";
             retryAfterSeconds: number;
+        };
+        AdminActionReasonRequest: {
+            /** @description Optional operator-supplied justification, recorded in the AdminLog. */
+            reason?: string;
         };
         User: {
             id: string;
@@ -2749,6 +2785,8 @@ export interface operations {
                     password: string;
                     displayName?: string;
                     username?: string;
+                    /** @description Optional operator-supplied justification, recorded in the AdminLog. */
+                    reason?: string;
                 };
             };
         };
@@ -2791,7 +2829,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
         responses: {
             /** @description Promoted user */
             200: {
@@ -2822,7 +2864,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
         responses: {
             /** @description Banned user */
             200: {
@@ -2853,7 +2899,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
         responses: {
             /** @description Unbanned user */
             200: {
@@ -2889,6 +2939,8 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     role: "USER" | "MODERATOR" | "ADMIN";
+                    /** @description Optional operator-supplied justification, recorded in the AdminLog. */
+                    reason?: string;
                 };
             };
         };
@@ -2931,7 +2983,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
         responses: {
             /** @description Soft-deleted user */
             200: {
@@ -2962,7 +3018,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
         responses: {
             /** @description Restored user */
             200: {
@@ -2974,6 +3034,115 @@ export interface operations {
                 };
             };
             /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adminCloseTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminActionReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Table closed; every seated human player was kicked and cashed out */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                        roomId: string;
+                        kickedUserIds: string[];
+                    };
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Table not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    adminKickFromTable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    userId: string;
+                    /** @description Optional operator-supplied justification, recorded in the AdminLog. */
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description User kicked from the table */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ok: boolean;
+                        roomId: string;
+                        targetUserId: string;
+                    };
+                };
+            };
+            /** @description Missing userId */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Table not found */
             404: {
                 headers: {
                     [name: string]: unknown;
