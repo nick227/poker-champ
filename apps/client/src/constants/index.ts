@@ -6,7 +6,10 @@
 export const DEFAULT_API_URL = "http://localhost:3000";
 
 // Realtime connection
-export const RECONNECT_DELAY_MS = 2000;
+/** Base delay (ms) for exponential backoff reconnect attempts, before jitter is applied. */
+export const RECONNECT_BASE_DELAY_MS = 1000;
+/** Hard cap (ms) on reconnect backoff delay, even after many attempts. Seconds, not minutes. */
+export const RECONNECT_MAX_DELAY_MS = 15000;
 export const MAX_RECONNECT_ATTEMPTS = 3;
 /** Cap reconnect retries even when a Colyseus token exists (prevents infinite loops on dead rooms). */
 export const MAX_RECONNECT_ATTEMPTS_WITH_TOKEN = 12;
