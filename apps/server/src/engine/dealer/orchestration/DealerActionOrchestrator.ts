@@ -3,7 +3,7 @@ import type { ActionPayload, TableLastAction } from "@poker-champ/realtime-contr
 import { logger } from "../../../lib/logger.js";
 import type { PokerState } from "../../../state/PokerState.js";
 import type { PlayerState } from "../../../state/PlayerState.js";
-import { PokerError, isSkippableActionRejection } from "../../errors.js";
+import { PokerError } from "../../errors.js";
 import { maybeAssertBettingState } from "../../invariants/assertBettingState.js";
 import { HandContext } from "../HandContext.js";
 import type { SnapshotReason } from "../hand/SnapshotService.js";
@@ -212,9 +212,16 @@ export class DealerActionOrchestrator {
               context: this.deps.buildDiagnosticContext({ userId, action: msg.action }),
             });
           }
-          if (isSkippableActionRejection(err)) {
-            return;
-          }
+          // NOTE: do NOT swallow skippable rejections here. This callback runs for
+          // player-submitted actions (PokerRoomMessageRouter, which awaits handleAction
+          // and must observe the rejection to send an ERROR back to the client) and for
+          // bot-scheduled actions (Dealer.ts, which awaits handleAction and has its own
+          // PokerError handling to log BOT_SCHEDULED_ACTION_REJECTED and re-drive). Both
+          // callers already catch PokerError safely, so rethrowing here cannot crash the
+          // process or poison the action queue (TurnManager.enqueuePlayerAction chains a
+          // `.catch` ahead of every future enqueue). Swallowing here previously caused
+          // out-of-turn/stale-action rejections (NOT_YOUR_TURN, NOT_ELIGIBLE, etc.) to
+          // vanish silently instead of reaching the callers that need to react to them.
           throw err;
         }
       } finally {
