@@ -154,6 +154,24 @@ export const admin = {
       pathWithParams("/api/admin/users/{id}/role", path as Record<string, string | number>),
       input,
     ),
+  closeTable: (
+    path: PathParams<Operation<"/api/admin/tables/{roomId}/close", "post">>,
+    input?: JsonRequestBody<Operation<"/api/admin/tables/{roomId}/close", "post">>,
+  ) =>
+    request<SuccessPayload<Operation<"/api/admin/tables/{roomId}/close", "post">>>(
+      "POST",
+      pathWithParams("/api/admin/tables/{roomId}/close", path as Record<string, string | number>),
+      input,
+    ),
+  kickFromTable: (
+    path: PathParams<Operation<"/api/admin/tables/{roomId}/kick", "post">>,
+    input: JsonRequestBody<Operation<"/api/admin/tables/{roomId}/kick", "post">>,
+  ) =>
+    request<SuccessPayload<Operation<"/api/admin/tables/{roomId}/kick", "post">>>(
+      "POST",
+      pathWithParams("/api/admin/tables/{roomId}/kick", path as Record<string, string | number>),
+      input,
+    ),
 };
 
 export const bots = {
