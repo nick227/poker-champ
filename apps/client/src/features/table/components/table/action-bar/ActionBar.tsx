@@ -9,6 +9,7 @@ import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
 import { actionBarStyles } from "./styles";
 import { useActionBarController, type ActionBarController } from "./actionBar.controller";
 import { ActionButtons } from "./ActionButtons";
+import { AllInBanner } from "./AllInBanner";
 import { TableStatusStrip } from "./TableStatusStrip";
 import { WagerChips } from "./WagerChips";
 import { WagerInput } from "./WagerInput";
@@ -42,11 +43,13 @@ export function ActionBar({
   forceDisabled = false,
   hideReconnectingOverlay = false,
   forceInteractive = false,
+  heroStatus,
   ...rest
 }: ActionBarProps) {
-  const ctrl: ActionBarController = useActionBarController({ actionContext, ...rest });
+  const ctrl: ActionBarController = useActionBarController({ actionContext, heroStatus, ...rest });
   const interactive = !forceDisabled && (ctrl.showActions || forceInteractive);
   const resolvedStatusMessage = statusMessage ?? ctrl.statusFallbackLabel;
+  const isAllIn = !ctrl.showActions && heroStatus === "ALL_IN";
 
   return (
     <View
@@ -65,11 +68,15 @@ export function ActionBar({
         className="ui-action-bar mt-2"
       >
         <View style={actionBarStyles.statusRow}>
-          <TableStatusStrip
-            message={resolvedStatusMessage}
-            showSpinner={showStatusSpinner}
-            showTurnCue={showTurnCue}
-          />
+          {isAllIn ? (
+            <AllInBanner visible />
+          ) : (
+            <TableStatusStrip
+              message={resolvedStatusMessage}
+              showSpinner={showStatusSpinner}
+              showTurnCue={showTurnCue}
+            />
+          )}
         </View>
         <View style={{ gap: CONTAINER.GAP }}>
           <ActionButtons

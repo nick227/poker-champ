@@ -1,8 +1,8 @@
 import { View } from "react-native";
-import { Button } from "@/components/base/Button";
 import { TABLE } from "@/constants/copy";
 import type { Permissions, ActionHandlers, Wager } from "./actionBar.controller";
 import { actionBarStyles } from "./styles";
+import { PokerActionButton } from "./PokerActionButton";
 
 type ActionButtonsProps = {
   checkCallLabel: string;
@@ -19,22 +19,22 @@ export function ActionButtons({
 }: ActionButtonsProps) {
   return (
     <View className="ui-row ui-center" style={actionBarStyles.buttonsRow}>
-      <Button
-        variant="danger"
+      <PokerActionButton
+        variant="fold"
         title={TABLE.fold}
         onPress={actions.fold}
         className="flex-1 min-w-0"
         disabled={!permissions.canFold}
       />
-      <Button
-        variant="ghost"
+      <PokerActionButton
+        variant="checkCall"
         title={checkCallLabel}
         onPress={actions.checkCall}
         className="flex-1 min-w-0"
         disabled={!permissions.canCheck && !permissions.canCall}
       />
-      <Button
-        variant="primary"
+      <PokerActionButton
+        variant="betRaise"
         title={wager.label}
         onPress={actions.betRaise}
         className="flex-1 min-w-0"

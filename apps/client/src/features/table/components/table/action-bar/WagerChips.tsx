@@ -1,9 +1,9 @@
 import { View } from "react-native";
-import { Button } from "@/components/base/Button";
 import { ChipButton } from "@/components/base/ChipButton";
 import { TABLE } from "@/constants/copy";
 import type { Permissions, ActionHandlers } from "./actionBar.controller";
 import { actionBarStyles } from "./styles";
+import { PokerActionButton } from "./PokerActionButton";
 
 type WagerChipsProps = {
   permissions: Permissions;
@@ -20,11 +20,12 @@ export function WagerChips({ permissions, actions }: WagerChipsProps) {
   if (!permissions.canWager && permissions.canAllIn) {
     return (
       <View className="ui-row" style={actionBarStyles.buttonsRow}>
-        <Button
-          variant="ghost"
+        <PokerActionButton
+          variant="allIn"
           title={TABLE.allIn}
           onPress={actions.allIn}
           className="flex-1 min-w-0"
+          disabled={!permissions.canAllIn}
         />
       </View>
     );
@@ -40,7 +41,12 @@ export function WagerChips({ permissions, actions }: WagerChipsProps) {
         </>
       ) : null}
       {permissions.canAllIn ? (
-        <ChipButton title={TABLE.allIn} onPress={actions.allIn} disabled={!permissions.canAllIn} />
+        <ChipButton
+          title={TABLE.allIn}
+          onPress={actions.allIn}
+          disabled={!permissions.canAllIn}
+          className="border border-danger/50"
+        />
       ) : null}
     </View>
   );
