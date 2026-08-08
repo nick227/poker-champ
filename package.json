@@ -90,6 +90,8 @@
     "verify:churn:pre-release": "pnpm verify:churn:pr && pnpm exec tsx scripts/headless-multiplayer-churn.ts --scenario=endurance --hands=20 --iterations=1 && pnpm test:client:e2e:churn",
     "verify:churn:nightly": "pnpm verify:churn:pr && pnpm harness:headless:churn:nightly && pnpm test:client:e2e:churn",
     "phase5:auto": "tsx scripts/phase5-automated-gate.ts",
+    "test:reliability:gate": "node scripts/run-reliability-gate.mjs",
+    "test:reliability:gate:quick": "node scripts/run-reliability-gate.mjs --hands 10",
     "admin:make": "node scripts/make-admin.js",
     "reconcile:hand-history": "tsx scripts/reconcile-hand-history.ts",
     "bankroll:backfill": "tsx scripts/backfill-starting-bankroll.ts",
