@@ -5,6 +5,7 @@ import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
 import { TableAnimationOverlay } from "@/features/table/animations/TableAnimationOverlay";
+import { ChipTravelOverlay } from "@/features/table/animations/ChipTravelOverlay";
 import { MODAL } from "@/constants/copy";
 import type { TablePageController } from "@/types/tableSceneContract";
 
@@ -25,6 +26,10 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
         request={animationRequest}
         onComplete={clearAnimationRequest}
         anchorBounds={renderModel.anchorBounds}
+      />
+      <ChipTravelOverlay
+        requests={renderModel.chipTravelRequests}
+        onRequestComplete={actions.completeChipTravel}
       />
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       {uiState.playerPopup && (

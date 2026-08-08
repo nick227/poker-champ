@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { ResizeMode, Video } from "expo-av";
 import type { AnimationAssetType } from "../animationTypes";
 import { getVideoAsset } from "@/features/table/animations/video.registry";
+import { LottieAssetLayer } from "./LottieAssetLayer";
 
 type AssetLayerProps = {
   assetType: AnimationAssetType;
@@ -76,5 +77,9 @@ export function AssetLayer({
       />
     );
   }
+  if (assetType === "LOTTIE") {
+    return <LottieAssetLayer source={source} />;
+  }
+  // SPRITE: no player implemented yet (no shipped sprite-sheet assets); renders nothing.
   return <View style={{ flex: 1 }} pointerEvents="none" />;
 }

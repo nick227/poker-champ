@@ -93,19 +93,13 @@ function renderBurst(layer: ProceduralLayerDefinition, ctx: RenderCtx): ReactNod
 function renderRadialGlow(layer: ProceduralLayerDefinition, ctx: RenderCtx): ReactNode {
   const { index, durationMs, delayMs, theme } = ctx;
   const { palette } = theme;
-  const opacity =
-    layer.opacity == null
-      ? undefined
-      : Array.isArray(layer.opacity)
-        ? layer.opacity[0]
-        : layer.opacity;
   return (
     <AnimationLayerRadialGlow
       key={index}
       durationMs={durationMs}
       delayMs={delayMs}
       color={palette.burst}
-      opacity={opacity}
+      opacity={layer.opacity}
     />
   );
 }
