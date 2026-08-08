@@ -1,5 +1,44 @@
 # Phase 5 Two-Browser Release Gate Log
 
+> **SUPERSEDED.** This manual, interactive checklist was never signed off (every
+> box below is unchecked) and is not something a pipeline can execute. It has
+> been replaced as the actual release gate by an automated command:
+>
+> ```
+> pnpm test:reliability:gate
+> ```
+> (fast variant: `pnpm test:reliability:gate:quick`)
+>
+> This runs real multi-client scenarios against real `PokerRoom` instances
+> (not mocks) — join, act, disconnect, grace-period reconnect, and rejoin
+> after the room empties out (`scripts/headless-two-client.ts`), plus a
+> longer multi-hand run across two concurrent simulated clients
+> (`scripts/headless-multiplayer-churn.ts --scenario=fold-storm`) — and
+> asserts hard pass/fail thresholds pulled from the structured server logs
+> and each harness's own invariant checks:
+>
+> - zero dropped/silently-swallowed actions (`QUEUED_AUTO_ACTION_FAILED` /
+>   `ACTION_FAILED` / `QUEUE_RECOVERY_AFTER_FAILURE`)
+> - zero stalls (`TABLE_STALLED` / `TABLE_STALLED_RECOVERY_REDRIVE` /
+>   `UNOWNED_ACTIVE_HAND`, the same signals `multitable-soak:validate` gates on)
+> - zero desync (snapshot state-invariant violations, non-monotonic snapshot
+>   sequence numbers, pot/payout mismatches, and server-side
+>   `PROGRESSION_OWNERSHIP_INVARIANT_VIOLATION` diagnostics)
+> - a minimum hand-completion rate (default 0.95) and a maximum action
+>   rejection rate (default 0.05)
+>
+> Implementation: `scripts/run-reliability-gate.mjs`. It writes a
+> machine-readable pass/fail report to `artifacts/reliability-gate.json` plus
+> raw logs under `var/logs/reliability_gate_*.log`, and exits non-zero on any
+> threshold violation — usable directly as a CI gate. See that script's
+> header comment for the one known caveat (the churn harness's `endurance` /
+> `join-leave-thrash` / `allin-ladder` scenarios currently reproduce a
+> pre-existing, out-of-scope desync in bot leave-during-hand handling; the
+> gate intentionally uses the `fold-storm` scenario, which is stable).
+>
+> Everything below this line is the retired manual checklist, kept for
+> historical reference only. Do not use it as a release gate going forward.
+
 Gate Version: v1.1
 Purpose: Manual release gate for two-browser multiplayer correctness, persistence, and reconnect/recovery behavior.
 
