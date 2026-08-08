@@ -51,6 +51,12 @@ import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
 import { buildChipTravelPlan } from "@/features/table/animations/chipTravel";
 import type { ChipTravelPlan } from "@/features/table/animations/chipTravel";
+import {
+  clearAllPendingTimeouts,
+  computePotWinDispatchDelayMs,
+  resolveShowdownAnimationDecision,
+  scheduleSurvivingTimeout,
+} from "@/features/table/animations/animationTriggers";
 import { getOccupiedHumanCount, resolveDisplayEventsForRender } from "./displayEventsPolicy";
 
 function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
@@ -227,6 +233,12 @@ export function useTablePageController({
   const lastPotWinHandIdRef = useRef<string | null>(null);
   const lastChipTravelPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
+  const lastShowdownHandIdRef = useRef<string | null>(null);
+  // Pending POT_WIN dispatches delayed to sequence after a SHOWDOWN reveal (see effect below).
+  // Tracked outside any single effect's cleanup so a *new* hand's snapshot update (which changes
+  // this effect's deps) can't cancel a still-pending celebration for the *previous* hand — only
+  // true unmount clears these (separate effect further down).
+  const pendingPotWinTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const autoJoinAttemptedRef = useRef(false);
   const pendingRemoveBotIdRef = useRef<string | null>(null);
   const hasObservedActiveHandRef = useRef(false);
@@ -336,29 +348,66 @@ export function useTablePageController({
   const winnerBanner = displayEvents.winnerBanner;
   const isHeroWinner = !!winnerBanner && winnerBanner.winnerName === heroName;
 
+  // SHOWDOWN reveal: hero-only (fires only when hero actually reached showdown, i.e. didn't
+  // fold before the reveal), whether hero wins or loses. Runs on the same TABLE fx channel as
+  // POT_WIN, so it must dispatch (and dedupe by handId) independently and *before* POT_WIN's
+  // own dispatch for the same hand — see the delay in the POT_WIN effect below.
+  useEffect(() => {
+    const decision = resolveShowdownAnimationDecision(snapshot, lastShowdownHandIdRef.current);
+    if (!decision) return;
+    lastShowdownHandIdRef.current = decision.handId;
+    setAnimationRequest(decision.request);
+  }, [snapshot]);
+
   useEffect(() => {
     if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
     const handId = snapshot.lastHandResult.handId;
     if (lastPotWinHandIdRef.current === handId) return;
     lastPotWinHandIdRef.current = handId;
     const potCents = snapshot.lastHandResult.potCents ?? 0;
+    const winnerSeat = snapshot.hero?.seat;
     const tier = mapPotWinTier({
       potCents,
       winningHandDescr: winnerBanner.winningHandDescr,
     });
-    emitHapticEvent("table.potWin");
-    setAnimationRequest({
-      version: TABLE_ANIMATION_REQUEST_VERSION,
-      event: "POT_WIN",
-      tier,
-      payload: {
-        headline: "YOU WIN",
-        amountCents: winnerBanner.amountCents,
-        potCents,
-        isHero: true,
-      },
-    });
-  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner]);
+    const dispatch = () => {
+      emitHapticEvent("table.potWin");
+      setAnimationRequest({
+        version: TABLE_ANIMATION_REQUEST_VERSION,
+        event: "POT_WIN",
+        tier,
+        payload: {
+          headline: "YOU WIN",
+          amountCents: winnerBanner.amountCents,
+          potCents,
+          isHero: true,
+          winnerSeat,
+        },
+      });
+    };
+    // Hand went to showdown: the reveal fires on the same TABLE fx channel (see effect above).
+    // Delay pot-win (and its haptic, so they stay in sync) so it lands after the showdown reveal
+    // fully finishes, instead of racing it for the shared channel (both are keyed off the same
+    // snapshot.lastHandResult change). scheduleSurvivingTimeout intentionally does not tie this
+    // to the effect's own cleanup — see its doc comment for why that would silently drop the
+    // celebration when the next hand starts.
+    const delayMs = computePotWinDispatchDelayMs(
+      snapshot.lastHandResult.reason,
+      potCents,
+      winnerBanner.winningHandDescr
+    );
+    if (delayMs > 0) {
+      scheduleSurvivingTimeout(pendingPotWinTimeoutsRef.current, delayMs, dispatch);
+      return;
+    }
+    dispatch();
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, snapshot?.hero?.seat]);
+
+  // True-unmount-only cleanup for any still-pending delayed POT_WIN dispatches (see above).
+  useEffect(() => {
+    const pending = pendingPotWinTimeoutsRef.current;
+    return () => clearAllPendingTimeouts(pending);
+  }, []);
 
   // Separate ref/effect from the POT_WIN FX trigger above: bounds may not be measured yet
   // on the first pass (e.g. cold table load), so this retries independently as anchorBounds
@@ -397,9 +446,10 @@ export function useTablePageController({
         amountCents: lastAction.amountCents,
         potCents,
         isHero: true,
+        anchorSeat: snapshot?.hero?.seat,
       },
     });
-  }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
+  }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hero?.seat, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
   const {
     rebuySheetVisible,
