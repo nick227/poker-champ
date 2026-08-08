@@ -55,6 +55,10 @@ export const layoutStyles = StyleSheet.create({
   },
   feltArea: {
     width: "100%",
+    // Bounded so the felt reads as a table sitting on the dark app background on very wide
+    // desktop viewports, rather than a full-bleed strip edge to edge.
+    maxWidth: 1040,
+    alignSelf: "center",
     height: BOARD_AREA_HEIGHT,
     minHeight: BOARD_AREA_HEIGHT,
     flexGrow: 0,
