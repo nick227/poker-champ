@@ -102,3 +102,11 @@ vi.mock("expo-av", () => {
 vi.mock("@/features/table/animations/video.registry", () => ({
   getVideoAsset: (_key: string) => undefined,
 }));
+
+vi.mock("expo-haptics", () => ({
+  NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy", Soft: "soft", Rigid: "rigid" },
+  notificationAsync: vi.fn(() => Promise.resolve()),
+  impactAsync: vi.fn(() => Promise.resolve()),
+  selectionAsync: vi.fn(() => Promise.resolve()),
+}));
