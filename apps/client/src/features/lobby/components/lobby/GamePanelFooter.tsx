@@ -12,7 +12,7 @@ export function GamePanelFooter({
   onDelete: () => void;
 }) {
   return (
-    <View className="ui-row items-center justify-between gap-3 min-h-[44px] mb-8">
+    <View className="ui-row items-center justify-between gap-3 min-h-[44px]">
       <View className="flex-1 min-h-[16px] justify-center">
         <Text
           variant="muted"
