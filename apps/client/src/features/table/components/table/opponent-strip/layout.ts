@@ -14,8 +14,6 @@
  */
 
 export const CONTAINER = Object.freeze({
-  MAX_HEIGHT_VH: 96,
-  MAX_HEIGHT_RATIO: 0.16,
   MARGIN_TOP: 0,
   MARGIN_BOTTOM: 0,
   HORIZONTAL_PADDING: 10,
@@ -26,12 +24,36 @@ export const ROW = Object.freeze({
   GAP: 10,
   PADDING: 8,
   ITEM_MIN_HEIGHT: 120,
-  /** Number of opponent tiles per row in the strip (width = 100% / ITEMS_PER_ROW). */
-  ITEMS_PER_ROW: 2,
   /** Uniform padding inside each opponent item (x and y). */
   ITEM_PADDING: 8,
   /** Width of the dock to the right of cards/action for the dealer button (space always reserved). */
   DEALER_DOCK_WIDTH: 40,
+} as const);
+
+/**
+ * Seat "stage": the felt surface encompassing the seating arc + board (see seatArrangement.ts).
+ * Seats are grouped into a top-center seat, a left column, and a right column (top-to-bottom,
+ * nearest the hero last) flanking a vertical stack of: far pair-rows, the board, then the pair
+ * row nearest the hero — see OpponentStrip.tsx for the composition. Kept as simple percentage
+ * widths (not real ellipse trig) so it stays robust from heads-up up to 9-max and across
+ * viewport widths, per the table-scene redesign brief.
+ */
+export const STAGE = Object.freeze({
+  /** Felt container: matches the board band's old max width so the table doesn't sprawl on ultra-wide desktop. */
+  MAX_WIDTH: 1040,
+  PADDING_HORIZONTAL: 16,
+  PADDING_TOP: 14,
+  PADDING_BOTTOM: 10,
+  /** Vertical gap between stacked pair-rows and the board row. */
+  ROW_GAP: 6,
+} as const);
+
+export const SEAT_SLOT = Object.freeze({
+  /** Each side seat's width as % of the pair row, leaving a gap for the board's sightline. */
+  SIDE_WIDTH_PCT: "46%",
+  /** Top-center seat's width as % of the stage, capped so it doesn't balloon on wide desktop. */
+  TOP_WIDTH_PCT: "58%",
+  TOP_MAX_WIDTH: 320,
 } as const);
 
 const AVATAR = Object.freeze({

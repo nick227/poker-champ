@@ -229,37 +229,46 @@ export function CardBackPattern({
 
     case "minimal":
       return (
-        <View 
+        <View
           style={[
             vars({
               "--pattern-base": baseColor,
               "--pattern-light": lighterColor,
               "--pattern-dark": darkerColor,
             }),
-            { 
-              width: width, 
+            {
+              width: width,
               height: height,
-              backgroundColor: baseColor
-            }
+              backgroundColor: baseColor,
+            },
           ]}
           className="rounded-card border border-border-subtle"
         >
-          {/* Minimal striped pattern */}
+          {/* Understated card back: a solid field, a thin inset frame, and a small centered
+              diamond emblem — reads as "a card back" rather than a loading skeleton. */}
           <View className="flex-1 justify-center items-center">
-            <View className="relative w-full h-full">
-              {/* Horizontal stripes */}
-              {[0, 1, 2, 3, 4].map((index) => (
-                <View
-                  key={index}
-                  className="absolute left-0 right-0"
-                  style={{
-                    height: width * 0.08,
-                    backgroundColor: index % 2 === 0 ? "var(--pattern-light)" : "var(--pattern-dark)",
-                    top: `${15 + index * 15}%`
-                  }}
-                />
-              ))}
-            </View>
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: height * 0.1,
+                left: width * 0.1,
+                right: width * 0.1,
+                bottom: height * 0.1,
+                borderWidth: 1.5,
+                borderRadius: 4,
+                borderColor: darkerColor,
+                opacity: 0.7,
+              }}
+            />
+            <View
+              style={{
+                width: width * 0.22,
+                height: width * 0.22,
+                backgroundColor: lighterColor,
+                transform: [{ rotate: "45deg" }],
+              }}
+            />
           </View>
         </View>
       );

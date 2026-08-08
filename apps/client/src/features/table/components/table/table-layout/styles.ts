@@ -10,7 +10,6 @@ import {
   ACTION_BAR_HEIGHT,
   HERO_ZONE_HEIGHT,
   DEALER_BAR_HEIGHT,
-  BOARD_AREA_HEIGHT,
 } from "../constants/table-layout.constants";
 import { TABLE_SPACING } from "../tokens/spacing.tokens";
 
@@ -52,18 +51,6 @@ export const layoutStyles = StyleSheet.create({
     height: DEALER_BAR_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
-  },
-  feltArea: {
-    width: "100%",
-    // Bounded so the felt reads as a table sitting on the dark app background on very wide
-    // desktop viewports, rather than a full-bleed strip edge to edge.
-    maxWidth: 1040,
-    alignSelf: "center",
-    height: BOARD_AREA_HEIGHT,
-    minHeight: BOARD_AREA_HEIGHT,
-    flexGrow: 0,
-    flexShrink: 0,
-    paddingHorizontal: TABLE_SPACING.edge,
   },
   heroSection: {
     width: "100%",
