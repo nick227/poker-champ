@@ -7,5 +7,5 @@
  */
 
 export const TOP_BAR = Object.freeze({
-  TABLE_NAME_FONT_SIZE: 16,
+  TABLE_NAME_FONT_SIZE: 17,
 } as const);

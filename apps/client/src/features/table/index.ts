@@ -38,6 +38,12 @@ export {
 } from "./components/table/action-bar/actionBar.logic";
 export type { ActionBarProps, ActionBarOnAction, TableAction } from "./components/table/action-bar/ActionBar";
 export { ACTION_BAR_HEIGHT } from "./components/table/action-bar/ActionBar";
+export { AllInBanner, type AllInBannerProps } from "./components/table/action-bar/AllInBanner";
+export {
+  PokerActionButton,
+  type PokerActionButtonProps,
+  type PokerActionVariant,
+} from "./components/table/action-bar/PokerActionButton";
 
 export type { ActionNotice, HandResultMessage, ConnectionStatus, TableDisplayEvents } from "./components/table/table.types";
 export {
