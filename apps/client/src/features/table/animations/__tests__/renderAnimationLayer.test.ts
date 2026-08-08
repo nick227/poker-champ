@@ -79,5 +79,21 @@ describe("renderAnimationLayer", () => {
     const node = renderAnimationLayer(layer, 0, undefined, "", theme);
     expect(node).toBeNull();
   });
+
+  it("passes the full [min, max] opacity tuple through to RADIAL_GLOW (regression: used to truncate to opacity[0])", () => {
+    const layer: AnimationLayerDefinition = {
+      type: "RADIAL_GLOW",
+      durationMs: 1800,
+      opacity: [0.06, 0.14],
+    };
+    const node = renderAnimationLayer(layer, 0, undefined, "", theme) as { props: { opacity?: [number, number] } };
+    expect(node.props.opacity).toEqual([0.06, 0.14]);
+  });
+
+  it("passes opacity undefined through to RADIAL_GLOW when the layer omits it", () => {
+    const layer: AnimationLayerDefinition = { type: "RADIAL_GLOW", durationMs: 1800 };
+    const node = renderAnimationLayer(layer, 0, undefined, "", theme) as { props: { opacity?: [number, number] } };
+    expect(node.props.opacity).toBeUndefined();
+  });
 });
 

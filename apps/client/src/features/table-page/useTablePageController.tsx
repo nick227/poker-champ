@@ -49,6 +49,8 @@ import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin 
 import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
 import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
+import { buildChipTravelPlan } from "@/features/table/animations/chipTravel";
+import type { ChipTravelPlan } from "@/features/table/animations/chipTravel";
 import { getOccupiedHumanCount, resolveDisplayEventsForRender } from "./displayEventsPolicy";
 
 function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
@@ -84,6 +86,9 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   RAISE: "raise",
   ALL_IN: "allIn",
 };
+
+/** Actions that move chips from hero's stack to the pot; drive the BET_TO_POT chip-travel FX. */
+const MONEY_MOVING_ACTIONS: ReadonlySet<TableAction> = new Set(["BET", "RAISE", "CALL", "ALL_IN"]);
 
 const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
   FOLD: "table.action.fold",
@@ -209,8 +214,18 @@ export function useTablePageController({
       });
     });
   }, []);
+  const [chipTravelRequests, setChipTravelRequests] = useState<ChipTravelPlan[]>([]);
+  const chipTravelIdRef = useRef(0);
+  const enqueueChipTravel = useCallback((plan: ChipTravelPlan | undefined) => {
+    if (!plan) return;
+    setChipTravelRequests((prev) => [...prev, plan]);
+  }, []);
+  const completeChipTravel = useCallback((id: string) => {
+    setChipTravelRequests((prev) => prev.filter((p) => p.id !== id));
+  }, []);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const lastPotWinHandIdRef = useRef<string | null>(null);
+  const lastChipTravelPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
   const autoJoinAttemptedRef = useRef(false);
   const pendingRemoveBotIdRef = useRef<string | null>(null);
@@ -344,6 +359,25 @@ export function useTablePageController({
       },
     });
   }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner]);
+
+  // Separate ref/effect from the POT_WIN FX trigger above: bounds may not be measured yet
+  // on the first pass (e.g. cold table load), so this retries independently as anchorBounds
+  // fills in without re-firing the tiered POT_WIN overlay animation.
+  useEffect(() => {
+    if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
+    const handId = snapshot.lastHandResult.handId;
+    if (lastChipTravelPotWinHandIdRef.current === handId) return;
+    const plan = buildChipTravelPlan({
+      id: `chip-travel-${++chipTravelIdRef.current}`,
+      kind: "POT_TO_WINNER",
+      from: anchorBounds.board,
+      to: anchorBounds.hero,
+      amountCents: winnerBanner.amountCents ?? snapshot.lastHandResult.potCents ?? 0,
+    });
+    if (!plan) return;
+    lastChipTravelPotWinHandIdRef.current = handId;
+    enqueueChipTravel(plan);
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, anchorBounds.board, anchorBounds.hero, enqueueChipTravel]);
 
   useEffect(() => {
     const lastAction = snapshot?.lastAction;
@@ -794,6 +828,17 @@ export function useTablePageController({
       if (ok) {
         emitSoundEvent(soundEvent);
         emitHapticEvent(hapticEvent);
+        if (MONEY_MOVING_ACTIONS.has(payload.type)) {
+          enqueueChipTravel(
+            buildChipTravelPlan({
+              id: `chip-travel-${++chipTravelIdRef.current}`,
+              kind: "BET_TO_POT",
+              from: anchorBounds.hero,
+              to: anchorBounds.board,
+              amountCents: payload.amount ?? 0,
+            }),
+          );
+        }
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
         if (__DEV__) {
@@ -813,7 +858,7 @@ export function useTablePageController({
       }
       return ok;
     },
-    [tableId, dispatchTableAction, snapshot, connectionStatus],
+    [tableId, dispatchTableAction, snapshot, connectionStatus, anchorBounds.hero, anchorBounds.board, enqueueChipTravel],
   );
 
   const toggleHeroSittingOut = useCallback(() => {
@@ -993,6 +1038,8 @@ export function useTablePageController({
       rejoinUiState,
       rejoinErrorMessage,
       animationRequest,
+      anchorBounds,
+      chipTravelRequests,
       tournamentStandingsVisible,
     },
     uiState: {
@@ -1064,6 +1111,7 @@ export function useTablePageController({
         },
         [flushAnchorBounds]
       ),
+      completeChipTravel,
       openTournamentStandings: useCallback(() => setTournamentStandingsVisible(true), []),
       closeTournamentStandings: useCallback(() => setTournamentStandingsVisible(false), []),
     },

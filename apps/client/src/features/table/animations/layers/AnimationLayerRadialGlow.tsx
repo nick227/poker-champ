@@ -11,17 +11,22 @@ type Props = {
   durationMs: number;
   delayMs?: number;
   color?: string;
-  /** Static opacity multiplier (0–1); atmosphere presets use this. */
-  opacity?: number;
+  /**
+   * [min, max] opacity range to animate between (instead of the default 0→1→0 envelope).
+   * Atmosphere/background presets use this to tune "soft" vs "punchy" without ever going
+   * fully transparent or fully opaque. When omitted, falls back to the full 0→1→0 range.
+   */
+  opacity?: [number, number];
 };
 
 function AnimationLayerRadialGlowInner({
   durationMs,
   delayMs = 0,
   color,
-  opacity: opacityProp,
+  opacity,
 }: Props) {
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const [opacityFrom, opacityTo] = opacity ?? [0, 1];
+  const opacityAnim = useRef(new Animated.Value(opacityFrom)).current;
   const scale = useRef(new Animated.Value(SCALE_FROM)).current;
   const glowColor = color ?? FALLBACK_GLOW_COLOR;
 
@@ -32,7 +37,7 @@ function AnimationLayerRadialGlowInner({
     const start = () => {
       Animated.parallel([
         Animated.timing(opacityAnim, {
-          toValue: 1,
+          toValue: opacityTo,
           duration: durationMs * opacityInFraction,
           useNativeDriver: true,
           easing: EASING_OPACITY_IN,
@@ -45,7 +50,7 @@ function AnimationLayerRadialGlowInner({
         }),
       ]).start(() => {
         Animated.timing(opacityAnim, {
-          toValue: 0,
+          toValue: opacityFrom,
           duration: durationMs * opacityOutFraction,
           useNativeDriver: true,
           easing: EASING_OPACITY_OUT,
@@ -54,11 +59,11 @@ function AnimationLayerRadialGlowInner({
     };
     const t = delayMs > 0 ? setTimeout(start, delayMs) : start();
     return () => (typeof t === "number" ? clearTimeout(t) : undefined);
-  }, [durationMs, delayMs, opacityAnim, scale]);
+  }, [durationMs, delayMs, opacityAnim, scale, opacityFrom, opacityTo]);
 
   const half = GLOW_SIZE / 2;
   return (
-    <View style={[StyleSheet.absoluteFill, opacityProp != null && { opacity: opacityProp }]} pointerEvents="none">
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View
         style={[
           styles.glow,

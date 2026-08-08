@@ -11,6 +11,7 @@ import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
 import { HeroZone } from "../hero-zone";
+import { MeasuredBoundsReporter } from "../board-area";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
@@ -338,31 +339,33 @@ export function useActiveTableSlots(
   }
 
   const heroNode = (
-    <HeroZone
-      cards={heroCards}
-      stackCents={heroStackCents}
-      canAct={statusStrip?.showTurnCue ?? canAct}
-      heroStatus={heroStatus}
-      equity={heroCalculations?.equityPct}
-      potOdds={heroCalculations?.potOddsPct}
-      outs={heroCalculations?.outs}
-      playerStats={heroPlayerStats}
-      showStats={snapshot.table?.showStats ?? false}
-      isWinner={isHeroWinner}
-      isDealer={isHeroDealer}
-      isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
-      turnCountdownSeconds={
-        statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
-      }
-      userName={heroName}
-      avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
-      potCents={potCents}
-      roundBetCents={
-        snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
-      }
-      onAvatarPress={undefined}
-      onToggleSittingOut={actions.toggleHeroSittingOut}
-    />
+    <MeasuredBoundsReporter onBounds={actions.reportHeroBounds}>
+      <HeroZone
+        cards={heroCards}
+        stackCents={heroStackCents}
+        canAct={statusStrip?.showTurnCue ?? canAct}
+        heroStatus={heroStatus}
+        equity={heroCalculations?.equityPct}
+        potOdds={heroCalculations?.potOddsPct}
+        outs={heroCalculations?.outs}
+        playerStats={heroPlayerStats}
+        showStats={snapshot.table?.showStats ?? false}
+        isWinner={isHeroWinner}
+        isDealer={isHeroDealer}
+        isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
+        turnCountdownSeconds={
+          statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
+        }
+        userName={heroName}
+        avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
+        potCents={potCents}
+        roundBetCents={
+          snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
+        }
+        onAvatarPress={undefined}
+        onToggleSittingOut={actions.toggleHeroSittingOut}
+      />
+    </MeasuredBoundsReporter>
   );
 
   return {
