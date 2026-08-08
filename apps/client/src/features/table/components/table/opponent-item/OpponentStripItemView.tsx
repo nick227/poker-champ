@@ -38,6 +38,10 @@ export type OpponentStripItemViewModel = {
   showTurnBar: boolean;
   activeTurnProgress: number | null | undefined;
   cardsSlot: React.ReactNode;
+  colorSeed: string;
+  badgeLabel: number | undefined;
+  betCents: number;
+  betDisplay: string | undefined;
 };
 
 export type OpponentStripItemViewProps = {
@@ -69,16 +73,21 @@ export function OpponentStripItemView({
     showTurnBar,
     activeTurnProgress,
     cardsSlot,
+    colorSeed,
+    badgeLabel,
+    betCents,
+    betDisplay,
   } = model;
   const tile = (
     <View
       collapsable={false}
-      className={`opponent-item-container w-full border-border-subtle ${isActive ? "bg-dark-green-500" : "bg-panel"} ${inactive ? "opacity-50" : ""}`}
-      style={[s.rowShell, isActive && s.rowShellActive]}
+      className={`opponent-item-container w-full border-border-subtle bg-panel ${inactive ? "opacity-50" : ""}`}
+      style={s.rowShell}
       data-testid="opponent-tile"
       data-opponent-id={opponentId}
       data-opponent-name={opponentName}
       data-stack-cents={String(stackCents)}
+      data-active-turn={isActive ? "true" : "false"}
     >
       {isDealer ? (
         <View style={[s.dealerSlotTile, { pointerEvents: "none" }]}>
@@ -102,6 +111,11 @@ export function OpponentStripItemView({
           dataStackCents={String(stackCents)}
           dataPlayerName={opponentName}
           holeCardsSlot={cardsSlot}
+          colorSeed={colorSeed}
+          isActiveTurn={Boolean(isActive)}
+          badgeLabel={badgeLabel}
+          betCents={betCents}
+          betDisplay={betDisplay}
         />
       </View>
       <TurnBar show={showTurnBar} progress={activeTurnProgress} />

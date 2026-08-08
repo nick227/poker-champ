@@ -1,9 +1,11 @@
 import { View, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
-import { AvatarImage } from "@/components/base/AvatarImage";
 import { DealerButton } from "../DealerButton";
 import { formatCents } from "@/lib/format";
+import { AvatarDisc } from "./AvatarDisc";
+import { ChipStack } from "./ChipStack";
 import { playerPanelStyles as s } from "./styles";
+import { AVATAR } from "./layout";
 
 export type PlayerPanelProps = {
   initial: string;
@@ -13,7 +15,7 @@ export type PlayerPanelProps = {
   stackDisplay?: string;
   avatarUrl?: string | null;
   isDealer?: boolean;
-  /** Shown in the lower area of the panel (e.g. status, action message). */
+  /** Shown in the lower area of the panel (e.g. status, action message). Ignored when betCents > 0 (chip stack wins). */
   bottomText?: string;
   bottomTextClassName?: string;
   /** Alignment of bottom text row; default center (hero), left/right for variants. */
@@ -29,6 +31,16 @@ export type PlayerPanelProps = {
   dataPlayerName?: string;
   /** Optional overlay slot for hero/opponent hole cards, positioned over the avatar. */
   holeCardsSlot?: React.ReactNode;
+  /** Stable identity seed (userId, falling back to playerName) for deterministic avatar color. */
+  colorSeed?: string;
+  /** True while it's this seat's turn to act — drives the avatar ring/glow. */
+  isActiveTurn?: boolean;
+  /** Placeholder status/tier badge overlapping the avatar (e.g. seat number — see report: no real rank data exists yet). */
+  badgeLabel?: string | number;
+  /** Current round bet in cents; when > 0, renders a chip-stack visual instead of bottomText. */
+  betCents?: number;
+  /** Pre-formatted bet amount (BB mode, currency, etc.) shown next to the chip stack. */
+  betDisplay?: string;
 };
 
 export function PlayerPanel({
@@ -40,7 +52,6 @@ export function PlayerPanel({
   isDealer = false,
   bottomText,
   bottomTextClassName,
-  bottomAlign = "center",
   onAvatarPress,
   inactive = false,
   style,
@@ -49,12 +60,18 @@ export function PlayerPanel({
   dataPlayerName,
   nameTopMargin,
   holeCardsSlot,
+  colorSeed,
+  isActiveTurn = false,
+  badgeLabel,
+  betCents = 0,
+  betDisplay,
 }: PlayerPanelProps) {
+  const showChipStack = betCents > 0 && betDisplay != null;
 
   return (
     <View
-      className={`ui-row rounded-sm border border-border-subtle bg-panel/80 p-4 ${inactive ? "opacity-55" : ""}`}
-      style={[s.panel, style]}
+      className={`ui-row border border-border-subtle bg-panel/80 p-4 ${inactive ? "opacity-55" : ""} ${isActiveTurn ? "border-gold/70" : ""}`}
+      style={[s.panel, isActiveTurn && s.panelActive, style]}
       data-testid={testID ?? "player-panel"}
       data-stack-cents={dataStackCents ?? String(stackCents)}
       data-hero-name={dataPlayerName ?? playerName}
@@ -66,13 +83,15 @@ export function PlayerPanel({
       ) : null}
       <View className="flex-1 identity-row" style={s.identityRow}>
         <View style={s.avatarWrapper}>
-          <AvatarImage
-            avatarUrl={avatarUrl}
+          <AvatarDisc
+            seed={colorSeed || playerName}
             initial={initial}
+            avatarUrl={avatarUrl}
+            size={AVATAR.SIZE}
+            isActiveTurn={isActiveTurn}
             onPress={onAvatarPress}
-            style={s.avatar}
-            imageStyle={s.avatarImage}
-            className="bg-panel-elevated border border-border"
+            badgeLabel={badgeLabel}
+            testID={testID ? `${testID}-avatar` : "player-panel-avatar"}
           />
           {holeCardsSlot ? (
             <View pointerEvents="none" style={s.holeCardsOverlay}>
@@ -101,7 +120,11 @@ export function PlayerPanel({
           >
             {stackDisplay ?? formatCents(stackCents)}
           </Text>
-          {bottomText != null && bottomText !== "" ? (
+          {showChipStack ? (
+            <View style={s.bottomRow}>
+              <ChipStack cents={betCents} label={betDisplay as string} testID={testID ? `${testID}-chip-stack` : undefined} />
+            </View>
+          ) : bottomText != null && bottomText !== "" ? (
             <View style={s.bottomRow}>
               <Text
                 variant="muted"

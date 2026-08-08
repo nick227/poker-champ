@@ -1,5 +1,4 @@
 import { View } from "react-native";
-import { useMemo } from "react";
 import { Text } from "@/components/base/Text";
 import { PlayingCard } from "../PlayingCard";
 import { CalculationsStrip } from "../CalculationsStrip";
@@ -39,6 +38,10 @@ export type HeroZoneProps = {
   roundBetCents?: number;
   /** Override height when viewport is small. */
   height?: number;
+  /** Stable hero identity (snapshot.hero.userId) for deterministic avatar color; falls back to userName. */
+  userId?: string;
+  /** Hero's seat number — shown as the avatar badge placeholder (see report: no real rank/tier data exists yet). */
+  seat?: number;
 };
 
 function isInactive(status: HeroStatus): boolean {
@@ -94,6 +97,8 @@ export function HeroZone({
   onToggleSittingOut,
   roundBetCents = 0,
   height: heightProp,
+  userId,
+  seat,
 }: HeroZoneProps) {
   const { formatStack, formatBet } = useTableMoneyDisplay();
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
@@ -106,10 +111,7 @@ export function HeroZone({
   const folded = heroStatus === "FOLDED";
   const inactive = isInactive(heroStatus);
   const statusLabel = getStatusLabel(heroStatus);
-  const bottomLabel = useMemo(() => {
-    if (roundBetCents > 0) return `Bet ${formatBet(roundBetCents)}`;
-    return statusLabel;
-  }, [formatBet, roundBetCents, statusLabel]);
+  const betDisplay = roundBetCents > 0 ? formatBet(roundBetCents) : undefined;
   const isSittingOut = heroStatus === "SITTING_OUT";
   const sitOutDisabled =
     heroStatus === "RECONNECTING" ||
@@ -165,11 +167,16 @@ export function HeroZone({
           stackDisplay={formatStack(stackCents)}
           avatarUrl={avatarUrl}
           isDealer={isDealer}
-          bottomText={bottomLabel ?? undefined}
+          bottomText={statusLabel ?? undefined}
           onAvatarPress={onAvatarPress}
           testID="hero-stack"
           dataStackCents={String(stackCents)}
           dataPlayerName={userName ?? ""}
+          colorSeed={userId || userName}
+          isActiveTurn={isActiveTurn}
+          badgeLabel={seat}
+          betCents={roundBetCents}
+          betDisplay={betDisplay}
         />
 
         {showStats ? (

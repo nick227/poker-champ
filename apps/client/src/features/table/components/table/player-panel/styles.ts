@@ -1,5 +1,7 @@
 import { StyleSheet } from "react-native";
-import { STACK, DEALER_BUTTON, AVATAR, IDENTITY } from "./layout";
+import { STACK, DEALER_BUTTON, IDENTITY } from "./layout";
+import { AVATAR_RING } from "../tokens/avatar.tokens";
+import { TABLE_TILE_RADIUS } from "../tokens/radii.tokens";
 
 export const playerPanelStyles = StyleSheet.create({
   panel: {
@@ -8,6 +10,19 @@ export const playerPanelStyles = StyleSheet.create({
     paddingRight: DEALER_BUTTON.SLOT_SIZE + STACK.DEALER_SLOT_OFFSET,
     alignSelf: "stretch",
     minWidth: 0,
+    borderRadius: TABLE_TILE_RADIUS,
+  },
+  /** Seat-plate glow when it's this seat's turn — echoes the avatar ring color for a cohesive look. */
+  panelActive: {
+    boxShadow: [
+      {
+        offsetX: 0,
+        offsetY: 0,
+        blurRadius: 16,
+        color: AVATAR_RING.PANEL_GLOW_COLOR,
+      },
+    ] as const,
+    elevation: 5,
   },
   dealerSlot: {
     position: "absolute",
@@ -28,19 +43,6 @@ export const playerPanelStyles = StyleSheet.create({
     position: "relative",
     justifyContent: "center",
     alignItems: "center",
-  },
-  avatar: {
-    width: AVATAR.SIZE,
-    height: AVATAR.SIZE,
-    borderRadius: 999,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarImage: {
-    width: AVATAR.SIZE,
-    height: AVATAR.SIZE,
-    borderRadius: 999,
   },
   holeCardsOverlay: {
     position: "absolute",

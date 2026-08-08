@@ -139,6 +139,8 @@ export function useIdleTableSlots(
           heroStatus={heroStatus}
           showStats={snapshot.table?.showStats ?? false}
           userName={heroUserName}
+          userId={snapshot.hero.userId}
+          seat={snapshot.hero.seat}
         />
       </MeasuredBoundsReporter>
     ),
