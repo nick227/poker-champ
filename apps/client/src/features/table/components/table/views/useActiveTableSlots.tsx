@@ -20,6 +20,7 @@ import { useTableViewShellFrame } from "./tableView.shared";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { useMultiTableStore } from "@/features/table/stores/multitable.store";
@@ -241,6 +242,7 @@ export function useActiveTableSlots(
     }
     if (handId != null && handId !== prev) {
       emitSoundEvent("table.handStart");
+      emitHapticEvent("table.cardDeal");
     }
     prevHandIdRef.current = handId;
   }, [snapshot?.hand?.handId]);
@@ -254,6 +256,7 @@ export function useActiveTableSlots(
     }
     if (revealedCount > prev) {
       emitSoundEvent("table.boardReveal");
+      emitHapticEvent("table.cardDeal");
     }
     prevRevealedBoardCardsRef.current = revealedCount;
   }, [communityCards]);

@@ -188,6 +188,7 @@ function getThemeStateForPack(pack: ThemePackId): ThemeStateSlice {
 type PreferencesState = {
   soundEnabled: boolean;
   masterVolume: number;
+  hapticsEnabled: boolean;
   notificationsEnabled: boolean;
   feltColor: string; // legacy; kept in sync with feltBackground
   feltGradient: FeltGradient | null;
@@ -204,6 +205,7 @@ type PreferencesState = {
   tableRadius: string; // css value
   setSoundEnabled: (v: boolean) => void;
   setMasterVolume: (v: number) => void;
+  setHapticsEnabled: (v: boolean) => void;
   setNotificationsEnabled: (v: boolean) => void;
   setFeltColor: (v: string) => void;
   setFeltGradient: (v: FeltGradient | null) => void;
@@ -232,11 +234,13 @@ export const usePreferencesStore = create<PreferencesState>()(
     (set, get) => ({
       soundEnabled: true,
       masterVolume: 1,
+      hapticsEnabled: true,
       notificationsEnabled: true,
       cardFacePackId: DEFAULT_CARD_FACE_PACK_ID,
       ...getThemeStateForPack(DEFAULT_THEME_PACK_ID),
       setSoundEnabled: (v) => set({ soundEnabled: v }),
       setMasterVolume: (v) => set({ masterVolume: Math.max(0, Math.min(1, v)) }),
+      setHapticsEnabled: (v) => set({ hapticsEnabled: v }),
       setNotificationsEnabled: (v) => set({ notificationsEnabled: v }),
       setFeltColor: (v) => set({ feltColor: v }),
       setFeltGradient: (v) => set({ feltGradient: v }),

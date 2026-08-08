@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 
 /** Fallback only when server does not send turnTimeoutTotalMs (e.g. old server). */
 const FALLBACK_TURN_TIMEOUT_MS = 20 * 60_000;
@@ -119,6 +120,7 @@ export function useTurnCountdown(
       if (!countdownStartedRef.current) {
         countdownStartedRef.current = true;
         emitSoundEvent("table.turnTimeoutWarning");
+        emitHapticEvent("table.turnTimeoutWarning");
       }
     }, 250);
 

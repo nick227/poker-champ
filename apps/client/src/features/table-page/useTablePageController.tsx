@@ -16,6 +16,8 @@ import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceS
 import { playSound } from "@/lib/sound";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
+import type { HapticEvent } from "@/haptics/emitHapticEvent";
 import { MODAL } from "@/constants/copy";
 import { useResolvedBuyIn } from "@/features/table";
 import { useTableScene } from "@/features/table";
@@ -84,6 +86,15 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
 };
 
 const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
+  FOLD: "table.action.fold",
+  CHECK: "table.action.check",
+  CALL: "table.action.call",
+  BET: "table.action.bet",
+  RAISE: "table.action.raise",
+  ALL_IN: "table.action.allIn",
+};
+
+const TABLE_ACTION_TO_HAPTIC_EVENT: Record<TableAction, HapticEvent> = {
   FOLD: "table.action.fold",
   CHECK: "table.action.check",
   CALL: "table.action.call",
@@ -320,6 +331,7 @@ export function useTablePageController({
       potCents,
       winningHandDescr: winnerBanner.winningHandDescr,
     });
+    emitHapticEvent("table.potWin");
     setAnimationRequest({
       version: TABLE_ANIMATION_REQUEST_VERSION,
       event: "POT_WIN",
@@ -777,9 +789,11 @@ export function useTablePageController({
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
       const soundEvent = TABLE_ACTION_TO_SOUND_EVENT[payload.type];
+      const hapticEvent = TABLE_ACTION_TO_HAPTIC_EVENT[payload.type];
       const ok = dispatchTableAction({ tableId, action, amountCents: payload.amount });
       if (ok) {
         emitSoundEvent(soundEvent);
+        emitHapticEvent(hapticEvent);
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
         if (__DEV__) {

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import { TournamentInTheMoneyReveal } from "./TournamentInTheMoneyReveal";
 import {
   buildTournamentResultRevealKey,
@@ -46,6 +47,17 @@ export function TournamentResultBanner({
   useEffect(() => {
     setRevealDismissed(false);
   }, [revealKey]);
+
+  // Bust-out-without-cashing is the one clear "hand loss" moment in the
+  // tournament flow; ITM finishes (tier !== "none") already get the win
+  // haptic from TournamentInTheMoneyReveal, so this only covers the rest.
+  const eliminatedHapticKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!eliminated || tier !== "none") return;
+    if (eliminatedHapticKeyRef.current === revealKey) return;
+    eliminatedHapticKeyRef.current = revealKey;
+    emitHapticEvent("tournament.eliminated");
+  }, [eliminated, tier, revealKey]);
 
   if (!showOverlay) return null;
 

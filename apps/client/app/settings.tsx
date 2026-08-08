@@ -36,6 +36,8 @@ export default function SettingsScreen() {
   const bankroll = useBankroll();
   const soundEnabled = usePreferencesStore((s) => s.soundEnabled);
   const setSoundEnabled = usePreferencesStore((s) => s.setSoundEnabled);
+  const hapticsEnabled = usePreferencesStore((s) => s.hapticsEnabled);
+  const setHapticsEnabled = usePreferencesStore((s) => s.setHapticsEnabled);
   const notificationsEnabled = usePreferencesStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = usePreferencesStore((s) => s.setNotificationsEnabled);
   const {
@@ -149,6 +151,10 @@ export default function SettingsScreen() {
         <View className="ui-row justify-between ui-surface-card ui-p-4">
           <Text variant="body">Sound</Text>
           <Toggle value={soundEnabled} onValueChange={setSoundEnabled} />
+        </View>
+        <View className="ui-row justify-between ui-surface-card ui-p-4">
+          <Text variant="body">Haptics</Text>
+          <Toggle value={hapticsEnabled} onValueChange={setHapticsEnabled} />
         </View>
         <View className="ui-row justify-between ui-surface-card ui-p-4">
           <Text variant="body">Notifications</Text>

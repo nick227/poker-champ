@@ -4,6 +4,7 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import { TournamentConfettiBurst } from "./TournamentConfettiBurst";
 import {
   formatFinishPlace,
@@ -121,6 +122,7 @@ export function TournamentInTheMoneyReveal({
 
   useEffect(() => {
     if (!visible) return;
+    emitHapticEvent("tournament.itmWin");
     if (isChampion) {
       emitSoundEvent("slot.jackpotFanfare");
       const t = setTimeout(() => emitSoundEvent("slot.jackpot"), 520);
