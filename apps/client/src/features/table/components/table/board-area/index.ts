@@ -5,4 +5,4 @@ export {
   type BoardBoundsReporterProps,
   type MeasuredBoundsReporterProps,
 } from "./BoardBoundsReporter";
-export { type FeltBackgroundProps } from "./FeltBackground";
+export { FeltBackground, type FeltBackgroundProps } from "./FeltBackground";
