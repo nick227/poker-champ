@@ -49,23 +49,26 @@ function SectionBlock({
 }) {
   if (items.length === 0) return null;
   return (
-    <View className="ui-stack-3">
+    <View className="ui-stack-2">
       <Text variant="label" className="text-muted uppercase tracking-wide">
         {title}
       </Text>
-      {items.map((t) => (
-        <TournamentCard
-          key={t.id}
-          tournament={t}
-          nowMs={nowMs}
-          authenticated={authenticated}
-          actionInFlight={actionInFlight}
-          onOpenDetail={onOpenTournamentDetail}
-          onAction={onTournamentAction}
-          onDelete={onDeleteTournament}
-          deleteInFlight={deleteInFlightId === t.id}
-        />
-      ))}
+      <View className="flex-row flex-wrap">
+        {items.map((t) => (
+          <View key={t.id} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
+            <TournamentCard
+              tournament={t}
+              nowMs={nowMs}
+              authenticated={authenticated}
+              actionInFlight={actionInFlight}
+              onOpenDetail={onOpenTournamentDetail}
+              onAction={onTournamentAction}
+              onDelete={onDeleteTournament}
+              deleteInFlight={deleteInFlightId === t.id}
+            />
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

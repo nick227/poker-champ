@@ -29,8 +29,8 @@ export function ReplayQuickLinks({
 
   return (
     <View className="px-4 pb-2 mt-4">
-      <View className="ui-row gap-3">
-        <View className="flex-1 rounded-xl border border-border bg-panel p-3">
+      <View className="flex-row flex-wrap gap-3">
+        <View className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel p-3 lg:max-w-[280px]">
           <Text variant="label" className="text-[10px]">
             Champ
           </Text>
@@ -52,7 +52,7 @@ export function ReplayQuickLinks({
         </View>
 
         {lessonsEnabled ? (
-          <View className="flex-1 rounded-xl border border-border bg-panel p-3">
+          <View className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel p-3 lg:max-w-[280px]">
             <Text variant="label" className="text-[10px]">
               School
             </Text>

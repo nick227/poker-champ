@@ -1,4 +1,5 @@
 export { Masthead } from "./components/lobby/Masthead";
+export { LobbyTabs, type LobbyTabKey } from "./components/lobby/LobbyTabs";
 export { OnlinePlayersSheet } from "./components/lobby/OnlinePlayersSheet";
 export { GameListHeader } from "./components/lobby/GameListHeader";
 export { InstantGamePanels } from "./components/lobby/InstantGamePanels";
