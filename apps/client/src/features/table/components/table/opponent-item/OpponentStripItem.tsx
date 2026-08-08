@@ -81,6 +81,7 @@ export function OpponentStripItem({
     </View>
   ) : null;
 
+  const roundBetCents = opponent.roundBetCents ?? 0;
   const viewModel: OpponentStripItemViewModel = {
     opponentId: opponent.id,
     opponentName: opponent.name,
@@ -92,15 +93,18 @@ export function OpponentStripItem({
     isActive: opponent.isActive,
     inactive,
     stackFormatted: formatStack(opponent.stackCents ?? 0),
-    actionText:
-      opponent.roundBetCents != null && opponent.roundBetCents > 0
-        ? `Bet ${formatBet(opponent.roundBetCents)}`
-        : actionText,
+    actionText,
     actionTextClassName: opponent.status === "folded" ? "text-danger" : undefined,
     isWinner,
     showTurnBar,
     activeTurnProgress,
     cardsSlot,
+    // Stable per-user seed (not the ephemeral seat id) so avatar color survives re-seating.
+    colorSeed: opponent.id,
+    // Seat number as the badge placeholder — no hand-count/VIP-tier data exists yet on Opponent (see report).
+    badgeLabel: opponent.seat,
+    betCents: roundBetCents,
+    betDisplay: roundBetCents > 0 ? formatBet(roundBetCents) : undefined,
   };
 
   return (

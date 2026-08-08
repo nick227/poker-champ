@@ -359,6 +359,8 @@ export function useActiveTableSlots(
       }
       onAvatarPress={undefined}
       onToggleSittingOut={actions.toggleHeroSittingOut}
+      userId={snapshot.hero.userId}
+      seat={snapshot.hero.seat}
     />
   );
 
