@@ -10,7 +10,6 @@ export const boardAreaStyles = StyleSheet.create({
     marginVertical: CONTAINER.VERTICAL_MARGIN,
   },
   potContainer: {
-    width: "100%",
     marginTop: BOARD.POT_MARGIN_TOP,
     paddingVertical: POT.PADDING_VERTICAL,
     paddingHorizontal: POT.PADDING_HORIZONTAL,

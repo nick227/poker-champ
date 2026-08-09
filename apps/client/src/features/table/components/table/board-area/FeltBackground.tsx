@@ -12,6 +12,8 @@ export type FeltBackgroundProps = {
   style?: ViewStyle | ViewStyle[];
   className?: string;
   children?: React.ReactNode;
+  /** Override corner radius (e.g. stadium oval from stage projection). */
+  cornerRadius?: number;
 };
 
 const BASE_STYLE: ViewStyle = { width: "100%", alignSelf: "stretch" };
@@ -22,11 +24,17 @@ const BASE_STYLE: ViewStyle = { width: "100%", alignSelf: "stretch" };
  * shading, and a soft vignette — built from CSS/shapes only (see TableFeltSurface). The outer
  * container's own corner radius matches the rail's so the base fill never peeks out past it.
  */
-export function FeltBackground({ style, className, children }: FeltBackgroundProps) {
+export function FeltBackground({
+  style,
+  className,
+  children,
+  cornerRadius,
+}: FeltBackgroundProps) {
   const feltBackground = usePreferencesStore((s) => s.feltBackground);
   const resolved = resolveBackground(feltBackground, "felt");
   const compact = useIsMobile();
-  const { radius } = getFeltGeometry(compact);
+  const { radius: tokenRadius } = getFeltGeometry(compact);
+  const radius = cornerRadius ?? tokenRadius;
   const shapeStyle: ViewStyle = { borderRadius: radius, overflow: "hidden" };
 
   if (resolved.kind === "image") {
@@ -40,7 +48,7 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
           className={className}
           imageStyle={{ width: "100%", height: "100%" }}
         >
-          <TableFeltSurface resolved={resolved} compact={compact} />
+          <TableFeltSurface resolved={resolved} compact={compact} cornerRadius={radius} />
           {children}
         </ImageBackground>
       );
@@ -58,7 +66,7 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
       style={[BASE_STYLE, viewStyle, shapeStyle, style]}
       className={className}
     >
-      <TableFeltSurface resolved={resolved} compact={compact} />
+      <TableFeltSurface resolved={resolved} compact={compact} cornerRadius={radius} />
       {children}
     </View>
   );

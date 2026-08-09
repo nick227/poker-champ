@@ -7,13 +7,10 @@ export type EmptyTableStartCtaProps = {
   onAddBot: () => void;
 };
 
-/** Action-bar CTA when the hero is alone — no cherry image, explicit buttons only. */
+/** Compact idle CTA — status + Add bot only. */
 export function EmptyTableStartCta({ message, onAddBot }: EmptyTableStartCtaProps) {
   return (
-    <View
-      className="ui-p-inline-4 gap-y-3 pt-2 items-center w-full"
-      style={{ flex: 1, justifyContent: "flex-start" }}
-    >
+    <View className="ui-p-inline-4 gap-y-2 py-1 items-center w-full">
       <TableStatusStrip message={message} showSpinner={false} showTurnCue={false} />
       <View className="ui-row gap-x-2 justify-center">
         <Button title="Add bot" onPress={onAddBot} />

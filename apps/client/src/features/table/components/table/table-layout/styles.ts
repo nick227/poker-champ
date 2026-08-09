@@ -43,7 +43,7 @@ export const layoutStyles = StyleSheet.create({
   actionHudSection: {
     width: "100%",
     minHeight: 56,
-    maxHeight: ACTION_BAR_HEIGHT + 40,
+    maxHeight: ACTION_BAR_HEIGHT + 24,
     flexGrow: 0,
     flexShrink: 0,
     paddingHorizontal: TABLE_SPACING.edge,

@@ -27,14 +27,21 @@ export type SeatPlateProps = {
   cards?: SeatPlateCards;
   cardFacePackId: CardFacePackId;
   onPress?: () => void;
+  /** Projected plate size from stage layout. */
+  width?: number;
+  height?: number;
+  avatarSize?: number;
+  cardScale?: number;
 };
 
 function HolePair({
   cards,
   packId,
+  scale,
 }: {
   cards: SeatPlateCards;
   packId: CardFacePackId;
+  scale: number;
 }) {
   if (!cards.visible) return null;
   const left = cards.faceDown || !cards.left ? (
@@ -52,8 +59,8 @@ function HolePair({
       pointerEvents="none"
       style={{
         flexDirection: "row",
-        transform: [{ scale: SEAT_PLATE.CARD_SCALE }],
-        marginBottom: -8,
+        transform: [{ scale }],
+        marginBottom: -6,
       }}
     >
       <View style={{ marginRight: -10, transform: [{ rotate: "-12deg" }] }}>{left}</View>
@@ -62,13 +69,12 @@ function HolePair({
   );
 }
 
-/** Uniform seat chrome for hero and opponents — fixed size, rail-safe. */
+/** Uniform seat chrome for hero and opponents — size from stage projection. */
 export function SeatPlate({
   name,
   stackDisplay,
   avatarUrl,
   userId,
-  seat,
   isDealer = false,
   isActiveTurn = false,
   inactive = false,
@@ -76,46 +82,52 @@ export function SeatPlate({
   cards,
   cardFacePackId,
   onPress,
+  width = SEAT_PLATE.WIDTH,
+  height = SEAT_PLATE.HEIGHT,
+  avatarSize = SEAT_PLATE.AVATAR,
+  cardScale = SEAT_PLATE.CARD_SCALE,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const body = (
     <View
       style={{
-        width: SEAT_PLATE.WIDTH,
-        height: SEAT_PLATE.HEIGHT,
+        width,
+        height,
         opacity: inactive ? 0.55 : 1,
         alignItems: "center",
         justifyContent: "flex-end",
       }}
     >
-      {cards ? <HolePair cards={cards} packId={cardFacePackId} /> : null}
+      {cards ? <HolePair cards={cards} packId={cardFacePackId} scale={cardScale} /> : null}
       <View
         style={{
-          width: SEAT_PLATE.WIDTH,
+          width: "100%",
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
           paddingHorizontal: 6,
           paddingVertical: 4,
-          borderRadius: 10,
-          borderWidth: isActiveTurn ? 1.5 : 1,
-          borderColor: isActiveTurn ? "rgba(212,175,55,0.75)" : "rgba(255,255,255,0.12)",
-          backgroundColor: "rgba(12,16,22,0.88)",
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.12)",
+          backgroundColor: "rgba(12,16,22,0.9)",
         }}
       >
         <AvatarDisc
           seed={userId || name}
           initial={initial}
           avatarUrl={avatarUrl}
-          size={SEAT_PLATE.AVATAR}
+          size={avatarSize}
           isActiveTurn={isActiveTurn}
-          badgeLabel={seat}
         />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={{ fontSize: 11, color: "#fff", fontWeight: "600" }}>
             {name}
           </Text>
-          <Text numberOfLines={1} style={{ fontSize: 11, color: "#7dd3fc", fontVariant: ["tabular-nums"] }}>
+          <Text
+            numberOfLines={1}
+            style={{ fontSize: 11, color: "#7dd3fc", fontVariant: ["tabular-nums"] }}
+          >
             {stackDisplay}
           </Text>
           {statusLabel ? (
@@ -148,7 +160,7 @@ export function opponentToSeatPlateProps(
   opts?: { inactive?: boolean; statusLabel?: string | null; isWinner?: boolean },
 ): SeatPlateProps {
   return {
-    name: opponent.name + (opponent.isBot ? " [BOT]" : ""),
+    name: opponent.name,
     stackDisplay,
     avatarUrl: opponent.avatarUrl,
     userId: opponent.id,

@@ -19,6 +19,8 @@ export type TableFeltSurfaceProps = {
   resolved?: ResolvedBackground;
   /** Use the smaller rail/radius geometry tuned for narrow (phone) viewports. */
   compact?: boolean;
+  /** Override rail/felt corner radius (stage-projected stadium oval). */
+  cornerRadius?: number;
 };
 
 /**
@@ -27,10 +29,15 @@ export type TableFeltSurfaceProps = {
  * the rail), and a soft vignette at the corners. Pure CSS/shape/gradient — no images, no
  * per-frame work, so it's cheap to mount on every table render.
  */
-export function TableFeltSurface({ resolved, compact = false }: TableFeltSurfaceProps) {
+export function TableFeltSurface({
+  resolved,
+  compact = false,
+  cornerRadius,
+}: TableFeltSurfaceProps) {
   const { base, showTintedRadial } = resolveFeltShadingBase(resolved);
   const stops = buildFeltShadingStops(base, FELT_SHADING_DELTA);
-  const { radius, railWidth } = getFeltGeometry(compact);
+  const { radius: tokenRadius, railWidth } = getFeltGeometry(compact);
+  const radius = cornerRadius ?? tokenRadius;
 
   const radialStyle: ViewStyle = !showTintedRadial
     ? { backgroundColor: "transparent" }

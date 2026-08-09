@@ -41,6 +41,8 @@ export type TableSceneShellProps = {
   hero?: ReactNode | null;
   /** Uniform south-seat plate (preferred over `hero` band). */
   heroPlate?: SeatPlateProps | null;
+  /** Hero table seat index for rail slot mapping. */
+  heroSeat?: number;
   maxSeats?: number;
   bottom: ReactNode;
   rootClassName?: string;
@@ -74,6 +76,7 @@ export function TableSceneShell({
   dealerBar,
   board,
   heroPlate = null,
+  heroSeat = 0,
   maxSeats = 6,
   bottom,
   rootClassName,
@@ -156,6 +159,7 @@ export function TableSceneShell({
               <TableStage
                 opponents={opponents}
                 heroPlate={heroPlate}
+                heroSeat={heroSeat}
                 maxSeats={maxSeats}
                 board={board}
                 winnerName={winnerName}

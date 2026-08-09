@@ -30,6 +30,7 @@ type TableShellBaseProps = Pick<
   | "onSeatBounds"
   | "tournamentBanner"
   | "maxSeats"
+  | "heroSeat"
 >;
 
 type UseTableViewShellFrameParams = {
@@ -98,6 +99,7 @@ export function useTableViewShellFrame({
     onPlayerPress,
     onSeatBounds,
     maxSeats: table?.maxSeats ?? 6,
+    heroSeat: effectiveSnapshot.hero.seat ?? 0,
     tournamentBanner: table?.tournament ? (
       <>
         <TournamentTableBanner tournament={table.tournament} />

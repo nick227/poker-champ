@@ -8,16 +8,17 @@ import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplay
 import {
   assignOpponentsToSlots,
   clampMaxSeats,
-  seatAnchors,
-  SEAT_PLATE,
+  resolveStageLayout,
+  STAGE_LAYOUT_NORM,
   type StageSize,
 } from "./stageGeometry";
 import { opponentToSeatPlateProps, SeatPlate, type SeatPlateProps } from "./SeatPlate";
 
 export type TableStageProps = {
   opponents: Opponent[];
-  /** Hero seat plate props when seated on the ring (south). */
   heroPlate?: SeatPlateProps | null;
+  /** Hero's table seat index — required for correct slot angles. */
+  heroSeat: number;
   maxSeats: number;
   board: ReactNode;
   winnerName?: string;
@@ -28,12 +29,13 @@ export type TableStageProps = {
 };
 
 /**
- * Shared stage box: felt background + fixed ellipse SeatPlates + center board.
- * Seats sit on the rail; board owns the clear center.
+ * Shared stage: inset felt oval + rail SeatPlates + center board.
+ * Geometry from normalized 0..1 layout projected to pixels.
  */
 export function TableStage({
   opponents,
   heroPlate,
+  heroSeat,
   maxSeats,
   board,
   onPlayerPress,
@@ -51,86 +53,121 @@ export function TableStage({
     setSize({ width, height });
   };
 
-  const anchors = size.width > 0 && size.height > 0 ? seatAnchors(n, size) : [];
-  const opponentSlots = assignOpponentsToSlots(opponents, n);
+  const layout = size.width > 0 && size.height > 0 ? resolveStageLayout(n, size) : null;
+  const opponentSlots = layout ? assignOpponentsToSlots(opponents, n, heroSeat) : [];
 
   return (
     <View style={styles.host} onLayout={onLayout} collapsable={false}>
-      <FeltBackground style={StyleSheet.absoluteFillObject} />
-      {size.width > 0 ? (
+      {layout ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: layout.felt.x,
+            top: layout.felt.y,
+            width: layout.felt.w,
+            height: layout.felt.h,
+            borderRadius: layout.feltRadius,
+            overflow: "hidden",
+          }}
+        >
+          <FeltBackground
+            cornerRadius={layout.feltRadius}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </View>
+      ) : null}
+      {layout ? (
         <View
           pointerEvents="box-none"
           style={[
             styles.boardSafe,
             {
-              left: size.width * 0.29,
-              top: size.height * 0.35,
-              width: size.width * 0.42,
-              height: size.height * 0.3,
+              left: layout.board.x,
+              top: layout.board.y,
+              width: layout.board.w,
+              height: layout.board.h,
             },
           ]}
         >
           {board}
         </View>
       ) : null}
-      {anchors.map((anchor) => {
-        const halfW = SEAT_PLATE.WIDTH / 2;
-        const halfH = SEAT_PLATE.HEIGHT / 2;
-        const style = {
-          position: "absolute" as const,
-          left: anchor.x - halfW,
-          top: anchor.y - halfH,
-          width: SEAT_PLATE.WIDTH,
-          height: SEAT_PLATE.HEIGHT + 28,
-          zIndex: 2,
-        };
+      {layout
+        ? layout.seats.map((anchor) => {
+            const plateW = layout.plate.width;
+            const plateH = layout.plate.height;
+            const cardExtra = plateH * STAGE_LAYOUT_NORM.cardsExtraFrac;
+            const hostH = plateH + cardExtra;
+            const style = {
+              position: "absolute" as const,
+              left: anchor.x - plateW / 2,
+              // Anchor is capsule center; card fan sits above inside host.
+              top: anchor.y - plateH / 2 - cardExtra,
+              width: plateW,
+              height: hostH,
+              zIndex: 2,
+              overflow: "hidden" as const,
+            };
+            const sizeProps = {
+              width: plateW,
+              height: hostH,
+              avatarSize: Math.round(plateW * 0.34),
+              cardScale: STAGE_LAYOUT_NORM.cardScale,
+            };
 
-        if (anchor.slotIndex === 0) {
-          if (!heroPlate) return null;
-          const plate = (
-            <SeatPlate {...heroPlate} cardFacePackId={heroPlate.cardFacePackId || cardFacePackId} />
-          );
-          return onHeroBounds ? (
-            <MeasuredBoundsReporter key="hero" onBounds={onHeroBounds} style={style}>
-              {plate}
-            </MeasuredBoundsReporter>
-          ) : (
-            <View key="hero" style={style}>
-              {plate}
-            </View>
-          );
-        }
+            if (anchor.slotIndex === 0) {
+              if (!heroPlate) return null;
+              const plate = (
+                <SeatPlate
+                  {...heroPlate}
+                  {...sizeProps}
+                  cardFacePackId={heroPlate.cardFacePackId || cardFacePackId}
+                />
+              );
+              return onHeroBounds ? (
+                <MeasuredBoundsReporter key="hero" onBounds={onHeroBounds} style={style}>
+                  {plate}
+                </MeasuredBoundsReporter>
+              ) : (
+                <View key="hero" style={style}>
+                  {plate}
+                </View>
+              );
+            }
 
-        const opponent = opponentSlots[anchor.slotIndex];
-        if (!opponent) {
-          return <View key={`empty-${anchor.slotIndex}`} style={style} pointerEvents="none" />;
-        }
+            const opponent = opponentSlots[anchor.slotIndex];
+            if (!opponent) {
+              return <View key={`empty-${anchor.slotIndex}`} style={style} pointerEvents="none" />;
+            }
 
-        const props = opponentToSeatPlateProps(
-          opponent,
-          formatStack(opponent.stackCents ?? 0),
-          cardFacePackId,
-        );
-        const plate = (
-          <SeatPlate
-            {...props}
-            onPress={onPlayerPress ? () => onPlayerPress(opponent) : undefined}
-          />
-        );
-        return onSeatBounds ? (
-          <MeasuredBoundsReporter
-            key={opponent.id}
-            onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
-            style={style}
-          >
-            {plate}
-          </MeasuredBoundsReporter>
-        ) : (
-          <View key={opponent.id} style={style}>
-            {plate}
-          </View>
-        );
-      })}
+            const props = opponentToSeatPlateProps(
+              opponent,
+              formatStack(opponent.stackCents ?? 0),
+              cardFacePackId,
+            );
+            const plate = (
+              <SeatPlate
+                {...props}
+                {...sizeProps}
+                onPress={onPlayerPress ? () => onPlayerPress(opponent) : undefined}
+              />
+            );
+            return onSeatBounds ? (
+              <MeasuredBoundsReporter
+                key={opponent.id}
+                onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
+                style={style}
+              >
+                {plate}
+              </MeasuredBoundsReporter>
+            ) : (
+              <View key={opponent.id} style={style}>
+                {plate}
+              </View>
+            );
+          })
+        : null}
     </View>
   );
 }

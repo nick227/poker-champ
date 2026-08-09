@@ -56,8 +56,17 @@ export function BoardArea({
         <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
 
         <View
-          className="pot-container w-full flex justify-center items-center rounded-sm"
-          style={[boardAreaStyles.potContainer, { backgroundColor: "rgba(12,16,22,0.55)" }]}
+          className="pot-container flex justify-center items-center"
+          style={[
+            boardAreaStyles.potContainer,
+            {
+              alignSelf: "center",
+              width: "auto",
+              maxWidth: "100%",
+              borderRadius: 999,
+              backgroundColor: "rgba(12,16,22,0.45)",
+            },
+          ]}
         >
           <View className="items-center flex-row" style={{ gap: 8 }}>
             <PotChipStack potCents={typeof potCents === "number" ? potCents : 0} />

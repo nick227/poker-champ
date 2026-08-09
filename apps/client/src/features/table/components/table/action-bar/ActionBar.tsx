@@ -55,7 +55,7 @@ export function ActionBar({
     <View
       collapsable={false}
       className="relative"
-      style={[actionBarStyles.root, { height: ACTION_BAR_HEIGHT }]}
+      style={[actionBarStyles.root, { maxHeight: ACTION_BAR_HEIGHT }]}
     >
       <View
         pointerEvents={interactive ? "auto" : "none"}
