@@ -41,6 +41,8 @@ export const ROW = Object.freeze({
 export const STAGE = Object.freeze({
   /** Felt container: matches the board band's old max width so the table doesn't sprawl on ultra-wide desktop. */
   MAX_WIDTH: 1040,
+  /** Desktop stage host: slightly wider when filling leftover height. */
+  MAX_WIDTH_DESKTOP: 1200,
   PADDING_HORIZONTAL: 16,
   PADDING_TOP: 14,
   PADDING_BOTTOM: 10,

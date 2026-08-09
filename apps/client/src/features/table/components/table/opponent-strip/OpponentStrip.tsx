@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import type { Opponent } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { FeltBackground, MeasuredBoundsReporter } from "../board-area";
@@ -20,6 +20,11 @@ export type OpponentStripProps = {
   activeTurnProgress?: number | null;
   /** Board/pot content, rendered in the visual center of the seating arc — see seatArrangement.ts. */
   centerSlot: ReactNode;
+  /**
+   * Desktop stage host: fill parent height; paint felt with absoluteFill and center
+   * seats/board inside (do not flex:1 the felt as a document child).
+   */
+  fillHost?: boolean;
 };
 
 /**
@@ -36,6 +41,7 @@ export function OpponentStrip({
   onSeatBounds,
   activeTurnProgress,
   centerSlot,
+  fillHost = false,
 }: OpponentStripProps) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const arrangement = arrangeSeatsAroundTable(opponents);
@@ -75,14 +81,27 @@ export function OpponentStrip({
     </View>
   );
 
-  return (
-    <FeltBackground style={s.stage}>
+  const seatsAndBoard = (
+    <>
       {arrangement.top.length > 0 ? (
         <View style={s.topRow}>{renderSeat(arrangement.top[0], topSeatSlot)}</View>
       ) : null}
       {farIndices.map(renderPairRow)}
       <View style={s.centerBoardRow}>{centerSlot}</View>
       {nearIndex != null ? renderPairRow(nearIndex) : null}
-    </FeltBackground>
+    </>
   );
+
+  if (fillHost) {
+    return (
+      <View style={s.stageHostFill} collapsable={false}>
+        <FeltBackground style={StyleSheet.absoluteFillObject} />
+        <View style={s.stageContentFill} collapsable={false}>
+          {seatsAndBoard}
+        </View>
+      </View>
+    );
+  }
+
+  return <FeltBackground style={s.stage}>{seatsAndBoard}</FeltBackground>;
 }

@@ -12,6 +12,8 @@ export type TableTopNavMenuProps = {
   onToggleVoice: () => void;
   onOpenChat: () => void;
   onAddBot: () => void;
+  onCopyInviteLink: () => void;
+  onShareInviteLink: () => void;
   onLeaveTable: () => void;
   addBotDisabled?: boolean;
 };
@@ -23,6 +25,8 @@ export function TableTopNavMenu({
   onToggleVoice,
   onOpenChat,
   onAddBot,
+  onCopyInviteLink,
+  onShareInviteLink,
   onLeaveTable,
   addBotDisabled = false,
 }: TableTopNavMenuProps) {
@@ -78,6 +82,24 @@ export function TableTopNavMenu({
                   title="Add bot"
                   onPress={() => runAndClose(onAddBot)}
                   disabled={addBotDisabled}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title="Copy invite link"
+                  onPress={() => runAndClose(onCopyInviteLink)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title="Share invite"
+                  onPress={() => runAndClose(onShareInviteLink)}
                   intent="neutral"
                   shape="row"
                   size="md"

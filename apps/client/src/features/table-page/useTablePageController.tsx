@@ -46,6 +46,11 @@ import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { RejoinUiState } from "@/features/table";
 import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin } from "@/features/table-page/rejoin.helpers";
+import {
+  copyShareTableUrl,
+  resolveShareTableUrl,
+  shareTable,
+} from "@/features/table-page/shareTableUrl";
 import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
 import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
@@ -974,6 +979,15 @@ export function useTablePageController({
     chatOverlay.setVisible(true);
   }, [chatOverlay]);
 
+  const shareTableUrl = useMemo(() => resolveShareTableUrl(tableId), [tableId]);
+  const showToast = useToastStore((s) => s.show);
+  const handleCopyInviteLink = useCallback(() => {
+    copyShareTableUrl(shareTableUrl, showToast);
+  }, [shareTableUrl, showToast]);
+  const handleShareInviteLink = useCallback(() => {
+    void shareTable(shareTableUrl);
+  }, [shareTableUrl]);
+
   const tableTopBarRight = useMemo(
     () => (
       <TableTopNavMenu
@@ -983,6 +997,8 @@ export function useTablePageController({
         onToggleVoice={handleToggleVoice}
         onOpenChat={openChat}
         onAddBot={handleAddBotPress}
+        onCopyInviteLink={handleCopyInviteLink}
+        onShareInviteLink={handleShareInviteLink}
         onLeaveTable={closeTableAndReturn}
         addBotDisabled={!tableTopBarFlags.showAddBot || addBotPending}
       />
@@ -993,6 +1009,8 @@ export function useTablePageController({
       handleToggleVoice,
       openChat,
       handleAddBotPress,
+      handleCopyInviteLink,
+      handleShareInviteLink,
       closeTableAndReturn,
       tableTopBarFlags.showAddBot,
       addBotPending,

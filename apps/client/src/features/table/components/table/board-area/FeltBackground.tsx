@@ -38,7 +38,7 @@ export function FeltBackground({ style, className, children }: FeltBackgroundPro
           resizeMode={resolved.size}
           style={[BASE_STYLE, shapeStyle, style]}
           className={className}
-          imageStyle={{ flex: 1 }}
+          imageStyle={{ width: "100%", height: "100%" }}
         >
           <TableFeltSurface resolved={resolved} compact={compact} />
           {children}

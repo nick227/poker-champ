@@ -1,7 +1,8 @@
 /**
- * Vertical contract: arena is fixed-height bands only.
- * Only mainContent (outer) may flex (flexGrow: 1) to absorb extra space.
- * Nothing in DealerBar → OpponentStrip → Felt → Hero → ActionBar uses flex: 1.
+ * Vertical contract:
+ * - Mobile: content-sized felt inside ScrollView.
+ * - Desktop: stageHost flex:1 owns leftover height; felt paints via absoluteFill
+ *   inside OpponentStrip (never flex:1 the felt as a document child).
  */
 import { StyleSheet } from "react-native";
 import {
@@ -30,6 +31,19 @@ export const layoutStyles = StyleSheet.create({
     width: "100%",
     flexGrow: 0,
     flexShrink: 0,
+  },
+  desktopBody: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    flexDirection: "column",
+  },
+  /** Owns leftover height between top bar and hero/action. */
+  stageHost: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    flexDirection: "column",
   },
   mainContent: {
     width: "100%",

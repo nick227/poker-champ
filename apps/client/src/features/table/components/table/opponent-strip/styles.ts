@@ -64,6 +64,28 @@ export const opponentStripStyles = StyleSheet.create({
     paddingTop: STAGE.PADDING_TOP,
     paddingBottom: STAGE.PADDING_BOTTOM,
   },
+  /**
+   * Desktop: fills stageHost. Felt paints via absoluteFill sibling; content is relative
+   * and centered — felt must not flex-grow the document.
+   */
+  stageHostFill: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    maxWidth: STAGE.MAX_WIDTH_DESKTOP,
+    alignSelf: "center",
+    position: "relative",
+  },
+  stageContentFill: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    justifyContent: "center",
+    paddingHorizontal: STAGE.PADDING_HORIZONTAL,
+    paddingTop: STAGE.PADDING_TOP,
+    paddingBottom: STAGE.PADDING_BOTTOM,
+    zIndex: 1,
+  },
   /** Top-center seat row (directly across the felt from the hero). */
   topRow: {
     width: "100%",
