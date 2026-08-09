@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useWindowDimensions, View } from "react-native";
+import { View } from "react-native";
 import type { Opponent } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { FeltBackground, MeasuredBoundsReporter } from "../board-area";
@@ -7,8 +7,6 @@ import { arrangeSeatsAroundTable, nearestSeatPairIndex } from "./seatArrangement
 import { opponentStripStyles as s, sideSeatSlot, topSeatSlot } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { OpponentStripItem } from "../opponent-item";
-import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
-import { desktopStageSize } from "./desktopStageSize";
 
 export type { Opponent } from "../table.adapter";
 
@@ -40,11 +38,6 @@ export function OpponentStrip({
   centerSlot,
 }: OpponentStripProps) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
-  const isDesktopWorkspace = useIsDesktopWorkspace();
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
-  const stageSize = isDesktopWorkspace
-    ? desktopStageSize(viewportWidth, viewportHeight)
-    : null;
   const arrangement = arrangeSeatsAroundTable(opponents);
   const nearIndex = nearestSeatPairIndex(arrangement);
   const farIndices = nearIndex == null ? [] : arrangement.left.slice(0, nearIndex).map((_, i) => i);
@@ -83,22 +76,7 @@ export function OpponentStrip({
   );
 
   return (
-    <FeltBackground
-      style={[
-        s.stage,
-        ...(stageSize
-          ? [
-              {
-                width: stageSize.width,
-                height: stageSize.height,
-                maxWidth: stageSize.width,
-                alignSelf: "center" as const,
-                justifyContent: "center" as const,
-              },
-            ]
-          : []),
-      ]}
-    >
+    <FeltBackground style={s.stage}>
       {arrangement.top.length > 0 ? (
         <View style={s.topRow}>{renderSeat(arrangement.top[0], topSeatSlot)}</View>
       ) : null}

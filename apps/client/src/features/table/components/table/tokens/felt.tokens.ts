@@ -13,8 +13,7 @@ export const FELT_RAIL_SEAM_COLOR = "hsla(43, 55%, 60%, 0.28)";
 /** Corner radius + rail thickness, tuned per viewport so the band reads as an oval/rounded table
  *  silhouette without clipping the community-card row (which sits close to the felt's top edge). */
 export const FELT_GEOMETRY = Object.freeze({
-  /** Large radius so a desktop-sized stage reads as an oval, not a rounded phone band. */
-  desktop: { radius: 140, railWidth: 12 },
+  desktop: { radius: 22, railWidth: 9 },
   compact: { radius: 14, railWidth: 6 },
 } as const);
 
