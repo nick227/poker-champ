@@ -1,5 +1,5 @@
 import "./global.css";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,23 +20,13 @@ const NAV_THEME = {
 };
 
 export default function RootLayout() {
-  const [iconsReady, setIconsReady] = useState(false);
-
+  // Always mount Stack on first paint. Returning null here blocks the root navigator and
+  // causes "Attempted to navigate before mounting the Root Layout" when auth redirects fire.
   useEffect(() => {
-    let isMounted = true;
-    void Ionicons.loadFont().finally(() => {
-      if (isMounted) {
-        setIconsReady(true);
-      }
-    });
+    void Ionicons.loadFont();
     storeRegistry.tables().pruneExpiredTables();
     void bootstrapSdk();
-    return () => {
-      isMounted = false;
-    };
   }, []);
-
-  if (!iconsReady) return null;
 
   return (
     <ThemeProvider value={NAV_THEME}>

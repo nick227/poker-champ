@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "expo-router";
+import { useRootNavigationState, useRouter } from "expo-router";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TableTopNavMenu } from "@/features/table";
 import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/features/table";
@@ -554,15 +554,19 @@ export function useTablePageController({
     [tableId, routeBuyInCents],
   );
 
+  const rootNavState = useRootNavigationState();
+  const rootNavReady = Boolean(rootNavState?.key);
+
   const goToLogin = useCallback(() => {
     router.replace(loginPathWithNext(tableNextPath));
   }, [router, tableNextPath]);
 
   useEffect(() => {
+    if (!rootNavReady) return;
     if (!authHydrated) return;
     if (authToken) return;
     goToLogin();
-  }, [authHydrated, authToken, goToLogin]);
+  }, [rootNavReady, authHydrated, authToken, goToLogin]);
 
   const handleRealtimeError = useCallback((message: string) => {
     console.log("TABLE_REALTIME_ERROR", message);
