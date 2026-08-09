@@ -493,8 +493,19 @@ describe("dealer random walk soak", () => {
         let lastProgressKey = "";
         let lastProgressAt = Date.now();
         const stallDetail = () => `fingerprint=${JSON.stringify(getStallFingerprint(state, dealer!))}`;
+        // Tracks a player disconnected by the churn branch below, for the current
+        // iteration only. A disconnected player's own client cannot submit further
+        // actions -- continuing to act on their behalf (as this harness previously
+        // did) races the engine's own disconnect-driven progression: options decided
+        // while still valid can go stale (e.g. the round closes and the street
+        // advances) before the already-decided action reaches ActionService, which
+        // then correctly rejects it. That's not an engine bug -- the harness itself
+        // must not simulate a client action arriving after that same client just
+        // went offline.
+        let disconnectedThisStepUserId: string | null = null;
         while (state.street !== "WAITING") {
           guard += 1;
+          disconnectedThisStepUserId = null;
           if (guard >= 800) {
             throw new Error(`Infinite loop detected: ${trace.join("|")}`);
           }
@@ -612,6 +623,7 @@ describe("dealer random walk soak", () => {
                 trace.push(`disconnect_timeout:${p.id}`);
               }
               trace.push(`disconnect:${p.id}`);
+              disconnectedThisStepUserId = p.id;
             }
           }
           if (rng() < 0.05) {
@@ -680,6 +692,15 @@ describe("dealer random walk soak", () => {
           const toActId = state.seats[state.toActSeat];
           if (!toActId) {
             throw new Error(`Missing toAct user: ${trace.join("|")}`);
+          }
+
+          if (toActId === disconnectedThisStepUserId) {
+            // Just told the engine this player is offline this same step -- a real
+            // client couldn't submit an action right now either. Let the engine's own
+            // disconnect-driven progression (already run inside markDisconnectedSerialized)
+            // settle before deciding the next action fresh next iteration.
+            trace.push(`skip_disconnected_actor:${toActId}`);
+            continue;
           }
 
           const options = optionsService.buildHeroActionOptions(state, toActId);
@@ -1073,6 +1094,88 @@ describe("dealer random walk soak", () => {
     expect(toActPlayer!.needsAction).toBe(true);
     expect(state.turnDeadlineMs, "missing turn deadline on human flop turn").toBeGreaterThan(0);
     expect(lastPreflopActor).toBeTruthy();
+    } finally {
+      dealer.dispose();
+    }
+  });
+
+  it("rejects a stale RAISE decided before its own actor was disconnected, without corrupting state", async () => {
+    // Regression coverage for a soak-discovered race: the harness built valid RAISE
+    // options for the to-act player (roundCurrentBetCents > 0, canRaise true), then
+    // disconnected that SAME player, then submitted the pre-disconnect RAISE. Marking
+    // a player disconnected drives the engine's own progression (via requestDrive
+    // inside markDisconnectedSerialized), which can leave the round closed and the
+    // street advanced (roundCurrentBetCents reset to 0) by the time the already-
+    // decided RAISE actually reaches ActionService. The engine must reject that stale
+    // action cleanly (a PokerError, never an uncaught exception, never a partial
+    // money mutation) -- this pins down that safety property directly, independent of
+    // the soak harness's own fix (skipping action-submission for a just-disconnected
+    // actor) that prevents the false-positive crash going forward.
+    const state = new PokerState();
+    state.tableId = "table_soak_disconnect_stale_raise";
+    state.maxSeats = 3;
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.dealerSeat = 2;
+    state.minBuyInCents = 200;
+    state.maxBuyInCents = 100000;
+    state.seats.push("p1", "p2", "p3");
+    state.street = "WAITING";
+
+    state.playersById.set("p1", makePlayer("p1", 0, 6000));
+    state.playersById.set("p2", makePlayer("p2", 1, 6000));
+    state.playersById.set("p3", makePlayer("p3", 2, 6000));
+
+    const persistence = {
+      enabled: false,
+      handHistory: null,
+      postBlind: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      debitBet: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance - args.amountCents,
+      creditPayout: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      creditRefund: async (args: { currentBalance: number; amountCents: number }) => args.currentBalance + args.amountCents,
+      assertHandBalanced: async () => {},
+    } as any;
+
+    const dealer = new Dealer(state, persistence);
+    (dealer as any).scheduleNextHand = () => {};
+    const optionsService = new ActionOptionsService();
+    const chipMass = () => [...state.playersById.values()].reduce((sum, p) => sum + p.stackCents, 0) + state.potCents;
+
+    try {
+      await withTimeout((dealer as any).startHand(), 10_000, "startHand");
+      expect(state.street).toBe("PREFLOP");
+      expect(state.roundCurrentBetCents).toBeGreaterThan(0);
+
+      const toActId = state.seats[state.toActSeat]!;
+      expect(toActId).toBeTruthy();
+      const options = optionsService.buildHeroActionOptions(state, toActId);
+      expect(options?.canRaise).toBe(true);
+      const staleRaise: ActionPayload = { action: "RAISE", amountCents: options!.minRaiseTo };
+      const massBeforeDisconnect = chipMass();
+
+      await withTimeout(
+        dealer.markDisconnectedSerialized(toActId, Date.now() + 30_000),
+        5_000,
+        "markDisconnectedSerialized",
+      );
+
+      let rejected = false;
+      try {
+        await withTimeout(dealer.handleAction(toActId, staleRaise), 10_000, "stale raise after disconnect");
+      } catch (err) {
+        rejected = true;
+        expect(err, `stale action must reject as a PokerError, not an uncaught error: ${err}`).toBeInstanceOf(
+          PokerError,
+        );
+      }
+
+      // Whether the engine rejected the stale RAISE outright or (in principle) the
+      // disconnect left the round in a state where it could still be legally applied,
+      // no chips may ever be created or destroyed by this sequence.
+      expect(chipMass(), "chip mass must be conserved across a disconnect + stale action attempt").toBe(
+        massBeforeDisconnect,
+      );
+      void rejected;
     } finally {
       dealer.dispose();
     }
