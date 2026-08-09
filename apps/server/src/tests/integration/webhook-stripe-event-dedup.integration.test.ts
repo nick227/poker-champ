@@ -44,6 +44,16 @@ type StripeSdk = new (
  * truth), using an idempotent-insert pattern (attempt insert, treat a unique
  * constraint violation on `eventId` as "already processed").
  *
+ * Also covers a second, subtler bug in that same fix: a claim row's mere
+ * *existence* was originally used as the entire "already processed" signal,
+ * which can't distinguish "actively being processed" from "abandoned
+ * mid-flight by a process crash". A crash between claiming and completing
+ * would leave a claim row behind forever, and Stripe's automatic retry of
+ * that same event would then be silently swallowed as a duplicate with no
+ * side effects ever applied. The fix adds explicit status ("claimed" |
+ * "completed" | "failed") plus a staleness-gated reclaim path so a retry can
+ * tell a dead claim from a live one and take over a dead one.
+ *
  * These tests exercise the real handler end-to-end (real signature
  * verification via Stripe's own `generateTestHeaderString` helper, real DB
  * dedup) rather than mocking internals, so they actually prove durability
@@ -152,6 +162,99 @@ describe("Stripe webhook event dedup (durable, DB-backed)", () => {
     const prisma = getPrisma();
     const rows = await prisma.stripeEvent.findMany({ where: { eventId } });
     expect(rows).toHaveLength(1);
+  });
+
+  it("reclaims and reprocesses a claim orphaned by a crash instead of swallowing the retry as a duplicate", async () => {
+    // Simulates the exact gap this fix closes: a prior delivery of this event
+    // inserted a claim row and then the process died before ever marking it
+    // completed or failed (e.g. OOM kill, deploy restart mid-request). Stripe
+    // sees the dropped connection as a failure and retries — that retry is
+    // this test's postWebhook call below. Before this fix, "a claim row
+    // exists" alone would make that retry get silently rejected as a
+    // duplicate, forever, with no membership ever granted.
+    const spy = vi.spyOn(MembershipService, "handleWebhookEvent");
+    const eventId = `evt_test_dedup_${Date.now()}_stale`;
+    const event = makeEvent(eventId);
+
+    const prisma = getPrisma();
+    const staleStartedAt = new Date(Date.now() - 5 * 60 * 1000); // 5min ago, past the 2min threshold
+    await prisma.stripeEvent.create({
+      data: {
+        id: `orphaned_${eventId}`,
+        eventId,
+        type: event.type,
+        status: "claimed",
+        processingStartedAt: staleStartedAt,
+      },
+    });
+
+    const res = await postWebhook(event);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.duplicate).not.toBe(true);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    const row = await prisma.stripeEvent.findUnique({ where: { eventId } });
+    expect(row?.status).toBe("completed");
+    expect(row?.completedAt).not.toBeNull();
+    expect(row?.processingStartedAt.getTime()).toBeGreaterThan(staleStartedAt.getTime());
+  });
+
+  it("rejects a retry as a genuine duplicate while the original claim is still recent (in-flight, not orphaned)", async () => {
+    const spy = vi.spyOn(MembershipService, "handleWebhookEvent");
+    const eventId = `evt_test_dedup_${Date.now()}_recent`;
+    const event = makeEvent(eventId);
+
+    const prisma = getPrisma();
+    await prisma.stripeEvent.create({
+      data: {
+        id: `inflight_${eventId}`,
+        eventId,
+        type: event.type,
+        status: "claimed",
+        processingStartedAt: new Date(), // freshly claimed, well within the threshold
+      },
+    });
+
+    const res = await postWebhook(event);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.duplicate).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("marks a claim failed on processing error, and reclaims it immediately on the next delivery without waiting out the staleness window", async () => {
+    const eventId = `evt_test_dedup_${Date.now()}_failthenretry`;
+    const event = makeEvent(eventId);
+
+    const failingSpy = vi
+      .spyOn(MembershipService, "handleWebhookEvent")
+      .mockRejectedValueOnce(new Error("simulated transient failure"));
+
+    const first = await postWebhook(event);
+    expect(first.status).toBe(500);
+
+    const prisma = getPrisma();
+    const afterFailure = await prisma.stripeEvent.findUnique({ where: { eventId } });
+    expect(afterFailure?.status).toBe("failed");
+
+    failingSpy.mockRestore();
+    const succeedingSpy = vi.spyOn(MembershipService, "handleWebhookEvent");
+
+    // Retry arrives immediately after (well within the 2min staleness
+    // window) — a "failed" status must still be reclaimable right away,
+    // since Step 3's synchronous failure marking already proves the prior
+    // attempt is dead; there's no need to wait for a timeout on top of that.
+    const second = await postWebhook(event);
+    expect(second.status).toBe(200);
+    const secondBody = await second.json();
+    expect(secondBody.duplicate).not.toBe(true);
+    expect(succeedingSpy).toHaveBeenCalledTimes(1);
+
+    const afterSuccess = await prisma.stripeEvent.findUnique({ where: { eventId } });
+    expect(afterSuccess?.status).toBe("completed");
   });
 
   it("processes two distinct event ids independently", async () => {
