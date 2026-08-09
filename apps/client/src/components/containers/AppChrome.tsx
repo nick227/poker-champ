@@ -21,10 +21,13 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }
 
   if (isDesktopWorkspace) {
+    const mainBleed = pathname.startsWith("/table");
     return (
       <View className="app-shell-desktop bg-bg/70">
         <NavRail active={active} />
-        <View className="app-main">{children}</View>
+        <View className={mainBleed ? "app-main app-main--bleed" : "app-main"}>
+          {children}
+        </View>
       </View>
     );
   }

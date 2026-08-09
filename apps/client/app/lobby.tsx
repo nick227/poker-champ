@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, ScrollView } from "react-native";
+import { Platform, View, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
@@ -17,6 +17,8 @@ import { LobbyTabs, type LobbyTabKey } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
+import { LobbyDesktopSidebar } from "@/features/lobby";
+import { LobbyTableList } from "@/features/lobby";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
@@ -24,9 +26,10 @@ import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeB
 import { useBankroll } from "@/hooks/useBankroll";
 import { useProfile } from "@/hooks/useProfile";
 import { useJoiningTableState } from "@/hooks/useJoiningTableState";
+import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { postCreateInstantGame, postCreateTable } from "@/services/post/lobby.post";
 import { useToastStore } from "@/stores/toast.store";
-import { normalizeTable } from "@/lib/lobbyTables";
+import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
 import { confirmDeleteTable } from "@/lib/deleteTable";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
@@ -47,16 +50,17 @@ import {
 } from "@/lib/tournament.actions";
 import { tournamentPath } from "@/lib/nav";
 import type { TournamentSummary } from "@/services/tournaments.types";
-
-type SortKey = "name" | "players" | "blinds";
-
-const SORT_COMPARATORS: Record<SortKey, (a: ReturnType<typeof normalizeTable>, b: ReturnType<typeof normalizeTable>) => number> = {
-  name: (a, b) => a.name.localeCompare(b.name),
-  players: (a, b) => b.players - a.players,
-  blinds: (a, b) => (a.blinds ?? "").localeCompare(b.blinds ?? ""),
-};
-
-const SORT_CYCLE: Record<SortKey, SortKey> = { name: "players", players: "blinds", blinds: "name" };
+import {
+  LOBBY_SORT_COMPARATORS,
+  LOBBY_SORT_CYCLE,
+  type LobbySortKey,
+} from "@/features/lobby/lobbyTableSort";
+import {
+  applyLobbyFilters,
+  loadLobbyFilters,
+  saveLobbyFilters,
+  type LobbyTableFilters,
+} from "@/features/lobby/lobbyTableFilters";
 
 export default function LobbyScreen() {
   const router = useRouter();
@@ -88,7 +92,9 @@ export default function LobbyScreen() {
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const showToast = useToastStore((s) => s.show);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const isDesktopWorkspace = useIsDesktopWorkspace();
+  const [sortKey, setSortKey] = useState<LobbySortKey>("name");
+  const [filters, setFilters] = useState<LobbyTableFilters>(() => loadLobbyFilters());
   const [activeTab, setActiveTab] = useState<LobbyTabKey>("cash");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [instantStartInFlightPreset, setInstantStartInFlightPreset] = useState<InstantGamePresetId | null>(null);
@@ -156,10 +162,56 @@ export default function LobbyScreen() {
 
   const sortedTables = useMemo(() => {
     const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));
-    return [...rows].sort(SORT_COMPARATORS[sortKey]);
-  }, [tables, sortKey]);
+    const filtered = applyLobbyFilters(rows, filters);
+    return [...filtered].sort(LOBBY_SORT_COMPARATORS[sortKey]);
+  }, [tables, sortKey, filters]);
 
-  const cycleSort = useCallback(() => setSortKey((k) => SORT_CYCLE[k]), []);
+  const cycleSort = useCallback(() => setSortKey((k) => LOBBY_SORT_CYCLE[k]), []);
+
+  const updateFilters = useCallback((next: LobbyTableFilters) => {
+    setFilters(next);
+    saveLobbyFilters(next);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopWorkspace || Platform.OS !== "web" || typeof document === "undefined") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      event.preventDefault();
+      const input = document.querySelector<HTMLInputElement>("[data-lobby-search]");
+      input?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isDesktopWorkspace]);
+
+  const openJoinModal = useCallback(
+    (t: LobbyTableRow) => {
+      if (isJoining(t.id)) return;
+      if (!authToken) {
+        router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
+        return;
+      }
+      setChooseTableModal({
+        id: t.id,
+        roomId: t.roomId,
+        minBuyInCents: t.minBuyInCents,
+        maxBuyInCents: t.maxBuyInCents,
+      });
+    },
+    [authToken, isJoining, router],
+  );
+
+  const openCreateTable = useCallback(() => {
+    if (!authToken) {
+      router.push(loginPathWithNext("/lobby"));
+      return;
+    }
+    setCreateModalVisible(true);
+  }, [authToken, router]);
 
   const joinedTournamentsCount = useMemo(
     () => selectJoinedTournaments(tournamentList).length,
@@ -421,18 +473,43 @@ export default function LobbyScreen() {
           tournamentsBadgeCount={joinedTournamentsCount}
         />
         {activeTab === "cash" ? (
+          isDesktopWorkspace ? (
+            <View className="flex-1 flex-row min-h-[70vh] px-1 pt-2">
+              <View className="flex-1 min-w-0 pr-3 ui-stack-2">
+                <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
+                {busy ? (
+                  <Text variant="muted">Loading tables…</Text>
+                ) : error ? (
+                  <Text variant="danger">{error}</Text>
+                ) : sortedTables.length === 0 ? (
+                  <EmptyState message="No games match your filters." />
+                ) : (
+                  <LobbyTableList
+                    tables={sortedTables}
+                    balanceCents={bankroll}
+                    sortKey={sortKey}
+                    onSort={setSortKey}
+                    isJoining={isJoining}
+                    onJoin={openJoinModal}
+                  />
+                )}
+              </View>
+              <LobbyDesktopSidebar
+                bankrollCents={bankroll}
+                filters={filters}
+                onFiltersChange={updateFilters}
+                onCreateTable={openCreateTable}
+                onCreateTournament={handleCreateTournament}
+                createTableLabel={authToken ? "New cash table" : "Login / Register"}
+              />
+            </View>
+          ) : (
           <>
             <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
             <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
               <GameListHeader
                 onSort={cycleSort}
-                onCreateGame={() => {
-                  if (!authToken) {
-                    router.push(loginPathWithNext("/lobby"));
-                    return;
-                  }
-                  setCreateModalVisible(true);
-                }}
+                onCreateGame={openCreateTable}
                 sortLabel={`Sort: ${sortKey}`}
                 createLabel={authToken ? "New Game" : "Login / Register"}
               />
@@ -458,19 +535,7 @@ export default function LobbyScreen() {
                       balanceCents={bankroll}
                       isJoining={isJoining(t.id)}
                       currentUserId={profile.userId}
-                      onJoin={() => {
-                        if (isJoining(t.id)) return;
-                        if (!authToken) {
-                          router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
-                          return;
-                        }
-                        setChooseTableModal({
-                          id: t.id,
-                          roomId: t.roomId,
-                          minBuyInCents: t.minBuyInCents,
-                          maxBuyInCents: t.maxBuyInCents,
-                        });
-                      }}
+                      onJoin={() => openJoinModal(t)}
                       onDelete={handleDeleteTable}
                     />
                   </View>
@@ -478,6 +543,7 @@ export default function LobbyScreen() {
               )}
             </View>
           </>
+          )
         ) : (
           <>
             <JoinedTournamentsSection

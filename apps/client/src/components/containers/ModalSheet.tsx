@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Modal, PanResponder, Pressable, View, useWindowDimensions } from "react-native";
+import { Animated, Modal, PanResponder, Platform, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 import { Text } from "@/components/base/Text";
@@ -103,6 +103,19 @@ export function ModalSheet({
     const prev = prevVisibleRef.current;
     if (!prev && visible) emitSoundEvent("ui.modalOpen");
     prevVisibleRef.current = visible;
+  }, [visible]);
+
+  // Desktop: Esc closes overlays.
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web" || typeof window === "undefined") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleCloseRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [visible]);
 
   // Open animation.

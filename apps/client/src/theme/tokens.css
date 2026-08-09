@@ -182,6 +182,12 @@ html, body {
   }
 }
 
+/* Table surface: near full-bleed main (opt out of page gutters) */
+.app-main--bleed {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
 .app-nav-rail {
   width: 200px;
   flex-shrink: 0;
