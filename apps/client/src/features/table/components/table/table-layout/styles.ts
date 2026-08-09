@@ -55,12 +55,14 @@ export const layoutStyles = StyleSheet.create({
     flexShrink: 0,
     flexDirection: "column",
   },
-  /** Desktop felt + seats: consume leftover vertical space. */
+  /** Desktop: leftover space centers the sized felt stage + hero (felt must not flex-fill). */
   gameArenaFill: {
     flex: 1,
     minHeight: 0,
     width: "100%",
     flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
   },
   dealerBar: {
     height: DEALER_BAR_HEIGHT,

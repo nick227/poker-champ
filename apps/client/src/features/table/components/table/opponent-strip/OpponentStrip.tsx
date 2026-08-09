@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { useWindowDimensions, View } from "react-native";
 import type { Opponent } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { FeltBackground, MeasuredBoundsReporter } from "../board-area";
@@ -8,6 +8,7 @@ import { opponentStripStyles as s, sideSeatSlot, topSeatSlot } from "./styles";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { OpponentStripItem } from "../opponent-item";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
+import { desktopStageSize } from "./desktopStageSize";
 
 export type { Opponent } from "../table.adapter";
 
@@ -40,6 +41,10 @@ export function OpponentStrip({
 }: OpponentStripProps) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const isDesktopWorkspace = useIsDesktopWorkspace();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const stageSize = isDesktopWorkspace
+    ? desktopStageSize(viewportWidth, viewportHeight)
+    : null;
   const arrangement = arrangeSeatsAroundTable(opponents);
   const nearIndex = nearestSeatPairIndex(arrangement);
   const farIndices = nearIndex == null ? [] : arrangement.left.slice(0, nearIndex).map((_, i) => i);
@@ -81,8 +86,16 @@ export function OpponentStrip({
     <FeltBackground
       style={[
         s.stage,
-        ...(isDesktopWorkspace
-          ? [{ flex: 1, minHeight: 380, maxWidth: 1280, justifyContent: "center" as const }]
+        ...(stageSize
+          ? [
+              {
+                width: stageSize.width,
+                height: stageSize.height,
+                maxWidth: stageSize.width,
+                alignSelf: "center" as const,
+                justifyContent: "center" as const,
+              },
+            ]
           : []),
       ]}
     >

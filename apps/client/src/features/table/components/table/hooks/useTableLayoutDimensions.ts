@@ -11,8 +11,8 @@ import { DESKTOP_WORKSPACE_MIN_WIDTH } from "@/hooks/useIsDesktopWorkspace";
 
 /** Scale factor when landscape (community cards grow); other heights scale with it. */
 const LAYOUT_SCALE_LANDSCAPE = CARDS.SCALE_LANDSCAPE / CARDS.SCALE;
-/** Desktop workspace: enlarge phone band heights so the felt can breathe. */
-const LAYOUT_SCALE_DESKTOP = 1.35;
+/** Modest desktop bump — do not scale board with viewport height (blows up the stage). */
+const LAYOUT_SCALE_DESKTOP = 1.2;
 
 /** Computed layout dimensions (insets, band heights). Used by table-layout shell only; consumers use useTableLayoutHeight from context. */
 export function useTableLayoutDimensions() {
@@ -29,11 +29,7 @@ export function useTableLayoutDimensions() {
 
   if (isDesktopWorkspace) {
     layoutScale = Math.max(layoutScale, LAYOUT_SCALE_DESKTOP);
-    // Prefer a substantial board band that grows with viewport height.
-    boardAreaHeight = Math.max(
-      Math.round(BOARD_AREA_HEIGHT_LANDSCAPE * LAYOUT_SCALE_DESKTOP),
-      Math.round(height * 0.22),
-    );
+    boardAreaHeight = Math.round(BOARD_AREA_HEIGHT_LANDSCAPE * LAYOUT_SCALE_DESKTOP);
     heroZoneHeight = Math.round(HERO_ZONE_HEIGHT * LAYOUT_SCALE_DESKTOP);
   }
 
