@@ -51,27 +51,45 @@ export class RecoveryService {
 
     for (const pb of abandoned as any[]) {
       try {
-        const externalRef = `recovery_${pb.tableId}_${pb.userId}_${Date.now()}`;
+        // Deterministic per-episode ref: derived from this row's updatedAt
+        // snapshot (not Date.now()), so that re-running the sweep — even
+        // concurrently, e.g. from two overlapping cron ticks — for the SAME
+        // stale balance always produces the SAME externalRef. That lets
+        // CashierService's externalRef-uniqueness guard catch the duplicate
+        // and skip crediting twice. A later buy-in on the same table changes
+        // updatedAt, so a *future* abandonment episode gets a fresh ref
+        // instead of colliding with this one.
+        const externalRef = `recovery_${pb.tableId}_${pb.userId}_${new Date(pb.updatedAt).getTime()}`;
         const table = await prisma.pokerTable.findUnique({
           where: { id: pb.tableId },
           select: { name: true, creatorId: true },
         });
-        if (!table) {
-          throw new Error(`TABLE_NOT_FOUND_FOR_RECOVERY:${pb.tableId}`);
-        }
-        
+        // If the table row is gone (e.g. hard-deleted), fall back to a
+        // synthetic name so the cash-out can still proceed and credit the
+        // user's bankroll back — CashierService.ensureTableExists will
+        // recreate a minimal PokerTable row for the FK. Refusing to recover
+        // funds just because the table metadata is missing would strand the
+        // user's money indefinitely.
+        const tableMeta = {
+          name: table?.name ?? `Recovered Table ${pb.tableId}`,
+          creatorId: table?.creatorId ?? undefined,
+        };
+
         await CashierService.processCashGameCashOut({
           userId: pb.userId,
           tableId: pb.tableId,
           amountCents: pb.balanceCents,
           externalRef,
-          tableMeta: {
-            name: table.name,
-            creatorId: table.creatorId ?? undefined,
-          },
+          tableMeta,
         });
 
-        // Mark as explicitly ABANDONED (final state after recovery)
+        // Mark as explicitly ABANDONED (final state after recovery). This is
+        // best-effort bookkeeping on top of the already-committed cash-out:
+        // if it fails, the funds are safely credited either way (processCash
+        // GameCashOut already flips status to CASHED_OUT when the balance is
+        // fully drained), it just won't carry the more specific ABANDONED
+        // label. It's also naturally idempotent: once status is no longer
+        // ACTIVE, this row won't be picked up as a candidate again.
         await prisma.playerBalance.update({
           where: { id: pb.id },
           data: { status: "ABANDONED" },

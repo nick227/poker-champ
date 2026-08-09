@@ -44,6 +44,12 @@ export const openApiSpec = {
         },
         required: ["error", "code", "retryAfterSeconds"],
       },
+      AdminActionReasonRequest: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+        },
+      },
       User: {
         type: "object",
         properties: {
@@ -55,6 +61,7 @@ export const openApiSpec = {
           isBanned: { type: "boolean" },
           deletedAt: { type: "string", format: "date-time", nullable: true },
           trustLevel: { type: "integer" },
+          emailVerifiedAt: { type: "string", format: "date-time", nullable: true },
           bankrollCents: { type: "integer" },
           avatarUrl: { type: "string", nullable: true },
           avatarVersion: { type: "integer", nullable: true },
@@ -579,6 +586,134 @@ export const openApiSpec = {
         responses: {
           "200": {
             description: "Logged out all sessions",
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/forgot-password": {
+      post: {
+        tags: ["auth"],
+        operationId: "authForgotPassword",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { email: { type: "string", format: "email" } },
+                required: ["email"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Generic success (does not reveal whether the email is registered)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" }, message: { type: "string" } },
+                  required: ["success", "message"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/reset-password": {
+      post: {
+        tags: ["auth"],
+        operationId: "authResetPassword",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  token: { type: "string", minLength: 1 },
+                  password: { type: "string", minLength: 1 },
+                },
+                required: ["token", "password"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Password reset",
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request / invalid or expired token",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/verify-email": {
+      post: {
+        tags: ["auth"],
+        operationId: "authVerifyEmail",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: { token: { type: "string", minLength: 1 } },
+                required: ["token"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Email verified",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" }, user: { $ref: "#/components/schemas/User" } },
+                  required: ["success", "user"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Bad request / invalid or expired token",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/auth/resend-verification": {
+      post: {
+        tags: ["auth"],
+        operationId: "authResendVerification",
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Verification email resent (or already verified — no-op)",
             content: {
               "application/json": {
                 schema: { type: "object", properties: { success: { type: "boolean" } }, required: ["success"] },
@@ -2179,6 +2314,7 @@ export const openApiSpec = {
                   password: { type: "string", minLength: 6 },
                   displayName: { type: "string", minLength: 1, maxLength: 80 },
                   username: { type: "string", minLength: 3, maxLength: 24 },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
                 },
                 required: ["email", "password"],
               },
@@ -2207,6 +2343,12 @@ export const openApiSpec = {
         operationId: "adminPromoteUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Promoted user",
@@ -2225,6 +2367,12 @@ export const openApiSpec = {
         operationId: "adminBanUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Banned user",
@@ -2243,6 +2391,12 @@ export const openApiSpec = {
         operationId: "adminUnbanUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Unbanned user",
@@ -2267,7 +2421,10 @@ export const openApiSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                properties: { role: { type: "string", enum: ["USER", "MODERATOR", "ADMIN"] } },
+                properties: {
+                  role: { type: "string", enum: ["USER", "MODERATOR", "ADMIN"] },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+                },
                 required: ["role"],
               },
             },
@@ -2295,6 +2452,12 @@ export const openApiSpec = {
         operationId: "adminDeleteUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Soft-deleted user",
@@ -2313,6 +2476,12 @@ export const openApiSpec = {
         operationId: "adminRestoreUser",
         security: [{ bearerAuth: [] }],
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
         responses: {
           "200": {
             description: "Restored user",
@@ -2320,6 +2489,99 @@ export const openApiSpec = {
           },
           "404": {
             description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/tables/{roomId}/close": {
+      post: {
+        tags: ["admin"],
+        operationId: "adminCloseTable",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": { schema: { $ref: "#/components/schemas/AdminActionReasonRequest" } },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Table closed; every seated human player was kicked and cashed out",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    roomId: { type: "string" },
+                    kickedUserIds: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["ok", "roomId", "kickedUserIds"],
+                },
+              },
+            },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Table not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/tables/{roomId}/kick": {
+      post: {
+        tags: ["admin"],
+        operationId: "adminKickFromTable",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "roomId", in: "path", required: true, schema: { type: "string" } }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  userId: { type: "string" },
+                  reason: { type: "string", description: "Optional operator-supplied justification, recorded in the AdminLog." },
+                },
+                required: ["userId"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "User kicked from the table",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    roomId: { type: "string" },
+                    targetUserId: { type: "string" },
+                  },
+                  required: ["ok", "roomId", "targetUserId"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Missing userId",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Table not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

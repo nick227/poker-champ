@@ -16,6 +16,8 @@ import { loadVoicePreference, saveVoicePreference } from "@/lib/voicePreferenceS
 import { playSound } from "@/lib/sound";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import type { SoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
+import type { HapticEvent } from "@/haptics/emitHapticEvent";
 import { MODAL } from "@/constants/copy";
 import { useResolvedBuyIn } from "@/features/table";
 import { useTableScene } from "@/features/table";
@@ -47,6 +49,14 @@ import { isRejoinErrorMessage, mapRejoinErrorMessage, resolveTableGoneForRejoin 
 import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
 import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
 import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
+import { buildChipTravelPlan } from "@/features/table/animations/chipTravel";
+import type { ChipTravelPlan } from "@/features/table/animations/chipTravel";
+import {
+  clearAllPendingTimeouts,
+  computePotWinDispatchDelayMs,
+  resolveShowdownAnimationDecision,
+  scheduleSurvivingTimeout,
+} from "@/features/table/animations/animationTriggers";
 import { getOccupiedHumanCount, resolveDisplayEventsForRender } from "./displayEventsPolicy";
 
 function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
@@ -83,7 +93,19 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   ALL_IN: "allIn",
 };
 
+/** Actions that move chips from hero's stack to the pot; drive the BET_TO_POT chip-travel FX. */
+const MONEY_MOVING_ACTIONS: ReadonlySet<TableAction> = new Set(["BET", "RAISE", "CALL", "ALL_IN"]);
+
 const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
+  FOLD: "table.action.fold",
+  CHECK: "table.action.check",
+  CALL: "table.action.call",
+  BET: "table.action.bet",
+  RAISE: "table.action.raise",
+  ALL_IN: "table.action.allIn",
+};
+
+const TABLE_ACTION_TO_HAPTIC_EVENT: Record<TableAction, HapticEvent> = {
   FOLD: "table.action.fold",
   CHECK: "table.action.check",
   CALL: "table.action.call",
@@ -198,9 +220,25 @@ export function useTablePageController({
       });
     });
   }, []);
+  const [chipTravelRequests, setChipTravelRequests] = useState<ChipTravelPlan[]>([]);
+  const chipTravelIdRef = useRef(0);
+  const enqueueChipTravel = useCallback((plan: ChipTravelPlan | undefined) => {
+    if (!plan) return;
+    setChipTravelRequests((prev) => [...prev, plan]);
+  }, []);
+  const completeChipTravel = useCallback((id: string) => {
+    setChipTravelRequests((prev) => prev.filter((p) => p.id !== id));
+  }, []);
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const lastPotWinHandIdRef = useRef<string | null>(null);
+  const lastChipTravelPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
+  const lastShowdownHandIdRef = useRef<string | null>(null);
+  // Pending POT_WIN dispatches delayed to sequence after a SHOWDOWN reveal (see effect below).
+  // Tracked outside any single effect's cleanup so a *new* hand's snapshot update (which changes
+  // this effect's deps) can't cancel a still-pending celebration for the *previous* hand — only
+  // true unmount clears these (separate effect further down).
+  const pendingPotWinTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const autoJoinAttemptedRef = useRef(false);
   const pendingRemoveBotIdRef = useRef<string | null>(null);
   const hasObservedActiveHandRef = useRef(false);
@@ -310,28 +348,85 @@ export function useTablePageController({
   const winnerBanner = displayEvents.winnerBanner;
   const isHeroWinner = !!winnerBanner && winnerBanner.winnerName === heroName;
 
+  // SHOWDOWN reveal: hero-only (fires only when hero actually reached showdown, i.e. didn't
+  // fold before the reveal), whether hero wins or loses. Runs on the same TABLE fx channel as
+  // POT_WIN, so it must dispatch (and dedupe by handId) independently and *before* POT_WIN's
+  // own dispatch for the same hand — see the delay in the POT_WIN effect below.
+  useEffect(() => {
+    const decision = resolveShowdownAnimationDecision(snapshot, lastShowdownHandIdRef.current);
+    if (!decision) return;
+    lastShowdownHandIdRef.current = decision.handId;
+    setAnimationRequest(decision.request);
+  }, [snapshot]);
+
   useEffect(() => {
     if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
     const handId = snapshot.lastHandResult.handId;
     if (lastPotWinHandIdRef.current === handId) return;
     lastPotWinHandIdRef.current = handId;
     const potCents = snapshot.lastHandResult.potCents ?? 0;
+    const winnerSeat = snapshot.hero?.seat;
     const tier = mapPotWinTier({
       potCents,
       winningHandDescr: winnerBanner.winningHandDescr,
     });
-    setAnimationRequest({
-      version: TABLE_ANIMATION_REQUEST_VERSION,
-      event: "POT_WIN",
-      tier,
-      payload: {
-        headline: "YOU WIN",
-        amountCents: winnerBanner.amountCents,
-        potCents,
-        isHero: true,
-      },
+    const dispatch = () => {
+      emitHapticEvent("table.potWin");
+      setAnimationRequest({
+        version: TABLE_ANIMATION_REQUEST_VERSION,
+        event: "POT_WIN",
+        tier,
+        payload: {
+          headline: "YOU WIN",
+          amountCents: winnerBanner.amountCents,
+          potCents,
+          isHero: true,
+          winnerSeat,
+        },
+      });
+    };
+    // Hand went to showdown: the reveal fires on the same TABLE fx channel (see effect above).
+    // Delay pot-win (and its haptic, so they stay in sync) so it lands after the showdown reveal
+    // fully finishes, instead of racing it for the shared channel (both are keyed off the same
+    // snapshot.lastHandResult change). scheduleSurvivingTimeout intentionally does not tie this
+    // to the effect's own cleanup — see its doc comment for why that would silently drop the
+    // celebration when the next hand starts.
+    const delayMs = computePotWinDispatchDelayMs(
+      snapshot.lastHandResult.reason,
+      potCents,
+      winnerBanner.winningHandDescr
+    );
+    if (delayMs > 0) {
+      scheduleSurvivingTimeout(pendingPotWinTimeoutsRef.current, delayMs, dispatch);
+      return;
+    }
+    dispatch();
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, snapshot?.hero?.seat]);
+
+  // True-unmount-only cleanup for any still-pending delayed POT_WIN dispatches (see above).
+  useEffect(() => {
+    const pending = pendingPotWinTimeoutsRef.current;
+    return () => clearAllPendingTimeouts(pending);
+  }, []);
+
+  // Separate ref/effect from the POT_WIN FX trigger above: bounds may not be measured yet
+  // on the first pass (e.g. cold table load), so this retries independently as anchorBounds
+  // fills in without re-firing the tiered POT_WIN overlay animation.
+  useEffect(() => {
+    if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
+    const handId = snapshot.lastHandResult.handId;
+    if (lastChipTravelPotWinHandIdRef.current === handId) return;
+    const plan = buildChipTravelPlan({
+      id: `chip-travel-${++chipTravelIdRef.current}`,
+      kind: "POT_TO_WINNER",
+      from: anchorBounds.board,
+      to: anchorBounds.hero,
+      amountCents: winnerBanner.amountCents ?? snapshot.lastHandResult.potCents ?? 0,
     });
-  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner]);
+    if (!plan) return;
+    lastChipTravelPotWinHandIdRef.current = handId;
+    enqueueChipTravel(plan);
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, anchorBounds.board, anchorBounds.hero, enqueueChipTravel]);
 
   useEffect(() => {
     const lastAction = snapshot?.lastAction;
@@ -351,9 +446,10 @@ export function useTablePageController({
         amountCents: lastAction.amountCents,
         potCents,
         isHero: true,
+        anchorSeat: snapshot?.hero?.seat,
       },
     });
-  }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
+  }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hero?.seat, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
   const {
     rebuySheetVisible,
@@ -777,9 +873,22 @@ export function useTablePageController({
     (payload: { type: TableAction; amount?: number }) => {
       const action = TABLE_ACTION_TO_KEY[payload.type];
       const soundEvent = TABLE_ACTION_TO_SOUND_EVENT[payload.type];
+      const hapticEvent = TABLE_ACTION_TO_HAPTIC_EVENT[payload.type];
       const ok = dispatchTableAction({ tableId, action, amountCents: payload.amount });
       if (ok) {
         emitSoundEvent(soundEvent);
+        emitHapticEvent(hapticEvent);
+        if (MONEY_MOVING_ACTIONS.has(payload.type)) {
+          enqueueChipTravel(
+            buildChipTravelPlan({
+              id: `chip-travel-${++chipTravelIdRef.current}`,
+              kind: "BET_TO_POT",
+              from: anchorBounds.hero,
+              to: anchorBounds.board,
+              amountCents: payload.amount ?? 0,
+            }),
+          );
+        }
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
         if (__DEV__) {
@@ -799,7 +908,7 @@ export function useTablePageController({
       }
       return ok;
     },
-    [tableId, dispatchTableAction, snapshot, connectionStatus],
+    [tableId, dispatchTableAction, snapshot, connectionStatus, anchorBounds.hero, anchorBounds.board, enqueueChipTravel],
   );
 
   const toggleHeroSittingOut = useCallback(() => {
@@ -979,6 +1088,8 @@ export function useTablePageController({
       rejoinUiState,
       rejoinErrorMessage,
       animationRequest,
+      anchorBounds,
+      chipTravelRequests,
       tournamentStandingsVisible,
     },
     uiState: {
@@ -1050,6 +1161,7 @@ export function useTablePageController({
         },
         [flushAnchorBounds]
       ),
+      completeChipTravel,
       openTournamentStandings: useCallback(() => setTournamentStandingsVisible(true), []),
       closeTournamentStandings: useCallback(() => setTournamentStandingsVisible(false), []),
     },

@@ -192,6 +192,12 @@ describe("disconnect policy", () => {
     const client = { send: vi.fn(), leave: vi.fn() };
     const kickUser = vi.fn().mockResolvedValue(undefined);
 
+    room.setMetadata = vi.fn().mockResolvedValue(undefined);
+    const state = new PokerState();
+    state.tableId = "table_ban_propagation";
+    state.street = "WAITING";
+    room.setState(state);
+
     room.dealer = {
       getClient: () => client,
       kickUser,

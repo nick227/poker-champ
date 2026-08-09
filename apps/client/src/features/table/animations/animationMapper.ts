@@ -52,3 +52,20 @@ export function mapAllInTier(ctx: AllInTierContext): 0 | 1 | 2 | 3 | 4 {
   const bigBet = ctx.amountCents >= BIG_BET_CENTS_THRESHOLD ? 1 : 0;
   return Math.min(4, potTier + bigBet) as 0 | 1 | 2 | 3 | 4;
 }
+
+/** Poker context for showdown tier. Animation system does not import poker types. */
+export type ShowdownTierContext = {
+  potCents: number;
+  /**
+   * True when hero is (one of) the winner(s) of this showdown.
+   * Hand-strength boost only applies when hero actually holds the winning hand —
+   * a showdown hero *loses* should not get an inflated tier from the opponent's strong hand.
+   */
+  isHeroWinner: boolean;
+  /** Winning hand description. Only used to boost tier when isHeroWinner is true. */
+  winningHandDescr?: string;
+};
+
+export function mapShowdownTier(ctx: ShowdownTierContext): 0 | 1 | 2 | 3 | 4 {
+  return tierFromPotAndHand(ctx.potCents, ctx.isHeroWinner ? ctx.winningHandDescr : undefined);
+}

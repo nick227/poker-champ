@@ -9,6 +9,7 @@ import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
 import { HeroZone } from "../hero-zone";
+import { MeasuredBoundsReporter } from "../board-area";
 import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
@@ -56,6 +57,9 @@ export function useIdleTableSlots(
     opponents: renderModel.opponents as Opponent[],
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
+    onBoardBounds: actions.reportBoardBounds,
+    onCardSlotBounds: actions.reportCardSlotBounds,
+    onSeatBounds: actions.reportSeatBounds,
     onViewTournamentStandings: actions.openTournamentStandings,
     onBackToLobby: actions.closeTableAndReturn,
     boardCardsOverride: statusStrip?.boardCardsOverride,
@@ -125,15 +129,20 @@ export function useIdleTableSlots(
     ...shellBaseProps,
     dealerBar: null,
     board,
+    onSeatBounds: actions.reportSeatBounds,
     hero: (
-      <HeroZone
-        cards={heroCards}
-        stackCents={heroStackCents}
-        canAct={false}
-        heroStatus={heroStatus}
-        showStats={snapshot.table?.showStats ?? false}
-        userName={heroUserName}
-      />
+      <MeasuredBoundsReporter onBounds={actions.reportHeroBounds}>
+        <HeroZone
+          cards={heroCards}
+          stackCents={heroStackCents}
+          canAct={false}
+          heroStatus={heroStatus}
+          showStats={snapshot.table?.showStats ?? false}
+          userName={heroUserName}
+          userId={snapshot.hero.userId}
+          seat={snapshot.hero.seat}
+        />
+      </MeasuredBoundsReporter>
     ),
     bottom,
     rootClassName: "overflow-hidden",

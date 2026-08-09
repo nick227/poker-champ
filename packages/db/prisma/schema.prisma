@@ -255,6 +255,17 @@ model User {
   deletedAt  DateTime?
   trustLevel Int       @default(1) // 1=New, 2=Verified, 3=Trusted
 
+  // Email verification (rung 1 of the trustLevel ladder — see docs/proposals/AUTH_IDENTITY_PROPOSAL.md)
+  emailVerifiedAt DateTime?
+
+  // Password reset (single-use token; only the hash is stored)
+  passwordResetTokenHash      String?
+  passwordResetTokenExpiresAt DateTime?
+
+  // Email verification token (single-use; only the hash is stored)
+  emailVerificationTokenHash      String?
+  emailVerificationTokenExpiresAt DateTime?
+
   // Economy
   bankrollCents Int @default(1000000) // Central wallet
 
@@ -283,7 +294,47 @@ model User {
   // Monetization
   membership Membership?
 
+  // Admin audit trail
+  adminLogsAsActor  AdminLog[] @relation("AdminLogActor")
+  adminLogsAsTarget AdminLog[] @relation("AdminLogTarget")
+
   @@index([usernameNormalized])
+}
+
+// Append-only audit trail for every admin-initiated action (ban, promote,
+// role change, table close/kick, balance recovery run, etc). Rows are never
+// updated or deleted by application code.
+model AdminLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Admin user who performed the action.
+  actorUserId String
+  actor       User   @relation("AdminLogActor", fields: [actorUserId], references: [id])
+
+  // BAN | UNBAN | PROMOTE | ROLE_CHANGE | SOFT_DELETE | RESTORE |
+  // CREATE_ADMIN_USER | BALANCE_RECOVERY | TABLE_CLOSE | TABLE_KICK
+  action String
+
+  // Target user, when the action affects a specific user account.
+  // Nullable because some actions (e.g. table close) target a table, not a user.
+  targetUserId String?
+  targetUser   User?   @relation("AdminLogTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  // Target table/room, when the action affects a live table rather than (or
+  // in addition to) a user account.
+  targetTableId String?
+
+  // State snapshots for the affected fields, before and after the action.
+  beforeJson Json?
+  afterJson  Json?
+
+  // Optional operator-supplied justification for the action.
+  reason String?
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([action, createdAt])
 }
 
 model LeaderboardSnapshot {
@@ -666,4 +717,23 @@ model ContentAccess {
   requiredTier String? // "lifetime", "premium", etc.
 
   @@unique([contentId, type])
+}
+
+// Durable dedup ledger for Stripe webhook events. Source of truth for "have we
+// already processed this event" — replaces the in-memory Set that used to live
+// in apps/server/src/http/webhooks/stripe.ts (not durable across restarts).
+// Dedup uses an idempotent-insert pattern: attempt to create a row, and treat a
+// unique-constraint violation on `eventId` as "already processed" (same pattern
+// as LedgerService's applyTransaction / BalanceTransaction.externalRef).
+model StripeEvent {
+  id                  String    @id @default(cuid())
+  eventId             String    @unique // Stripe event id, e.g. evt_...
+  type                String
+  status              String    @default("claimed") // "claimed" | "completed" | "failed"
+  processingStartedAt DateTime  @default(now())
+  completedAt         DateTime?
+  processedAt         DateTime  @default(now())
+
+  @@index([type])
+  @@index([status, processingStartedAt])
 }

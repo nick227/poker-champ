@@ -40,7 +40,7 @@ export function GamePanelHeader({
 }) {
   return (
     <View className="ui-row items-center justify-between" style={{ minHeight: GAME_PANEL_LAYOUT.headerMinHeight }}>
-      <View className="ui-row items-center gap-2 flex-1 bg-panel\/50 rounded-lg px-2 py-1">
+      <View className="ui-row items-center gap-2 flex-1 bg-panel/60 rounded-lg px-2 py-1 border border-border-subtle">
         <AvatarImage
           avatarUrl={creatorAvatarUrl ?? undefined}
           initial={getInitial(creatorName)}
@@ -49,7 +49,7 @@ export function GamePanelHeader({
           className="rounded-full bg-panel border border-border"
         />
         <View className="flex-1 min-w-[120px] min-h-[34px] justify-center">
-          <Text variant="body" className="font-semibold text-[15px]" numberOfLines={1}>{creatorName}</Text>
+          <Text variant="body" className="font-semibold text-[14px]" numberOfLines={1}>{creatorName}</Text>
           <Text variant="muted" className="text-[11px]" numberOfLines={1}>{formatUpdatedAt(updatedAt)}</Text>
         </View>
       </View>

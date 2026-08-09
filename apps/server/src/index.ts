@@ -23,7 +23,7 @@ import { botRouter } from "./http/BotRouter.js";
 import { lessonsRouter } from "./http/LessonsRouter.js";
 import { awardsRouter } from "./http/AwardsRouter.js";
 import { MonetizationRouter } from "./http/MonetizationRouter.js";
-import { handleStripeWebhook } from "./http/webhooks/stripe.js";
+import { handleStripeWebhook, checkForStuckStripeEvents } from "./http/webhooks/stripe.js";
 import { openApiSpec } from "./http/openapi.js";
 import { RecoveryService } from "./engine/recovery/RecoveryService.js";
 import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
@@ -219,6 +219,7 @@ gameServer.define("lobby", LobbyRoom);
 gameServer.define("poker", PokerRoom);
 
 let recoveryInterval: NodeJS.Timeout | null = null;
+let stripeEventStuckClaimInterval: NodeJS.Timeout | null = null;
 let tournamentDirectorInterval: NodeJS.Timeout | null = null;
 let leaderboardInterval: NodeJS.Timeout | null = null;
 let eventLoopLagInterval: NodeJS.Timeout | null = null;
@@ -233,6 +234,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (recoveryInterval) {
     clearInterval(recoveryInterval);
     recoveryInterval = null;
+  }
+  if (stripeEventStuckClaimInterval) {
+    clearInterval(stripeEventStuckClaimInterval);
+    stripeEventStuckClaimInterval = null;
   }
   if (tournamentDirectorInterval) {
     clearInterval(tournamentDirectorInterval);
@@ -280,6 +285,12 @@ async function start() {
       logger.error({ err }, "Periodic recovery job failed");
     });
   }, 60 * 60 * 1000);
+
+  stripeEventStuckClaimInterval = setInterval(() => {
+    checkForStuckStripeEvents().catch((err) => {
+      logger.error({ err }, "Periodic StripeEvent stuck-claim check failed");
+    });
+  }, 30 * 60 * 1000);
 
   const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "30000");
   if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {

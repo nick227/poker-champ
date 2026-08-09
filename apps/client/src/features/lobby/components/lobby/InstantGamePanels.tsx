@@ -11,12 +11,15 @@ type InstantGamePanelsProps = {
 export function InstantGamePanels({ inFlightPreset, onStart }: InstantGamePanelsProps) {
   return (
     <View className="px-4 pb-2">
-      <View className="flex-row gap-3">
+      <View className="flex-row flex-wrap gap-3">
         {INSTANT_GAME_PRESET_IDS.map((presetId) => {
           const preset = getInstantGamePreset(presetId);
           const isStarting = inFlightPreset === presetId;
           return (
-            <View key={presetId} className="flex-1 rounded-xl border border-border bg-panel p-3">
+            <View
+              key={presetId}
+              className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel p-3 lg:max-w-[280px]"
+            >
               <Text variant="label" className="text-[10px]">Instant Game</Text>
               <Text variant="h2" className="mt-1 text-base">{preset.title}</Text>
               <Text variant="muted" className="mt-1 text-xs">{preset.body}</Text>

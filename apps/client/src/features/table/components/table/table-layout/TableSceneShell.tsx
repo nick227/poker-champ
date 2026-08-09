@@ -112,11 +112,6 @@ export function TableSceneShell({
       ? ({ minHeight: "var(--table-hero-zone-height)" } as unknown as ViewStyle)
       : { minHeight: heroZoneHeight };
 
-  const feltAreaStyle: ViewStyle = {
-    height: boardAreaHeight,
-    minHeight: boardAreaHeight,
-  };
-
   const actionBarHeight = ACTION_BAR_HEIGHT + insets.bottom;
 
   return (
@@ -162,33 +157,32 @@ export function TableSceneShell({
         ) : (
           <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
             <Animated.View style={{ opacity: revealOpacity }}>
-              <View
-                collapsable={false}
-                style={layoutStyles.opponentStripSection}
-                className="table-opponent-strip mt-4"
-              >
-                {opponents.length === 0 && opponentStripEmptyState ? (
-                  <View className="opponent-strip-empty-state">
-                    {opponentStripEmptyState}
-                  </View>
-                ) : (
-                  <OpponentStrip
-                    opponents={opponents}
-                    winnerName={winnerName}
-                    onPlayerPress={onPlayerPress}
-                    onSeatBounds={onSeatBounds}
-                    activeTurnProgress={activeTurnProgress}
-                  />
-                )}
-              </View>
+              {opponents.length === 0 && opponentStripEmptyState ? (
+                <View
+                  collapsable={false}
+                  style={layoutStyles.opponentStripSection}
+                  className="table-opponent-strip mt-4 opponent-strip-empty-state"
+                >
+                  {opponentStripEmptyState}
+                </View>
+              ) : null}
 
+              {/*
+                One continuous felt "stage" behind the whole seating arc + board (not just the
+                board strip) — seats positioned around its perimeter converging on a shared
+                center, per the table-scene redesign brief. See seatArrangement.ts for how
+                opponents are grouped into a top-center seat + left/right columns, and
+                OpponentStrip.tsx for how the board is woven into the middle of that stack.
+              */}
               <View className="game-area-container" collapsable={false}>
-                  <View
-                    collapsable={false}
-                    style={[layoutStyles.feltArea, feltAreaStyle]}
-                  >
-                    {board}
-                  </View>
+                <OpponentStrip
+                  opponents={opponents}
+                  winnerName={winnerName}
+                  onPlayerPress={onPlayerPress}
+                  onSeatBounds={onSeatBounds}
+                  activeTurnProgress={activeTurnProgress}
+                  centerSlot={board}
+                />
                 {hero != null ? (
                   <View
                     collapsable={false}

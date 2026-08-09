@@ -11,6 +11,7 @@ import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
 import { HeroZone } from "../hero-zone";
+import { MeasuredBoundsReporter } from "../board-area";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
@@ -20,6 +21,7 @@ import { useTableViewShellFrame } from "./tableView.shared";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { useMultiTableStore } from "@/features/table/stores/multitable.store";
@@ -241,6 +243,7 @@ export function useActiveTableSlots(
     }
     if (handId != null && handId !== prev) {
       emitSoundEvent("table.handStart");
+      emitHapticEvent("table.cardDeal");
     }
     prevHandIdRef.current = handId;
   }, [snapshot?.hand?.handId]);
@@ -254,6 +257,7 @@ export function useActiveTableSlots(
     }
     if (revealedCount > prev) {
       emitSoundEvent("table.boardReveal");
+      emitHapticEvent("table.cardDeal");
     }
     prevRevealedBoardCardsRef.current = revealedCount;
   }, [communityCards]);
@@ -335,31 +339,35 @@ export function useActiveTableSlots(
   }
 
   const heroNode = (
-    <HeroZone
-      cards={heroCards}
-      stackCents={heroStackCents}
-      canAct={statusStrip?.showTurnCue ?? canAct}
-      heroStatus={heroStatus}
-      equity={heroCalculations?.equityPct}
-      potOdds={heroCalculations?.potOddsPct}
-      outs={heroCalculations?.outs}
-      playerStats={heroPlayerStats}
-      showStats={snapshot.table?.showStats ?? false}
-      isWinner={isHeroWinner}
-      isDealer={isHeroDealer}
-      isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
-      turnCountdownSeconds={
-        statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
-      }
-      userName={heroName}
-      avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
-      potCents={potCents}
-      roundBetCents={
-        snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
-      }
-      onAvatarPress={undefined}
-      onToggleSittingOut={actions.toggleHeroSittingOut}
-    />
+    <MeasuredBoundsReporter onBounds={actions.reportHeroBounds}>
+      <HeroZone
+        cards={heroCards}
+        stackCents={heroStackCents}
+        canAct={statusStrip?.showTurnCue ?? canAct}
+        heroStatus={heroStatus}
+        equity={heroCalculations?.equityPct}
+        potOdds={heroCalculations?.potOddsPct}
+        outs={heroCalculations?.outs}
+        playerStats={heroPlayerStats}
+        showStats={snapshot.table?.showStats ?? false}
+        isWinner={isHeroWinner}
+        isDealer={isHeroDealer}
+        isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
+        turnCountdownSeconds={
+          statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
+        }
+        userName={heroName}
+        avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
+        potCents={potCents}
+        roundBetCents={
+          snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
+        }
+        onAvatarPress={undefined}
+        onToggleSittingOut={actions.toggleHeroSittingOut}
+        userId={snapshot.hero.userId}
+        seat={snapshot.hero.seat}
+      />
+    </MeasuredBoundsReporter>
   );
 
   return {

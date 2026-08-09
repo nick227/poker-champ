@@ -1182,6 +1182,12 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     }
     await this.dealer.kickUser(userId, reason);
+    // Mirror every other removal path (consented leave, abandon-timeout, sweep, TTL cleanup):
+    // refresh counts and, if this was the last seated human, clear bots. kickUser only marks
+    // the player ABANDONED (does not delete the seat), so this is usually a no-op for bot
+    // clearing today, but keeps behavior consistent and correct once/if the seat is released.
+    await this.maybeRemoveBotsIfNoHumans();
+    this.updateMetadataCounts();
   }
 
   /**
@@ -2226,6 +2232,48 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     });
     this.disconnect();
+  }
+
+  /**
+   * Force-closes the table by admin request. Unlike requestDisconnect(), this
+   * does not require humans to already be disconnected: it forcibly kicks
+   * every seated human player first (reusing the same per-user kick path used
+   * for admin bans/kicks, which cashes the player out via dealer.kickUser),
+   * then purges bots and disconnects/disposes the room.
+   *
+   * @param reason - The reason surfaced to kicked clients (default: "ADMIN_CLOSED")
+   * @returns The userIds of the human players that were kicked as part of the close.
+   */
+  // Invoked dynamically via matchMaker.remoteRoomCall (AdminService.closeTable), same pattern as kickUserByAdmin below.
+  // fallow-ignore-next-line unused-class-member
+  async closeTableByAdmin(reason: string = "ADMIN_CLOSED"): Promise<{ kickedUserIds: string[] }> {
+    this.isDeleting = true;
+
+    const humanUserIds = [...this.state.playersById.values()]
+      .filter((player) => player.kind !== "BOT")
+      .map((player) => player.id);
+
+    for (const userId of humanUserIds) {
+      await this.kickUserByAdmin(userId, reason);
+    }
+
+    this.purgeBotsForDelete();
+    this.updateMetadataCounts();
+
+    const payload = { version: 1 as const, code: "TABLE_GONE" as const, message: "Table closed by admin" };
+    this.clients.forEach((c) => {
+      try {
+        this.sendTableMessage(c, "ERROR", payload);
+      } catch (err) {
+        logger.warn(
+          { roomId: this.roomId, sessionId: c.sessionId, message: (err as Error)?.message ?? String(err) },
+          "closeTableByAdmin sendTableMessage failed",
+        );
+      }
+    });
+
+    this.disconnect();
+    return { kickedUserIds: humanUserIds };
   }
 
   /**

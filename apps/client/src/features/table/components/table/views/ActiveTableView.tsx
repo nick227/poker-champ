@@ -13,6 +13,7 @@ import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
+import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
 import type { Rect } from "@/features/table/animations/animationTypes";
@@ -159,6 +160,7 @@ export function ActiveTableView({
 
     if (handId != null && handId !== prevHandId) {
       emitSoundEvent("table.handStart");
+      emitHapticEvent("table.cardDeal");
     }
 
     prevHandIdRef.current = handId;
@@ -175,6 +177,7 @@ export function ActiveTableView({
 
     if (revealedCount > prev) {
       emitSoundEvent("table.boardReveal");
+      emitHapticEvent("table.cardDeal");
     }
 
     prevRevealedBoardCardsRef.current = revealedCount;

@@ -88,10 +88,36 @@ export function markPlayerActed(p: PlayerState): void {
   clearPlayerNeedsAction(p);
 }
 
+/**
+ * A betting round is complete once every eligible (ACTIVE, schedulable) player both
+ * (a) no longer owes an explicit decision (`needsAction === false`) and (b) has fully
+ * matched the current bet level (`roundBetCents === state.roundCurrentBetCents`).
+ *
+ * `needsAction` is the canonical "owes a decision" flag — kept in sync by
+ * beginRound/markPlayerActed/onNewBetLevel — and it alone decides (a): it correctly
+ * captures nuances a naive `hasActedThisStreet` check cannot, in particular the BB-option
+ * rule (a player who already matches roundCurrentBetCents but has never acted this street
+ * still owes a decision; beginRound/onNewBetLevel keep needsAction=true for them precisely
+ * because hasActedThisStreet is false, so re-checking hasActedThisStreet here independently
+ * is redundant with — and can spuriously disagree with — needsAction). It also correctly
+ * reflects a fold that lowers roundCurrentBetCents (via syncRoundCurrentBetCents) and
+ * thereby retroactively satisfies another player's outstanding call: that player's
+ * needsAction was already correctly false and must not be second-guessed via
+ * hasActedThisStreet.
+ *
+ * The roundBetCents equality check (b) is kept as an independent, unconditional guard
+ * against a different, more dangerous bug class: an ACTIVE player whose needsAction was
+ * wrongly cleared (e.g. a reconnection bug that flips a player back to ACTIVE without
+ * re-arming needsAction) while they still owe real money. Production code has no
+ * legitimate path that clears an ACTIVE player's needsAction while they are genuinely
+ * short of the current bet EXCEPT the short-all-in-doesn't-reopen carve-out (doc §9.8),
+ * which always coincides with an ALL_IN contender — that carve-out is intentionally
+ * handled only by noFurtherBettingPossible (scoped to allIn.length >= 1), not here.
+ */
 export function bettingRoundComplete(state: PokerState): boolean {
   for (const p of state.playersById.values()) {
     if (!eligibleToAct(p) || !isSeatSchedulable(state, p)) continue;
-    if (!p.hasActedThisStreet) return false;
+    if (p.needsAction) return false;
     if (p.roundBetCents !== state.roundCurrentBetCents) return false;
   }
   return true;
@@ -108,22 +134,20 @@ export function noFurtherBettingPossible(state: PokerState): boolean {
   // If nobody is ACTIVE, everyone left is all-in/final.
   if (active.length === 0 && contenders.length >= 1) return true;
   // If exactly one player can still act and at least one contender is all-in,
-  // no further betting is possible only once the active player has no pending action
-  // and has matched the current level.
+  // no further betting is possible only once the active player has no pending action.
+  // needsAction is the canonical "owes a decision" flag (see bettingRoundComplete doc);
+  // it already accounts for hasActedThisStreet and roundBetCents, so re-checking those
+  // fields independently here can only disagree with it incorrectly.
   if (active.length === 1 && allIn.length >= 1) {
     const onlyActive = active[0]!;
-    const hasPendingDecision =
-      onlyActive.needsAction ||
-      !onlyActive.hasActedThisStreet ||
-      onlyActive.roundBetCents < state.roundCurrentBetCents;
-    if (!hasPendingDecision) return true;
+    if (!onlyActive.needsAction) return true;
   }
   // Short all-in can increase roundCurrentBetCents without reopening action for players that already acted.
   // If at least one contender is all-in and no ACTIVE player has needsAction, betting is closed.
   if (
     allIn.length >= 1 &&
     active.length >= 1 &&
-    active.every((p) => !p.needsAction && p.hasActedThisStreet)
+    active.every((p) => !p.needsAction)
   ) {
     return true;
   }

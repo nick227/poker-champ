@@ -1,7 +1,7 @@
 import { Animated, View } from "react-native";
 import type { UiCard } from "../table.adapter";
-import { FeltBackground } from "./FeltBackground";
 import { CommunityBoard } from "./CommunityBoard";
+import { PotChipStack } from "./PotChipStack";
 import { Text } from "@/components/base/Text";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import type { Rect } from "@/features/table/animations/animationTypes";
@@ -45,15 +45,16 @@ export function BoardArea({
   }, [animateReset, fadeOpacity]);
 
   return (
-    <FeltBackground
-      className="rounded-xl overflow-hidden"
-      style={[boardAreaStyles.root, { height: feltHeight }]}
-    >
+    // No felt wrapper here: the board now sits inside the shared felt "stage" rendered by
+    // OpponentStrip (one continuous surface behind seats + board — see seatArrangement.ts and
+    // TableSceneShell's game-area-container), rather than wrapping its own separate felt patch.
+    <View style={[boardAreaStyles.root, { height: feltHeight }]}>
       <Animated.View collapsable={false} style={[boardAreaStyles.inner, { opacity: fadeOpacity }]}>
         <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
 
         <View className="pot-container w-full flex justify-center items-center bg-panel rounded-sm" style={boardAreaStyles.potContainer}>
-          <View className="items-center">
+          <View className="items-center flex-row" style={{ gap: 8 }}>
+            <PotChipStack potCents={typeof potCents === "number" ? potCents : 0} />
             <Text
               variant="body"
               className="text-white"
@@ -65,6 +66,6 @@ export function BoardArea({
           </View>
         </View>
       </Animated.View>
-    </FeltBackground>
+    </View>
   );
 }

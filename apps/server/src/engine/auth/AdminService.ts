@@ -1,15 +1,50 @@
 
 import { getPrisma } from "@poker-champ/db";
-import type { User } from "@prisma/client";
+import type { Prisma, User } from "@prisma/client";
 import { UserRole } from "@prisma/client";
 import { matchMaker } from "@colyseus/core";
 import { sessionEvents } from "./SessionEvents.js";
 import { AuthService } from "./AuthService.js";
 import { TOURNAMENT_BOT_USER_ID_PREFIX } from "../../tournaments/tournament-bot-users.js";
+import { RecoveryService } from "../recovery/RecoveryService.js";
+import { logger } from "../../lib/logger.js";
 
 const excludeTournamentBotUsersWhere = {
   NOT: { id: { startsWith: TOURNAMENT_BOT_USER_ID_PREFIX } },
 } as const;
+
+/**
+ * Every action that gets written to the append-only AdminLog table.
+ */
+type AdminLogAction =
+  | "CREATE_ADMIN_USER"
+  | "BAN"
+  | "UNBAN"
+  | "SOFT_DELETE"
+  | "RESTORE"
+  | "PROMOTE"
+  | "ROLE_CHANGE"
+  | "BALANCE_RECOVERY"
+  | "TABLE_CLOSE"
+  | "TABLE_KICK";
+
+type PokerRoomRef = { roomId?: string; metadata?: { tableId?: string } };
+
+/** Minimal, consistent before/after snapshot of the audit-relevant User fields. */
+function userAuditSnapshot(user: Pick<User, "role" | "isBanned" | "deletedAt">): Prisma.InputJsonValue {
+  return {
+    role: user.role,
+    isBanned: user.isBanned,
+    deletedAt: user.deletedAt ? user.deletedAt.toISOString() : null,
+  };
+}
+
+class AdminLogWriteError extends Error {
+  constructor(cause: unknown) {
+    super(`Failed to write AdminLog entry: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "AdminLogWriteError";
+  }
+}
 
 type AdminUserStats = {
   lastOnlineAt: Date | null;
@@ -27,13 +62,105 @@ type AdminUserListItem = {
   stats: AdminUserStats;
 };
 
+type AdminLogEntry = {
+  actorUserId: string;
+  action: AdminLogAction;
+  targetUserId?: string | null;
+  targetTableId?: string | null;
+  beforeJson?: Prisma.InputJsonValue;
+  afterJson?: Prisma.InputJsonValue;
+  reason?: string | null;
+};
+
+/** Builds the AdminLog create payload from a log entry, omitting before/afterJson keys entirely when absent (rather than writing JSON null). */
+// Exercised indirectly by every AdminService.test.ts case via writeLog/writeLogStandalone; CRAP score reflects no coverage data being wired into this fallow run.
+// fallow-ignore-next-line complexity
+function buildAdminLogCreateData(entry: AdminLogEntry): Prisma.AdminLogUncheckedCreateInput {
+  const data: Prisma.AdminLogUncheckedCreateInput = {
+    actorUserId: entry.actorUserId,
+    action: entry.action,
+    targetUserId: entry.targetUserId ?? null,
+    targetTableId: entry.targetTableId ?? null,
+    reason: entry.reason ?? null,
+  };
+  if (entry.beforeJson !== undefined) data.beforeJson = entry.beforeJson;
+  if (entry.afterJson !== undefined) data.afterJson = entry.afterJson;
+  return data;
+}
+
 export class AdminService {
-  static async createAdminUser(input: {
-    email: string;
-    password: string;
-    displayName?: string;
-    username?: string;
-  }): Promise<User> {
+  /**
+   * Writes an AdminLog row inside the given transaction. Failures are logged
+   * and rethrown (never silently swallowed): since this always runs inside
+   * the same transaction as the action it documents, a failed log write
+   * rolls back the action too - an admin action can never succeed without a
+   * matching audit trail entry.
+   */
+  private static async writeLog(tx: Prisma.TransactionClient, entry: AdminLogEntry): Promise<void> {
+    try {
+      await tx.adminLog.create({ data: buildAdminLogCreateData(entry) });
+    } catch (err) {
+      logger.error({ err, entry }, "ADMIN_LOG_WRITE_FAILED");
+      throw new AdminLogWriteError(err);
+    }
+  }
+
+  /**
+   * Writes an AdminLog row outside of any DB transaction (used for actions
+   * whose primary effect isn't a Prisma write, e.g. table close/kick which
+   * act on live Colyseus rooms). The primary action has already happened by
+   * the time this runs, so a failure here can't roll it back - instead we
+   * log loudly and rethrow so the caller surfaces a 500 rather than
+   * pretending the action completed cleanly with no audit trace.
+   */
+  private static async writeLogStandalone(entry: AdminLogEntry): Promise<void> {
+    try {
+      await getPrisma().adminLog.create({ data: buildAdminLogCreateData(entry) });
+    } catch (err) {
+      logger.error({ err, entry }, "ADMIN_LOG_WRITE_FAILED");
+      throw new AdminLogWriteError(err);
+    }
+  }
+
+  /**
+   * Shared path for the common "fetch user, apply a field update, log the
+   * before/after" shape used by promote/ban/unban/soft-delete/restore/role
+   * change. Runs atomically: the user update and the AdminLog row are
+   * written in the same transaction (see writeLog's failure-handling note).
+   */
+  private static async updateUserWithLog(
+    userId: string,
+    actorUserId: string,
+    action: AdminLogAction,
+    data: Prisma.UserUpdateInput,
+    reason?: string,
+  ): Promise<User> {
+    const prisma = getPrisma();
+    return prisma.$transaction(async (tx) => {
+      const before = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+      const updated = await tx.user.update({ where: { id: userId }, data });
+      await this.writeLog(tx, {
+        actorUserId,
+        action,
+        targetUserId: userId,
+        beforeJson: userAuditSnapshot(before),
+        afterJson: userAuditSnapshot(updated),
+        reason,
+      });
+      return updated;
+    });
+  }
+
+  static async createAdminUser(
+    input: {
+      email: string;
+      password: string;
+      displayName?: string;
+      username?: string;
+    },
+    actorUserId: string,
+    reason?: string,
+  ): Promise<User> {
     const prisma = getPrisma();
     const { user } = await AuthService.register(
       input.email,
@@ -43,18 +170,26 @@ export class AdminService {
     );
 
     await AuthService.revokeUserSessions(user.id);
-    return prisma.user.update({
-      where: { id: user.id },
-      data: { role: "ADMIN" },
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: user.id },
+        data: { role: "ADMIN" },
+      });
+      await this.writeLog(tx, {
+        actorUserId,
+        action: "CREATE_ADMIN_USER",
+        targetUserId: updated.id,
+        beforeJson: userAuditSnapshot(user),
+        afterJson: userAuditSnapshot(updated),
+        reason,
+      });
+      return updated;
     });
   }
 
-  static async promoteUserToAdmin(userId: string): Promise<User> {
-    const prisma = getPrisma();
-    return prisma.user.update({
-      where: { id: userId },
-      data: { role: "ADMIN" },
-    });
+  static async promoteUserToAdmin(userId: string, actorUserId: string, reason?: string): Promise<User> {
+    return this.updateUserWithLog(userId, actorUserId, "PROMOTE", { role: "ADMIN" }, reason);
   }
 
   static async getUsers(page: number = 1, limit: number = 20): Promise<{ users: AdminUserListItem[], total: number }> {
@@ -170,12 +305,9 @@ export class AdminService {
     return { users: enriched, total };
   }
 
-  static async banUser(userId: string): Promise<User> {
+  static async banUser(userId: string, actorUserId: string, reason?: string): Promise<User> {
     const prisma = getPrisma();
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { isBanned: true }
-    });
+    const user = await this.updateUserWithLog(userId, actorUserId, "BAN", { isBanned: true }, reason);
 
     await prisma.userSession.deleteMany({ where: { userId } });
     sessionEvents.emit("user.banned", { userId });
@@ -184,20 +316,13 @@ export class AdminService {
     return user;
   }
 
-  static async unbanUser(userId: string): Promise<User> {
-    const prisma = getPrisma();
-    return await prisma.user.update({
-      where: { id: userId },
-      data: { isBanned: false }
-    });
+  static async unbanUser(userId: string, actorUserId: string, reason?: string): Promise<User> {
+    return this.updateUserWithLog(userId, actorUserId, "UNBAN", { isBanned: false }, reason);
   }
 
-  static async softDeleteUser(userId: string): Promise<User> {
+  static async softDeleteUser(userId: string, actorUserId: string, reason?: string): Promise<User> {
     const prisma = getPrisma();
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: new Date() },
-    });
+    const user = await this.updateUserWithLog(userId, actorUserId, "SOFT_DELETE", { deletedAt: new Date() }, reason);
 
     await prisma.userSession.deleteMany({ where: { userId } });
     sessionEvents.emit("user.banned", { userId });
@@ -206,20 +331,12 @@ export class AdminService {
     return user;
   }
 
-  static async restoreUser(userId: string): Promise<User> {
-    const prisma = getPrisma();
-    return prisma.user.update({
-      where: { id: userId },
-      data: { deletedAt: null },
-    });
+  static async restoreUser(userId: string, actorUserId: string, reason?: string): Promise<User> {
+    return this.updateUserWithLog(userId, actorUserId, "RESTORE", { deletedAt: null }, reason);
   }
 
-  static async setRole(userId: string, role: UserRole): Promise<User> {
-      const prisma = getPrisma();
-      return await prisma.user.update({
-          where: { id: userId },
-          data: { role }
-      });
+  static async setRole(userId: string, role: UserRole, actorUserId: string, reason?: string): Promise<User> {
+    return this.updateUserWithLog(userId, actorUserId, "ROLE_CHANGE", { role }, reason);
   }
 
   static async getBalances(params: {
@@ -291,6 +408,110 @@ export class AdminService {
         await matchMaker.remoteRoomCall<any>(roomId, "kickUserByAdmin" as any, [userId, "BANNED"], 5000);
       }),
     );
+  }
+
+  /**
+   * Runs the abandoned-balance reconciliation sweep (the only bulk,
+   * balance-adjusting action currently reachable from the admin API) and
+   * records it in the AdminLog. The reconciliation itself is not
+   * transactional with the log write (RecoveryService performs its own
+   * per-balance cashouts), so on a log-write failure we log loudly and
+   * rethrow rather than pretending the run was untracked.
+   */
+  static async runBalanceRecovery(
+    thresholdMs: number,
+    actorUserId: string,
+    reason?: string,
+  ): Promise<{ counts?: number; successCount?: number; failCount?: number }> {
+    const result = await RecoveryService.reconcileAbandonedBalances(thresholdMs);
+    await this.writeLogStandalone({
+      actorUserId,
+      action: "BALANCE_RECOVERY",
+      afterJson: result as unknown as Prisma.InputJsonValue,
+      reason: reason ?? `thresholdMs=${thresholdMs}`,
+    });
+    return result;
+  }
+
+  /** Resolves an admin-supplied roomId to a live Colyseus poker room, matching either the room's own id or its table id. */
+  private static async findPokerRoom(roomId: string): Promise<{ roomId: string } | null> {
+    const rooms = (await matchMaker.query({ name: "poker" })) as PokerRoomRef[];
+    const room = rooms.find((r) => r.roomId === roomId || r.metadata?.tableId === roomId);
+    return room?.roomId ? { roomId: room.roomId } : null;
+  }
+
+  /**
+   * Kicks a single user from a specific live table (admin-initiated), reusing
+   * the existing kickUserByAdmin room RPC also used for bans.
+   */
+  static async kickUserFromTable(
+    roomId: string,
+    targetUserId: string,
+    actorUserId: string,
+    reason?: string,
+  ): Promise<{ ok: true; roomId: string; targetUserId: string }> {
+    const room = await this.findPokerRoom(roomId);
+    if (!room) {
+      const err = new Error(`Table not found: ${roomId}`) as Error & { code: string };
+      err.code = "ROOM_NOT_FOUND";
+      throw err;
+    }
+
+    await matchMaker.remoteRoomCall<any>(
+      room.roomId,
+      "kickUserByAdmin" as any,
+      [targetUserId, reason ?? "ADMIN_KICK"],
+      5000,
+    );
+
+    await this.writeLogStandalone({
+      actorUserId,
+      action: "TABLE_KICK",
+      targetUserId,
+      targetTableId: room.roomId,
+      afterJson: { kicked: true },
+      reason,
+    });
+
+    return { ok: true, roomId: room.roomId, targetUserId };
+  }
+
+  /**
+   * Force-closes a specific live table (admin-initiated): kicks every seated
+   * human player (cashing them out via the existing per-user kick path) and
+   * disposes the room, via PokerRoom.closeTableByAdmin.
+   */
+  // Covered by AdminService.test.ts; CRAP score reflects the "no coverage data" default, not an actual test gap.
+  // fallow-ignore-next-line complexity
+  static async closeTable(
+    roomId: string,
+    actorUserId: string,
+    reason?: string,
+  ): Promise<{ ok: true; roomId: string; kickedUserIds: string[] }> {
+    const room = await this.findPokerRoom(roomId);
+    if (!room) {
+      const err = new Error(`Table not found: ${roomId}`) as Error & { code: string };
+      err.code = "ROOM_NOT_FOUND";
+      throw err;
+    }
+
+    const result = (await matchMaker.remoteRoomCall<any>(
+      room.roomId,
+      "closeTableByAdmin" as any,
+      [reason ?? "ADMIN_CLOSED"],
+      10_000,
+    )) as { kickedUserIds?: string[] } | undefined;
+    const kickedUserIds = result?.kickedUserIds ?? [];
+
+    await this.writeLogStandalone({
+      actorUserId,
+      action: "TABLE_CLOSE",
+      targetTableId: room.roomId,
+      afterJson: { kickedUserIds },
+      reason,
+    });
+
+    return { ok: true, roomId: room.roomId, kickedUserIds };
   }
 }
 

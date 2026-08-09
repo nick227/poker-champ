@@ -1,14 +1,20 @@
 services:
-  mysql:
-    image: mysql:8.4
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: poker_poc
-    ports:
-      - "3306:3306"
-    command: ["--default-authentication-plugin=mysql_native_password"]
-    volumes:
-      - mysql_data:/var/lib/mysql
+# NOTE: Not currently in use. Local dev runs against native WSL MariaDB
+# (systemd service, port 13307, db: poker_champ_test) — see README.
+# This service is left here in case a containerized DB is needed later
+# (CI, onboarding, etc.) but Docker is not currently wired into this
+# WSL distro's dev environment.
+#
+#  mysql:
+#    image: mysql:8.4
+#    environment:
+#      MYSQL_ROOT_PASSWORD: password
+#      MYSQL_DATABASE: poker_poc
+#    ports:
+#      - "3306:3306"
+#    command: ["--default-authentication-plugin=mysql_native_password"]
+#    volumes:
+#      - mysql_data:/var/lib/mysql
 
 volumes:
   mysql_data:

@@ -7,6 +7,7 @@ import { getPrisma } from "@poker-champ/db";
 import { CashierService, TABLE_NAME_REQUIRED } from "../engine/economy/CashierService.js";
 import { logger } from "../lib/logger.js";
 import { TOURNAMENT_REBUY_NOT_ALLOWED } from "../tournaments/tournament.errors.js";
+import { isFakeDepositsEnabled } from "../config/features.js";
 
 const router = express.Router();
 
@@ -45,6 +46,11 @@ router.get("/transactions", async (req, res) => {
 });
 
 router.post("/deposit", async (req, res) => {
+  if (!isFakeDepositsEnabled()) {
+    res.status(404).json({ error: "NOT_FOUND" });
+    return;
+  }
+
   const DEPOSIT_CENTS = 100_000;
   const prisma = getPrisma();
 
@@ -71,6 +77,11 @@ router.post("/deposit", async (req, res) => {
   res.json(updated);
 });
 
+// Pre-existing handler (tournament vs cash-game branch, room/table metadata
+// resolution, error-code mapping) extended with the Gap-3 bounded room-sync
+// retry; the branch count mostly predates this change and reflects real
+// distinct failure modes the client needs distinguishable error codes for.
+// fallow-ignore-next-line complexity
 router.post("/buy-in", async (req, res) => {
   const parsed = BuyInSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -131,28 +142,37 @@ router.post("/buy-in", async (req, res) => {
         });
     const userId = req.user!.id;
     const { tableId, amountCents } = parsed.data;
-    try {
-      if (room?.roomId) {
-        if (activeTournament) {
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { displayName: true },
-          });
-          const displayName = user?.displayName?.trim() || "Player";
-          await matchMaker.remoteRoomCall(room.roomId, "applyTournamentRebuy", [
-            userId,
-            displayName,
-            amountCents,
-            rebuyRef,
-          ]);
-        } else {
-          await matchMaker.remoteRoomCall(room.roomId, "applyRebuy", [userId, amountCents, rebuyRef]);
-        }
+    if (room?.roomId) {
+      const { synced, attempts } = await CashierService.syncRoomAfterBuyIn({
+        userId,
+        tableId,
+        externalRef: rebuyRef,
+        roomSync: async () => {
+          if (activeTournament) {
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { displayName: true },
+            });
+            const displayName = user?.displayName?.trim() || "Player";
+            await matchMaker.remoteRoomCall(room.roomId!, "applyTournamentRebuy", [
+              userId,
+              displayName,
+              amountCents,
+              rebuyRef,
+            ]);
+          } else {
+            await matchMaker.remoteRoomCall(room.roomId!, "applyRebuy", [userId, amountCents, rebuyRef]);
+          }
+        },
+      });
+      if (!synced) {
+        logger.error(
+          { tableId, userId, attempts, externalRef: rebuyRef },
+          "applyRebuy to room failed after buy-in; exhausted retries, dead-lettered for manual reconciliation",
+        );
+        res.status(502).json({ error: "BUYIN_APPLIED_ROOM_SYNC_FAILED" });
+        return;
       }
-    } catch (roomErr) {
-      logger.error({ err: roomErr, tableId, userId }, "applyRebuy to room failed after buy-in");
-      res.status(502).json({ error: "BUYIN_APPLIED_ROOM_SYNC_FAILED" });
-      return;
     }
     res.json(result);
   } catch (err: unknown) {
@@ -201,11 +221,15 @@ router.post("/cash-out", async (req, res) => {
       creatorId: room?.metadata?.creatorId ?? tableRow?.creatorId ?? undefined,
     };
 
+    const cashOutRef =
+      parsed.data.externalRef ??
+      `cashout_${parsed.data.tableId}_${req.user!.id}_${Date.now()}_${nanoid(6)}`;
+
     const result = await CashierService.processCashGameCashOut({
       userId: req.user!.id,
       tableId: parsed.data.tableId,
       amountCents: parsed.data.amountCents,
-      externalRef: parsed.data.externalRef ?? `cashout_${parsed.data.tableId}_${req.user!.id}`,
+      externalRef: cashOutRef,
       tableMeta,
     });
     res.json(result);

@@ -13,6 +13,7 @@ import { TournamentCreateModal, TournamentJoinModal, TournamentRegisterModal, To
 import { GameTablePanel } from "@/features/lobby";
 import { GameTablePanelSkeleton } from "@/features/lobby";
 import { EmptyState } from "@/features/lobby";
+import { LobbyTabs, type LobbyTabKey } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
@@ -34,7 +35,7 @@ import { useTournamentStartLobbyEffects } from "@/features/lobby/hooks/useTourna
 import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import { useAuthStore } from "@/stores/auth.store";
 import { serviceRegistry } from "@/registry/service.registry";
-import { mapTournamentApiError } from "@/lib/tournament.utils";
+import { mapTournamentApiError, selectJoinedTournaments } from "@/lib/tournament.utils";
 import {
   buildInstantCreateTableConfig,
   getInstantGamePreset,
@@ -89,6 +90,7 @@ export default function LobbyScreen() {
   const profile = useProfile();
   const showToast = useToastStore((s) => s.show);
   const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [activeTab, setActiveTab] = useState<LobbyTabKey>("cash");
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [instantStartInFlightPreset, setInstantStartInFlightPreset] = useState<InstantGamePresetId | null>(null);
   const [chooseTableModal, setChooseTableModal] = useState<{
@@ -159,6 +161,11 @@ export default function LobbyScreen() {
   }, [tables, sortKey]);
 
   const cycleSort = useCallback(() => setSortKey((k) => SORT_CYCLE[k]), []);
+
+  const joinedTournamentsCount = useMemo(
+    () => selectJoinedTournaments(tournamentList).length,
+    [tournamentList],
+  );
 
   const handleCreateGame = async (config: Parameters<typeof postCreateTable>[0]) => {
     if (!authToken) {
@@ -409,80 +416,95 @@ export default function LobbyScreen() {
           }}
           onPokerSchool={() => router.push("/lessons")}
         />
-        <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
-        <JoinedTournamentsSection
-          tournaments={tournamentList}
-          authenticated={authenticated}
-          actionInFlight={tournamentActionBusy || registerBusy}
-          onTournamentAction={handleTournamentAction}
-          onOpenTournamentDetail={handleOpenTournamentDetail}
-          onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
-          deleteInFlightId={tournamentDeleteId}
+        <LobbyTabs
+          active={activeTab}
+          onChange={setActiveTab}
+          tournamentsBadgeCount={joinedTournamentsCount}
         />
-        <TournamentsSection
-          tournaments={tournamentList}
-          busy={tournamentsBusy}
-          error={tournamentsError}
-          authenticated={authenticated}
-          actionInFlight={tournamentActionBusy || registerBusy}
-          onTournamentAction={handleTournamentAction}
-          onOpenTournamentDetail={handleOpenTournamentDetail}
-          onRetry={() => { void refreshTournaments(); }}
-          onCreateTournament={handleCreateTournament}
-          onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
-          deleteInFlightId={tournamentDeleteId}
-        />
-        <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
-          <GameListHeader
-            onSort={cycleSort}
-            onCreateGame={() => {
-              if (!authToken) {
-                router.push(loginPathWithNext("/lobby"));
-                return;
-              }
-              setCreateModalVisible(true);
-            }}
-            sortLabel={`Sort: ${sortKey}`}
-            createLabel={authToken ? "New Game" : "Login / Register"}
-          />
-        </View>
-        <View className="flex-1 ui-column gap-3 p-4">
-          {busy ? (
-            Array.from({ length: skeletonCount }).map((_, idx) => (
-              <GameTablePanelSkeleton key={`skeleton-${idx}`} />
-            ))
-          ) : error ? (
-            <Text variant="danger" className="ui-stack-2 py-4">
-              {error}
-            </Text>
-          ) : sortedTables.length === 0 ? (
-            <EmptyState message="No games available. Create one!" />
-          ) : (
-            sortedTables.map((t) => (
-              <GameTablePanel
-                key={t.id}
-                table={t}
-                balanceCents={bankroll}
-                isJoining={isJoining(t.id)}
-                currentUserId={profile.userId}
-                onJoin={() => {
-                  if (isJoining(t.id)) return;
+        {activeTab === "cash" ? (
+          <>
+            <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
+            <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
+              <GameListHeader
+                onSort={cycleSort}
+                onCreateGame={() => {
                   if (!authToken) {
-                    router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
+                    router.push(loginPathWithNext("/lobby"));
                     return;
                   }
-                  setChooseTableModal({
-                    id: t.id,
-                    roomId: t.roomId,
-                    minBuyInCents: t.minBuyInCents,
-                    maxBuyInCents: t.maxBuyInCents,
-                  });
+                  setCreateModalVisible(true);
                 }}
-                onDelete={handleDeleteTable}
+                sortLabel={`Sort: ${sortKey}`}
+                createLabel={authToken ? "New Game" : "Login / Register"}
               />
-            ))
-          )}
-        </View>
+            </View>
+            <View className="flex-1 flex-row flex-wrap p-4 pb-1">
+              {busy ? (
+                Array.from({ length: skeletonCount }).map((_, idx) => (
+                  <View key={`skeleton-${idx}`} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
+                    <GameTablePanelSkeleton />
+                  </View>
+                ))
+              ) : error ? (
+                <Text variant="danger" className="ui-stack-2 py-4">
+                  {error}
+                </Text>
+              ) : sortedTables.length === 0 ? (
+                <EmptyState message="No games available. Create one!" />
+              ) : (
+                sortedTables.map((t) => (
+                  <View key={t.id} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
+                    <GameTablePanel
+                      table={t}
+                      balanceCents={bankroll}
+                      isJoining={isJoining(t.id)}
+                      currentUserId={profile.userId}
+                      onJoin={() => {
+                        if (isJoining(t.id)) return;
+                        if (!authToken) {
+                          router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
+                          return;
+                        }
+                        setChooseTableModal({
+                          id: t.id,
+                          roomId: t.roomId,
+                          minBuyInCents: t.minBuyInCents,
+                          maxBuyInCents: t.maxBuyInCents,
+                        });
+                      }}
+                      onDelete={handleDeleteTable}
+                    />
+                  </View>
+                ))
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            <JoinedTournamentsSection
+              tournaments={tournamentList}
+              authenticated={authenticated}
+              actionInFlight={tournamentActionBusy || registerBusy}
+              onTournamentAction={handleTournamentAction}
+              onOpenTournamentDetail={handleOpenTournamentDetail}
+              onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+              deleteInFlightId={tournamentDeleteId}
+            />
+            <TournamentsSection
+              tournaments={tournamentList}
+              busy={tournamentsBusy}
+              error={tournamentsError}
+              authenticated={authenticated}
+              actionInFlight={tournamentActionBusy || registerBusy}
+              onTournamentAction={handleTournamentAction}
+              onOpenTournamentDetail={handleOpenTournamentDetail}
+              onRetry={() => { void refreshTournaments(); }}
+              onCreateTournament={handleCreateTournament}
+              onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+              deleteInFlightId={tournamentDeleteId}
+            />
+          </>
+        )}
       </ScrollView>
       <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
       <TournamentCreateModal

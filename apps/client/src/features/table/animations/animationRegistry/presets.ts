@@ -25,6 +25,10 @@ export type PresetName =
   | "TIER_2"
   | "TIER_3"
   | "TIER_4"
+  | "ALL_IN_TIER_0"
+  | "ALL_IN_TIER_1"
+  | "ALL_IN_TIER_2"
+  | "ALL_IN_TIER_3"
   | "ALL_IN_TIER_4"
   | "POT_TIER_0"
   | "POT_TIER_1"
@@ -59,6 +63,34 @@ const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "PARTICLES", durationMs: 800, particleCount: 16, particleSpread: 60, delayMs: CHOREO_PARTICLES_MS },
     { type: "FLASH", durationMs: 500, delayMs: CHOREO_FLASH_MS },
     { type: "TEXT", textRole: "headline", textSize: "xlarge", textGlow: true, durationMs: 1400, delayMs: CHOREO_HEADLINE_MS },
+  ],
+  // ALL_IN choreography: understated shove at tier 0, escalating to a near-tier-4 spectacle at
+  // tier 3. Each tier adds a STREAK (directional "shove" motion) once the bet is meaningfully
+  // large, giving ALL_IN a distinct silhouette from the plain TIER_0-3 fallback shapes.
+  ALL_IN_TIER_0: [
+    { type: "FLASH", durationMs: 250, delayMs: CHOREO_FLASH_MS },
+    { type: "TEXT", textRole: "headline", textSize: "small", durationMs: 700, delayMs: CHOREO_HEADLINE_MS },
+  ],
+  ALL_IN_TIER_1: [
+    { type: "FLASH", durationMs: 320, delayMs: CHOREO_FLASH_MS },
+    { type: "BURST", durationMs: 350, rays: 6, delayMs: CHOREO_BURST_MS },
+    { type: "TEXT", textRole: "headline", textSize: "medium", durationMs: 850, delayMs: CHOREO_HEADLINE_MS },
+    { type: "TEXT", textRole: "amount", durationMs: 600, delayMs: CHOREO_AMOUNT_MS },
+  ],
+  ALL_IN_TIER_2: [
+    { type: "BURST", durationMs: 420, rays: 10, delayMs: CHOREO_BURST_MS },
+    { type: "FLASH", durationMs: 370, delayMs: CHOREO_FLASH_MS },
+    { type: "STREAK", durationMs: 400, streakCount: 2, streakAngleDeg: 45, delayMs: 60 },
+    { type: "TEXT", textRole: "headline", textSize: "large", textGlow: true, durationMs: 1000, delayMs: CHOREO_HEADLINE_MS },
+    { type: "TEXT", textRole: "amount", durationMs: 700, delayMs: CHOREO_AMOUNT_MS },
+  ],
+  ALL_IN_TIER_3: [
+    { type: "BURST", durationMs: 550, rays: 14, delayMs: CHOREO_BURST_MS },
+    { type: "PARTICLES", durationMs: 550, particleCount: 14, particleSpread: 55, delayMs: CHOREO_PARTICLES_MS },
+    { type: "FLASH", durationMs: 420, delayMs: CHOREO_FLASH_MS },
+    { type: "STREAK", durationMs: 450, streakCount: 3, streakAngleDeg: 45, delayMs: 70 },
+    { type: "TEXT", textRole: "headline", textSize: "xlarge", textGlow: true, durationMs: 1300, delayMs: CHOREO_HEADLINE_MS },
+    { type: "TEXT", textRole: "amount", textSize: "medium", durationMs: 800, delayMs: CHOREO_AMOUNT_MS },
   ],
   ALL_IN_TIER_4: [
     { type: "BURST", durationMs: 600, rays: 16, delayMs: CHOREO_BURST_MS },

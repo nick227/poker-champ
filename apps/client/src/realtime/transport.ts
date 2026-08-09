@@ -1,6 +1,11 @@
 import { Client } from "@colyseus/sdk";
-import { lobby } from "@poker-champ/sdk";
-import { MAX_RECONNECT_ATTEMPTS, MAX_RECONNECT_ATTEMPTS_WITH_TOKEN, RECONNECT_DELAY_MS } from "@/constants";
+import { lobby, request } from "@poker-champ/sdk";
+import {
+  MAX_RECONNECT_ATTEMPTS,
+  MAX_RECONNECT_ATTEMPTS_WITH_TOKEN,
+  RECONNECT_BASE_DELAY_MS,
+  RECONNECT_MAX_DELAY_MS,
+} from "@/constants";
 
 /** Close code when leaving a stale/superseded connection. Must match PokerRoom session-replaced code. */
 const LEAVE_CODE_STALE_OR_REPLACED = 4001;
@@ -48,7 +53,37 @@ function toWsUrl(raw?: string): string | null {
   return null;
 }
 
+type ConnectTargetResponse = { tableId?: string; roomId?: string };
+
+/**
+ * Canonical room resolution: `GET /api/lobby/tables/:tableId/connect-target` -> `{ tableId, roomId }`.
+ * This is the server-authoritative source of truth for "which Colyseus room currently serves
+ * this table," replacing guesswork on the client. Returns null (rather than throwing) on any
+ * failure — including 404 on servers that don't have the endpoint deployed yet — so callers can
+ * fall back to the heuristic below during rollout.
+ */
+async function fetchConnectTarget(tableId: string): Promise<string | null> {
+  try {
+    const result = await request<ConnectTargetResponse>(
+      "GET",
+      `/api/lobby/tables/${encodeURIComponent(tableId)}/connect-target`,
+    );
+    const roomId = result?.roomId;
+    return typeof roomId === "string" && roomId.length > 0 ? roomId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a Colyseus roomId from a tableId, preferring the canonical connect-target endpoint.
+ * Falls back to scanning the table list (heuristic) only if the canonical lookup is unavailable —
+ * this backstop can be removed once connect-target has been live long enough to trust exclusively.
+ */
 async function resolveRoomIdByTableId(tableId: string): Promise<string | null> {
+  const canonical = await fetchConnectTarget(tableId);
+  if (canonical) return canonical;
+
   const data = await lobby.listTables();
   const match = (data.tables ?? []).find((t) => String(t.tableId ?? "") === tableId);
   const roomId = match?.roomId;
@@ -94,6 +129,24 @@ export function classifyConnectFailure(message: string): ConnectFailureKind {
   return "retryable";
 }
 
+/**
+ * Exponential backoff with jitter, capped so a real-time reconnect never waits minutes.
+ *
+ *   delay = min(cap, base * 2^attempt) * (0.5 + random() * 0.5)
+ *
+ * `attempt` is 0-based (0 = first retry after the initial disconnect). Jittering the delay
+ * (rather than using a fixed schedule) avoids a thundering herd where every client reconnects
+ * in lockstep after a shared server blip. `random` is injectable so tests can assert exact
+ * bounds without relying on statistical sampling of `Math.random`.
+ */
+export function computeReconnectDelayMs(attempt: number, random: () => number = Math.random): number {
+  const safeAttempt = Number.isFinite(attempt) && attempt > 0 ? Math.floor(attempt) : 0;
+  const exponential = RECONNECT_BASE_DELAY_MS * Math.pow(2, safeAttempt);
+  const capped = Math.min(RECONNECT_MAX_DELAY_MS, exponential);
+  const jitterFactor = 0.5 + random() * 0.5;
+  return Math.round(capped * jitterFactor);
+}
+
 function normalizeInbound(data: unknown): RealtimeInboundMessage | null {
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
@@ -135,42 +188,66 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
 
   let connected = false;
   let shouldReconnect = true;
+  /** Set by disconnect(); once true no further attempt of any generation may dispatch or reconnect. */
+  let disposed = false;
+  /** Monotonic generation: bumped at the start of every connect() attempt. A socket's event
+   * handlers capture their own generation number and no-op once superseded, so a late/delayed
+   * event from an old socket (e.g. a straggling onopen firing after a newer attempt already
+   * connected) cannot clobber the current session's state. */
+  let generation = 0;
+  let reconnectAttempts = 0;
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const scheduleReconnect = () => {
-    if (!shouldReconnect || reconnectTimer) return;
+    if (disposed || !shouldReconnect || reconnectTimer) return;
     options.onMessage({ type: "RECONNECTING" });
+    const delay = computeReconnectDelayMs(reconnectAttempts);
+    reconnectAttempts += 1;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
+      if (disposed) return;
       connect();
-    }, RECONNECT_DELAY_MS);
+    }, delay);
   };
 
   const connect = () => {
+    const myGeneration = ++generation;
+    const isStale = () => disposed || myGeneration !== generation;
+
+    let sock: WebSocket;
     try {
-      socket = new WebSocket(wsUrl);
+      sock = new WebSocket(wsUrl);
     } catch (err: unknown) {
+      if (isStale()) return;
       options.onError?.(err instanceof Error ? err.message : "Unable to initialize websocket");
       scheduleReconnect();
       return;
     }
+    socket = sock;
 
-    socket.onopen = () => {
+    sock.onopen = () => {
+      if (isStale()) return;
       connected = true;
+      reconnectAttempts = 0;
       options.onMessage({ type: "CONNECTED" });
       options.onOpen?.();
     };
 
-    socket.onclose = () => {
+    sock.onclose = () => {
+      if (isStale()) return;
       connected = false;
       options.onMessage({ type: "DISCONNECTED" });
       options.onClose?.();
       scheduleReconnect();
     };
 
-    socket.onerror = () => options.onError?.("Realtime transport error");
-    socket.onmessage = (event) => {
+    sock.onerror = () => {
+      if (isStale()) return;
+      options.onError?.("Realtime transport error");
+    };
+    sock.onmessage = (event) => {
+      if (isStale()) return;
       try {
         const parsed = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
         const message = normalizeInbound(parsed);
@@ -191,7 +268,9 @@ function createWebSocketSession(options: RealtimeSessionOptions): RealtimeSessio
       return true;
     },
     disconnect: () => {
+      disposed = true;
       shouldReconnect = false;
+      generation += 1;
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
@@ -287,19 +366,21 @@ function createColyseusSession(options: RealtimeSessionOptions): RealtimeSession
       return;
     }
 
+    const delay = computeReconnectDelayMs(reconnectAttempts);
     reconnectAttempts += 1;
     debugLog("SCHEDULE_RECONNECT", {
       roomId: options.roomId,
       roomName: options.roomName,
       hasReconnectToken,
       reconnectAttempts,
+      delayMs: delay,
     });
     options.onMessage({ type: "RECONNECTING" });
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (disposed) return;
       void connect();
-    }, RECONNECT_DELAY_MS);
+    }, delay);
   };
 
   const connect = async () => {

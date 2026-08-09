@@ -143,6 +143,14 @@
       "exports": ["__resetSoundEventStateForTests"]
     },
     {
+      "file": "apps/server/src/lib/mailer.ts",
+      "exports": ["ConsoleMailer", "SmtpMailer", "isSmtpMailerConfigured", "__resetMailerForTests"]
+    },
+    {
+      "file": "apps/server/src/engine/auth/AuthService.ts",
+      "exports": ["EmailNotVerifiedError"]
+    },
+    {
       "file": "apps/client/src/voice/contracts/voice-signals.ts",
       "exports": ["*"]
     },
@@ -224,7 +232,8 @@
     "ignore": [
       "**/dist/**",
       "**/node_modules/**",
-      "**/coverage/**"
+      "**/coverage/**",
+      "packages/sdk/src/types.gen.ts"
     ]
   },
   "rules": {

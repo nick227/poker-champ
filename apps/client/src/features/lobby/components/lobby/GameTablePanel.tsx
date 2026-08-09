@@ -74,11 +74,14 @@ export function GameTablePanel({
           }).start();
         }}
       >
-        <View className="ui-stack-3 border-b border-border" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
+        <View className="ui-stack-3" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
           <GamePanelPrimaryLine
             gameName={table.name}
             smallBlindCents={table.smallBlindCents}
             bigBlindCents={table.bigBlindCents}
+            minBuyInCents={table.minBuyInCents}
+            players={table.players}
+            seats={table.seats}
           />
           {!hasActiveHumans ? (
             <Text variant="muted" className="text-[12px]">

@@ -13,6 +13,7 @@ import type {
   AnchorBounds,
   Rect,
 } from "@/features/table/animations/animationTypes";
+import type { ChipTravelPlan } from "@/features/table/animations/chipTravel";
 import type { PendingAction } from "@/features/table/stores/multitable.store";
 
 export type TableSceneContract = {
@@ -73,6 +74,8 @@ export type TablePageController = {
      * Must be in overlay coordinate space (e.g. measureLayout(overlayRef), not raw measureInWindow).
      */
     anchorBounds?: AnchorBounds;
+    /** Active bet→pot / pot→winner chip-travel animations; overlay renders and reports completion. */
+    chipTravelRequests: ChipTravelPlan[];
   };
   uiState: {
     activeTablesDropdownVisible: boolean;
@@ -118,6 +121,8 @@ export type TablePageController = {
     reportSeatBounds: (seatIndex: number, rect: Rect) => void;
     /** Report community card slot rect (0..4). Enables CARD-anchored FX. Use overlay coordinate space. */
     reportCardSlotBounds: (index: number, rect: Rect) => void;
+    /** Called by ChipTravelOverlay when a chip-travel animation finishes; removes it from the queue. */
+    completeChipTravel: (id: string) => void;
     openTournamentStandings: () => void;
     closeTournamentStandings: () => void;
   };

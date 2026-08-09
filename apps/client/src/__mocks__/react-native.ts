@@ -68,6 +68,40 @@ export const Pressable = ({
 export const ScrollView = ({ children, ...rest }: { children?: ReactNode; [key: string]: unknown }) =>
   createElement("div", { ...rest, role: "list" }, children);
 
+export const TextInput = ({
+  value,
+  onChangeText,
+  onChange,
+  onBlur,
+  onSubmitEditing,
+  editable,
+  style,
+  ...rest
+}: {
+  value?: string;
+  onChangeText?: (text: string) => void;
+  onChange?: (e: unknown) => void;
+  onBlur?: () => void;
+  onSubmitEditing?: () => void;
+  editable?: boolean;
+  style?: unknown;
+  [key: string]: unknown;
+}) =>
+  createElement("input", {
+    ...rest,
+    value,
+    disabled: editable === false,
+    style: normalizeStyle(style),
+    onChange: (e: { target: { value: string } }) => {
+      onChangeText?.(e.target.value);
+      onChange?.(e);
+    },
+    onBlur: () => onBlur?.(),
+    onKeyDown: (e: { key: string }) => {
+      if (e.key === "Enter") onSubmitEditing?.();
+    },
+  });
+
 export const ActivityIndicator = (_props: unknown) => createElement("span", { "data-testid": "activity" }, "\u2026");
 
 export const PanResponder = {
@@ -175,6 +209,7 @@ export default {
   Text,
   Pressable,
   ScrollView,
+  TextInput,
   ActivityIndicator,
   PanResponder,
   useWindowDimensions,

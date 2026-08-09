@@ -7,6 +7,19 @@ module.exports = {
   content: ["./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      /*
+       * Responsive breakpoints for this app's actual target surfaces (phone / tablet / web-desktop).
+       * NativeWind v4 compiles these to real `matchMedia`/`useWindowDimensions` breakpoints on
+       * native and `@media` queries on web, so `sm:`/`md:`/`lg:` prefixes work the same everywhere.
+       * `sm`/`md`/`lg` intentionally override Tailwind's defaults to match the exact pixel widths
+       * used by the lobby redesign's responsive grid (docs/proposals/LOBBY_PAGE_REDESIGN_PROPOSAL.md);
+       * `xl`/`2xl` fall back to Tailwind's stock values for future use.
+       */
+      screens: {
+        sm: "480px", // large phones / phones in landscape
+        md: "768px", // tablets, foldables
+        lg: "1200px", // web / desktop
+      },
       colors: {
         bg: "hsl(var(--c-bg, 0 0% 5%) / <alpha-value>)",
         panel: "hsl(var(--c-panel, 0 0% 9%) / <alpha-value>)",
