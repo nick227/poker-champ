@@ -1,17 +1,13 @@
 /**
- * Phase 1: Single shell slot content. Loading slots use fixed-height placeholders
- * so layout does not change on reveal. See TABLE_LOADING_AND_TRANSITION_PROPOSAL.md.
+ * Phase 1: Single shell slot content. Loading slots use immersive board;
+ * live table uses TableStage (no hero band).
  */
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import type { TablePageController } from "@/types/tableSceneContract";
 import { TableLoadingLanding, type TableLoadingMode } from "../loading/TableLoadingLanding";
 import { TableLoadRecoveryPanel } from "../loading/TableLoadRecoveryPanel";
-import {
-  ACTION_BAR_HEIGHT,
-  HERO_ZONE_HEIGHT,
-  OPPONENT_STRIP_HEIGHT,
-} from "../constants/table-layout.constants";
+import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
 import type { TableSceneShellProps } from "../table-layout";
 
 function statusMessageFor(
@@ -35,15 +31,8 @@ export type LoadingSlotsParams = {
   reducedMotion?: boolean;
 };
 
-/** Placeholders use fixed heights from constants so RN does not reflow on reveal. */
-const heroPlaceholder = (
-  <View collapsable={false} style={{ minHeight: HERO_ZONE_HEIGHT }} />
-);
 const bottomPlaceholder = (
   <View collapsable={false} style={{ height: ACTION_BAR_HEIGHT }} />
-);
-const opponentStripPlaceholder = (
-  <View collapsable={false} style={{ minHeight: OPPONENT_STRIP_HEIGHT }} />
 );
 
 /** Placeholder shell props when snapshot is not yet available (hook must still run). */
@@ -56,30 +45,31 @@ export function getPlaceholderSlots(
   | "balanceCents"
   | "topBarRight"
   | "opponents"
-  | "opponentStripEmptyState"
   | "dealerBar"
   | "board"
   | "hero"
+  | "heroPlate"
   | "bottom"
   | "immersiveBoard"
+  | "maxSeats"
 > {
   return {
     tableName: "Poker Champ",
     balanceCents,
     topBarRight,
     opponents: [],
-    opponentStripEmptyState: opponentStripPlaceholder,
     dealerBar: <View collapsable={false} />,
     board: <View collapsable={false} style={{ minHeight: 160 }} />,
-    hero: heroPlaceholder,
+    hero: null,
+    heroPlate: null,
     bottom: bottomPlaceholder,
     immersiveBoard: false,
+    maxSeats: 6,
   };
 }
 
 /**
- * Returns slot content for the loading state. Same layout as table (no immersiveBoard);
- * all regions render so layout size does not change on reveal.
+ * Returns slot content for the loading state.
  */
 export function getLoadingSlots({
   mode,
@@ -94,12 +84,13 @@ export function getLoadingSlots({
   | "balanceCents"
   | "topBarRight"
   | "opponents"
-  | "opponentStripEmptyState"
   | "dealerBar"
   | "board"
   | "hero"
+  | "heroPlate"
   | "bottom"
   | "immersiveBoard"
+  | "maxSeats"
 > {
   const loadingMode: TableLoadingMode =
     mode === "auth_required" ? "auth_required" : mode === "auth_loading" ? "auth_loading" : "connecting";
@@ -111,7 +102,6 @@ export function getLoadingSlots({
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,
     opponents: [],
-    opponentStripEmptyState: opponentStripPlaceholder,
     dealerBar: <View collapsable={false} />,
     board: showRecovery ? (
       <TableLoadRecoveryPanel
@@ -136,8 +126,10 @@ export function getLoadingSlots({
         onSlotSpinStart={onLoadingSlotSpinStart}
       />
     ),
-    hero: heroPlaceholder,
+    hero: null,
+    heroPlate: null,
     bottom: bottomPlaceholder,
     immersiveBoard: true,
+    maxSeats: 6,
   };
 }

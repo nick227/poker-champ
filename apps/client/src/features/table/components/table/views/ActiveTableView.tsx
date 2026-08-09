@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { type Opponent } from "../opponent-strip";
-import { HeroZone } from "../hero-zone";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { Button } from "@/components/base/Button";
@@ -17,12 +16,14 @@ import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { ConnectionStatus, HandResultMessage } from "../table.types";
 import type { Rect } from "@/features/table/animations/animationTypes";
-import { MeasuredBoundsReporter } from "../board-area";
 import { TableSceneShell } from "../table-layout";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useActiveTableNotification } from "../hooks/useActiveTableNotification";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
+import { buildHeroPlate } from "../table-stage";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -304,6 +305,23 @@ export function ActiveTableView({
     });
   }
 
+  const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
+  const { formatStack } = useTableMoneyDisplay();
+  const heroPlate =
+    !isReplayMode && heroIsSeated
+      ? buildHeroPlate({
+          userName: heroName,
+          stackDisplay: formatStack(heroStackCents),
+          avatarUrl: heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined,
+          cards: heroCards,
+          heroStatus,
+          isDealer: isHeroDealer,
+          isActiveTurn: isHeroToAct,
+          isWinner: isHeroWinner,
+          cardFacePackId,
+        })
+      : null;
+
   return (
     <TableSceneShell
       {...shellBaseProps}
@@ -319,35 +337,9 @@ export function ActiveTableView({
       }
       board={board}
       onSeatBounds={onSeatBounds}
-      hero={
-        isReplayMode
-          ? null
-          : (() => {
-              const heroNode = (
-                <HeroZone
-                  cards={heroCards}
-                  stackCents={heroStackCents}
-                  canAct={canAct}
-                  heroStatus={heroStatus}
-                  equity={heroCalculations?.equityPct}
-                  potOdds={heroCalculations?.potOddsPct}
-                  outs={heroCalculations?.outs}
-                  playerStats={heroPlayerStats}
-                  showStats={showHeroStats ?? (snapshot.table?.showStats ?? false)}
-                  isWinner={isHeroWinner}
-                  isDealer={isHeroDealer}
-                  isActiveTurn={isHeroToAct}
-                  turnCountdownSeconds={turnCountdownSeconds ?? undefined}
-                  userName={heroName}
-                  avatarUrl={heroAvatarUrl ?? heroAvatarUrlOverride ?? undefined}
-                  potCents={potCents}
-                  onAvatarPress={onHeroAvatarPress}
-                  onToggleSittingOut={onToggleSittingOut}
-                />
-              );
-              return onHeroBounds ? <MeasuredBoundsReporter onBounds={onHeroBounds}>{heroNode}</MeasuredBoundsReporter> : heroNode;
-            })()
-      }
+      onHeroBounds={onHeroBounds}
+      hero={null}
+      heroPlate={heroPlate}
       bottom={bottom}
       hideBottomSection={isReplayMode}
     />

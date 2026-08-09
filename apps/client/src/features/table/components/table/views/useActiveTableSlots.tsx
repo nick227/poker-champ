@@ -10,8 +10,6 @@ import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
-import { HeroZone } from "../hero-zone";
-import { MeasuredBoundsReporter } from "../board-area";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
@@ -26,6 +24,9 @@ import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTab
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { useMultiTableStore } from "@/features/table/stores/multitable.store";
 import { EmptyTableStartCta } from "./EmptyTableStartCta";
+import { buildHeroPlate } from "../table-stage";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 
 export type LiveTableSlotState = {
   sceneModel?: TableSceneModel;
@@ -93,6 +94,8 @@ export function useActiveTableSlots(
 
   const opponents = (renderModel.opponents ?? []) as Opponent[];
   const statusStrip = liveTableState?.statusStrip;
+  const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
+  const { formatStack } = useTableMoneyDisplay();
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
@@ -346,37 +349,21 @@ export function useActiveTableSlots(
     );
   }
 
-  const heroNode = (
-    <MeasuredBoundsReporter onBounds={actions.reportHeroBounds}>
-      <HeroZone
-        cards={heroCards}
-        stackCents={heroStackCents}
-        canAct={statusStrip?.showTurnCue ?? canAct}
-        heroStatus={heroStatus}
-        equity={heroCalculations?.equityPct}
-        potOdds={heroCalculations?.potOddsPct}
-        outs={heroCalculations?.outs}
-        playerStats={heroPlayerStats}
-        showStats={snapshot.table?.showStats ?? false}
-        isWinner={isHeroWinner}
-        isDealer={isHeroDealer}
-        isActiveTurn={statusStrip?.showTurnCue ?? isHeroToAct}
-        turnCountdownSeconds={
-          statusStrip?.showTurnCue ? (turnCountdownSeconds ?? undefined) : undefined
-        }
-        userName={heroName}
-        avatarUrl={heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined}
-        potCents={potCents}
-        roundBetCents={
-          snapshot?.seats.find((seat) => seat.seat === snapshot.hero.seat)?.roundBetCents ?? 0
-        }
-        onAvatarPress={undefined}
-        onToggleSittingOut={actions.toggleHeroSittingOut}
-        userId={snapshot.hero.userId}
-        seat={snapshot.hero.seat}
-      />
-    </MeasuredBoundsReporter>
-  );
+  const heroPlate = heroIsSeated
+    ? buildHeroPlate({
+        userName: heroName,
+        userId: snapshot?.hero.userId,
+        seat: snapshot?.hero.seat ?? undefined,
+        stackDisplay: formatStack(heroStackCents),
+        avatarUrl: heroAvatarUrl ?? modelHeroAvatarUrl ?? undefined,
+        cards: heroCards,
+        heroStatus,
+        isDealer: isHeroDealer,
+        isActiveTurn: statusStrip?.showTurnCue ?? isHeroToAct,
+        isWinner: isHeroWinner,
+        cardFacePackId,
+      })
+    : null;
 
   return {
     ...shellBaseProps,
@@ -384,7 +371,9 @@ export function useActiveTableSlots(
     dealerBar: null,
     board,
     onSeatBounds: actions.reportSeatBounds,
-    hero: heroNode,
+    onHeroBounds: actions.reportHeroBounds,
+    hero: null,
+    heroPlate,
     bottom,
     rootClassName: "overflow-hidden",
     immersiveBoard: false,

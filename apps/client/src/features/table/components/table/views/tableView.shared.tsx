@@ -29,6 +29,7 @@ type TableShellBaseProps = Pick<
   | "onPlayerPress"
   | "onSeatBounds"
   | "tournamentBanner"
+  | "maxSeats"
 >;
 
 type UseTableViewShellFrameParams = {
@@ -96,6 +97,7 @@ export function useTableViewShellFrame({
     winnerName: winnerBanner?.winnerName,
     onPlayerPress,
     onSeatBounds,
+    maxSeats: table?.maxSeats ?? 6,
     tournamentBanner: table?.tournament ? (
       <>
         <TournamentTableBanner tournament={table.tournament} />
@@ -116,6 +118,7 @@ export function useTableViewShellFrame({
       potCents={potCentsOverride ?? model.potCents}
       animateReset={animateBoardReset}
       onCardSlotBounds={onCardSlotBounds}
+      fitContent
     />
   );
   const board = onBoardBounds ? (

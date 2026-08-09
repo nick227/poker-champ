@@ -1,22 +1,23 @@
 /**
- * Single table chrome. All table states (auth, connecting, idle, active) use this shell only.
- * Do not introduce another shell (e.g. FooTableShell); see TABLE_SCENE_VIEWS_OVERVIEW.md guardrails.
+ * Single table chrome. Stage is TableStage (felt + rail seats + center board).
+ * Hero sits on the south seat slot — no separate HeroZone band.
  */
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { Animated, Platform, View, ScrollView, type ViewStyle } from "react-native";
+import { Animated, View } from "react-native";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { TableGameTopBar } from "../table-game-top-bar";
-import { OpponentStrip, type Opponent } from "../opponent-strip";
+import type { Opponent } from "../opponent-strip";
 import { Surface } from "@/components/containers/Surface";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableLayoutDimensions } from "../hooks/useTableLayoutDimensions";
 import { layoutStyles } from "./styles";
 import { ACTION_BAR_HEIGHT, TABLE_REVEAL_MS } from "../constants/table-layout.constants";
 import { useRouter } from "expo-router";
-import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
+import { TableStage } from "../table-stage";
+import type { SeatPlateProps } from "../table-stage";
 
 export type TableSceneShellProps = {
   tableName: string;
@@ -27,23 +28,25 @@ export type TableSceneShellProps = {
   minBuyInCents?: number;
   topBarRight?: ReactNode;
   opponents: Opponent[];
+  /** @deprecated empty strip removed; kept for slot compat */
   opponentStripEmptyState?: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
-  /** Report seat rect by index for SEAT-anchored FX. */
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
-  /** 0–1 when an opponent is to act (for countdown bar); null otherwise */
+  onHeroBounds?: (rect: Rect) => void;
   activeTurnProgress?: number | null;
   dealerBar: ReactNode;
   board: ReactNode;
-  hero: ReactNode | null;
+  /** @deprecated hero is on the stage ring via heroPlate */
+  hero?: ReactNode | null;
+  /** Uniform south-seat plate (preferred over `hero` band). */
+  heroPlate?: SeatPlateProps | null;
+  maxSeats?: number;
   bottom: ReactNode;
   rootClassName?: string;
   immersiveBoard?: boolean;
   hideBottomSection?: boolean;
-  /** When true, body is shown at full opacity (loading state). When false, body uses revealed + fade. */
   showStatusView?: boolean;
-  /** Phase 2: latched reveal; when true, table body fades in. */
   revealed?: boolean;
   revealDurationMs?: number;
   reducedMotion?: boolean;
@@ -56,28 +59,27 @@ function cx(...tokens: Array<string | undefined>) {
 
 export function TableSceneShell({
   tableName,
-  balanceCents,
-  playerStackCents,
+  balanceCents: _balanceCents,
+  playerStackCents: _playerStackCents,
   smallBlindCents,
   bigBlindCents,
   minBuyInCents,
   topBarRight,
   opponents,
-  opponentStripEmptyState,
   winnerName,
   onPlayerPress,
   onSeatBounds,
+  onHeroBounds,
   activeTurnProgress,
   dealerBar,
   board,
-  hero,
+  heroPlate = null,
+  maxSeats = 6,
   bottom,
   rootClassName,
   immersiveBoard = false,
   hideBottomSection = false,
   showStatusView = false,
-  // Default to visible for standalone callers (lesson/replay). TableSceneRouter
-  // passes an explicit reveal state for the main table loading transition.
   revealed = true,
   revealDurationMs = TABLE_REVEAL_MS,
   reducedMotion = false,
@@ -86,11 +88,9 @@ export function TableSceneShell({
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
   const { insets, boardAreaHeight, heroZoneHeight, layoutScale } = useTableLayoutDimensions();
-  const isDesktopWorkspace = useIsDesktopWorkspace();
   const router = useRouter();
   const revealOpacity = useRef(new Animated.Value(0)).current;
 
-  // Only re-run on revealed/showStatusView so the animation fires once on transition, not on every prop update.
   useEffect(() => {
     if (showStatusView) {
       revealOpacity.stopAnimation();
@@ -108,70 +108,7 @@ export function TableSceneShell({
     }).start();
   }, [reducedMotion, revealDurationMs, revealOpacity, revealed, showStatusView]);
 
-  const heroSectionStyle: ViewStyle =
-    Platform.OS === "web"
-      ? ({ minHeight: "var(--table-hero-zone-height)" } as unknown as ViewStyle)
-      : { minHeight: heroZoneHeight };
-
-  const actionBarHeight = ACTION_BAR_HEIGHT + insets.bottom;
-
-  const emptyStrip =
-    opponents.length === 0 && opponentStripEmptyState ? (
-      <View
-        collapsable={false}
-        style={layoutStyles.opponentStripSection}
-        className="table-opponent-strip opponent-strip-empty-state"
-      >
-        {opponentStripEmptyState}
-      </View>
-    ) : null;
-
-  const stage = (
-    <View
-      className="game-area-container"
-      collapsable={false}
-      style={isDesktopWorkspace ? layoutStyles.stageHost : undefined}
-    >
-      <OpponentStrip
-        opponents={opponents}
-        winnerName={winnerName}
-        onPlayerPress={onPlayerPress}
-        onSeatBounds={onSeatBounds}
-        activeTurnProgress={activeTurnProgress}
-        centerSlot={board}
-        fillHost={isDesktopWorkspace}
-      />
-    </View>
-  );
-
-  const heroSection =
-    hero != null ? (
-      <View
-        collapsable={false}
-        style={[layoutStyles.heroSection, heroSectionStyle]}
-        className="table-hero-section"
-      >
-        {hero}
-      </View>
-    ) : null;
-
-  const actionBar = !hideBottomSection ? (
-    <Surface
-      as={View}
-      styleId="surface.sim.table.actionbar"
-      collapsable={false}
-      style={[
-        layoutStyles.actionBarSection,
-        {
-          height: actionBarHeight,
-          minHeight: actionBarHeight,
-          paddingBottom: insets.bottom,
-        },
-      ]}
-    >
-      {bottom}
-    </Surface>
-  ) : null;
+  const hudMax = ACTION_BAR_HEIGHT + insets.bottom;
 
   return (
     <View
@@ -213,24 +150,39 @@ export function TableSceneShell({
           <View style={{ flex: 1 }}>
             <View style={{ flex: 1, justifyContent: "center" }}>{board}</View>
           </View>
-        ) : isDesktopWorkspace ? (
-          <Animated.View style={[{ opacity: revealOpacity }, layoutStyles.desktopBody]}>
-            {emptyStrip}
-            {stage}
-            {heroSection}
-            {actionBar}
-            <View collapsable={false}>{dealerBar}</View>
-          </Animated.View>
         ) : (
-          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-            <Animated.View style={{ opacity: revealOpacity }}>
-              {emptyStrip}
-              {stage}
-              {heroSection}
-              {actionBar}
-            </Animated.View>
-            <View collapsable={false}>{dealerBar}</View>
-          </ScrollView>
+          <Animated.View style={[{ opacity: revealOpacity }, layoutStyles.body]}>
+            <View style={layoutStyles.stageHost} collapsable={false}>
+              <TableStage
+                opponents={opponents}
+                heroPlate={heroPlate}
+                maxSeats={maxSeats}
+                board={board}
+                winnerName={winnerName}
+                onPlayerPress={onPlayerPress}
+                onSeatBounds={onSeatBounds}
+                onHeroBounds={onHeroBounds}
+                activeTurnProgress={activeTurnProgress}
+              />
+            </View>
+            {!hideBottomSection ? (
+              <Surface
+                as={View}
+                styleId="surface.sim.table.actionbar"
+                collapsable={false}
+                style={[
+                  layoutStyles.actionHudSection,
+                  {
+                    maxHeight: hudMax,
+                    paddingBottom: Math.max(insets.bottom, 8),
+                  },
+                ]}
+              >
+                {dealerBar}
+                {bottom}
+              </Surface>
+            ) : null}
+          </Animated.View>
         )}
       </TableLayoutHeightProvider>
     </View>

@@ -11,8 +11,8 @@ export const BOARD_AREA_HEIGHT_LANDSCAPE = 180;
 
 export const GAME_AREA_HEIGHT = BOARD_AREA_HEIGHT + DEALER_BAR_HEIGHT;
 
-/** Desktop/mobile action band; trimmed from 200 so the stage host gets more vertical budget. */
-export const ACTION_BAR_HEIGHT = 160;
+/** Max action HUD height (acting). Idle HUD is shorter via min/max styles. */
+export const ACTION_BAR_HEIGHT = 140;
 
 /** Vertical band height for hero section. Shell contract; component layout lives in hero-zone/layout.ts. */
 export const HERO_ZONE_HEIGHT = 124;

@@ -75,7 +75,7 @@ vi.mock("@/features/lessons-v2/runtime", () => ({
 
 vi.mock("@/features/table", () => ({
   ActiveTableView: () => null,
-  ACTION_BAR_HEIGHT: 160,
+  ACTION_BAR_HEIGHT: 140,
   mapSeatsToOpponents: () => [],
   buildTableSceneModel: (snapshot: unknown) =>
     snapshot

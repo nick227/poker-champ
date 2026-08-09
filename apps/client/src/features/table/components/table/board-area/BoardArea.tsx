@@ -16,6 +16,8 @@ export type BoardAreaProps = {
   animateReset?: boolean;
   /** When set, each community card slot (0..4) reports bounds for overlay. */
   onCardSlotBounds?: (index: number, rect: Rect) => void;
+  /** Stage center: size to content inside the safe zone (no fixed phone band height). */
+  fitContent?: boolean;
 };
 
 export function BoardArea({
@@ -23,6 +25,7 @@ export function BoardArea({
   potCents,
   animateReset = false,
   onCardSlotBounds,
+  fitContent = false,
 }: BoardAreaProps) {
   const { formatPot } = useTableMoneyDisplay();
   const potValue = typeof potCents === "number" ? formatPot(potCents) : "--";
@@ -48,11 +51,14 @@ export function BoardArea({
     // No felt wrapper here: the board now sits inside the shared felt "stage" rendered by
     // OpponentStrip (one continuous surface behind seats + board — see seatArrangement.ts and
     // TableSceneShell's game-area-container), rather than wrapping its own separate felt patch.
-    <View style={[boardAreaStyles.root, { height: feltHeight }]}>
+    <View style={[boardAreaStyles.root, fitContent ? { height: undefined, maxHeight: "100%" } : { height: feltHeight }]}>
       <Animated.View collapsable={false} style={[boardAreaStyles.inner, { opacity: fadeOpacity }]}>
         <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
 
-        <View className="pot-container w-full flex justify-center items-center bg-panel rounded-sm" style={boardAreaStyles.potContainer}>
+        <View
+          className="pot-container w-full flex justify-center items-center rounded-sm"
+          style={[boardAreaStyles.potContainer, { backgroundColor: "rgba(12,16,22,0.55)" }]}
+        >
           <View className="items-center flex-row" style={{ gap: 8 }}>
             <PotChipStack potCents={typeof potCents === "number" ? potCents : 0} />
             <Text

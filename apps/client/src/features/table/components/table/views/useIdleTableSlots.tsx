@@ -8,8 +8,6 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
-import { HeroZone } from "../hero-zone";
-import { MeasuredBoundsReporter } from "../board-area";
 import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
@@ -19,6 +17,9 @@ import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { EmptyTableStartCta } from "./EmptyTableStartCta";
+import { buildHeroPlate } from "../table-stage";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 
 function renderStatusStripPanel(
   message: string,
@@ -48,6 +49,8 @@ export function useIdleTableSlots(
   liveTableState?: LiveTableSlotState,
 ): TableSceneShellProps {
   const statusStrip = liveTableState?.statusStrip;
+  const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
+  const { formatStack } = useTableMoneyDisplay();
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
@@ -132,26 +135,26 @@ export function useIdleTableSlots(
   }
 
   const heroUserName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
+  const heroPlate = heroIsSeated
+    ? buildHeroPlate({
+        userName: heroUserName,
+        userId: snapshot.hero.userId,
+        seat: snapshot.hero.seat ?? undefined,
+        stackDisplay: formatStack(heroStackCents),
+        cards: heroCards,
+        heroStatus,
+        cardFacePackId,
+      })
+    : null;
 
   return {
     ...shellBaseProps,
     dealerBar: null,
     board,
     onSeatBounds: actions.reportSeatBounds,
-    hero: (
-      <MeasuredBoundsReporter onBounds={actions.reportHeroBounds}>
-        <HeroZone
-          cards={heroCards}
-          stackCents={heroStackCents}
-          canAct={false}
-          heroStatus={heroStatus}
-          showStats={snapshot.table?.showStats ?? false}
-          userName={heroUserName}
-          userId={snapshot.hero.userId}
-          seat={snapshot.hero.seat}
-        />
-      </MeasuredBoundsReporter>
-    ),
+    onHeroBounds: actions.reportHeroBounds,
+    hero: null,
+    heroPlate,
     bottom,
     rootClassName: "overflow-hidden",
     immersiveBoard: false,
