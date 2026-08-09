@@ -1,7 +1,8 @@
 /**
- * Vertical contract: arena is fixed-height bands only.
- * Only mainContent (outer) may flex (flexGrow: 1) to absorb extra space.
- * Nothing in DealerBar → OpponentStrip → Felt → Hero → ActionBar uses flex: 1.
+ * Vertical contract:
+ * - Mobile: fixed-height bands; ScrollView absorbs overflow.
+ * - Desktop workspace: gameArena flex:1 so the felt stage fills space between
+ *   top bar and action bar (share strip / hero / action stay fixed).
  */
 import { StyleSheet } from "react-native";
 import {
@@ -31,6 +32,13 @@ export const layoutStyles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
   },
+  /** Desktop: fills remaining height under the top bar. */
+  desktopBody: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    flexDirection: "column",
+  },
   mainContent: {
     width: "100%",
     flexGrow: 1,
@@ -45,6 +53,13 @@ export const layoutStyles = StyleSheet.create({
     minHeight: GAME_AREA_HEIGHT,
     flexGrow: 0,
     flexShrink: 0,
+    flexDirection: "column",
+  },
+  /** Desktop felt + seats: consume leftover vertical space. */
+  gameArenaFill: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
     flexDirection: "column",
   },
   dealerBar: {

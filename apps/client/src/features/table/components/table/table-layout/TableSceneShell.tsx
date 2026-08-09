@@ -16,6 +16,7 @@ import { useTableLayoutDimensions } from "../hooks/useTableLayoutDimensions";
 import { layoutStyles } from "./styles";
 import { ACTION_BAR_HEIGHT, TABLE_REVEAL_MS } from "../constants/table-layout.constants";
 import { useRouter } from "expo-router";
+import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 
 export type TableSceneShellProps = {
   tableName: string;
@@ -84,8 +85,8 @@ export function TableSceneShell({
 }: TableSceneShellProps) {
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
-  const { insets, boardAreaHeight, heroZoneHeight, layoutScale } =
-    useTableLayoutDimensions();
+  const { insets, boardAreaHeight, heroZoneHeight, layoutScale } = useTableLayoutDimensions();
+  const isDesktopWorkspace = useIsDesktopWorkspace();
   const router = useRouter();
   const revealOpacity = useRef(new Animated.Value(0)).current;
 
@@ -113,6 +114,81 @@ export function TableSceneShell({
       : { minHeight: heroZoneHeight };
 
   const actionBarHeight = ACTION_BAR_HEIGHT + insets.bottom;
+
+  const emptyStrip =
+    opponents.length === 0 && opponentStripEmptyState ? (
+      <View
+        collapsable={false}
+        style={layoutStyles.opponentStripSection}
+        className="table-opponent-strip opponent-strip-empty-state"
+      >
+        {opponentStripEmptyState}
+      </View>
+    ) : null;
+
+  const arena = (
+    <View
+      className="game-area-container"
+      collapsable={false}
+      style={isDesktopWorkspace ? layoutStyles.gameArenaFill : undefined}
+    >
+      <OpponentStrip
+        opponents={opponents}
+        winnerName={winnerName}
+        onPlayerPress={onPlayerPress}
+        onSeatBounds={onSeatBounds}
+        activeTurnProgress={activeTurnProgress}
+        centerSlot={board}
+      />
+      {hero != null ? (
+        <View
+          collapsable={false}
+          style={[layoutStyles.heroSection, heroSectionStyle]}
+          className="table-hero-section"
+        >
+          {hero}
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const actionBar = !hideBottomSection ? (
+    <Surface
+      as={View}
+      styleId="surface.sim.table.actionbar"
+      collapsable={false}
+      style={[
+        layoutStyles.actionBarSection,
+        {
+          height: actionBarHeight,
+          minHeight: actionBarHeight,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
+      {bottom}
+    </Surface>
+  ) : null;
+
+  const bodyInner = (
+    <>
+      {emptyStrip}
+      {arena}
+      {actionBar}
+    </>
+  );
+
+  const body = isDesktopWorkspace ? (
+    <Animated.View style={[{ opacity: revealOpacity }, layoutStyles.desktopBody]}>
+      {bodyInner}
+      <View collapsable={false}>{dealerBar}</View>
+    </Animated.View>
+  ) : (
+    <>
+      <Animated.View style={{ opacity: revealOpacity }}>{bodyInner}</Animated.View>
+      <View collapsable={false}>{dealerBar}</View>
+    </>
+  );
 
   return (
     <View
@@ -154,69 +230,10 @@ export function TableSceneShell({
           <View style={{ flex: 1 }}>
             <View style={{ flex: 1, justifyContent: "center" }}>{board}</View>
           </View>
+        ) : isDesktopWorkspace ? (
+          body
         ) : (
-          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-            <Animated.View style={{ opacity: revealOpacity }}>
-              {opponents.length === 0 && opponentStripEmptyState ? (
-                <View
-                  collapsable={false}
-                  style={layoutStyles.opponentStripSection}
-                  className="table-opponent-strip mt-4 opponent-strip-empty-state"
-                >
-                  {opponentStripEmptyState}
-                </View>
-              ) : null}
-
-              {/*
-                One continuous felt "stage" behind the whole seating arc + board (not just the
-                board strip) — seats positioned around its perimeter converging on a shared
-                center, per the table-scene redesign brief. See seatArrangement.ts for how
-                opponents are grouped into a top-center seat + left/right columns, and
-                OpponentStrip.tsx for how the board is woven into the middle of that stack.
-              */}
-              <View className="game-area-container" collapsable={false}>
-                <OpponentStrip
-                  opponents={opponents}
-                  winnerName={winnerName}
-                  onPlayerPress={onPlayerPress}
-                  onSeatBounds={onSeatBounds}
-                  activeTurnProgress={activeTurnProgress}
-                  centerSlot={board}
-                />
-                {hero != null ? (
-                  <View
-                    collapsable={false}
-                    style={[layoutStyles.heroSection, heroSectionStyle]}
-                    className="table-hero-section"
-                  >
-                    {hero}
-                  </View>
-                ) : null}
-              </View>
-
-              {!hideBottomSection ? (
-                <Surface
-                  as={View}
-                  styleId="surface.sim.table.actionbar"
-                  collapsable={false}
-                  style={[
-                    layoutStyles.actionBarSection,
-                    {
-                      height: actionBarHeight,
-                      minHeight: actionBarHeight,
-                      paddingBottom: insets.bottom,
-                    },
-                  ]}
-                >
-                  {bottom}
-                </Surface>
-              ) : null}
-            </Animated.View>
-
-            <View collapsable={false}>
-              {dealerBar}
-            </View>
-          </ScrollView>
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }}>{body}</ScrollView>
         )}
       </TableLayoutHeightProvider>
     </View>

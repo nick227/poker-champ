@@ -120,38 +120,40 @@ function TableSceneRouterContent({
   const showEmptyOpponentsState = renderModel.opponents.length === 0 && mode !== "connecting";
 
   const emptyOpponentsState = showEmptyOpponentsState ? (
-    <View className="p-4 gap-y-3 mt-2">
-      <View className="ui-row rounded-lg border border-border-subtle bg-panel-elevated p-3">
-        <Image source={BOT_AVATAR_SOURCE} className="max-w-16 max-h-16 rounded-full" resizeMode="cover" />
-        <View className="ui-col px-4 flex-1 min-w-0 gap-2">
-
-          <Text variant="label" className="text-text-subtle mb-1 normal-case tracking-normal">
-            Share this game URL
-          </Text>
-
-          <Text numberOfLines={1} ellipsizeMode="tail" selectable className="w-full">
-            {shareTableUrl}
-          </Text>
-
-          <View className="flex-row gap-2">
-          <Button title="Add bot" onPress={actions.openAddBotPicker} />
-          
-            <Button
-              title="Copy URL"
-              onPress={() => copyShareTableUrl(shareTableUrl, showToast)}
-              intent="neutral"
-              size="sm"
-            />
-
-            <IconButton
-              icon={<Icon name="share" size={20} />}
-              intent="ghost"
-              size="md"
-              onPress={() => void shareTable(shareTableUrl)}
-            />
-          </View>
-        </View>
-      </View>
+    <View className="flex-row items-center gap-2 px-3 py-2 border-b border-border-subtle bg-panel/80">
+      <Image
+        source={BOT_AVATAR_SOURCE}
+        className="w-8 h-8 rounded-full"
+        resizeMode="cover"
+      />
+      <Text
+        variant="caption"
+        className="text-text-subtle shrink-0"
+        numberOfLines={1}
+      >
+        Invite friends or add a bot
+      </Text>
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="middle"
+        selectable
+        className="flex-1 min-w-0 text-text-subtle text-xs"
+      >
+        {shareTableUrl}
+      </Text>
+      <Button title="Add bot" size="sm" onPress={actions.openAddBotPicker} />
+      <Button
+        title="Copy"
+        size="sm"
+        intent="neutral"
+        onPress={() => copyShareTableUrl(shareTableUrl, showToast)}
+      />
+      <IconButton
+        icon={<Icon name="share" size={18} />}
+        intent="ghost"
+        size="sm"
+        onPress={() => void shareTable(shareTableUrl)}
+      />
     </View>
   ) : null;
 
