@@ -75,6 +75,7 @@
     "lint": "pnpm -C apps/client lint",
     "typecheck": "pnpm -C apps/client typecheck",
     "start": "node dist/apps/server/src/index.js",
+    "start:prod": "pnpm db:migrate && pnpm start",
     "start:with-seed": "pnpm db:migrate && pnpm lessons:seed:content && pnpm start",
     "start:web": "node tools/static-server.js",
     "db:migrate": "node node_modules/prisma/build/index.js migrate deploy --schema packages/db/prisma/schema.prisma",
