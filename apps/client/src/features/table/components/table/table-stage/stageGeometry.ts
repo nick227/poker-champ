@@ -13,24 +13,43 @@ export type SeatAnchor = {
   y: number;
 };
 
+/**
+ * Authoring units in stage space.
+ * Play oval = clear center; rail = seat centers outside play; felt = rail bbox + pad.
+ */
 export const STAGE_LAYOUT_NORM = Object.freeze({
   MIN_SEATS: 2,
   MAX_SEATS: 9,
-  /** Inset felt oval (~3–4% pad → ~94% fill). */
-  felt: { x: 0.03, y: 0.04, w: 0.94, h: 0.92 } satisfies NormRect,
-  /** Seat rail ellipse (centers); outside board, on cushion. */
-  rail: { cx: 0.5, cy: 0.52, rx: 0.44, ry: 0.4 },
-  /** Community / pot safe zone — only board + FX. */
-  board: { x: 0.28, y: 0.34, w: 0.44, h: 0.3 } satisfies NormRect,
-  /** Plate size as fraction of min(stageW, stageH). */
-  plateW: 0.155,
-  plateH: 0.092,
-  plateMinW: 96,
-  plateMaxW: 148,
-  cardScale: 0.4,
-  /** Extra host height above plate for hole-card fan (px after scale). */
-  cardsExtraFrac: 0.35,
+  /** Clear play oval (board/pot/chips only) — seats stay outside. */
+  play: { cx: 0.5, cy: 0.49, rx: 0.36, ry: 0.3 },
+  /**
+   * Seat rail — outside play. South (hero) lands ~0.88 so HUD has air.
+   * Same ellipse family as felt silhouette (felt = rail bbox + pad).
+   */
+  rail: { cx: 0.5, cy: 0.49, rx: 0.46, ry: 0.39 },
+  /** Pad around rail bbox → painted felt oval. */
+  feltPad: 0.025,
+  /** Community / pot safe zone inside play. */
+  board: { x: 0.26, y: 0.3, w: 0.48, h: 0.34 } satisfies NormRect,
+  /** Plate width as fraction of min(feltW, feltH). */
+  plateFromFelt: 0.175,
+  plateMinW: 100,
+  plateMaxW: 168,
+  cardScale: 0.38,
+  cardsExtraFrac: 0.32,
 } as const);
+
+function feltNormFromRail(): NormRect {
+  const { rail, feltPad } = STAGE_LAYOUT_NORM;
+  return {
+    x: rail.cx - rail.rx - feltPad,
+    y: rail.cy - rail.ry - feltPad,
+    w: 2 * (rail.rx + feltPad),
+    h: 2 * (rail.ry + feltPad),
+  };
+}
+
+export const STAGE_LAYOUT_FELT_NORM = feltNormFromRail();
 
 /** @deprecated use STAGE_LAYOUT_NORM */
 export const STAGE_GEOMETRY = Object.freeze({
@@ -68,17 +87,14 @@ export function projectRect(r: NormRect, stage: StageSize): PixelRect {
 }
 
 export function platePixelSize(stage: StageSize): PixelSize {
-  const m = Math.min(stage.width, stage.height);
+  const felt = projectRect(STAGE_LAYOUT_FELT_NORM, stage);
+  const m = Math.min(felt.w, felt.h);
   const width = clamp(
-    m * STAGE_LAYOUT_NORM.plateW,
+    m * STAGE_LAYOUT_NORM.plateFromFelt,
     STAGE_LAYOUT_NORM.plateMinW,
     STAGE_LAYOUT_NORM.plateMaxW,
   );
-  const height = clamp(
-    m * STAGE_LAYOUT_NORM.plateH,
-    STAGE_LAYOUT_NORM.plateMinW * 0.55,
-    STAGE_LAYOUT_NORM.plateMaxW * 0.58,
-  );
+  const height = clamp(width * 0.58, STAGE_LAYOUT_NORM.plateMinW * 0.52, STAGE_LAYOUT_NORM.plateMaxW * 0.58);
   return { width: Math.round(width), height: Math.round(height) };
 }
 
@@ -102,6 +118,7 @@ export type ResolvedStageLayout = {
   board: PixelRect;
   plate: PixelSize;
   seats: SeatAnchor[];
+  /** Use as CSS 50%-equivalent ellipse clip radius (half of each axis via min). */
   feltRadius: number;
 };
 
@@ -119,12 +136,13 @@ export function resolveStageLayout(maxSeats: number, stage: StageSize): Resolved
       y: clamp(p.y, halfH, stage.height - halfH),
     });
   }
-  const felt = projectRect(STAGE_LAYOUT_NORM.felt, stage);
+  const felt = projectRect(STAGE_LAYOUT_FELT_NORM, stage);
   return {
     felt,
     board: projectRect(STAGE_LAYOUT_NORM.board, stage),
     plate,
     seats,
+    // Half-min → stadium/ellipse clip aligned to felt bbox of the rail.
     feltRadius: Math.min(felt.w, felt.h) / 2,
   };
 }
@@ -148,10 +166,10 @@ export function assignOpponentsToSlots<T extends { seat: number }>(
   return slots;
 }
 
-/** Defaults for SeatPlate when stage has not measured yet. */
 export const SEAT_PLATE = Object.freeze({
   WIDTH: 128,
-  HEIGHT: 76,
+  HEIGHT: 74,
   AVATAR: 44,
   CARD_SCALE: STAGE_LAYOUT_NORM.cardScale,
+  CAPSULE_H: 52,
 } as const);

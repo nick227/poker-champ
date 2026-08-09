@@ -15,6 +15,8 @@ export function buildHeroPlate(params: {
   isWinner?: boolean;
   cardFacePackId: CardFacePackId;
   statusLabel?: string | null;
+  betDisplay?: string | null;
+  turnProgress?: number | null;
 }): SeatPlateProps {
   const name = params.userName?.trim() || "You";
   const left = params.cards[0] ?? null;
@@ -54,5 +56,7 @@ export function buildHeroPlate(params: {
         }
       : undefined,
     cardFacePackId: params.cardFacePackId,
+    betDisplay: params.betDisplay ?? null,
+    turnProgress: params.turnProgress ?? null,
   };
 }

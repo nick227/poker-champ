@@ -1,4 +1,4 @@
-import { Animated, View } from "react-native";
+import { Animated, View, type LayoutChangeEvent } from "react-native";
 import type { UiCard } from "../table.adapter";
 import { CommunityBoard } from "./CommunityBoard";
 import { PotChipStack } from "./PotChipStack";
@@ -8,15 +8,13 @@ import type { Rect } from "@/features/table/animations/animationTypes";
 import { BOARD_AREA_HEIGHT } from "../constants/table-layout.constants";
 import { useTableLayoutHeight } from "../table-layout/TableLayoutHeightContext";
 import { boardAreaStyles } from "./styles";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type BoardAreaProps = {
   cards: UiCard[];
   potCents: number;
   animateReset?: boolean;
-  /** When set, each community card slot (0..4) reports bounds for overlay. */
   onCardSlotBounds?: (index: number, rect: Rect) => void;
-  /** Stage center: size to content inside the safe zone (no fixed phone band height). */
   fitContent?: boolean;
 };
 
@@ -31,6 +29,7 @@ export function BoardArea({
   const potValue = typeof potCents === "number" ? formatPot(potCents) : "--";
   const layoutHeights = useTableLayoutHeight();
   const fadeOpacity = useRef(new Animated.Value(1)).current;
+  const [box, setBox] = useState({ width: 0, height: 0 });
 
   const feltHeight = layoutHeights?.boardAreaHeight ?? BOARD_AREA_HEIGHT;
 
@@ -47,13 +46,29 @@ export function BoardArea({
     }).start();
   }, [animateReset, fadeOpacity]);
 
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width === box.width && height === box.height) return;
+    setBox({ width, height });
+  };
+
   return (
-    // No felt wrapper here: the board now sits inside the shared felt "stage" rendered by
-    // OpponentStrip (one continuous surface behind seats + board — see seatArrangement.ts and
-    // TableSceneShell's game-area-container), rather than wrapping its own separate felt patch.
-    <View style={[boardAreaStyles.root, fitContent ? { height: undefined, maxHeight: "100%" } : { height: feltHeight }]}>
+    <View
+      onLayout={onLayout}
+      style={[
+        boardAreaStyles.root,
+        fitContent
+          ? { width: "100%", height: "100%", justifyContent: "center" }
+          : { height: feltHeight },
+      ]}
+    >
       <Animated.View collapsable={false} style={[boardAreaStyles.inner, { opacity: fadeOpacity }]}>
-        <CommunityBoard cards={cards} onCardSlotBounds={onCardSlotBounds} />
+        <CommunityBoard
+          cards={cards}
+          onCardSlotBounds={onCardSlotBounds}
+          targetWidth={box.width > 0 ? box.width : undefined}
+          targetHeight={box.height > 0 ? box.height : undefined}
+        />
 
         <View
           className="pot-container flex justify-center items-center"

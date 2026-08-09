@@ -95,7 +95,7 @@ export function useActiveTableSlots(
   const opponents = (renderModel.opponents ?? []) as Opponent[];
   const statusStrip = liveTableState?.statusStrip;
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
-  const { formatStack } = useTableMoneyDisplay();
+  const { formatStack, formatBet } = useTableMoneyDisplay();
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
@@ -143,7 +143,8 @@ export function useActiveTableSlots(
     turnTimeoutTotalMs,
   );
   const hasOpponentToAct = opponents.some((o) => o.isActive);
-  const activeTurnProgress = useTurnProgress(hasOpponentToAct, true, turnTimeoutTotalMs);
+  const seatToAct = isHeroToAct || hasOpponentToAct;
+  const activeTurnProgress = useTurnProgress(seatToAct, true, turnTimeoutTotalMs);
 
   const heroIsSeated = snapshot?.hero.youAreSeated ?? false;
   const waitingBetweenHands = statusStrip
@@ -349,6 +350,8 @@ export function useActiveTableSlots(
     );
   }
 
+  const heroRoundBetCents =
+    snapshot?.seats.find((s) => s.seat === snapshot.hero.seat)?.roundBetCents ?? 0;
   const heroPlate = heroIsSeated
     ? buildHeroPlate({
         userName: heroName,
@@ -362,6 +365,8 @@ export function useActiveTableSlots(
         isActiveTurn: statusStrip?.showTurnCue ?? isHeroToAct,
         isWinner: isHeroWinner,
         cardFacePackId,
+        betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
+        turnProgress: isHeroToAct ? activeTurnProgress : null,
       })
     : null;
 

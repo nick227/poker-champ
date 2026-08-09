@@ -148,7 +148,8 @@ export function ActiveTableView({
     turnTimeoutTotalMs,
   );
   const hasOpponentToAct = opponents.some((o) => o.isActive);
-  const activeTurnProgress = useTurnProgress(hasOpponentToAct, tableMode === "live", turnTimeoutTotalMs);
+  const seatToAct = isHeroToAct || hasOpponentToAct;
+  const activeTurnProgress = useTurnProgress(seatToAct, tableMode === "live", turnTimeoutTotalMs);
 
   useEffect(() => {
     const handId = snapshot.hand?.handId ?? null;
@@ -306,7 +307,9 @@ export function ActiveTableView({
   }
 
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
-  const { formatStack } = useTableMoneyDisplay();
+  const { formatStack, formatBet } = useTableMoneyDisplay();
+  const heroRoundBetCents =
+    snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.roundBetCents ?? 0;
   const heroPlate =
     !isReplayMode && heroIsSeated
       ? buildHeroPlate({
@@ -319,6 +322,8 @@ export function ActiveTableView({
           isActiveTurn: isHeroToAct,
           isWinner: isHeroWinner,
           cardFacePackId,
+          betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
+          turnProgress: isHeroToAct ? activeTurnProgress : null,
         })
       : null;
 
