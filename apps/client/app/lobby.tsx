@@ -17,7 +17,6 @@ import { LobbyTabs, type LobbyTabKey } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
@@ -552,7 +551,6 @@ export default function LobbyScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

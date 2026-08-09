@@ -1,6 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { AwardToaster } from "@/components/domain/awards/AwardToaster";
 import { useTablePageController } from "./useTablePageController";
 import { TableSceneRouter } from "./TableSceneRouter";
@@ -31,7 +30,6 @@ export function TablePage() {
         <AwardToaster awards={newAwards} onDismiss={dismissAwards} />
       ) : null}
       <TablePageOverlays renderModel={renderModel} uiState={uiState} actions={actions} />
-      <BottomBar active="table" />
     </Screen>
   );
 }

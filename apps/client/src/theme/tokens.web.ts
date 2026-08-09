@@ -134,7 +134,7 @@ html, body {
   flex-direction: column;
 }
 
-/* Constrained content */
+/* Mobile content column (<768). Fluid from 768+; desktop shell uses .app-shell-desktop + .app-main. */
 .app-content {
   width: 100%;
   max-width: 640px;
@@ -143,6 +143,55 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .app-content {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* Desktop workspace: NavRail + fluid main (AppChrome) */
+.app-shell-desktop {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .app-main {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+.app-nav-rail {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  border-right: 1px solid hsl(var(--c-border));
+  background-color: hsl(var(--c-panel) / 0.85);
 }
 
 #root, #root div, #root span {
@@ -173,6 +222,12 @@ html, body {
   max-width: 100% !important;
   width: 640px !important;
   margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .bottom-sheet {
+    width: min(480px, calc(100vw - 48px)) !important;
+  }
 }
 
 #root .dealer-button {

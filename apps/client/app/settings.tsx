@@ -7,7 +7,6 @@ import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { HandHistorySection } from "@/components/domain/history/HandHistorySection";
@@ -185,7 +184,6 @@ export default function SettingsScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-      <BottomBar active="settings" />
     </Screen>
   );
 }

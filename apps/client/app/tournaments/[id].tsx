@@ -8,7 +8,6 @@ import { Text } from "@/components/base/Text";
 import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { TournamentJoinModal, TournamentRegisterModal } from "@/features/lobby";
 import { TournamentDetailBody } from "@/features/tournaments";
 import {
@@ -242,8 +241,6 @@ export default function TournamentDetailScreen() {
         onClose={() => setJoinModalTournament(null)}
         onConfirm={handleConfirmTournamentJoin}
       />
-
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

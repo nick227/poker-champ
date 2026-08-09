@@ -7,7 +7,6 @@ import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
 import { OnlinePlayersSheet } from "@/features/lobby";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { getAllArticles } from "@/content/blog/blogManifest";
 import { useProfile } from "@/hooks/useProfile";
@@ -90,7 +89,6 @@ export default function BlogListScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

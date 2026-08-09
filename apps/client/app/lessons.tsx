@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
@@ -103,7 +102,6 @@ export default function LessonsScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-      <BottomBar active="lessons" />
     </Screen>
   );
 }

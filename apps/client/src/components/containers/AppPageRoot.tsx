@@ -6,7 +6,7 @@ import { resolveBackground } from "@/theme/backgrounds";
 import { resolvedToNativeProps } from "@/theme/backgrounds/background.native";
 import { resolvedToBodyStyle } from "@/theme/backgrounds/background.web";
 import { getBackgroundImageUrl } from "@/theme/backgrounds/getBackgroundImageUrl.web";
-import { getFeltImageSource } from "@/features/table";
+import { getFeltImageSource } from "@/features/table/components/table/feltImages";
 
 type AppPageRootProps = { children: ReactNode };
 
@@ -22,8 +22,7 @@ function useResolvedAppBackground() {
 }
 
 /**
- * Page root: full viewport container (background) + content width constraint.
- * Background applied only here; no DOM mutation. Platform only changes render type.
+ * Full-viewport background only. Content width / chrome live in AppChrome.
  */
 export function AppPageRoot({ children }: AppPageRootProps) {
   const { webStyle, nativeProps } = useResolvedAppBackground();
@@ -36,7 +35,7 @@ export function AppPageRoot({ children }: AppPageRootProps) {
         className="app-page"
         style={(webStyle ?? {}) as ViewStyle}
       >
-        <View className="app-content bg-bg/70">{children}</View>
+        {children}
       </View>
     );
   }
@@ -58,4 +57,3 @@ export function AppPageRoot({ children }: AppPageRootProps) {
     </View>
   );
 }
-

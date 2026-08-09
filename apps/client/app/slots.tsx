@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
@@ -70,8 +69,6 @@ export default function SlotsScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

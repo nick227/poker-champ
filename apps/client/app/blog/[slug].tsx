@@ -7,7 +7,6 @@ import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ArticleLayout } from "@/components/domain/blog/ArticleLayout";
 import { OnlinePlayersSheet } from "@/features/lobby";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Text } from "@/components/base/Text";
 import { getArticle } from "@/content/blog/blogManifest";
 import { useProfile } from "@/hooks/useProfile";
@@ -61,7 +60,6 @@ export default function BlogArticleScreen() {
           error={onlineError}
           onRefresh={requestOnlinePlayers}
         />
-        <BottomBar active="lobby" />
       </Screen>
     );
   }
@@ -93,7 +91,6 @@ export default function BlogArticleScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

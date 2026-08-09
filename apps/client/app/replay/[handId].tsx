@@ -2,7 +2,6 @@ import { View } from "react-native";
 import type { ReactNode } from "react";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";
 import { useLocalSearchParams } from "expo-router";
@@ -20,7 +19,6 @@ export default function ReplayScreen() {
       <View className="flex-1 ui-stack-3">
         {content}
       </View>
-      <BottomBar active="lobby" />
     </Screen>
   );
 

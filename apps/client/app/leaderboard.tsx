@@ -6,7 +6,6 @@ import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { Button } from "@/components/base/Button";
 import { Avatar } from "@/components/base/Avatar";
 import { OnlinePlayersSheet } from "@/features/lobby";
@@ -260,8 +259,6 @@ export default function LeaderboardScreen() {
         error={onlineError}
         onRefresh={requestOnlinePlayers}
       />
-
-      <BottomBar active="leaderboard" />
     </Screen>
   );
 }

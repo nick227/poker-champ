@@ -3,7 +3,6 @@ import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";
 import { getCommunityHandById } from "@/features/replay/community/communityHands";
@@ -18,7 +17,6 @@ function wrapWithShell(content: ReactNode) {
       <View className="flex-1 ui-stack-3">
         {content}
       </View>
-      <BottomBar active="lobby" />
     </Screen>
   );
 }

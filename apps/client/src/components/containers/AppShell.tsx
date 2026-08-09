@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
+import { AppChrome } from "@/components/containers/AppChrome";
 import { AppPageRoot } from "@/components/containers/AppPageRoot";
 import { Toast } from "@/components/base/Toast";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
@@ -25,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <AppPageRoot>
-      {children}
+      <AppChrome>{children}</AppChrome>
       {toastMessage ? (
         <Toast message={toastMessage} variant={toastVariant} onDismiss={toastDismiss} />
       ) : null}

@@ -1,7 +1,6 @@
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { useBankroll } from "@/hooks/useBankroll";
 import { LessonContent } from "@/features/lessons/LessonContent";
 
@@ -22,7 +21,6 @@ export default function LessonScreen() {
           onOpenLesson={(nextLessonId) => router.replace(`/lesson/${encodeURIComponent(nextLessonId)}`)}
         />
       </View>
-      <BottomBar active="lessons" />
     </SafeAreaView>
   );
 }
