@@ -25,6 +25,7 @@ import { emitHapticEvent } from "@/haptics/emitHapticEvent";
 import type { LiveTableStatusStripState } from "@/features/table-page/useLiveTableStatusStripState";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { useMultiTableStore } from "@/features/table/stores/multitable.store";
+import { EmptyTableStartCta } from "./EmptyTableStartCta";
 
 export type LiveTableSlotState = {
   sceneModel?: TableSceneModel;
@@ -328,6 +329,13 @@ export function useActiveTableSlots(
         hideReconnectingOverlay
         onAction={handleAction}
         forceInteractive={false}
+      />
+    );
+  } else if (renderModel.opponents.length === 0) {
+    bottom = (
+      <EmptyTableStartCta
+        message={statusStrip?.message ?? "Add a bot to start playing"}
+        onAddBot={actions.openAddBotPicker}
       />
     );
   } else {

@@ -18,6 +18,7 @@ import { useTableViewShellFrame } from "./tableView.shared";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
+import { EmptyTableStartCta } from "./EmptyTableStartCta";
 
 function renderStatusStripPanel(
   message: string,
@@ -114,6 +115,13 @@ export function useIdleTableSlots(
           <Button title="Back to lobby" onPress={actions.closeTableAndReturn} />
         </View>
       </View>
+    );
+  } else if (renderModel.opponents.length === 0) {
+    bottom = (
+      <EmptyTableStartCta
+        message={statusStrip?.message ?? "Add a bot to start playing"}
+        onAddBot={actions.openAddBotPicker}
+      />
     );
   } else {
     bottom = renderStatusStripPanel(
