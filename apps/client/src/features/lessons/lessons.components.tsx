@@ -10,8 +10,8 @@ import {
   formatLessonsProgress,
   formatLessonsScore,
   getLessonsButtonLabel,
-} from "./_lessons.data";
-import type { useLessonsPageViewModel } from "./_useLessonsPageViewModel";
+} from "./lessons.data";
+import type { useLessonsPageViewModel } from "./useLessonsPageViewModel";
 
 type LessonsPageViewModel = ReturnType<typeof useLessonsPageViewModel>;
 

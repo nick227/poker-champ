@@ -56,7 +56,7 @@ vi.mock("@/lib/profileFromMe", () => ({
 }));
 
 vi.mock("@/constants", () => ({
-  DEFAULT_API_URL: "http://localhost:3000",
+  DEFAULT_API_URL: "http://localhost:2567",
   PRELOAD_SOUNDS: [],
 }));
 

@@ -294,10 +294,13 @@ async function start() {
 
   const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "30000");
   if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {
-    void tournamentDirector.tick();
-    tournamentDirectorInterval = setInterval(() => {
-      void tournamentDirector.tick();
-    }, tournamentPollMs);
+    const runTournamentTick = () => {
+      tournamentDirector.tick().catch((err) => {
+        logger.error({ err }, "Tournament director tick failed");
+      });
+    };
+    runTournamentTick();
+    tournamentDirectorInterval = setInterval(runTournamentTick, tournamentPollMs);
   }
 
   if (isLeaderboardEnabled()) {

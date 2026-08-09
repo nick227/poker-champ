@@ -3,7 +3,7 @@
  */
 
 // API defaults
-export const DEFAULT_API_URL = "http://localhost:3000";
+export const DEFAULT_API_URL = "http://localhost:2567";
 
 // Realtime connection
 /** Base delay (ms) for exponential backoff reconnect attempts, before jitter is applied. */
