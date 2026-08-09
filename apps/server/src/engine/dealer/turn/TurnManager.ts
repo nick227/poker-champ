@@ -371,6 +371,22 @@ class ActionQueue {
 class AutoActionDispatcher {
   private pendingDelayTimeoutIds = new Set<ReturnType<typeof setTimeout>>();
   private lastAutoActionProbe: AutoActionProbeSnapshot | null = null;
+  // Tracks decision-points (handId+street+handActionSeq+toActSeat) that already have an
+  // auto-action enqueued and not yet resolved. Without this, a driver that calls
+  // maybeActForBot repeatedly while the queued action is still pending (e.g. ticks,
+  // retries, or the engine's own natural churn) re-enqueues a duplicate every time --
+  // each duplicate captures its own turn token, and by the time an earlier one reaches
+  // beforeStart, real intervening game activity has usually already changed
+  // handActionSeq, so most of the flood gets discarded as stale (TurnTokenUtil.staleReason)
+  // instead of any single attempt getting a fair, uncontested chance to land. Skipping the
+  // enqueue when one is already in flight for the exact same decision point fixes that at
+  // the source; the entry clears once that attempt resolves (applied or discarded), so a
+  // genuinely new decision point (different handActionSeq) is never blocked.
+  private pendingAutoActionTokenKeys = new Set<string>();
+
+  private static tokenKey(token: QueuedTurnToken): string {
+    return `${token.handId}:${token.street}:${token.handActionSeq}:${token.toActSeat}`;
+  }
 
   constructor(private readonly deps: {
     state: PokerState;
@@ -487,6 +503,11 @@ class AutoActionDispatcher {
       "INTERNAL_WORK_ENQUEUED",
     );
     const turnToken = TurnTokenUtil.capture(state, userId);
+    const tokenKey = turnToken ? AutoActionDispatcher.tokenKey(turnToken) : null;
+    if (tokenKey && this.pendingAutoActionTokenKeys.has(tokenKey)) {
+      return;
+    }
+    if (tokenKey) this.pendingAutoActionTokenKeys.add(tokenKey);
     // CRITICAL INVARIANT:
     // Any delay for queued auto/internal work must happen before enqueueing.
     // Sleeping inside the serialized queue starves later player actions.
@@ -520,7 +541,6 @@ class AutoActionDispatcher {
     beforeStartResult,
     staleReasonAtBeforeStart: discardReason,
   });
-
   // 🔥 NOW emit discard side effects
   if (!beforeStartResult) {
     logger.info(
@@ -555,9 +575,14 @@ class AutoActionDispatcher {
     }
   }
 
+  // Discarded before ever executing -- release the slot so the next maybeActForBot
+  // drive can enqueue fresh for whatever the (now-changed) decision point actually is.
+  if (!beforeStartResult && tokenKey) this.pendingAutoActionTokenKeys.delete(tokenKey);
+
   return beforeStartResult;
 },
         execute: async () => {
+          try {
           const staleReasonAtExecuteTop = TurnTokenUtil.staleReason(this.deps.state, turnToken);
           this.captureAutoActionProbe({
             phase: "execute_top",
@@ -775,6 +800,11 @@ class AutoActionDispatcher {
             }
             throw err;
           }
+        } finally {
+          // Executed (applied, skippably rejected, or re-thrown) -- release the slot
+          // either way so a genuinely new decision point isn't blocked by this one.
+          if (tokenKey) this.pendingAutoActionTokenKeys.delete(tokenKey);
+        }
         },
       }).catch((err) => {
         if (this.isSkippableQueuedActionError(err)) {
@@ -835,6 +865,7 @@ class AutoActionDispatcher {
       clearTimeout(timeoutId);
     }
     this.pendingDelayTimeoutIds.clear();
+    this.pendingAutoActionTokenKeys.clear();
   }
 
   private getQueuedAutoActionIneligibleReason(userId: string): string | null {

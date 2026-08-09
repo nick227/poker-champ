@@ -348,6 +348,68 @@ describe("TurnManager", () => {
     ]);
   });
 
+  it("does not enqueue a duplicate auto-action for the same decision point while one is already pending", async () => {
+    // Regression coverage: maybeActForBot is called on every drive (ticks, retries,
+    // the engine's own natural churn), and while a previously-enqueued auto-action
+    // for a disconnected player hasn't executed yet, a naive caller re-enqueues a
+    // duplicate every time it's called. Each duplicate captures its own turn token;
+    // in production, by the time an earlier one reaches beforeStart, real intervening
+    // game activity has usually already changed handActionSeq, so most of a flood of
+    // duplicates get discarded as stale instead of any single attempt getting an
+    // uncontested chance to land -- which is what caused a real BOT_OVERDUE stall
+    // (soak-test discovered) that no amount of extra retrying fixed, only closing the
+    // duplicate-enqueue gap at the source did. Calling enqueueInternalAction twice in
+    // a row for the exact same decision point (same state, no await in between) must
+    // only ever actually apply the action once.
+    const state = createActionableState();
+    const handleInternalAction = vi.fn(async () => {});
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction,
+      setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
+    });
+
+    turnManager.enqueueInternalAction("u1", { action: "FOLD" });
+    turnManager.enqueueInternalAction("u1", { action: "FOLD" });
+
+    await turnManager.getActionQueue();
+
+    expect(handleInternalAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a fresh auto-action once the decision point actually changes", async () => {
+    // The dedup guard must not outlive its decision point: once real state progress
+    // makes it a genuinely new turn (different handActionSeq), a new auto-action for
+    // the same player must not be blocked by the earlier, now-resolved one.
+    const state = createActionableState();
+    const handleInternalAction = vi.fn(async () => {});
+    const turnManager = new TurnManager({
+      state,
+      maxQueueDepth: 50,
+      isDisposed: () => false,
+      emitDiagnostic: () => {},
+      buildDiagnosticContext: (context) => context ?? {},
+      handleInternalAction,
+      setPlayerSittingOutInternal: async () => {},
+      driveGame: async () => {},
+    });
+
+    turnManager.enqueueInternalAction("u1", { action: "FOLD" });
+    await turnManager.getActionQueue();
+    expect(handleInternalAction).toHaveBeenCalledTimes(1);
+
+    state.handActionSeq += 1;
+    turnManager.enqueueInternalAction("u1", { action: "FOLD" });
+    await turnManager.getActionQueue();
+
+    expect(handleInternalAction).toHaveBeenCalledTimes(2);
+  });
+
   it("emits QUEUE_FULL, rejects overflow enqueue, and continues queue processing", async () => {
     const state = createActionableState();
     const diagnostics: Array<Record<string, unknown>> = [];

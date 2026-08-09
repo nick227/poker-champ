@@ -493,19 +493,8 @@ describe("dealer random walk soak", () => {
         let lastProgressKey = "";
         let lastProgressAt = Date.now();
         const stallDetail = () => `fingerprint=${JSON.stringify(getStallFingerprint(state, dealer!))}`;
-        // Tracks a player disconnected by the churn branch below, for the current
-        // iteration only. A disconnected player's own client cannot submit further
-        // actions -- continuing to act on their behalf (as this harness previously
-        // did) races the engine's own disconnect-driven progression: options decided
-        // while still valid can go stale (e.g. the round closes and the street
-        // advances) before the already-decided action reaches ActionService, which
-        // then correctly rejects it. That's not an engine bug -- the harness itself
-        // must not simulate a client action arriving after that same client just
-        // went offline.
-        let disconnectedThisStepUserId: string | null = null;
         while (state.street !== "WAITING") {
           guard += 1;
-          disconnectedThisStepUserId = null;
           if (guard >= 800) {
             throw new Error(`Infinite loop detected: ${trace.join("|")}`);
           }
@@ -623,7 +612,6 @@ describe("dealer random walk soak", () => {
                 trace.push(`disconnect_timeout:${p.id}`);
               }
               trace.push(`disconnect:${p.id}`);
-              disconnectedThisStepUserId = p.id;
             }
           }
           if (rng() < 0.05) {
@@ -694,12 +682,46 @@ describe("dealer random walk soak", () => {
             throw new Error(`Missing toAct user: ${trace.join("|")}`);
           }
 
-          if (toActId === disconnectedThisStepUserId) {
-            // Just told the engine this player is offline this same step -- a real
-            // client couldn't submit an action right now either. Let the engine's own
-            // disconnect-driven progression (already run inside markDisconnectedSerialized)
-            // settle before deciding the next action fresh next iteration.
+          const toActPlayerForConnectivity = state.playersById.get(toActId);
+          if (toActPlayerForConnectivity && !toActPlayerForConnectivity.connected) {
+            // A disconnected player's own client cannot submit actions at all -- not just
+            // in the step they were disconnected, but for as long as they stay offline
+            // (this harness's reconnect-churn is only a per-step 5% chance, so a player
+            // can sit disconnected across many hands before reconnecting). The engine's
+            // own TurnAutomationService.maybeActForBot auto-folds/auto-checks on their
+            // behalf whenever it's their turn while disconnected; deciding and submitting
+            // a *second*, independent action here races that internal auto-action through
+            // the same serialized queue. Whichever wins, the loser's action is correctly
+            // rejected as stale by ActionService -- that's not an engine bug -- but the
+            // harness must not simulate a client action from a client that is offline.
+            //
+            // Just skipping (continue, no interaction) leaves the game waiting on
+            // whatever triggers maybeActForBot's disconnected-human auto-fold/check --
+            // that trigger doesn't fire spontaneously, so drive explicitly. The root
+            // cause of the BOT_OVERDUE stall this used to trip (AutoActionDispatcher
+            // re-enqueueing a duplicate auto-action on every drive while a previous one
+            // for the same decision point was still pending, flooding the queue until
+            // most attempts got discarded as stale) is now fixed at the source in
+            // TurnManager.ts, so one drive is normally enough. The bounded retry here is
+            // just a defensive margin against a resolution that's merely slow for some
+            // other reason, not a workaround for that bug.
             trace.push(`skip_disconnected_actor:${toActId}`);
+            const preSkipHandActionSeq = state.handActionSeq;
+            const preSkipToActSeat = state.toActSeat;
+            for (let driveAttempt = 0; driveAttempt < 5; driveAttempt += 1) {
+              await withTimeout(
+                Promise.resolve((dealer as any).requestDrive(`skip_disconnected_actor_tick:${driveAttempt}`)),
+                2_000,
+                `requestDrive skip_disconnected_actor_tick ${trace.join("|")}`,
+                stallDetail,
+              );
+              const resolved =
+                state.handActionSeq !== preSkipHandActionSeq ||
+                state.toActSeat !== preSkipToActSeat ||
+                state.street === "WAITING" ||
+                state.roundState !== "WAITING_FOR_ACTION";
+              if (resolved) break;
+            }
             continue;
           }
 
