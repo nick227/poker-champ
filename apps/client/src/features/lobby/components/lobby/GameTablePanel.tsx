@@ -13,6 +13,7 @@ import { GamePanelPrimaryLine } from "./GamePanelPrimaryLine";
 import { GamePanelStats } from "./GamePanelStats";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
 import { Surface } from "@/components/containers/Surface";
+import { USE_NATIVE_DRIVER } from "@/theme/animation";
 
 export function GameTablePanel({
   table,
@@ -61,7 +62,7 @@ export function GameTablePanel({
             toValue: 0.98,
             duration: 120,
             easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }).start();
         }}
         onPressOut={() => {
@@ -70,7 +71,7 @@ export function GameTablePanel({
             toValue: 1,
             duration: 120,
             easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: USE_NATIVE_DRIVER,
           }).start();
         }}
       >

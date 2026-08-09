@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Modal, PanResponder, Platform, Pressable, View, useWindowDimensions } from "react-native";
+import { Animated, Modal, PanResponder, Pressable, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ReactNode } from "react";
 import { Text } from "@/components/base/Text";
-import { DURATION, PRESS_OPACITY } from "@/theme/animation";
+import { DURATION, PRESS_OPACITY, USE_NATIVE_DRIVER } from "@/theme/animation";
 import { BACKDROP_OVERLAY } from "@/theme/colors";
 import { MODAL } from "@/constants/copy";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
-
-const USE_NATIVE_DRIVER = Platform.OS !== "web";
 
 const DEFAULT_HEIGHT_FRACTION = 0.7;
 /** px/s threshold — a faster flick jumps one snap level */

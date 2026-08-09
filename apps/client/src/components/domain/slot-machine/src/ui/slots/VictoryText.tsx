@@ -1,12 +1,13 @@
 import React from "react";
-import { Text } from "react-native";
+import { Text, type StyleProp, type ViewStyle } from "react-native";
 import Animated from "react-native-reanimated";
 import { useTheme } from "../../theme/ThemeProvider";
 import { makeStyles } from "../../theme/styleEngine";
+import { textShadowStyle } from "@/theme/textShadow";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
-export function VictoryText({ animatedStyle }: { animatedStyle?: any }) {
+export function VictoryText({ animatedStyle }: { animatedStyle?: StyleProp<ViewStyle> }) {
   const { theme } = useTheme();
   const s = makeStyles(theme, (t) => ({
     text: {
@@ -16,9 +17,7 @@ export function VictoryText({ animatedStyle }: { animatedStyle?: any }) {
       letterSpacing: 4,
       color: "#FFD700",
       textTransform: "uppercase",
-      textShadowColor: "#FF6B35",
-      textShadowOffset: { width: 2, height: 2 },
-      textShadowRadius: 8,
+      ...textShadowStyle({ color: "#FF6B35", offset: { width: 2, height: 2 }, radius: 8 }),
       position: "absolute",
       top: "50%",
       left: 0,

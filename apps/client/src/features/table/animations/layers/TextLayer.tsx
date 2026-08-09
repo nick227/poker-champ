@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { EASING_OPACITY_IN, EASING_OPACITY_OUT, EASING_SCALE } from "../animationEasing";
+import { USE_NATIVE_DRIVER } from "@/theme/animation";
+import { textShadowStyle } from "@/theme/textShadow";
 
 const FALLBACK_SIZE_MAP = {
   small: 24,
@@ -77,20 +79,20 @@ export function TextLayer({
         Animated.timing(opacity, {
           toValue: 1,
           duration: durationMs * opacityIn,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
           easing: EASING_OPACITY_IN,
         }),
         Animated.timing(scale, {
           toValue: 1,
           duration: durationMs * scaleIn,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
           easing: EASING_SCALE,
         }),
       ]).start(() => {
         Animated.timing(opacity, {
           toValue: 0,
           duration: durationMs * opacityOutFraction,
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
           easing: EASING_OPACITY_OUT,
         }).start();
       });
@@ -108,10 +110,12 @@ export function TextLayer({
         styles.headline,
         {
           color: headlineColor ?? FALLBACK_HEADLINE_COLOR,
-          textShadowColor: (glow ? glowColor : headlineColor) ?? FALLBACK_HEADLINE_SHADOW,
-          textShadowOffset: glow ? GLOW_TEXT_SHADOW_OFFSET : TEXT_SHADOW_OFFSET_NONE,
+          ...textShadowStyle({
+            color: (glow ? glowColor : headlineColor) ?? FALLBACK_HEADLINE_SHADOW,
+            offset: glow ? GLOW_TEXT_SHADOW_OFFSET : TEXT_SHADOW_OFFSET_NONE,
+            radius: glow && !headlineGlowSecondary ? GLOW_TEXT_SHADOW_RADIUS : 5,
+          }),
         },
-        glow && !headlineGlowSecondary && { textShadowRadius: GLOW_TEXT_SHADOW_RADIUS },
       ]
     : [
         styles.amount,
@@ -145,9 +149,11 @@ export function TextLayer({
                 {
                   fontSize,
                   color: headlineGlowSecondary,
-                  textShadowColor: headlineGlowSecondary,
-                  textShadowRadius: GLOW_TEXT_SHADOW_RADIUS_OUTER,
-                  textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
+                  ...textShadowStyle({
+                    color: headlineGlowSecondary,
+                    offset: GLOW_TEXT_SHADOW_OFFSET,
+                    radius: GLOW_TEXT_SHADOW_RADIUS_OUTER,
+                  }),
                 },
               ]}
               numberOfLines={1}
@@ -162,9 +168,11 @@ export function TextLayer({
               {
                 fontSize,
                 color: glowColor ?? FALLBACK_HEADLINE_SHADOW,
-                textShadowColor: glowColor ?? FALLBACK_HEADLINE_SHADOW,
-                textShadowRadius: GLOW_TEXT_SHADOW_RADIUS,
-                textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
+                ...textShadowStyle({
+                  color: glowColor ?? FALLBACK_HEADLINE_SHADOW,
+                  offset: GLOW_TEXT_SHADOW_OFFSET,
+                  radius: GLOW_TEXT_SHADOW_RADIUS,
+                }),
               },
             ]}
             numberOfLines={1}
@@ -179,9 +187,11 @@ export function TextLayer({
                 {
                   fontSize,
                   color: headlineGlowBright,
-                  textShadowColor: headlineGlowBright,
-                  textShadowRadius: GLOW_TEXT_SHADOW_RADIUS_BRIGHT,
-                  textShadowOffset: GLOW_TEXT_SHADOW_OFFSET,
+                  ...textShadowStyle({
+                    color: headlineGlowBright ?? FALLBACK_HEADLINE_SHADOW,
+                    offset: GLOW_TEXT_SHADOW_OFFSET,
+                    radius: GLOW_TEXT_SHADOW_RADIUS_BRIGHT,
+                  }),
                 },
               ]}
               numberOfLines={1}
@@ -223,14 +233,8 @@ const styles = StyleSheet.create({
   headline: {
     fontWeight: "800",
     color: FALLBACK_HEADLINE_COLOR,
-    textShadowColor: FALLBACK_HEADLINE_SHADOW,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 5,
+    ...textShadowStyle({ color: FALLBACK_HEADLINE_SHADOW, radius: 5 }),
     letterSpacing: 3,
-  },
-  glow: {
-    textShadowRadius: GLOW_TEXT_SHADOW_RADIUS,
-    textShadowColor: "rgba(255, 180, 80, 1)",
   },
   amount: {
     fontWeight: "700",

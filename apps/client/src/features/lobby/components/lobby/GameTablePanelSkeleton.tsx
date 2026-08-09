@@ -2,6 +2,7 @@ import { Animated, Easing, View } from "react-native";
 import { useEffect, useRef } from "react";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
 import { Surface } from "@/components/containers/Surface";
+import { USE_NATIVE_DRIVER } from "@/theme/animation";
 
 export function GameTablePanelSkeleton() {
   const pulse = useRef(new Animated.Value(0.7)).current;
@@ -13,13 +14,13 @@ export function GameTablePanelSkeleton() {
           toValue: 1,
           duration: 700,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
         Animated.timing(pulse, {
           toValue: 0.7,
           duration: 700,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: USE_NATIVE_DRIVER,
         }),
       ]),
     );
