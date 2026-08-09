@@ -18,7 +18,9 @@ import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
 import { LobbyDesktopSidebar } from "@/features/lobby";
+import { LobbyDesktopLayout } from "@/features/lobby";
 import { LobbyTableList } from "@/features/lobby";
+import { LobbyContinuePlaying } from "@/features/lobby";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { storeRegistry } from "@/registry/store.registry";
@@ -426,6 +428,177 @@ export default function LobbyScreen() {
   }, [registerModalTournament, refreshBankroll, refreshTournaments, showToast]);
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
+  const createTableLabel = authToken ? "New cash table" : "Login / Register";
+
+  const lessonNudge = showFromLessonNudge ? (
+    <View className="mb-3 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
+      <Text variant="body" className="text-foreground flex-1 text-sm">
+        Very nice!
+      </Text>
+      <Button
+        title="Dismiss"
+        onPress={() => setFromLessonDismissed(true)}
+        intent="neutral"
+        size="sm"
+        className="min-h-[30px] px-2 py-1"
+        textClassName="text-muted"
+      />
+    </View>
+  ) : null;
+
+  const tournamentPrimary = (
+    <ScrollView className="flex-1">
+      <JoinedTournamentsSection
+        tournaments={tournamentList}
+        authenticated={authenticated}
+        actionInFlight={tournamentActionBusy || registerBusy}
+        onTournamentAction={handleTournamentAction}
+        onOpenTournamentDetail={handleOpenTournamentDetail}
+        onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+        deleteInFlightId={tournamentDeleteId}
+      />
+      <TournamentsSection
+        tournaments={tournamentList}
+        busy={tournamentsBusy}
+        error={tournamentsError}
+        authenticated={authenticated}
+        actionInFlight={tournamentActionBusy || registerBusy}
+        onTournamentAction={handleTournamentAction}
+        onOpenTournamentDetail={handleOpenTournamentDetail}
+        onRetry={() => { void refreshTournaments(); }}
+        onCreateTournament={handleCreateTournament}
+        onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
+        deleteInFlightId={tournamentDeleteId}
+      />
+    </ScrollView>
+  );
+
+  const desktopTabs = (
+    <LobbyTabs
+      active={activeTab}
+      onChange={setActiveTab}
+      tournamentsBadgeCount={joinedTournamentsCount}
+      dense
+    />
+  );
+
+  const cashDesktopPrimary = (
+    <View className="flex-1 min-h-0">
+      {lessonNudge}
+      <LobbyContinuePlaying variant="row" />
+      {desktopTabs}
+      <InstantGamePanels
+        variant="compact"
+        inFlightPreset={instantStartInFlightPreset}
+        onStart={handleStartInstantGame}
+      />
+      {busy ? (
+        <Text variant="muted">Loading tables…</Text>
+      ) : error ? (
+        <Text variant="danger">{error}</Text>
+      ) : sortedTables.length === 0 ? (
+        <EmptyState message="No games match your filters." />
+      ) : (
+        <LobbyTableList
+          tables={sortedTables}
+          balanceCents={bankroll}
+          sortKey={sortKey}
+          onSort={setSortKey}
+          isJoining={isJoining}
+          onJoin={openJoinModal}
+        />
+      )}
+    </View>
+  );
+
+  const desktopRail = (
+    <LobbyDesktopSidebar
+      filters={filters}
+      onFiltersChange={updateFilters}
+      onCreateTable={openCreateTable}
+      onCreateTournament={handleCreateTournament}
+      createTableLabel={createTableLabel}
+    />
+  );
+
+  const modals = (
+    <>
+      <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
+      <TournamentCreateModal
+        visible={tournamentCreateModalVisible}
+        onClose={() => setTournamentCreateModalVisible(false)}
+        onCreated={() => { void refreshTournaments(); }}
+      />
+      <TournamentRegisterModal
+        visible={registerModalTournament != null}
+        tournament={registerModalTournament}
+        balanceCents={bankroll}
+        busy={registerBusy}
+        onClose={() => setRegisterModalTournament(null)}
+        onConfirm={() => void handleConfirmTournamentRegister()}
+      />
+      <TournamentJoinModal
+        visible={joinModalTournament != null}
+        tournament={joinModalTournament}
+        busy={tournamentActionBusy}
+        onClose={() => setJoinModalTournament(null)}
+        onConfirm={handleConfirmTournamentJoin}
+      />
+      <TournamentStandingsModal
+        visible={standingsModal != null}
+        tournamentId={standingsModal?.id ?? null}
+        tournamentName={standingsModal?.name}
+        tournamentStatus={standingsModal?.status}
+        onClose={() => setStandingsModal(null)}
+      />
+      {chooseTableModal && (
+        <ChooseTableModal
+          visible
+          onClose={() => setChooseTableModal(null)}
+          balanceCents={bankroll}
+          minBuyInCents={chooseTableModal.minBuyInCents}
+          maxBuyInCents={chooseTableModal.maxBuyInCents}
+          onApply={handleJoinApply}
+        />
+      )}
+      <OnlinePlayersSheet
+        visible={onlineSheetVisible}
+        onClose={() => setOnlineSheetVisible(false)}
+        players={onlinePlayers}
+        loading={onlineBusy}
+        error={onlineError}
+        onRefresh={requestOnlinePlayers}
+      />
+    </>
+  );
+
+  if (isDesktopWorkspace) {
+    return (
+      <Screen>
+        <LobbyDesktopLayout
+          username={profile.username ?? "Player"}
+          amountCents={bankroll}
+          onlineLabel={onlineLabel}
+          onPressOnline={openOnlineSheet}
+          avatarUrl={profile.avatarUrl}
+          primary={
+            activeTab === "tournaments" ? (
+              <View className="flex-1 min-h-0">
+                {lessonNudge}
+                <LobbyContinuePlaying variant="row" />
+                {desktopTabs}
+                {tournamentPrimary}
+              </View>
+            ) : (
+              cashDesktopPrimary
+            )
+          }
+          rail={desktopRail}
+        />
+        {modals}
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -473,37 +646,6 @@ export default function LobbyScreen() {
           tournamentsBadgeCount={joinedTournamentsCount}
         />
         {activeTab === "cash" ? (
-          isDesktopWorkspace ? (
-            <View className="flex-1 flex-row min-h-[70vh] px-1 pt-2">
-              <View className="flex-1 min-w-0 pr-3 ui-stack-2">
-                <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
-                {busy ? (
-                  <Text variant="muted">Loading tables…</Text>
-                ) : error ? (
-                  <Text variant="danger">{error}</Text>
-                ) : sortedTables.length === 0 ? (
-                  <EmptyState message="No games match your filters." />
-                ) : (
-                  <LobbyTableList
-                    tables={sortedTables}
-                    balanceCents={bankroll}
-                    sortKey={sortKey}
-                    onSort={setSortKey}
-                    isJoining={isJoining}
-                    onJoin={openJoinModal}
-                  />
-                )}
-              </View>
-              <LobbyDesktopSidebar
-                bankrollCents={bankroll}
-                filters={filters}
-                onFiltersChange={updateFilters}
-                onCreateTable={openCreateTable}
-                onCreateTournament={handleCreateTournament}
-                createTableLabel={authToken ? "New cash table" : "Login / Register"}
-              />
-            </View>
-          ) : (
           <>
             <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
             <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
@@ -543,80 +685,11 @@ export default function LobbyScreen() {
               )}
             </View>
           </>
-          )
         ) : (
-          <>
-            <JoinedTournamentsSection
-              tournaments={tournamentList}
-              authenticated={authenticated}
-              actionInFlight={tournamentActionBusy || registerBusy}
-              onTournamentAction={handleTournamentAction}
-              onOpenTournamentDetail={handleOpenTournamentDetail}
-              onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
-              deleteInFlightId={tournamentDeleteId}
-            />
-            <TournamentsSection
-              tournaments={tournamentList}
-              busy={tournamentsBusy}
-              error={tournamentsError}
-              authenticated={authenticated}
-              actionInFlight={tournamentActionBusy || registerBusy}
-              onTournamentAction={handleTournamentAction}
-              onOpenTournamentDetail={handleOpenTournamentDetail}
-              onRetry={() => { void refreshTournaments(); }}
-              onCreateTournament={handleCreateTournament}
-              onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
-              deleteInFlightId={tournamentDeleteId}
-            />
-          </>
+          tournamentPrimary
         )}
       </ScrollView>
-      <CreateGameModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSubmit={handleCreateGame} />
-      <TournamentCreateModal
-        visible={tournamentCreateModalVisible}
-        onClose={() => setTournamentCreateModalVisible(false)}
-        onCreated={() => { void refreshTournaments(); }}
-      />
-      <TournamentRegisterModal
-        visible={registerModalTournament != null}
-        tournament={registerModalTournament}
-        balanceCents={bankroll}
-        busy={registerBusy}
-        onClose={() => setRegisterModalTournament(null)}
-        onConfirm={() => void handleConfirmTournamentRegister()}
-      />
-      <TournamentJoinModal
-        visible={joinModalTournament != null}
-        tournament={joinModalTournament}
-        busy={tournamentActionBusy}
-        onClose={() => setJoinModalTournament(null)}
-        onConfirm={handleConfirmTournamentJoin}
-      />
-      <TournamentStandingsModal
-        visible={standingsModal != null}
-        tournamentId={standingsModal?.id ?? null}
-        tournamentName={standingsModal?.name}
-        tournamentStatus={standingsModal?.status}
-        onClose={() => setStandingsModal(null)}
-      />
-      {chooseTableModal && (
-        <ChooseTableModal
-          visible
-          onClose={() => setChooseTableModal(null)}
-          balanceCents={bankroll}
-          minBuyInCents={chooseTableModal.minBuyInCents}
-          maxBuyInCents={chooseTableModal.maxBuyInCents}
-          onApply={handleJoinApply}
-        />
-      )}
-      <OnlinePlayersSheet
-        visible={onlineSheetVisible}
-        onClose={() => setOnlineSheetVisible(false)}
-        players={onlinePlayers}
-        loading={onlineBusy}
-        error={onlineError}
-        onRefresh={requestOnlinePlayers}
-      />
+      {modals}
     </Screen>
   );
 }

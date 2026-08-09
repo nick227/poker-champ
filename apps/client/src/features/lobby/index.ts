@@ -7,6 +7,8 @@ export { ReplayQuickLinks } from "./components/lobby/ReplayQuickLinks";
 export { GameTablePanel } from "./components/lobby/GameTablePanel";
 export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleton";
 export { LobbyDesktopSidebar } from "./components/lobby/LobbyDesktopSidebar";
+export { LobbyDesktopLayout } from "./components/lobby/LobbyDesktopLayout";
+export { LobbyDesktopTopBar } from "./components/lobby/LobbyDesktopTopBar";
 export { LobbyTableList } from "./components/lobby/LobbyTableList";
 export { LobbyContinuePlaying } from "./components/lobby/LobbyContinuePlaying";
 export { EmptyState } from "./components/lobby/EmptyState";

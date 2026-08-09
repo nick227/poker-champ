@@ -1,8 +1,7 @@
 import { Pressable, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
-import { formatCents } from "@/lib/format";
-import { LobbyContinuePlaying } from "./LobbyContinuePlaying";
 import type { LobbyTableFilters } from "../../lobbyTableFilters";
 
 const STAKE_CAPS: Array<{ label: string; maxBb: number | null }> = [
@@ -13,7 +12,6 @@ const STAKE_CAPS: Array<{ label: string; maxBb: number | null }> = [
 ];
 
 type Props = {
-  bankrollCents: number;
   filters: LobbyTableFilters;
   onFiltersChange: (next: LobbyTableFilters) => void;
   onCreateTable: () => void;
@@ -21,27 +19,18 @@ type Props = {
   createTableLabel: string;
 };
 
+/** Desktop right rail: filters, create, secondary links — no bankroll duplicate. */
 export function LobbyDesktopSidebar({
-  bankrollCents,
   filters,
   onFiltersChange,
   onCreateTable,
   onCreateTournament,
   createTableLabel,
 }: Props) {
+  const router = useRouter();
+
   return (
-    <View className="w-[300px] shrink-0 border-l border-border pl-4 ui-stack-4">
-      <View className="ui-stack-1">
-        <Text variant="muted" className="text-[11px] tracking-widest uppercase">
-          Bankroll
-        </Text>
-        <Text className="text-3xl font-bold text-text tracking-tight">
-          {formatCents(bankrollCents)}
-        </Text>
-      </View>
-
-      <LobbyContinuePlaying />
-
+    <View className="flex-1 min-h-0 ui-stack-5">
       <View className="ui-stack-2">
         <Text variant="muted" className="text-[11px] tracking-widest uppercase">
           Filters
@@ -91,6 +80,22 @@ export function LobbyDesktopSidebar({
         </Text>
         <Button intent="accent" title={createTableLabel} onPress={onCreateTable} />
         <Button intent="ghost" title="Create tournament" onPress={onCreateTournament} />
+      </View>
+
+      <View className="mt-auto ui-stack-2 pt-4 border-t border-border">
+        <Text variant="muted" className="text-[11px] tracking-widest uppercase">
+          More
+        </Text>
+        <Pressable onPress={() => router.push("/lessons")} className="py-1.5">
+          <Text variant="body" className="text-[13px]">
+            Poker School
+          </Text>
+        </Pressable>
+        <Pressable onPress={() => router.push("/leaderboard")} className="py-1.5">
+          <Text variant="body" className="text-[13px]">
+            Leaderboard
+          </Text>
+        </Pressable>
       </View>
     </View>
   );

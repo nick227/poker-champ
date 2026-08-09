@@ -16,14 +16,17 @@ export function LobbyTabs({
   active,
   onChange,
   tournamentsBadgeCount,
+  dense = false,
 }: {
   active: LobbyTabKey;
   onChange: (key: LobbyTabKey) => void;
   /** Optional count (e.g. joined/live tournaments) shown appended to the Tournaments tab label. */
   tournamentsBadgeCount?: number;
+  /** Desktop workspace: no extra horizontal padding (grid owns edges). */
+  dense?: boolean;
 }) {
   return (
-    <View className="ui-row ui-inline-2 px-4 pb-3">
+    <View className={`ui-row ui-inline-2 pb-3 ${dense ? "" : "px-4"}`}>
       {TAB_ORDER.map((tab) => {
         const showBadge = tab.key === "tournaments" && Boolean(tournamentsBadgeCount);
         const label = showBadge ? `${tab.label} (${tournamentsBadgeCount})` : tab.label;
