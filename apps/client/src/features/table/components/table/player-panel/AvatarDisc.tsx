@@ -107,9 +107,19 @@ export function AvatarDisc({
           height: size,
           borderRadius: size / 2,
           borderWidth: ringWidth,
-          borderColor: isActiveTurn ? AVATAR_RING.ACTIVE_COLOR : colors.ring,
+          borderColor: isActiveTurn ? AVATAR_RING.ACTIVE_COLOR : AVATAR_RING.IDLE_COLOR,
           justifyContent: "center",
           alignItems: "center",
+          boxShadow: isActiveTurn
+            ? undefined
+            : [
+                {
+                  offsetX: 0,
+                  offsetY: 2,
+                  blurRadius: 6,
+                  color: "rgba(0,0,0,0.45)",
+                },
+              ],
         }}
       >
         <View

@@ -13,23 +13,24 @@ export const AVATAR_RING = Object.freeze({
   ACTIVE_WIDTH: 3,
   /** Gap between the disc edge and the ring stroke. */
   PADDING: 3,
-  IDLE_COLOR: "hsla(0, 0%, 100%, 0.18)",
+  /** Soft gold idle rim — reads as a frame, not a gray UI stroke. */
+  IDLE_COLOR: "hsla(43, 35%, 58%, 0.42)",
   /** Matches the app's --c-gold token (42 82% 50%, see theme/tokens.css) so the ring and any `gold`/`text-gold` chrome read as one accent family. */
   ACTIVE_COLOR: "hsl(42, 82%, 55%)",
   ACTIVE_GLOW_COLOR: "hsl(42, 82%, 55%)",
   /** Same hue as ACTIVE_COLOR, translucent — used for the seat-plate boxShadow glow. */
   PANEL_GLOW_COLOR: "hsla(42, 82%, 55%, 0.35)",
   /** Extra diameter the outer glow halo extends past the ring. */
-  GLOW_SPREAD: 10,
+  GLOW_SPREAD: 12,
 } as const);
 
 /** Small status/tier badge overlapping the bottom-right of the avatar ring. */
 export const AVATAR_BADGE = Object.freeze({
   SIZE: 18,
   BORDER_WIDTH: 2,
-  BORDER_COLOR: "hsl(220, 22%, 11%)",
-  BG_COLOR: "hsl(210, 14%, 34%)",
-  TEXT_COLOR: "hsla(0, 0%, 100%, 0.92)",
+  BORDER_COLOR: "hsl(220, 22%, 8%)",
+  BG_COLOR: "hsl(220, 16%, 22%)",
+  TEXT_COLOR: "hsla(43, 70%, 72%, 0.95)",
   FONT_SIZE: 9,
 } as const);
 
