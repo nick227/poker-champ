@@ -14,6 +14,7 @@ import {
   getPotCents,
 } from "../table.adapter";
 import { getActionContext, type ActionContext } from "../action-bar/actionBar.logic";
+import { isHeroBustedAtTable, REBUY_TO_CONTINUE_COPY } from "@/features/table/lib/rebuyEligibility";
 
 export type TableRenderPhase =
   | "WAITING"
@@ -202,6 +203,10 @@ function buildHeroPrompt(
 function buildPassiveMessage(snapshot: TableSnapshotPayload): string {
   const hand = snapshot.hand;
   if (!hand) {
+    // Cash bust: don't claim the next hand is dealing when hero needs a rebuy.
+    if (!snapshot.table?.tournament && isHeroBustedAtTable(snapshot)) {
+      return REBUY_TO_CONTINUE_COPY;
+    }
     const heroUserId = snapshot.hero.userId ?? null;
     const occupiedOpponents = snapshot.seats.filter(
       (seat) => seat.occupied && seat.userId !== heroUserId,

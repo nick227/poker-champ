@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { serviceRegistry } from "@/registry/service.registry";
 import { useToastStore } from "@/stores/toast.store";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { canHeroRebuy } from "@/features/table/lib/rebuyEligibility";
 
 export function useRebuySheet(
   tableId: string,
@@ -14,35 +15,7 @@ export function useRebuySheet(
     if (snapshot?.hand || !snapshot) setVisible(false);
   }, [snapshot]);
 
-  const canRebuy = useMemo(() => {
-    if (!snapshot) return false;
-
-    const tournamentViewer = snapshot.hero.tournamentViewer;
-    if (snapshot.table?.tournament) {
-      return tournamentViewer?.rebuyPending === true;
-    }
-
-    if (tournamentViewer?.isEliminated) return false;
-
-    if (!snapshot.hero.youAreSeated) return false;
-
-    const heroSeat =
-      snapshot.hero.seat != null
-        ? snapshot.seats.find((s) => s.seat === snapshot.hero.seat)
-        : undefined;
-
-    if (!heroSeat) return false;
-
-    if (heroSeat.stackCents !== 0) return false;
-    const allowedBustedStatuses = ["WAITING", "OUT", "ABANDONED", "ALL_IN"];
-    if (!allowedBustedStatuses.includes(heroSeat.status)) return false;
-
-    const { minBuyInCents, maxBuyInCents } = snapshot.table;
-    if (!Number.isInteger(minBuyInCents) || minBuyInCents <= 0) return false;
-    if (!Number.isInteger(maxBuyInCents) || maxBuyInCents <= 0) return false;
-
-    return true;
-  }, [snapshot]);
+  const canRebuy = useMemo(() => canHeroRebuy(snapshot), [snapshot]);
 
   const defaultBuyInCents = useMemo(() => {
     if (!snapshot) return undefined;

@@ -13,6 +13,7 @@ export const DEALING_NEXT_HAND_COPY = "Dealing next hand...";
 export const TOURNAMENT_FINISHED_COPY = "Tournament complete";
 export const TOURNAMENT_ELIMINATED_COPY = "You were eliminated";
 export const TOURNAMENT_REBUY_AVAILABLE_COPY = "Rebuy available";
+export { REBUY_TO_CONTINUE_COPY } from "@/features/table/lib/rebuyEligibility";
 
 export type TournamentViewerStripInput = {
   isEliminated?: boolean;

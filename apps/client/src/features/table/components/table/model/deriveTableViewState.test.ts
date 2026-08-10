@@ -138,6 +138,19 @@ describe("deriveTableViewState", () => {
     expect(viewState.passiveMessage).toBe("Waiting for next hand");
   });
 
+  it("asks for rebuy when hero is busted between hands", () => {
+    const { snapshot, connectionStatus } = makeSnapshot({ handId: null });
+    snapshot.seats = snapshot.seats.map((seat) =>
+      seat.userId === "hero"
+        ? { ...seat, stackCents: 0, status: "OUT" }
+        : seat,
+    );
+
+    const viewState = deriveTableViewState(snapshot, connectionStatus);
+
+    expect(viewState.passiveMessage).toBe("Rebuy to get back in");
+  });
+
   it("maps live streets directly into render phase", () => {
     const streets = [
       { street: "PREFLOP" as const, expected: "PREFLOP" },

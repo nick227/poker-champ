@@ -22,6 +22,7 @@ import {
   BOARD_RESET_FADE_MS,
   DEALING_NEXT_HAND_COPY,
   MIN_MESSAGE_DURATION_MS,
+  REBUY_TO_CONTINUE_COPY,
   TERMINAL_TIMEOUT_MS,
   TOURNAMENT_ELIMINATED_COPY,
   TOURNAMENT_REBUY_AVAILABLE_COPY,
@@ -422,6 +423,38 @@ describe("useLiveTableStatusStripState", () => {
     expect(result.current.statusPhase).toBe("betweenHands");
     expect(result.current.message).toBe("Add a bot or invite a player");
     expect(result.current.showSpinner).toBe(false);
+  });
+
+  it("surfaces rebuy copy instead of dealing spinner when hero is busted", () => {
+    const completedHand = makeHandResultNotice("hand-1");
+    const bustedHeroSnapshot = makeSnapshot({ handId: null });
+    bustedHeroSnapshot.seats = bustedHeroSnapshot.seats.map((seat) =>
+      seat.userId === "hero"
+        ? { ...seat, stackCents: 0, status: "OUT" as const }
+        : seat,
+    );
+    const { result } = renderHook(
+      (props: HookProps) => useLiveTableStatusStripState(props),
+      {
+        initialProps: makeProps({
+          sceneMode: "idle",
+          snapshot: bustedHeroSnapshot,
+          handResultNotice: completedHand,
+        }),
+      },
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(WINNER_HOLD_MS);
+    });
+    act(() => {
+      vi.advanceTimersByTime(BOARD_RESET_FADE_MS);
+    });
+
+    expect(result.current.statusPhase).toBe("betweenHands");
+    expect(result.current.message).toBe(REBUY_TO_CONTINUE_COPY);
+    expect(result.current.showSpinner).toBe(false);
+    expect(result.current.message).not.toBe(DEALING_NEXT_HAND_COPY);
   });
 
   it("does not surface per-action notice bubbles on the felt strip", () => {
