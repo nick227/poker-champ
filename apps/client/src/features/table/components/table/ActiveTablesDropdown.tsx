@@ -29,11 +29,14 @@ export function ActiveTablesDropdown({
   if (!visible) return null;
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <Pressable className="flex-1" style={{ backgroundColor: BACKDROP_OVERLAY }} onPress={onClose}>
+      <View className="flex-1" style={{ backgroundColor: BACKDROP_OVERLAY }}>
+        {/* Backdrop only — do not wrap the sheet in Pressable (nested buttons on web). */}
         <Pressable
-          className="m-4 mt-20 ui-surface-card ui-p-2"
-          onPress={(e) => e.stopPropagation()}
-        >
+          accessibilityRole="button"
+          onPress={onClose}
+          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+        />
+        <View className="m-4 mt-20 ui-surface-card ui-p-2">
           <View className="ui-row justify-between ui-border-b pb-2">
             <Text variant="h2">{MODAL.activeTables}</Text>
             <IconButton
@@ -71,8 +74,8 @@ export function ActiveTablesDropdown({
               </Pressable>
             ))}
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
