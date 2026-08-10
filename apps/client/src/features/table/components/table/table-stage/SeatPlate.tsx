@@ -6,6 +6,7 @@ import { DealerButton } from "../DealerButton";
 import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
+import { BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 import { SeatHoleCards } from "./SeatHoleCards";
 import { isBannerStatus, SeatStatusBanner } from "./SeatStatusBanner";
 import type { SeatPlateCards } from "./seatPlate.types";
@@ -66,14 +67,14 @@ const SeatTurnBar = memo(function SeatTurnBar({
       pointerEvents="none"
       style={{
         position: "absolute",
-        left: 4,
-        right: 4,
+        left: 6,
+        right: 6,
         bottom: 0,
-        height: 4,
+        height: 3,
         borderRadius: 2,
         overflow: "hidden",
-        backgroundColor: "hsla(0,0%,0%,0.5)",
-        width: width - 8,
+        backgroundColor: "hsla(0,0%,0%,0.45)",
+        width: width - 12,
       }}
     >
       <View
@@ -87,9 +88,15 @@ const SeatTurnBar = memo(function SeatTurnBar({
   );
 });
 
+/** Action prompts (to call / raises) stay off the nameplate — felt announce owns those. */
+function plateBannerLabel(statusLabel: string | null | undefined): string | null {
+  if (!isBannerStatus(statusLabel)) return null;
+  return statusLabel ?? null;
+}
+
 /**
- * GG seat pod: hole cards cover the avatar; nameplate always shows stack;
- * action status is a separate chip/banner — never replaces bankroll.
+ * Seat pod: cards on the avatar face; nameplate is only name + stack;
+ * dealer puck clear of cards; bet chip toward the felt.
  */
 export function SeatPlate({
   name,
@@ -108,7 +115,7 @@ export function SeatPlate({
   avatarSize = SEAT_PLATE.AVATAR,
   cardScale = SEAT_PLATE.CARD_SCALE,
   cardPeek = 28,
-  nameplateH = 34,
+  nameplateH = 44,
   turnProgress = null,
   betDisplay = null,
 }: SeatPlateProps) {
@@ -116,12 +123,16 @@ export function SeatPlate({
   const compact = width < 120;
   const plateW = Math.min(
     width,
-    Math.max(avatarSize + (compact ? 36 : 56), compact ? 84 : 148),
+    Math.max(avatarSize + (compact ? 40 : 64), compact ? 88 : 156),
   );
-  const showBanner = isBannerStatus(statusLabel);
-  const showStatusChip = Boolean(statusLabel) && !showBanner;
-  /** Cards drop into the avatar face (not a floating shelf above it). */
-  const cardsTop = Math.max(0, cardPeek - Math.round(avatarSize * 0.22));
+  const banner = plateBannerLabel(statusLabel);
+
+  // Drop cards onto the upper ~half of the avatar (not a shelf above it).
+  const nameplateTop = cardPeek + avatarSize + (compact ? -2 : -6);
+  const cardVisualHeight = Math.round(BASE_CARD_HEIGHT * cardScale);
+  const maxCardsTop = Math.max(0, nameplateTop - cardVisualHeight - 4);
+  const desiredCardsTop = cardPeek - Math.round(avatarSize * 0.42);
+  const cardsTop = Math.max(0, Math.min(desiredCardsTop, maxCardsTop));
 
   const body = (
     <View
@@ -141,7 +152,7 @@ export function SeatPlate({
             top: cardsTop,
             left: 0,
             right: 0,
-            height: Math.round(avatarSize * 0.95),
+            height: cardVisualHeight,
             alignItems: "center",
             justifyContent: "flex-start",
             zIndex: 4,
@@ -167,7 +178,7 @@ export function SeatPlate({
         <View
           style={{
             position: "relative",
-            opacity: inactive ? 0.52 : 1,
+            opacity: inactive ? 0.5 : 1,
             width: avatarSize,
             height: avatarSize,
           }}
@@ -184,78 +195,49 @@ export function SeatPlate({
               pointerEvents="none"
               style={{
                 position: "absolute",
-                top: Math.round(avatarSize * 0.42),
-                left: -14,
-                zIndex: 6,
+                // Clear of the card fan (upper avatar) — park on the lower-left rim.
+                top: Math.round(avatarSize * 0.62),
+                left: -18,
+                zIndex: 7,
               }}
             >
-              <DealerButton size="tiny" />
+              <DealerButton size="small" />
             </View>
           ) : null}
         </View>
 
-        {showStatusChip ? (
-          <View
-            pointerEvents="none"
-            style={{
-              marginTop: 4,
-              marginBottom: 2,
-              paddingHorizontal: compact ? 8 : 10,
-              paddingVertical: 3,
-              borderRadius: 6,
-              backgroundColor: "hsla(0, 0%, 0%, 0.78)",
-              borderWidth: 1,
-              borderColor: "hsla(43, 70%, 55%, 0.45)",
-              maxWidth: plateW,
-              zIndex: 5,
-            }}
-          >
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: compact ? 10 : 11,
-                fontWeight: "700",
-                color: "#fde68a",
-                letterSpacing: 0.3,
-                textAlign: "center",
-              }}
-            >
-              {statusLabel}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Nameplate — name + stack always visible */}
+        {/* Nameplate — identity + bankroll only */}
         <View
           style={{
-            marginTop: showStatusChip ? 0 : compact ? -2 : -6,
+            marginTop: compact ? -2 : -5,
             width: plateW,
-            minHeight: nameplateH,
-            paddingHorizontal: compact ? 8 : 12,
-            paddingTop: showBanner ? (compact ? 14 : 16) : compact ? 5 : 7,
-            paddingBottom: compact ? 5 : 7,
+            minHeight: Math.max(nameplateH, compact ? 40 : 48),
+            paddingHorizontal: compact ? 10 : 14,
+            paddingTop: banner ? (compact ? 15 : 17) : compact ? 8 : 10,
+            paddingBottom: compact ? 8 : 10,
             justifyContent: "center",
             alignItems: "center",
-            borderRadius: compact ? 7 : 10,
+            gap: 2,
+            borderRadius: compact ? 8 : 11,
             borderWidth: isActiveTurn ? 2 : 1,
             borderColor: isActiveTurn
               ? "rgba(250,204,21,0.9)"
               : inactive
-                ? "rgba(248,113,113,0.28)"
-                : "rgba(255,255,255,0.12)",
-            backgroundColor: inactive ? "rgba(8,10,12,0.9)" : "rgba(4,6,9,0.94)",
+                ? "rgba(248,113,113,0.25)"
+                : "rgba(255,255,255,0.14)",
+            backgroundColor: inactive ? "rgba(8,10,12,0.9)" : "rgba(3,5,8,0.94)",
             overflow: "hidden",
             zIndex: 3,
           }}
         >
-          {showBanner ? <SeatStatusBanner label={statusLabel!} compact={compact} /> : null}
+          {banner ? <SeatStatusBanner label={banner} compact={compact} /> : null}
           <Text
             numberOfLines={1}
             style={{
-              fontSize: compact ? 11 : 13,
-              color: inactive ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.92)",
-              fontWeight: "600",
-              letterSpacing: 0.2,
+              fontSize: compact ? 12 : 14,
+              color: inactive ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.9)",
+              fontWeight: "500",
+              letterSpacing: 0.15,
               textAlign: "center",
               width: "100%",
             }}
@@ -265,8 +247,7 @@ export function SeatPlate({
           <Text
             numberOfLines={1}
             style={{
-              marginTop: 1,
-              fontSize: compact ? 13 : 15,
+              fontSize: compact ? 14 : 16,
               color: "#7dd3fc",
               fontVariant: ["tabular-nums"],
               fontWeight: "700",
@@ -279,16 +260,15 @@ export function SeatPlate({
           <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
         </View>
 
-        {/* Bet sits under the plate toward the felt — not floating beside the avatar. */}
         {betDisplay ? (
           <View
             pointerEvents="none"
             style={{
-              marginTop: 5,
-              paddingHorizontal: 9,
-              paddingVertical: 3,
+              marginTop: 6,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
               borderRadius: 999,
-              backgroundColor: "rgba(0,0,0,0.82)",
+              backgroundColor: "rgba(0,0,0,0.84)",
               borderWidth: 1,
               borderColor: "rgba(212,175,55,0.55)",
               zIndex: 5,
@@ -330,18 +310,12 @@ export function opponentToSeatPlateProps(
     turnProgress?: number | null;
   },
 ): SeatPlateProps {
+  // Never put wager/action copy ("raises", "to call") on the seat — felt announce owns that.
   const statusLabel = (() => {
     if (opts?.statusLabel !== undefined) return opts.statusLabel;
-    if (opponent.actionLabel) return opponent.actionLabel;
     switch (opponent.status) {
-      case "folded":
-        return "Folded";
       case "allIn":
         return "All in";
-      case "sittingOut":
-        return "Sitting out";
-      case "reconnecting":
-        return "Reconnecting";
       default:
         return null;
     }

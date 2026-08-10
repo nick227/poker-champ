@@ -38,8 +38,8 @@ export function SeatHoleCards({
         alignItems: "center",
         justifyContent: "flex-start",
         opacity: inactive ? 0.32 : 1,
-        /** Pull the fan down so cards sit on the avatar face, not a shelf above it. */
-        transform: [{ translateY: inactive ? 10 : 4 }],
+        /** Sit on the avatar face — larger drop than a top-shelf hover. */
+        transform: [{ translateY: inactive ? 18 : 14 }],
       }}
     >
       <View

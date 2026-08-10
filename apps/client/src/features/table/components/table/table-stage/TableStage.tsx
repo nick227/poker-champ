@@ -212,7 +212,8 @@ const styles = StyleSheet.create({
     minHeight: 0,
     width: "100%",
     position: "relative",
-    overflow: "hidden",
+    // Visible so hero nameplate is not clipped into the action HUD band.
+    overflow: "visible",
   },
   boardSafe: {
     position: "absolute",

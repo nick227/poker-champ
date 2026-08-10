@@ -36,17 +36,12 @@ export function buildHeroPlate(params: {
     isDealer: params.isDealer,
     isActiveTurn: params.isActiveTurn,
     inactive,
+    // Nameplate stays name + stack only. Action prompts ("to call") live on felt announce.
     statusLabel:
       params.statusLabel ??
-      (params.heroStatus === "FOLDED"
-        ? "Fold"
-        : params.heroStatus === "SITTING_OUT"
-          ? "Sitting out"
-          : params.heroStatus === "RECONNECTING"
-            ? "Reconnecting"
-            : params.isWinner
-              ? "Winner"
-              : null),
+      (params.heroStatus === "ALL_IN"
+        ? "All in"
+        : null),
     cards: hasCards
       ? {
           left: left ?? undefined,

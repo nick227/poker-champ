@@ -38,6 +38,8 @@ export const layoutStyles = StyleSheet.create({
     minHeight: 0,
     width: "100%",
     backgroundColor: STAGE_VOID_BG,
+    // Let south nameplates paint above the host edge; HUD sits below in layout.
+    overflow: "visible",
   },
   /** Borderless action/status line over the south felt edge. */
   stageAnnounce: {
