@@ -14,42 +14,42 @@ export type SeatAnchor = {
 };
 
 /**
- * Authoring units in stage space.
- * Play oval = clear center; rail = seat centers outside play; felt = rail bbox + pad.
+ * GG-style composition:
+ * - Felt is a smaller inset oval (dark void around it).
+ * - Seat anchors sit on the outer rim (outside the green).
+ * - Pods are card-tall; avatar straddles the rail.
  */
 export const STAGE_LAYOUT_NORM = Object.freeze({
   MIN_SEATS: 2,
   MAX_SEATS: 9,
-  /** Clear play oval (board/pot/chips only) — seats stay outside. */
-  play: { cx: 0.5, cy: 0.49, rx: 0.36, ry: 0.3 },
-  /**
-   * Seat rail — outside play. South (hero) lands ~0.88 so HUD has air.
-   * Same ellipse family as felt silhouette (felt = rail bbox + pad).
-   */
-  rail: { cx: 0.5, cy: 0.49, rx: 0.46, ry: 0.39 },
-  /** Pad around rail bbox → painted felt oval. */
-  feltPad: 0.025,
-  /** Community / pot safe zone inside play. */
-  board: { x: 0.26, y: 0.3, w: 0.48, h: 0.34 } satisfies NormRect,
-  /** Plate width as fraction of min(feltW, feltH). */
-  plateFromFelt: 0.175,
-  plateMinW: 100,
-  plateMaxW: 168,
-  cardScale: 0.38,
-  cardsExtraFrac: 0.32,
+  /** Painted felt oval (smaller table — not stage-filling). */
+  felt: { cx: 0.5, cy: 0.47, rx: 0.36, ry: 0.3 },
+  /** Seat centers just outside felt edge (rim / void). */
+  rail: { cx: 0.5, cy: 0.47, rx: 0.46, ry: 0.4 },
+  /** Community + pot — clear center of felt. */
+  board: { x: 0.2, y: 0.26, w: 0.6, h: 0.4 } satisfies NormRect,
+  /** Pod width from min(stage). Tall enough for dominant hole cards. */
+  plateFromStage: 0.3,
+  plateMinW: 160,
+  plateMaxW: 248,
+  /** Host height = width * this (card stack + avatar + nameplate). */
+  plateAspect: 1.28,
+  heroCardScale: 1.08,
+  oppCardScale: 0.9,
+  avatarFrac: 0.28,
 } as const);
 
-function feltNormFromRail(): NormRect {
-  const { rail, feltPad } = STAGE_LAYOUT_NORM;
+function feltRectNorm(): NormRect {
+  const { felt } = STAGE_LAYOUT_NORM;
   return {
-    x: rail.cx - rail.rx - feltPad,
-    y: rail.cy - rail.ry - feltPad,
-    w: 2 * (rail.rx + feltPad),
-    h: 2 * (rail.ry + feltPad),
+    x: felt.cx - felt.rx,
+    y: felt.cy - felt.ry,
+    w: 2 * felt.rx,
+    h: 2 * felt.ry,
   };
 }
 
-export const STAGE_LAYOUT_FELT_NORM = feltNormFromRail();
+export const STAGE_LAYOUT_FELT_NORM = feltRectNorm();
 
 /** @deprecated use STAGE_LAYOUT_NORM */
 export const STAGE_GEOMETRY = Object.freeze({
@@ -87,15 +87,14 @@ export function projectRect(r: NormRect, stage: StageSize): PixelRect {
 }
 
 export function platePixelSize(stage: StageSize): PixelSize {
-  const felt = projectRect(STAGE_LAYOUT_FELT_NORM, stage);
-  const m = Math.min(felt.w, felt.h);
+  const m = Math.min(stage.width, stage.height);
   const width = clamp(
-    m * STAGE_LAYOUT_NORM.plateFromFelt,
+    m * STAGE_LAYOUT_NORM.plateFromStage,
     STAGE_LAYOUT_NORM.plateMinW,
     STAGE_LAYOUT_NORM.plateMaxW,
   );
-  const height = clamp(width * 0.58, STAGE_LAYOUT_NORM.plateMinW * 0.52, STAGE_LAYOUT_NORM.plateMaxW * 0.58);
-  return { width: Math.round(width), height: Math.round(height) };
+  const height = Math.round(width * STAGE_LAYOUT_NORM.plateAspect);
+  return { width: Math.round(width), height };
 }
 
 /** Slot 0 = south (hero). Index increases clockwise (left of hero first). */
@@ -118,22 +117,24 @@ export type ResolvedStageLayout = {
   board: PixelRect;
   plate: PixelSize;
   seats: SeatAnchor[];
-  /** Use as CSS 50%-equivalent ellipse clip radius (half of each axis via min). */
   feltRadius: number;
+  heroCardScale: number;
+  oppCardScale: number;
+  avatarSize: number;
 };
 
 export function resolveStageLayout(maxSeats: number, stage: StageSize): ResolvedStageLayout {
   const n = clampMaxSeats(maxSeats);
   const plate = platePixelSize(stage);
   const halfW = plate.width / 2;
-  const halfH = plate.height / 2 + plate.height * STAGE_LAYOUT_NORM.cardsExtraFrac;
+  const halfH = plate.height / 2;
   const seats: SeatAnchor[] = [];
   for (let i = 0; i < n; i++) {
     const p = projectPoint(seatAnchorNorm(i, n), stage);
     seats.push({
       slotIndex: i,
       x: clamp(p.x, halfW, stage.width - halfW),
-      y: clamp(p.y, halfH, stage.height - halfH),
+      y: clamp(p.y, halfH * 0.55, stage.height - halfH * 0.45),
     });
   }
   const felt = projectRect(STAGE_LAYOUT_FELT_NORM, stage);
@@ -142,15 +143,13 @@ export function resolveStageLayout(maxSeats: number, stage: StageSize): Resolved
     board: projectRect(STAGE_LAYOUT_NORM.board, stage),
     plate,
     seats,
-    // Half-min → stadium/ellipse clip aligned to felt bbox of the rail.
     feltRadius: Math.min(felt.w, felt.h) / 2,
+    heroCardScale: STAGE_LAYOUT_NORM.heroCardScale,
+    oppCardScale: STAGE_LAYOUT_NORM.oppCardScale,
+    avatarSize: Math.round(plate.width * STAGE_LAYOUT_NORM.avatarFrac),
   };
 }
 
-/**
- * Map opponents onto slot indices by real seat distance from hero.
- * Slot 0 is hero (always empty here). Gaps stay null.
- */
 export function assignOpponentsToSlots<T extends { seat: number }>(
   opponents: readonly T[],
   maxSeats: number,
@@ -167,9 +166,8 @@ export function assignOpponentsToSlots<T extends { seat: number }>(
 }
 
 export const SEAT_PLATE = Object.freeze({
-  WIDTH: 128,
-  HEIGHT: 74,
-  AVATAR: 44,
-  CARD_SCALE: STAGE_LAYOUT_NORM.cardScale,
-  CAPSULE_H: 52,
+  WIDTH: 168,
+  HEIGHT: 205,
+  AVATAR: 50,
+  CARD_SCALE: STAGE_LAYOUT_NORM.heroCardScale,
 } as const);

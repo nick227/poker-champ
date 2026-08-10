@@ -1,6 +1,8 @@
 export { TableStage, type TableStageProps } from "./TableStage";
-export { SeatPlate, opponentToSeatPlateProps, type SeatPlateProps, type SeatPlateCards } from "./SeatPlate";
+export { SeatPlate, opponentToSeatPlateProps, type SeatPlateProps } from "./SeatPlate";
+export type { SeatPlateCards } from "./seatPlate.types";
 export { EmptySeatMarker } from "./EmptySeatMarker";
+export { SeatHoleCards } from "./SeatHoleCards";
 export { buildHeroPlate } from "./buildHeroPlate";
 export {
   seatAnchors,

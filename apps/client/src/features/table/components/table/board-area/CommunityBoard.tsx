@@ -25,7 +25,15 @@ export function CommunityBoard({
 }) {
   const cardFacePackId = usePreferencesStore((state) => state.cardFacePackId);
   const isMobile = useIsMobile();
-  const gap = isMobile ? CARDS.GAP_MOBILE : CARDS.GAP_DESKTOP;
+  // Tight gap when filling a measured board box so cards stay large.
+  const gap =
+    targetWidth && targetHeight
+      ? isMobile
+        ? 4
+        : 10
+      : isMobile
+        ? CARDS.GAP_MOBILE
+        : CARDS.GAP_DESKTOP;
 
   const communityCardScale =
     targetWidth && targetHeight

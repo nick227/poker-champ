@@ -8,13 +8,13 @@ export function communityBoardScaleForBox(
   gap: number,
 ): number {
   if (!(maxWidth > 0) || !(maxHeight > 0)) {
-    return CARDS.SCALE;
+    return CARDS.SCALE_LANDSCAPE;
   }
-  // Leave ~32% of height for pot pill + margins.
-  const cardBudgetH = maxHeight * 0.68;
-  const cardBudgetW = maxWidth * 0.96;
+  // Leave ~24% of height for pot pill — cards own the rest.
+  const cardBudgetH = maxHeight * 0.76;
+  const cardBudgetW = maxWidth * 0.98;
   const scaleW = (cardBudgetW - 4 * gap) / (5 * BASE_CARD_WIDTH);
   const scaleH = cardBudgetH / BASE_CARD_HEIGHT;
   const scale = Math.min(scaleW, scaleH);
-  return Math.max(0.72, Math.min(1.65, scale));
+  return Math.max(0.95, Math.min(1.9, scale));
 }

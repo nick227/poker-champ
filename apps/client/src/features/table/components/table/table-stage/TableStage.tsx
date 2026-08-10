@@ -9,7 +9,6 @@ import {
   assignOpponentsToSlots,
   clampMaxSeats,
   resolveStageLayout,
-  STAGE_LAYOUT_NORM,
   type StageSize,
 } from "./stageGeometry";
 import { EmptySeatMarker } from "./EmptySeatMarker";
@@ -94,29 +93,30 @@ export function TableStage({
         ? layout.seats.map((anchor) => {
             const plateW = layout.plate.width;
             const plateH = layout.plate.height;
-            const cardExtra = plateH * STAGE_LAYOUT_NORM.cardsExtraFrac;
-            const hostH = plateH + cardExtra;
+            // Anchor ≈ avatar band (lower half of tall card-dominant pod).
             const style = {
               position: "absolute" as const,
               left: anchor.x - plateW / 2,
-              top: anchor.y - plateH / 2 - cardExtra,
+              top: anchor.y - plateH * 0.62,
               width: plateW,
-              height: hostH,
+              height: plateH,
               zIndex: 2,
-              overflow: "hidden" as const,
+              // Allow hole cards to overhang — never clip the dominant cards.
+              overflow: "visible" as const,
             };
+            const isHero = anchor.slotIndex === 0;
             const sizeProps = {
               width: plateW,
-              height: hostH,
-              avatarSize: Math.round(plateW * 0.34),
-              cardScale: STAGE_LAYOUT_NORM.cardScale,
+              height: plateH,
+              avatarSize: layout.avatarSize,
+              cardScale: isHero ? layout.heroCardScale : layout.oppCardScale,
             };
 
-            if (anchor.slotIndex === 0) {
+            if (isHero) {
               if (!heroPlate) {
                 return (
                   <View key="empty-hero" style={style} pointerEvents="none">
-                    <EmptySeatMarker width={plateW} height={hostH} />
+                    <EmptySeatMarker width={plateW} height={plateH} />
                   </View>
                 );
               }
@@ -145,7 +145,7 @@ export function TableStage({
             if (!opponent) {
               return (
                 <View key={`empty-${anchor.slotIndex}`} style={style} pointerEvents="none">
-                  <EmptySeatMarker width={plateW} height={hostH} />
+                  <EmptySeatMarker width={plateW} height={plateH} />
                 </View>
               );
             }

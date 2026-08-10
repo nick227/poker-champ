@@ -1,19 +1,15 @@
 import { memo } from "react";
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { PlayingCard } from "../PlayingCard";
 import { AvatarDisc } from "../player-panel/AvatarDisc";
 import { DealerButton } from "../DealerButton";
-import type { Opponent, UiCard } from "../table.adapter";
+import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
+import { SeatHoleCards } from "./SeatHoleCards";
+import type { SeatPlateCards } from "./seatPlate.types";
 
-export type SeatPlateCards = {
-  left?: UiCard;
-  right?: UiCard;
-  faceDown: boolean;
-  visible: boolean;
-};
+export type { SeatPlateCards };
 
 export type SeatPlateProps = {
   name: string;
@@ -32,9 +28,7 @@ export type SeatPlateProps = {
   height?: number;
   avatarSize?: number;
   cardScale?: number;
-  /** 0..1 turn countdown when this seat is to act. */
   turnProgress?: number | null;
-  /** Street bet display (already formatted). */
   betDisplay?: string | null;
 };
 
@@ -50,21 +44,18 @@ const SeatTurnBar = memo(function SeatTurnBar({
     <View
       pointerEvents="none"
       style={{
-        position: "absolute",
-        left: 8,
-        right: 8,
-        bottom: 3,
+        width: "78%",
         height: 3,
+        marginTop: 3,
         borderRadius: 2,
         overflow: "hidden",
-        backgroundColor: "hsla(0,0%,0%,0.4)",
+        backgroundColor: "hsla(0,0%,0%,0.45)",
       }}
     >
       <View
         style={{
           height: "100%",
           width: `${Math.max(0, Math.min(1, progress)) * 100}%`,
-          borderRadius: 2,
           backgroundColor: "hsla(43, 80%, 55%, 0.95)",
         }}
       />
@@ -72,38 +63,10 @@ const SeatTurnBar = memo(function SeatTurnBar({
   );
 });
 
-function HolePair({
-  cards,
-  packId,
-  scale,
-}: {
-  cards: SeatPlateCards;
-  packId: CardFacePackId;
-  scale: number;
-}) {
-  if (!cards.visible) return null;
-  const left = cards.faceDown || !cards.left ? (
-    <PlayingCard faceDown />
-  ) : (
-    <PlayingCard rank={cards.left.rank} suit={cards.left.suit} packId={packId} />
-  );
-  const right = cards.faceDown || !cards.right ? (
-    <PlayingCard faceDown />
-  ) : (
-    <PlayingCard rank={cards.right.rank} suit={cards.right.suit} packId={packId} />
-  );
-  return (
-    <View
-      pointerEvents="none"
-      style={{ flexDirection: "row", transform: [{ scale }], marginBottom: -6 }}
-    >
-      <View style={{ marginRight: -10, transform: [{ rotate: "-12deg" }] }}>{left}</View>
-      <View style={{ transform: [{ rotate: "12deg" }] }}>{right}</View>
-    </View>
-  );
-}
-
-/** Uniform seat chrome — fixed capsule height; status/bet as overlays. */
+/**
+ * GG-style seat: large hole cards dominate; avatar on rail; compact name/stack under avatar.
+ * No wide gray dashboard capsule.
+ */
 export function SeatPlate({
   name,
   stackDisplay,
@@ -124,6 +87,7 @@ export function SeatPlate({
   betDisplay = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
+
   const body = (
     <View
       style={{
@@ -131,45 +95,19 @@ export function SeatPlate({
         height,
         opacity: inactive ? 0.55 : 1,
         alignItems: "center",
-        justifyContent: "flex-end",
+        justifyContent: "flex-start",
       }}
     >
-      {cards ? <HolePair cards={cards} packId={cardFacePackId} scale={cardScale} /> : null}
-      {betDisplay ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            top: Math.max(0, height * 0.22),
-            alignSelf: "center",
-            paddingHorizontal: 6,
-            paddingVertical: 1,
-            borderRadius: 999,
-            backgroundColor: "rgba(12,16,22,0.75)",
-            borderWidth: 1,
-            borderColor: "rgba(212,175,55,0.35)",
-          }}
-        >
-          <Text style={{ fontSize: 10, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
-            {betDisplay}
-          </Text>
-        </View>
-      ) : null}
-      <View
-        style={{
-          width: "100%",
-          height: SEAT_PLATE.CAPSULE_H,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          paddingHorizontal: 6,
-          borderRadius: 999,
-          borderWidth: isActiveTurn ? 1.5 : 1,
-          borderColor: isActiveTurn ? "rgba(212,175,55,0.55)" : "rgba(255,255,255,0.12)",
-          backgroundColor: "rgba(12,16,22,0.9)",
-          overflow: "hidden",
-        }}
-      >
+      {/* Cards first in paint order underlay; elevated z so they read as the hero of the cluster */}
+      <View style={{ zIndex: 3, marginBottom: -avatarSize * 0.42 }}>
+        {cards ? (
+          <SeatHoleCards cards={cards} packId={cardFacePackId} scale={cardScale} />
+        ) : (
+          <View style={{ height: avatarSize * 0.35 }} />
+        )}
+      </View>
+
+      <View style={{ zIndex: 2, alignItems: "center" }}>
         <View style={{ position: "relative" }}>
           <AvatarDisc
             seed={userId || name}
@@ -179,41 +117,91 @@ export function SeatPlate({
             isActiveTurn={isActiveTurn}
           />
           {isDealer ? (
-            <View style={{ position: "absolute", top: -4, left: -4 }}>
+            <View style={{ position: "absolute", top: -2, left: -6 }}>
               <DealerButton size="tiny" />
             </View>
           ) : null}
         </View>
-        <View style={{ flex: 1, minWidth: 0, justifyContent: "center" }}>
-          <Text numberOfLines={1} style={{ fontSize: 11, color: "#fff", fontWeight: "600" }}>
+
+        {/* Name + stack under avatar — text on dark void, no gray tile */}
+        <View
+          style={{
+            marginTop: 4,
+            maxWidth: Math.min(width * 0.95, avatarSize * 2.6),
+            alignItems: "center",
+          }}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 12,
+              color: "#fff",
+              fontWeight: "700",
+              textAlign: "center",
+              textShadowColor: "rgba(0,0,0,0.95)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 3,
+              maxWidth: width - 4,
+            }}
+          >
             {name}
           </Text>
           <Text
             numberOfLines={1}
-            style={{ fontSize: 11, color: "#7dd3fc", fontVariant: ["tabular-nums"] }}
+            style={{
+              fontSize: 12,
+              color: "#7dd3fc",
+              fontVariant: ["tabular-nums"],
+              fontWeight: "700",
+              textAlign: "center",
+              textShadowColor: "rgba(0,0,0,0.95)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 3,
+            }}
           >
             {stackDisplay}
           </Text>
-        </View>
-        {statusLabel ? (
-          <View
-            style={{
-              position: "absolute",
-              top: 4,
-              right: 8,
-              paddingHorizontal: 5,
-              paddingVertical: 1,
-              borderRadius: 999,
-              backgroundColor: "rgba(127,29,29,0.85)",
-            }}
-          >
-            <Text numberOfLines={1} style={{ fontSize: 9, color: "#fecaca", fontWeight: "700" }}>
+          {statusLabel ? (
+            <Text
+              numberOfLines={1}
+              style={{
+                fontSize: 10,
+                color: "#fca5a5",
+                fontWeight: "800",
+                marginTop: 1,
+                textShadowColor: "rgba(0,0,0,0.9)",
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 2,
+              }}
+            >
               {statusLabel}
             </Text>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
+
         <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} />
       </View>
+
+      {betDisplay ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            bottom: 2,
+            paddingHorizontal: 7,
+            paddingVertical: 2,
+            borderRadius: 999,
+            backgroundColor: "rgba(0,0,0,0.65)",
+            borderWidth: 1,
+            borderColor: "rgba(212,175,55,0.4)",
+            zIndex: 4,
+          }}
+        >
+          <Text style={{ fontSize: 10, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
+            {betDisplay}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 
