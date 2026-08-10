@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { LobbyTabKey } from "@/features/lobby";
+import type { LobbyContentMode } from "@/features/lobby/lobbyContentMode";
 import type { LobbySortDir } from "@/features/lobby/components/lobby/LobbyTableList";
+import { filterTournamentsByQuery } from "@/features/lobby/components/lobby/LobbyTournamentPrimary";
 import { useLobbyCashActions } from "@/features/lobby/hooks/useLobbyCashActions";
 import { useLobbyScreenEffects } from "@/features/lobby/hooks/useLobbyScreenEffects";
 import { useLobbyTournamentActions } from "@/features/lobby/hooks/useLobbyTournamentActions";
@@ -65,7 +66,7 @@ export function useLobbyScreenModel() {
   const [sortKey, setSortKey] = useState<LobbySortKey>("name");
   const [sortDir, setSortDir] = useState<LobbySortDir>("asc");
   const [filters, setFilters] = useState<LobbyTableFilters>(() => loadLobbyFilters());
-  const [activeTab, setActiveTab] = useState<LobbyTabKey>("cash");
+  const [contentMode, setContentMode] = useState<LobbyContentMode>("all");
   const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
   const cash = useLobbyCashActions({
@@ -114,6 +115,11 @@ export function useLobbyScreenModel() {
     return sortDir === "asc" ? sorted : sorted.reverse();
   }, [tables, sortKey, sortDir, filters]);
 
+  const filteredTournaments = useMemo(
+    () => filterTournamentsByQuery(tournamentList, filters.query),
+    [tournamentList, filters.query],
+  );
+
   const handleSort = useCallback((key: LobbySortKey) => {
     setSortKey((prev) => {
       if (prev === key) {
@@ -142,6 +148,24 @@ export function useLobbyScreenModel() {
     [tournamentList],
   );
 
+  const handleNew = useCallback(() => {
+    if (contentMode === "tournaments") {
+      tournament.handleCreateTournament();
+      return;
+    }
+    cash.openCreateTable();
+  }, [cash.openCreateTable, contentMode, tournament.handleCreateTournament]);
+
+  const resultLabel = useMemo(() => {
+    const tablesLabel = `${sortedTables.length} ${sortedTables.length === 1 ? "table" : "tables"}`;
+    const eventsLabel = `${filteredTournaments.length} ${
+      filteredTournaments.length === 1 ? "event" : "events"
+    }`;
+    if (contentMode === "cash") return tablesLabel;
+    if (contentMode === "tournaments") return eventsLabel;
+    return `${tablesLabel} · ${eventsLabel}`;
+  }, [contentMode, filteredTournaments.length, sortedTables.length]);
+
   return {
     authenticated,
     profile,
@@ -154,18 +178,13 @@ export function useLobbyScreenModel() {
     showFromLessonNudge,
     playFromLesson: () => {
       setFromLessonDismissed(true);
-      setActiveTab("cash");
+      setContentMode("cash");
     },
     dismissLessonNudge: () => setFromLessonDismissed(true),
-    activeTab,
-    setActiveTab,
+    contentMode,
+    setContentMode,
     joinedTournamentsCount,
-    createModeLabel:
-      activeTab === "tournaments" ? "Create tournament" : "New cash table",
-    onModeCreate:
-      activeTab === "tournaments"
-        ? tournament.handleCreateTournament
-        : cash.openCreateTable,
+    handleNew,
     openCreateTable: cash.openCreateTable,
     instantStartInFlightPreset: cash.instantStartInFlightPreset,
     handleStartInstantGame: cash.handleStartInstantGame,
@@ -173,6 +192,10 @@ export function useLobbyScreenModel() {
     updateFilters,
     clearFilters,
     sortedTables,
+    filteredTournaments,
+    resultLabel,
+    showCash: contentMode === "all" || contentMode === "cash",
+    showTournaments: contentMode === "all" || contentMode === "tournaments",
     busy,
     error,
     sortKey,

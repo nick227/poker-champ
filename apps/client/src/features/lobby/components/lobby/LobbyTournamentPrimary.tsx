@@ -1,4 +1,4 @@
-import { ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 import { JoinedTournamentsSection } from "./JoinedTournamentsSection";
 import { TournamentsSection } from "./TournamentsSection";
 import type { TournamentSummary } from "@/services/tournaments.types";
@@ -16,9 +16,10 @@ type Props = {
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId: string | null;
   dense?: boolean;
+  scrollable?: boolean;
 };
 
-/** Joined + browse tournament columns for lobby primary pane. */
+/** Joined + browse tournament lists for lobby primary pane. */
 export function LobbyTournamentPrimary({
   tournaments,
   busy,
@@ -32,9 +33,10 @@ export function LobbyTournamentPrimary({
   onDeleteTournament,
   deleteInFlightId,
   dense = false,
+  scrollable = true,
 }: Props) {
-  return (
-    <ScrollView className="flex-1">
+  const body = (
+    <>
       <JoinedTournamentsSection
         tournaments={tournaments}
         authenticated={authenticated}
@@ -59,6 +61,21 @@ export function LobbyTournamentPrimary({
         deleteInFlightId={deleteInFlightId}
         dense={dense}
       />
-    </ScrollView>
+    </>
   );
+
+  if (!scrollable) {
+    return <View className="ui-stack-4">{body}</View>;
+  }
+
+  return <ScrollView className="flex-1">{body}</ScrollView>;
+}
+
+export function filterTournamentsByQuery(
+  tournaments: TournamentSummary[],
+  query: string,
+): TournamentSummary[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return tournaments;
+  return tournaments.filter((t) => t.name.toLowerCase().includes(q));
 }

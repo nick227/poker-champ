@@ -3,12 +3,11 @@ import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
-import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
-import { LobbyModeRow } from "@/features/lobby";
 import { LobbyDesktopLayout } from "@/features/lobby";
 import { LobbyDesktopToolbar } from "@/features/lobby";
 import { LobbyContinuePlaying } from "@/features/lobby";
+import { LobbyActionRow } from "@/features/lobby/components/lobby/LobbyActionRow";
 import { LobbyCashListStage } from "@/features/lobby/components/lobby/LobbyCashListStage";
 import { LobbyLessonNudge } from "@/features/lobby/components/lobby/LobbyLessonNudge";
 import { LobbyScreenModals } from "@/features/lobby/components/lobby/LobbyScreenModals";
@@ -26,14 +25,22 @@ export default function LobbyScreen() {
     />
   ) : null;
 
-  const modeRow = (
-    <LobbyModeRow
-      active={m.activeTab}
-      onChange={m.setActiveTab}
+  const actionRow = (
+    <LobbyActionRow
+      inFlightPreset={m.instantStartInFlightPreset}
+      onStart={m.handleStartInstantGame}
+      onNew={m.handleNew}
+    />
+  );
+
+  const toolbar = (
+    <LobbyDesktopToolbar
+      mode={m.contentMode}
+      onModeChange={m.setContentMode}
       tournamentsBadgeCount={m.joinedTournamentsCount}
-      createLabel={m.createModeLabel}
-      onCreate={m.onModeCreate}
-      dense
+      filters={m.filters}
+      onFiltersChange={m.updateFilters}
+      resultLabel={m.resultLabel}
     />
   );
 
@@ -54,14 +61,14 @@ export default function LobbyScreen() {
       }}
       onCreate={m.openCreateTable}
       onClearFilters={m.clearFilters}
-      scrollable={m.isDesktopWorkspace}
+      scrollable={m.isDesktopWorkspace && m.contentMode === "cash"}
       compact={!m.isDesktopWorkspace}
     />
   );
 
   const tournamentPrimary = (
     <LobbyTournamentPrimary
-      tournaments={m.tournamentList}
+      tournaments={m.filteredTournaments}
       busy={m.tournamentsBusy}
       error={m.tournamentsError}
       authenticated={m.authenticated}
@@ -75,7 +82,16 @@ export default function LobbyScreen() {
       onDeleteTournament={m.authenticated ? m.handleDeleteTournament : undefined}
       deleteInFlightId={m.tournamentDeleteId}
       dense={m.isDesktopWorkspace}
+      scrollable={m.isDesktopWorkspace && m.contentMode === "tournaments"}
     />
+  );
+
+  const listStage = (
+    <>
+      {m.showCash ? cashListStage : null}
+      {m.showCash && m.showTournaments ? <View className="h-5" /> : null}
+      {m.showTournaments ? tournamentPrimary : null}
+    </>
   );
 
   const modals = (
@@ -125,22 +141,12 @@ export default function LobbyScreen() {
             <View className="flex-1 min-h-0">
               {lessonNudge}
               <LobbyContinuePlaying variant="row" />
-              {modeRow}
-              {m.activeTab === "tournaments" ? (
-                tournamentPrimary
+              {actionRow}
+              {toolbar}
+              {m.contentMode === "all" ? (
+                <ScrollView className="flex-1 min-h-0">{listStage}</ScrollView>
               ) : (
-                <>
-                  <InstantGamePanels
-                    inFlightPreset={m.instantStartInFlightPreset}
-                    onStart={m.handleStartInstantGame}
-                  />
-                  <LobbyDesktopToolbar
-                    filters={m.filters}
-                    onFiltersChange={m.updateFilters}
-                    tableCount={m.sortedTables.length}
-                  />
-                  {cashListStage}
-                </>
+                <View className="flex-1 min-h-0">{listStage}</View>
               )}
             </View>
           }
@@ -165,31 +171,22 @@ export default function LobbyScreen() {
       {lessonNudge ? <View className="mx-4 mt-2">{lessonNudge}</View> : null}
       <ScrollView className="flex-1">
         <LobbyContinuePlaying />
-        <LobbyModeRow
-          active={m.activeTab}
-          onChange={m.setActiveTab}
-          tournamentsBadgeCount={m.joinedTournamentsCount}
-          createLabel={m.createModeLabel}
-          onCreate={m.onModeCreate}
+        <LobbyActionRow
+          padded
+          inFlightPreset={m.instantStartInFlightPreset}
+          onStart={m.handleStartInstantGame}
+          onNew={m.handleNew}
         />
-        {m.activeTab === "cash" ? (
-          <>
-            <InstantGamePanels
-              padded
-              inFlightPreset={m.instantStartInFlightPreset}
-              onStart={m.handleStartInstantGame}
-            />
-            <LobbyDesktopToolbar
-              padded
-              filters={m.filters}
-              onFiltersChange={m.updateFilters}
-              tableCount={m.sortedTables.length}
-            />
-            <View className="px-4 pb-4">{cashListStage}</View>
-          </>
-        ) : (
-          tournamentPrimary
-        )}
+        <LobbyDesktopToolbar
+          padded
+          mode={m.contentMode}
+          onModeChange={m.setContentMode}
+          tournamentsBadgeCount={m.joinedTournamentsCount}
+          filters={m.filters}
+          onFiltersChange={m.updateFilters}
+          resultLabel={m.resultLabel}
+        />
+        <View className="px-4 pb-4">{listStage}</View>
         <ReplayQuickLinks
           lessonsEnabled
           onPokerSchool={() => m.router.push("/lessons")}

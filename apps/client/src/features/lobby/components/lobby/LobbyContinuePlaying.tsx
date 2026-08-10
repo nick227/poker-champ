@@ -5,11 +5,13 @@ import { tablePath } from "@/lib/nav";
 import { storeRegistry } from "@/registry/store.registry";
 
 type Props = {
-  /** Horizontal chip strip for desktop primary column. */
   variant?: "stack" | "row";
 };
 
-/** Persistent resume strip from open multi-table seats (session band). */
+/**
+ * Session band: open tables you can resume.
+ * Same chip language as filters; sits above actions on every lobby mode.
+ */
 export function LobbyContinuePlaying({ variant = "stack" }: Props) {
   const router = useRouter();
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
@@ -18,51 +20,38 @@ export function LobbyContinuePlaying({ variant = "stack" }: Props) {
 
   if (openTableIds.length === 0) return null;
 
+  const chips = openTableIds.map((id) => {
+    const name = tableNames[id] ?? id.slice(0, 8);
+    return (
+      <Pressable
+        key={id}
+        onPress={() => router.push(tablePath(id, { buyInCents: lastBuyIn[id] }))}
+        className="btn lobby-hud h-7 min-h-[28px] items-center justify-center border border-brand/45 bg-brand-soft px-2.5"
+      >
+        <Text variant="body" className="text-[12px] font-semibold text-brand">
+          {name}
+        </Text>
+      </Pressable>
+    );
+  });
+
   if (variant === "row") {
     return (
-      <View className="ui-row items-center justify-between gap-3 flex-wrap pb-3 w-full">
+      <View className="ui-row items-center gap-2 flex-wrap w-full pb-4">
         <Text variant="muted" className="text-[11px] tracking-widest uppercase shrink-0">
           Your tables
         </Text>
-        <View className="ui-row items-center flex-wrap gap-2 flex-1 justify-end">
-          {openTableIds.map((id) => {
-            const name = tableNames[id] ?? id.slice(0, 8);
-            return (
-              <Pressable
-                key={id}
-                onPress={() => router.push(tablePath(id, { buyInCents: lastBuyIn[id] }))}
-                className="btn lobby-hud h-9 items-center justify-center border border-brand/40 bg-brand-soft px-3 hover:bg-panel-elevated"
-              >
-                <Text variant="body" className="text-[13px] font-semibold">
-                  Resume: {name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {chips}
       </View>
     );
   }
 
   return (
-    <View className="ui-stack-2 mb-3 px-4">
+    <View className="ui-stack-2 mb-4 px-4">
       <Text variant="muted" className="text-[11px] tracking-widest uppercase">
         Your tables
       </Text>
-      {openTableIds.map((id) => {
-        const name = tableNames[id] ?? id.slice(0, 8);
-        return (
-          <Pressable
-            key={id}
-            onPress={() => router.push(tablePath(id, { buyInCents: lastBuyIn[id] }))}
-            className="btn lobby-hud h-9 justify-center border border-brand/40 bg-brand-soft px-3 hover:bg-panel-elevated"
-          >
-            <Text variant="body" className="font-semibold text-[13px]">
-              Resume: {name}
-            </Text>
-          </Pressable>
-        );
-      })}
+      <View className="ui-row items-center flex-wrap gap-2">{chips}</View>
     </View>
   );
 }

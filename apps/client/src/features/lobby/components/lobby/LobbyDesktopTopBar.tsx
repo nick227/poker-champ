@@ -31,7 +31,7 @@ export function LobbyDesktopTopBar({
   const settingsPath = getSettingsTargetPath({ hydrated, token });
 
   return (
-    <View className="ui-row items-center justify-end border-b border-border pb-3 mb-3 gap-3">
+    <View className="ui-row items-center justify-end border-b border-border pb-4 mb-4 gap-3">
       <Pressable
         onPress={onPressOnline}
         disabled={!onPressOnline}
