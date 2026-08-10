@@ -19,6 +19,7 @@ type TournamentsSectionProps = {
   onTournamentAction: (tournament: TournamentSummary) => void;
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onRetry?: () => void;
+  onCreate?: () => void;
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
   dense?: boolean;
@@ -74,6 +75,7 @@ export function TournamentsSection({
   onTournamentAction,
   onOpenTournamentDetail,
   onRetry,
+  onCreate,
   onDeleteTournament,
   deleteInFlightId,
   dense = false,
@@ -83,7 +85,7 @@ export function TournamentsSection({
   const hasJoined = selectJoinedTournaments(tournaments).length > 0;
   const nowMs = useNowMs();
   const emptyMessage = authenticated
-    ? "No tournaments scheduled yet. Check back soon."
+    ? "No tournaments scheduled yet. Create one or check back soon."
     : "No tournaments scheduled yet. Log in to register when events are posted.";
 
   return (
@@ -94,6 +96,7 @@ export function TournamentsSection({
         isEmpty={!hasBrowse && !hasJoined}
         emptyMessage={emptyMessage}
         onRetry={onRetry}
+        onCreate={authenticated ? onCreate : undefined}
       />
       {!error ? (
         <>

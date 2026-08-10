@@ -11,7 +11,7 @@ type Props = {
   dense?: boolean;
 };
 
-/** Mode segmented control + mode-owned create CTA on a shared HUD row. */
+/** Mode segmented control + quieter mode-owned create (Play now owns accent). */
 export function LobbyModeRow({
   active,
   onChange,
@@ -31,13 +31,13 @@ export function LobbyModeRow({
         />
       </View>
       <Button
-        intent="accent"
+        intent="secondary"
         title={createLabel}
         onPress={onCreate}
         size="sm"
         shape="hud"
         minWidth={0}
-        className="shrink-0"
+        className="shrink-0 border border-border"
       />
     </View>
   );

@@ -8,7 +8,7 @@ const TAB_ORDER: readonly { key: LobbyTabKey; label: string }[] = [
   { key: "tournaments", label: "Tournaments" },
 ];
 
-/** Segmented HUD mode switcher — selected = elevated + gold text. */
+/** Single connected segmented HUD control. */
 export function LobbyTabs({
   active,
   onChange,
@@ -22,7 +22,7 @@ export function LobbyTabs({
 }) {
   return (
     <View
-      className={`ui-row items-stretch h-9 lobby-hud border border-border overflow-hidden bg-panel ${
+      className={`ui-row items-stretch h-9 lobby-hud overflow-hidden border border-border bg-bg ${
         dense ? "" : "mx-4"
       }`}
     >
@@ -34,9 +34,9 @@ export function LobbyTabs({
           <Pressable
             key={tab.key}
             onPress={() => onChange(tab.key)}
-            className={`btn h-9 px-3 items-center justify-center rounded-none shrink ${
-              index > 0 ? "border-l border-border" : ""
-            } ${selected ? "bg-panel-elevated" : "bg-transparent"}`}
+            className={`btn h-9 px-4 items-center justify-center rounded-none shrink ${
+              index > 0 ? "border-l border-border/60" : ""
+            } ${selected ? "bg-panel-elevated border-b-2 border-b-gold" : "bg-transparent"}`}
             style={{ borderRadius: 0, backgroundColor: selected ? undefined : "transparent" }}
           >
             <Text

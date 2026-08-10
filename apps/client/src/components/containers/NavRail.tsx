@@ -54,7 +54,7 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
           accessibilityRole="link"
           accessibilityLabel={expanded ? APP_NAME : `Expand ${APP_NAME} navigation`}
         >
-          <Text className="text-xl text-text">♠</Text>
+          <Text className="text-xl text-gold">♠</Text>
           {expanded ? (
             <Text variant="h1" className="text-base" numberOfLines={1}>
               {APP_NAME}
@@ -84,14 +84,19 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
           <Pressable
             key={key}
             onPress={() => router.push(targetPath)}
-            className={`ui-touch flex-row items-center gap-3 rounded-lg px-3 py-3 ${
+            className={`ui-touch flex-row items-center gap-3 rounded-2 px-3 py-3 ${
               expanded ? "justify-start" : "justify-center px-2"
-            } ${isActive ? "bg-panel-elevated" : ""}`}
+            } ${isActive ? "bg-panel-elevated border-l-2 border-gold" : "border-l-2 border-transparent"}`}
             accessibilityLabel={screen.bottomBarLabel ?? screen.title}
+            accessibilityState={{ selected: isActive }}
           >
-            <Ionicons name={screen.icon || "home"} size={22} className="text-white" />
+            <Ionicons
+              name={screen.icon || "home"}
+              size={22}
+              className={isActive ? "text-gold" : "text-muted"}
+            />
             {expanded ? (
-              <Text variant={isActive ? "body" : "muted"}>
+              <Text variant={isActive ? "body" : "muted"} className={isActive ? "text-gold font-semibold" : ""}>
                 {screen.bottomBarLabel ?? screen.title}
               </Text>
             ) : null}

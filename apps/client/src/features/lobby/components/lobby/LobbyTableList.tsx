@@ -57,8 +57,8 @@ export function LobbyTableList({
 }: Props) {
   if (compact) {
     return (
-      <View className="border border-border rounded-2 overflow-hidden bg-panel">
-        <View className="ui-row items-center border-b border-border bg-panel-elevated px-3 h-9">
+      <View className="lobby-stage border rounded-2 overflow-hidden">
+        <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
           <Pressable
             onPress={() => onSort("name")}
             className="btn h-9 justify-center rounded-none px-1 flex-1"
@@ -245,11 +245,11 @@ export function LobbyTableList({
 
   return (
     <View
-      className={`border border-border rounded-2 overflow-hidden bg-panel ${
+      className={`lobby-stage border rounded-2 overflow-hidden ${
         scrollable ? "flex-1 min-h-0" : ""
       }`}
     >
-      <View className="ui-row items-center border-b border-border bg-panel-elevated px-3 h-9">
+      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
         {DESKTOP_COLS.map((col) => (
           <Pressable
             key={col.key}

@@ -233,6 +233,13 @@ html, body {
   border-radius: var(--r-2) !important;
 }
 
+/* Lobby list stage: felt room inset, not flat admin panel. */
+.lobby-stage {
+  background-color: hsl(var(--c-felt) / 0.72);
+  border-color: hsl(var(--c-brand) / 0.28);
+  box-shadow: inset 0 1px 0 hsl(var(--c-brand) / 0.14);
+}
+
 .bottom-sheet {
   max-width: 100% !important;
   width: 640px !important;

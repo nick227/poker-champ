@@ -35,8 +35,8 @@ export function TournamentLobbyList({
   deleteInFlightId,
 }: Props) {
   return (
-    <View className="border border-border rounded-2 overflow-hidden bg-panel">
-      <View className="ui-row items-center border-b border-border bg-panel-elevated px-3 h-9">
+    <View className="lobby-stage border rounded-2 overflow-hidden">
+      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
         <Text variant="muted" className="text-[11px] tracking-wide uppercase font-semibold flex-1">
           Event
         </Text>

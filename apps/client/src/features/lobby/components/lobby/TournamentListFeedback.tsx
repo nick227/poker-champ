@@ -1,7 +1,6 @@
-import { View } from "react-native";
-import { Button } from "@/components/base/Button";
 import { Loader } from "@/components/base/Loader";
 import { Text } from "@/components/base/Text";
+import { View } from "react-native";
 import { EmptyState } from "./EmptyState";
 import { GameTablePanelSkeleton } from "./GameTablePanelSkeleton";
 
@@ -11,6 +10,7 @@ type TournamentListFeedbackProps = {
   isEmpty: boolean;
   emptyMessage: string;
   onRetry?: () => void;
+  onCreate?: () => void;
   skeletonCount?: number;
 };
 
@@ -20,6 +20,7 @@ export function TournamentListFeedback({
   isEmpty,
   emptyMessage,
   onRetry,
+  onCreate,
   skeletonCount = 2,
 }: TournamentListFeedbackProps) {
   if (busy && isEmpty) {
@@ -34,17 +35,23 @@ export function TournamentListFeedback({
 
   if (error) {
     return (
-      <View className="ui-stack-3">
-        <EmptyState message={error} />
-        {onRetry ? (
-          <Button title="Try again" intent="secondary" size="sm" onPress={onRetry} />
-        ) : null}
-      </View>
+      <EmptyState
+        message={error}
+        tone="danger"
+        detail="Couldn’t load tournaments. Retry when you’re back online."
+        primary={onRetry ? { title: "Retry", onPress: onRetry, intent: "secondary" } : undefined}
+        secondary={onCreate ? { title: "Create tournament", onPress: onCreate } : undefined}
+      />
     );
   }
 
   if (!busy && isEmpty) {
-    return <EmptyState message={emptyMessage} />;
+    return (
+      <EmptyState
+        message={emptyMessage}
+        primary={onCreate ? { title: "Create tournament", onPress: onCreate, intent: "accent" } : undefined}
+      />
+    );
   }
 
   if (busy) {

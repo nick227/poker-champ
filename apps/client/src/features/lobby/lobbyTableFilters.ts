@@ -36,6 +36,14 @@ export function saveLobbyFilters(filters: LobbyTableFilters): void {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
 }
 
+export function hasActiveLobbyFilters(filters: LobbyTableFilters): boolean {
+  return (
+    Boolean(filters.query.trim()) ||
+    filters.hideFull ||
+    filters.maxBigBlindCents != null
+  );
+}
+
 export function applyLobbyFilters(
   rows: LobbyTableRow[],
   filters: LobbyTableFilters,
