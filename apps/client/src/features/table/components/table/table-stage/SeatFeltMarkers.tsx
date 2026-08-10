@@ -37,7 +37,7 @@ export function SeatFeltMarkers({
   const betDist = avatarSize * 0.95;
 
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 4 }}>
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 15 }}>
       {isDealer ? (
         <View
           testID="seat-felt-dealer"

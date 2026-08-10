@@ -159,23 +159,6 @@ function isDuplicateNotice(
   );
 }
 
-function showNotice(
-  state: StatusMachineState,
-  actionNotice: ActionNotice,
-  tableId: string,
-  now: number,
-): StatusMachineState {
-  return {
-    ...state,
-    activeNotice: actionNotice,
-    activeNoticeStartedAtTs: now,
-    queuedNotice: null,
-    displayedMessage: actionNotice.message,
-    displayedMessageTableId: tableId,
-    displayedMessageHandId: actionNotice.handId,
-  };
-}
-
 function enterBetweenHands(
   state: StatusMachineState,
   now: number,
@@ -191,67 +174,6 @@ function enterBetweenHands(
     activeNoticeStartedAtTs: null,
     queuedNotice: null,
     lastOpponentNoticeForHand: null,
-  };
-}
-
-function maybePromoteQueuedNotice(
-  state: StatusMachineState,
-  tableId: string,
-  now: number,
-): StatusMachineState {
-  if (
-    !state.queuedNotice ||
-    state.phase !== "inHand" ||
-    state.activeNoticeStartedAtTs == null ||
-    now - state.activeNoticeStartedAtTs < MIN_MESSAGE_DURATION_MS
-  ) {
-    return state;
-  }
-  return showNotice(state, state.queuedNotice, tableId, now);
-}
-
-function applyActionNotice(
-  state: StatusMachineState,
-  actionNotice: ActionNotice,
-  heroUserId: string | undefined,
-  tableId: string,
-  now: number,
-): StatusMachineState {
-  if (isDuplicateNotice(state.lastProcessedNotice, actionNotice)) {
-    return state;
-  }
-
-  const nextProcessedNotice: NoticeFingerprint = {
-    handId: actionNotice.handId,
-    key: actionNotice.key,
-    message: actionNotice.message,
-  };
-  const nextOpponentNotice =
-    actionNotice.actorUserId != null &&
-    heroUserId != null &&
-    actionNotice.actorUserId !== heroUserId
-      ? { handId: actionNotice.handId, notice: actionNotice }
-      : state.lastOpponentNoticeForHand;
-
-  const activeNoticeExpired =
-    state.activeNotice == null ||
-    state.activeNotice.handId !== actionNotice.handId ||
-    state.activeNoticeStartedAtTs == null ||
-    now - state.activeNoticeStartedAtTs >= MIN_MESSAGE_DURATION_MS;
-
-  const baseState: StatusMachineState = {
-    ...state,
-    lastProcessedNotice: nextProcessedNotice,
-    lastOpponentNoticeForHand: nextOpponentNotice,
-  };
-
-  if (activeNoticeExpired) {
-    return showNotice(baseState, actionNotice, tableId, now);
-  }
-
-  return {
-    ...baseState,
-    queuedNotice: actionNotice,
   };
 }
 
@@ -394,20 +316,25 @@ function resolveNextState(
     return state;
   }
 
+  // Action notices are tracked for dedupe/debug only — no per-action felt bubbles.
   if (
     inputs.displayState.notice &&
     inputs.displayState.notice.handId === currentHandId
   ) {
-    state = applyActionNotice(
-      state,
-      inputs.displayState.notice,
-      inputs.displayState.heroUserId ?? undefined,
-      inputs.tableId,
-      now,
-    );
+    const notice = inputs.displayState.notice;
+    if (!isDuplicateNotice(state.lastProcessedNotice, notice)) {
+      state = {
+        ...state,
+        lastProcessedNotice: {
+          handId: notice.handId,
+          key: notice.key,
+          message: notice.message,
+        },
+      };
+    }
   }
 
-  return maybePromoteQueuedNotice(state, inputs.tableId, now);
+  return state;
 }
 
 function statusStripReducer(
@@ -421,16 +348,6 @@ function getNextTimerAt(
   state: StatusMachineState,
   inputs: LiveTableStatusInputs,
 ): number | null {
-  const currentHandId = inputs.displayState.handId;
-
-  if (
-    state.phase === "inHand" &&
-    state.queuedNotice &&
-    state.activeNoticeStartedAtTs != null
-  ) {
-    return state.activeNoticeStartedAtTs + MIN_MESSAGE_DURATION_MS;
-  }
-
   if (state.phase === "winnerHold") {
     if (
       inputs.displayState.boardReset &&
@@ -468,26 +385,13 @@ function resolveInHandMessage(
       ? state.displayedMessage
       : "";
 
+  // No per-action announce bubbles — turn cue / hero prompt / passive only.
   if (inputs.displayState.showTurnCue) {
-    if (
-      state.lastOpponentNoticeForHand &&
-      state.lastOpponentNoticeForHand.handId === currentHandId
-    ) {
-      return state.lastOpponentNoticeForHand.notice.message;
-    }
-    if (state.activeNotice && state.activeNotice.handId === currentHandId) {
-      return state.activeNotice.message;
-    }
     return (
-      safeDisplayedMessage ||
       inputs.displayState.heroPrompt ||
       inputs.displayState.passiveMessage ||
       "Hand in progress"
     );
-  }
-
-  if (state.activeNotice && state.activeNotice.handId === currentHandId) {
-    return state.activeNotice.message;
   }
 
   return (
@@ -513,10 +417,24 @@ function resolveDerivedState(
   if (transportMessage != null) {
     message = transportMessage;
   } else if (state.phase === "betweenHands") {
-    message = resolveBetweenHandsTournamentMessage(
+    const tournamentTerminal = isTournamentTerminalStripState(
       inputs.tournamentStatus,
       inputs.tournamentViewer,
     );
+    const rebuyPending = inputs.tournamentViewer?.rebuyPending === true;
+    const passive = inputs.displayState.passiveMessage;
+    // When the next hand cannot start (e.g. bots busted), surface the choice —
+    // do not spin forever on "Dealing next hand...".
+    if (tournamentTerminal || rebuyPending) {
+      message = resolveBetweenHandsTournamentMessage(
+        inputs.tournamentStatus,
+        inputs.tournamentViewer,
+      );
+    } else if (passive && passive !== "Waiting for next hand") {
+      message = passive;
+    } else {
+      message = DEALING_NEXT_HAND_COPY;
+    }
   } else if (state.phase === "winnerHold" || state.phase === "boardReset") {
     message = state.displayedMessage;
   } else {
@@ -528,9 +446,12 @@ function resolveDerivedState(
     inputs.tournamentViewer,
   );
   const rebuyPending = inputs.tournamentViewer?.rebuyPending === true;
-  const showSpinner =
-    transportMessage != null ||
-    (state.phase === "betweenHands" && !tournamentTerminal && !rebuyPending);
+  const dealingNextHand =
+    state.phase === "betweenHands" &&
+    !tournamentTerminal &&
+    !rebuyPending &&
+    message === DEALING_NEXT_HAND_COPY;
+  const showSpinner = transportMessage != null || dealingNextHand;
   const showBoardOverride =
     state.phase === "boardReset" || state.phase === "betweenHands";
 

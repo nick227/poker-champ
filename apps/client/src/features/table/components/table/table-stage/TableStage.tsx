@@ -128,7 +128,8 @@ export function TableStage({
               top: anchor.y - avatarCenterFromTop,
               width: plateW,
               height: plateH,
-              zIndex: 3,
+              // Seats must paint above felt/board — avatars + hole cards are the top layer.
+              zIndex: 20,
               overflow: "visible" as const,
               backgroundColor: "transparent" as const,
             };
@@ -166,7 +167,12 @@ export function TableStage({
                 />
               );
               return (
-                <View key="hero" collapsable={false}>
+                <View
+                  key="hero"
+                  collapsable={false}
+                  style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20 }}
+                  pointerEvents="box-none"
+                >
                   <SeatFeltMarkers
                     seat={{ x: anchor.x, y: anchor.y }}
                     feltCenter={feltCenter}
@@ -209,7 +215,12 @@ export function TableStage({
               />
             );
             return (
-              <View key={opponent.id} collapsable={false}>
+              <View
+                key={opponent.id}
+                collapsable={false}
+                style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20 }}
+                pointerEvents="box-none"
+              >
                 <SeatFeltMarkers
                   seat={{ x: anchor.x, y: anchor.y }}
                   feltCenter={feltCenter}

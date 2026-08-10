@@ -108,7 +108,7 @@ export function SeatPlate({
         style={{
           marginTop: cardPeek,
           alignItems: "center",
-          zIndex: 2,
+          zIndex: 10,
         }}
       >
         <View style={{ opacity: inactive ? 0.5 : 1 }}>
@@ -190,7 +190,7 @@ export function SeatPlate({
             height: cardVisualHeight,
             alignItems: "center",
             justifyContent: "flex-start",
-            zIndex: 4,
+            zIndex: 30,
           }}
         >
           <SeatHoleCards

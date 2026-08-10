@@ -20,6 +20,7 @@ import { FeltActionAnnounce } from "../FeltActionAnnounce";
 import { buildHeroPlate } from "../table-stage";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
+import { needsOpponentToContinue } from "./needsOpponentToContinue";
 
 export function useIdleTableSlots(
   snapshot: TableSnapshotPayload | null,
@@ -100,7 +101,7 @@ export function useIdleTableSlots(
         </View>
       </View>
     );
-  } else if (renderModel.opponents.length === 0) {
+  } else if (needsOpponentToContinue(renderModel.opponents as Opponent[])) {
     bottom = (
       <EmptyTableStartCta
         message={statusStrip?.message ?? "Add a bot to start playing"}

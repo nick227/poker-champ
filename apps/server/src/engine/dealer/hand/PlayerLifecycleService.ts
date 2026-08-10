@@ -567,7 +567,23 @@ export class PlayerLifecycleService {
     const plans: PlayerLifecyclePlan[] = [];
     if (this.deps.state.playersById.has(botId)) return plans;
 
-    const seat = findOpenSeat(this.deps.state);
+    let seat = findOpenSeat(this.deps.state);
+    // Cash tables: busted bots keep occupying seats as OUT. Free them so
+    // "Add bot" after a wipeout can reseat instead of throwing TABLE_FULL.
+    if (
+      seat === -1 &&
+      !this.deps.state.tournamentMode &&
+      this.deps.state.street === "WAITING"
+    ) {
+      const bustedBotIds = [...this.deps.state.playersById.values()]
+        .filter((p) => p.kind === "BOT" && p.stackCents <= 0)
+        .map((p) => p.id);
+      for (const bustedId of bustedBotIds) {
+        const removalPlans = await this.removeBot(bustedId);
+        plans.push(...removalPlans);
+      }
+      seat = findOpenSeat(this.deps.state);
+    }
     if (seat === -1) throw new PokerError("TABLE_FULL", "Table is full.");
     this.assertValidBuyIn(buyInCents);
 
@@ -930,6 +946,44 @@ export class PlayerLifecycleService {
     }
     maybeAssertStateInvariants(this.deps.state);
     return plans;
+  }
+
+  /**
+   * Remove a player from this table's state for an intra-tournament table-balance transfer (MTT
+   * proposal, "table balancing"). Unlike removePlayer/finalizeRemoval -- which always cash out the
+   * remaining stack, just at different timing depending on `cashOutAfterRemoval` -- this never
+   * touches CashierService: the player's stack is being physically relocated to a different room's
+   * table (re-seated there via reseatTournamentRebuyPlayer with the returned stackCents, no new
+   * grant), not cashed out. Only ever called between hands (the table-balance reconciler only runs
+   * at street === WAITING), so there's no force-fold/deferred-removal branch here, unlike
+   * removePlayer's active-hand path.
+   */
+  async removePlayerForTableTransfer(
+    userId: string,
+  ): Promise<{ stackCents: number; plans: PlayerLifecyclePlan[] } | null> {
+    const plans: PlayerLifecyclePlan[] = [];
+    const player = this.deps.state.playersById.get(userId);
+    if (!player) return null;
+    const stackCents = player.stackCents;
+    const seat = player.seat;
+
+    this.deps.pendingSeatReleaseUserIds.delete(userId);
+    this.deps.autoActionsByUserId.delete(userId);
+    this.deps.currentHandAutoActedUserIds.delete(userId);
+
+    player.pendingLeave = false;
+    player.pendingRemovalReason = "";
+    this.deps.state.seats[seat] = "";
+    this.deps.state.playersById.delete(userId);
+    this.deps.getHoleCardsByPlayerId().delete(userId);
+    this.syncBettingStateAfterRemoval();
+    if (this.deps.persistence.enabled && typeof this.deps.persistence.handHistory?.removePlayer === "function") {
+      await this.deps.persistence.handHistory.removePlayer(userId);
+    }
+    plans.push({ kind: "EMIT_SNAPSHOT", reason: "SEAT_CHANGE" });
+    plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
+    maybeAssertStateInvariants(this.deps.state);
+    return { stackCents, plans };
   }
 
   /**

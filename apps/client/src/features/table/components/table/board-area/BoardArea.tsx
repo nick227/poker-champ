@@ -1,7 +1,6 @@
 import { Animated, View, type LayoutChangeEvent } from "react-native";
 import type { UiCard } from "../table.adapter";
 import { CommunityBoard } from "./CommunityBoard";
-import { PotChipStack } from "./PotChipStack";
 import { Text } from "@/components/base/Text";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import type { Rect } from "@/features/table/animations/animationTypes";
@@ -62,39 +61,63 @@ export function BoardArea({
           : { height: feltHeight },
       ]}
     >
-      <Animated.View collapsable={false} style={[boardAreaStyles.inner, { opacity: fadeOpacity }]}>
+      <Animated.View
+        collapsable={false}
+        style={[
+          boardAreaStyles.inner,
+          {
+            opacity: fadeOpacity,
+            flex: 1,
+            width: "100%",
+            justifyContent: "center",
+            position: "relative",
+          },
+        ]}
+      >
+        {/* Pot floats above center so community cards stay vertically centered on the felt. */}
+        <View
+          pointerEvents="none"
+          style={[
+            boardAreaStyles.potContainer,
+            {
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: "58%",
+              alignItems: "center",
+              zIndex: 2,
+            },
+          ]}
+        >
+          <View
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 18,
+              borderRadius: 999,
+              backgroundColor: "rgba(12,16,22,0.45)",
+            }}
+          >
+            <Text
+              variant="body"
+              className="text-white"
+              allowFontScaling={false}
+              style={{
+                fontVariant: ["tabular-nums"],
+                fontSize: 16,
+                fontWeight: "700",
+              }}
+            >
+              Pot: {potValue}
+            </Text>
+          </View>
+        </View>
+
         <CommunityBoard
           cards={cards}
           onCardSlotBounds={onCardSlotBounds}
           targetWidth={box.width > 0 ? box.width : undefined}
           targetHeight={box.height > 0 ? box.height : undefined}
         />
-
-        <View
-          className="pot-container flex justify-center items-center"
-          style={[
-            boardAreaStyles.potContainer,
-            {
-              alignSelf: "center",
-              width: "auto",
-              maxWidth: "100%",
-              borderRadius: 999,
-              backgroundColor: "rgba(12,16,22,0.45)",
-            },
-          ]}
-        >
-          <View className="items-center flex-row" style={{ gap: 8 }}>
-            <PotChipStack potCents={typeof potCents === "number" ? potCents : 0} />
-            <Text
-              variant="body"
-              className="text-white"
-              allowFontScaling={false}
-              style={{ fontVariant: ["tabular-nums"], minWidth: 0 }}
-            >
-              Pot: {potValue}
-            </Text>
-          </View>
-        </View>
       </Animated.View>
     </View>
   );

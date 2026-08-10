@@ -27,6 +27,7 @@ import { EmptyTableStartCta } from "./EmptyTableStartCta";
 import { buildHeroPlate } from "../table-stage";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
+import { needsOpponentToContinue } from "./needsOpponentToContinue";
 
 export type LiveTableSlotState = {
   sceneModel?: TableSceneModel;
@@ -35,25 +36,6 @@ export type LiveTableSlotState = {
 
 function feltAnnounce(message: string, showSpinner = false) {
   return <FeltActionAnnounce message={message} showSpinner={showSpinner} />;
-}
-
-function getOptimisticActionMessage(payload: Parameters<ActionBarOnAction>[0] | null): string {
-  switch (payload?.type) {
-    case "FOLD":
-      return "Folding...";
-    case "CHECK":
-      return "Checking...";
-    case "CALL":
-      return "Calling...";
-    case "BET":
-      return "Betting...";
-    case "RAISE":
-      return "Raising...";
-    case "ALL_IN":
-      return "Going all-in...";
-    default:
-      return "Sending action...";
-  }
 }
 
 export function useActiveTableSlots(
@@ -302,8 +284,7 @@ export function useActiveTableSlots(
       />
     );
   } else if (optimisticAction) {
-    announceMessage = getOptimisticActionMessage(optimisticAction);
-    announceSpinner = true;
+    // Keep optimistic pending state, but do not show a felt announce bubble.
     bottom = null;
   } else if (!waitingBetweenHands && showHeroActionBar) {
     bottom = (
@@ -317,7 +298,7 @@ export function useActiveTableSlots(
         forceInteractive={false}
       />
     );
-  } else if (renderModel.opponents.length === 0) {
+  } else if (needsOpponentToContinue(renderModel.opponents)) {
     bottom = (
       <EmptyTableStartCta
         message={statusStrip?.message ?? "Add a bot to start playing"}

@@ -385,18 +385,51 @@ describe("useLiveTableStatusStripState", () => {
     expect(result.current.message).toBe(DEALING_NEXT_HAND_COPY);
   });
 
-  it("freezes hero-turn messaging on the last opponent notice by actor identity", () => {
+  it("surfaces add-bot choice instead of dealing spinner when opponents are busted", () => {
+    const completedHand = makeHandResultNotice("hand-1");
+    const bustedSnapshot = makeSnapshot({ handId: null });
+    bustedSnapshot.seats = [
+      bustedSnapshot.seats[0],
+      {
+        ...bustedSnapshot.seats[1],
+        stackCents: 0,
+        status: "OUT",
+        isBot: true,
+      },
+    ];
+    const { result } = renderHook(
+      (props: HookProps) => useLiveTableStatusStripState(props),
+      {
+        initialProps: makeProps({
+          sceneMode: "idle",
+          snapshot: bustedSnapshot,
+          handResultNotice: completedHand,
+        }),
+      },
+    );
+
+    expect(result.current.statusPhase).toBe("winnerHold");
+
+    act(() => {
+      vi.advanceTimersByTime(WINNER_HOLD_MS);
+    });
+    expect(result.current.statusPhase).toBe("boardReset");
+
+    act(() => {
+      vi.advanceTimersByTime(BOARD_RESET_FADE_MS);
+    });
+
+    expect(result.current.statusPhase).toBe("betweenHands");
+    expect(result.current.message).toBe("Add a bot or invite a player");
+    expect(result.current.showSpinner).toBe(false);
+  });
+
+  it("does not surface per-action notice bubbles on the felt strip", () => {
     const opponentNotice = makeActionNotice({
       key: "hand-1:1",
       handId: "hand-1",
       actorUserId: "villain",
       message: "Callie bets $2",
-    });
-    const heroNotice = makeActionNotice({
-      key: "hand-1:2",
-      handId: "hand-1",
-      actorUserId: "hero",
-      message: "Hero calls $2",
     });
     const { result, rerender } = renderHook(
       (props: HookProps) => useLiveTableStatusStripState(props),
@@ -407,36 +440,30 @@ describe("useLiveTableStatusStripState", () => {
       },
     );
 
-    expect(result.current.message).toBe("Callie bets $2");
+    expect(result.current.message).toBe("Callie to act");
 
     rerender(
       makeProps({
-        actionNotice: heroNotice,
+        actionNotice: makeActionNotice({
+          key: "hand-1:2",
+          handId: "hand-1",
+          actorUserId: "hero",
+          message: "Hero calls $2",
+        }),
         isHeroTurn: true,
         actionsInteractive: true,
+        heroActionOptions: makeHeroActionOptions(),
       }),
     );
 
-    expect(result.current.message).toBe("Callie bets $2");
+    expect(result.current.message).toBe("$1 to call");
     expect(result.current.showSpinner).toBe(false);
   });
 
-  it("deduplicates same-hand notices but allows identical copy across hands", () => {
+  it("keeps strip on passive/hero prompt when notices fire across hands", () => {
     const handOneNotice = makeActionNotice({
       key: "hand-1:1",
       handId: "hand-1",
-      actorUserId: "villain",
-      message: "Callie folds",
-    });
-    const duplicateHandOneNotice = makeActionNotice({
-      key: "hand-1:2",
-      handId: "hand-1",
-      actorUserId: "villain",
-      message: "Callie folds",
-    });
-    const handTwoNotice = makeActionNotice({
-      key: "hand-2:1",
-      handId: "hand-2",
       actorUserId: "villain",
       message: "Callie folds",
     });
@@ -449,16 +476,7 @@ describe("useLiveTableStatusStripState", () => {
       },
     );
 
-    expect(result.current.message).toBe("Callie folds");
-
-    act(() => {
-      rerender(
-        makeProps({
-          actionNotice: duplicateHandOneNotice,
-        }),
-      );
-    });
-    expect(result.current.message).toBe("Callie folds");
+    expect(result.current.message).toBe("Callie to act");
 
     act(() => {
       rerender(
@@ -469,19 +487,9 @@ describe("useLiveTableStatusStripState", () => {
       );
     });
     expect(result.current.message).toBe("Callie to act");
-
-    act(() => {
-      rerender(
-        makeProps({
-          snapshot: makeSnapshot({ handId: "hand-2" }),
-          actionNotice: handTwoNotice,
-        }),
-      );
-    });
-    expect(result.current.message).toBe("Callie folds");
   });
 
-  it("uses a single-slot replacement queue for throttled notices", () => {
+  it("ignores throttled notice queue — no action bubbles", () => {
     const noticeOne = makeActionNotice({
       key: "hand-1:1",
       handId: "hand-1",
@@ -494,12 +502,6 @@ describe("useLiveTableStatusStripState", () => {
       actorUserId: "hero",
       message: "Hero calls $2",
     });
-    const noticeThree = makeActionNotice({
-      key: "hand-1:3",
-      handId: "hand-1",
-      actorUserId: "villain",
-      message: "Turn card dealt",
-    });
 
     const { result, rerender } = renderHook(
       (props: HookProps) => useLiveTableStatusStripState(props),
@@ -508,7 +510,7 @@ describe("useLiveTableStatusStripState", () => {
       },
     );
 
-    expect(result.current.message).toBe("Callie bets $2");
+    expect(result.current.message).toBe("Callie to act");
 
     act(() => {
       vi.advanceTimersByTime(100);
@@ -516,20 +518,7 @@ describe("useLiveTableStatusStripState", () => {
     act(() => {
       rerender(makeProps({ actionNotice: noticeTwo }));
     });
-    expect(result.current.message).toBe("Callie bets $2");
-
-    act(() => {
-      vi.advanceTimersByTime(100);
-    });
-    act(() => {
-      rerender(makeProps({ actionNotice: noticeThree }));
-    });
-    expect(result.current.message).toBe("Callie bets $2");
-
-    act(() => {
-      vi.advanceTimersByTime(MIN_MESSAGE_DURATION_MS - 200);
-    });
-    expect(result.current.message).toBe("Turn card dealt");
+    expect(result.current.message).toBe("Callie to act");
   });
 
   it("shows a spinner only for reconnect or disconnect transport states", () => {
@@ -572,7 +561,8 @@ describe("useLiveTableStatusStripState", () => {
         }),
       );
     });
-    expect(result.current.message).toBe("Hero bets $2");
+    // Action notices no longer bubble — hero turn falls through to prompt.
+    expect(result.current.message).toBe(YOUR_MOVE_COPY);
     expect(result.current.showSpinner).toBe(false);
 
     act(() => {
@@ -683,7 +673,7 @@ describe("useLiveTableStatusStripState", () => {
       },
     );
 
-    expect(result.current.message).toBe("Callie calls $2");
+    expect(result.current.message).toBe("Callie to act");
 
     rerender(
       makeProps({
@@ -860,7 +850,7 @@ describe("useLiveTableStatusStripState", () => {
       },
     );
 
-    expect(result.current.message).toBe("Callie checks");
+    expect(result.current.message).toBe("Callie to act");
 
     act(() => {
       rerender(
