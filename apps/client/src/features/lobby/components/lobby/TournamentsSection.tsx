@@ -1,8 +1,8 @@
 import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { useNowMs } from "@/hooks/useNowMs";
-import { TournamentCard } from "./TournamentCard";
 import { TournamentListFeedback } from "./TournamentListFeedback";
+import { TournamentLobbyList } from "./TournamentLobbyList";
 import {
   filterTournamentsForBrowseLobby,
   groupTournamentsForLobby,
@@ -21,7 +21,6 @@ type TournamentsSectionProps = {
   onRetry?: () => void;
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
-  /** Desktop content frame already owns horizontal inset. */
   dense?: boolean;
 };
 
@@ -49,25 +48,19 @@ function SectionBlock({
   if (items.length === 0) return null;
   return (
     <View className="ui-stack-2">
-      <Text variant="label" className="text-muted uppercase tracking-wide">
+      <Text variant="muted" className="text-[11px] tracking-widest uppercase">
         {title}
       </Text>
-      <View className="flex-row flex-wrap">
-        {items.map((t) => (
-          <View key={t.id} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
-            <TournamentCard
-              tournament={t}
-              nowMs={nowMs}
-              authenticated={authenticated}
-              actionInFlight={actionInFlight}
-              onOpenDetail={onOpenTournamentDetail}
-              onAction={onTournamentAction}
-              onDelete={onDeleteTournament}
-              deleteInFlight={deleteInFlightId === t.id}
-            />
-          </View>
-        ))}
-      </View>
+      <TournamentLobbyList
+        tournaments={items}
+        nowMs={nowMs}
+        authenticated={authenticated}
+        actionInFlight={actionInFlight}
+        onOpenDetail={onOpenTournamentDetail}
+        onAction={onTournamentAction}
+        onDelete={onDeleteTournament}
+        deleteInFlightId={deleteInFlightId}
+      />
     </View>
   );
 }
@@ -94,8 +87,7 @@ export function TournamentsSection({
     : "No tournaments scheduled yet. Log in to register when events are posted.";
 
   return (
-    <View className={`ui-stack-4 pb-2 ${dense ? "" : "px-4"}`}>
-      <Text variant="h2">Tournaments</Text>
+    <View className={`ui-stack-3 pb-2 ${dense ? "" : "px-4"}`}>
       <TournamentListFeedback
         busy={busy}
         error={error}

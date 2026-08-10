@@ -2,74 +2,44 @@ import { View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { useRouter } from "expo-router";
-import { loginPathWithNext } from "@/lib/nav";
 
 type ReplayQuickLinksProps = {
-  latestHandId: string | null;
-  latestHandLoading: boolean;
-  latestHandError: string | null;
-  onReplayLastHand: (handId: string) => void;
-  onCommunityHand: () => void;
   lessonsEnabled?: boolean;
   onPokerSchool?: () => void;
 };
 
+/** Quiet HUD strip for secondary destinations — not marketing cards. */
 export function ReplayQuickLinks({
-  latestHandId,
-  latestHandLoading,
-  latestHandError,
-  onReplayLastHand,
-  onCommunityHand,
   lessonsEnabled = false,
   onPokerSchool,
 }: ReplayQuickLinksProps) {
   const router = useRouter();
 
   return (
-    <View className="px-4 pb-2 mt-4">
-      <View className="flex-row flex-wrap gap-3">
-        <View className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel p-3 lg:max-w-[280px]">
-          <Text variant="label" className="text-[10px]">
-            Champ
-          </Text>
-          <Text variant="h2" className="mt-1 text-base">
-            Site Leaderboard
-          </Text>
-          <Text variant="muted" className="mt-1 text-xs">
-            Are you up there?
-          </Text>
-          <View className="mt-3">
-            <Button
-              title="Leaderboard"
-              onPress={() => router.push("/leaderboard")}
-              minWidth={0}
-              className="w-full"
-            />
-          </View>
-        </View>
-
-        {lessonsEnabled ? (
-          <View className="flex-1 min-w-[140px] rounded-xl border border-border bg-panel p-3 lg:max-w-[280px]">
-            <Text variant="label" className="text-[10px]">
-              School
-            </Text>
-            <Text variant="h2" className="mt-1 text-base">
-              Poker School
-            </Text>
-            <Text variant="muted" className="mt-1 text-xs">
-              Simple poker coach.
-            </Text>
-            <View className="mt-3">
-              <Button
-                title="Start lesson"
-                onPress={() => onPokerSchool?.()}
-                minWidth={0}
-                className="w-full"
-              />
-            </View>
-          </View>
-        ) : null}
-      </View>
+    <View className="ui-row items-center flex-wrap gap-2 px-4 py-3 border-t border-border mt-2">
+      <Text variant="muted" className="text-[11px] tracking-widest uppercase mr-1">
+        More
+      </Text>
+      <Button
+        title="Leaderboard"
+        intent="secondary"
+        size="sm"
+        shape="hud"
+        minWidth={0}
+        onPress={() => router.push("/leaderboard")}
+        className="h-8 min-h-[32px]"
+      />
+      {lessonsEnabled ? (
+        <Button
+          title="Poker School"
+          intent="secondary"
+          size="sm"
+          shape="hud"
+          minWidth={0}
+          onPress={() => onPokerSchool?.()}
+          className="h-8 min-h-[32px]"
+        />
+      ) : null}
     </View>
   );
 }

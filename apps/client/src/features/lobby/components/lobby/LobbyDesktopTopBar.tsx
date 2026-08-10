@@ -1,8 +1,10 @@
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
+import { Button } from "@/components/base/Button";
 import { useAuthStore } from "@/stores/auth.store";
 import { getSettingsTargetPath } from "@/lib/authNavigation";
+import { loginPathWithNext } from "@/lib/nav";
 import { ProfilePill } from "@/components/domain/navigation/ProfilePill";
 
 type Props = {
@@ -11,15 +13,17 @@ type Props = {
   onlineLabel: string;
   onPressOnline?: () => void;
   avatarUrl?: string | null;
+  authenticated: boolean;
 };
 
-/** Desktop lobby HUD status strip: online + profile only (brand lives in NavRail). */
+/** Desktop lobby HUD status strip: presence + account (brand lives in NavRail). */
 export function LobbyDesktopTopBar({
   username,
   amountCents,
   onlineLabel,
   onPressOnline,
   avatarUrl,
+  authenticated,
 }: Props) {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
@@ -36,17 +40,31 @@ export function LobbyDesktopTopBar({
         accessibilityRole="button"
         accessibilityLabel={onlineLabel}
       >
-        <Text variant="muted" className="text-[13px] tracking-wide">
-          {onlineLabel}
-        </Text>
+        <View className="ui-row items-center gap-2">
+          <View className="h-1.5 w-1.5 rounded-full bg-brand" />
+          <Text variant="muted" className="text-[13px] tracking-wide">
+            {onlineLabel}
+          </Text>
+        </View>
       </Pressable>
-      <ProfilePill
-        username={username}
-        amountCents={amountCents}
-        avatarUrl={avatarUrl}
-        avatarSize={28}
-        onPress={() => router.push(settingsPath)}
-      />
+      {authenticated ? (
+        <ProfilePill
+          username={username}
+          amountCents={amountCents}
+          avatarUrl={avatarUrl}
+          avatarSize={28}
+          onPress={() => router.push(settingsPath)}
+        />
+      ) : (
+        <Button
+          title="Login / Register"
+          intent="accent"
+          size="sm"
+          shape="hud"
+          minWidth={0}
+          onPress={() => router.push(loginPathWithNext("/lobby"))}
+        />
+      )}
     </View>
   );
 }

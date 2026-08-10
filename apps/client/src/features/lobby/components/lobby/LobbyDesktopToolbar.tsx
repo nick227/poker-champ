@@ -14,13 +14,12 @@ type Props = {
   filters: LobbyTableFilters;
   onFiltersChange: (next: LobbyTableFilters) => void;
   tableCount?: number;
-  /** Extra horizontal padding when used outside the desktop content frame. */
   padded?: boolean;
 };
 
 /**
- * Cash list controls — packed start, shared 36px height, sharper game radii.
- * Create CTAs live on LobbyModeRow, not here.
+ * Quiet list controls — packed start, smaller than Play-now / mode.
+ * Create CTAs live on LobbyModeRow.
  */
 export function LobbyDesktopToolbar({
   filters,
@@ -29,14 +28,14 @@ export function LobbyDesktopToolbar({
   padded = false,
 }: Props) {
   return (
-    <View className={`ui-row items-center flex-wrap gap-2 pb-3 ${padded ? "px-4" : ""}`}>
+    <View className={`ui-row items-center flex-wrap gap-1.5 pb-2 ${padded ? "px-4" : ""}`}>
       <TextInput
         value={filters.query}
         onChangeText={(query) => onFiltersChange({ ...filters, query })}
         placeholder="Search tables"
         placeholderTextColor="hsl(0 0% 58%)"
-        className="w-[210px] h-9 rounded-2 border border-border bg-panel px-3 text-text text-[13px]"
-        style={{ height: 36, paddingVertical: 0, borderRadius: 8 }}
+        className="w-[180px] h-8 rounded-2 border border-border bg-panel px-3 text-text text-[12px]"
+        style={{ height: 32, paddingVertical: 0, borderRadius: 8 }}
         // @ts-expect-error web data attribute for / focus
         dataSet={{ lobbySearch: true }}
       />
@@ -45,25 +44,23 @@ export function LobbyDesktopToolbar({
         selected={filters.hideFull}
         onPress={() => onFiltersChange({ ...filters, hideFull: !filters.hideFull })}
         selectedAccent="gold"
-        className="h-9 min-h-[36px] lobby-hud"
+        className="h-8 min-h-[32px]"
       />
-      <View className="ui-row items-center flex-wrap gap-2">
-        {STAKE_CAPS.map((cap) => {
-          const active = filters.maxBigBlindCents === cap.maxBb;
-          return (
-            <ChipButton
-              key={cap.label}
-              title={cap.label}
-              selected={active}
-              selectedAccent="gold"
-              onPress={() => onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })}
-              className="h-9 min-h-[36px] lobby-hud"
-            />
-          );
-        })}
-      </View>
+      {STAKE_CAPS.map((cap) => {
+        const active = filters.maxBigBlindCents === cap.maxBb;
+        return (
+          <ChipButton
+            key={cap.label}
+            title={cap.label}
+            selected={active}
+            selectedAccent="gold"
+            onPress={() => onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })}
+            className="h-8 min-h-[32px]"
+          />
+        );
+      })}
       {typeof tableCount === "number" ? (
-        <Text variant="muted" className="text-[12px]">
+        <Text variant="muted" className="text-[11px] ml-1">
           {tableCount} {tableCount === 1 ? "table" : "tables"}
         </Text>
       ) : null}

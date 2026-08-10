@@ -8,6 +8,7 @@ type Props = {
   onlineLabel: string;
   onPressOnline?: () => void;
   avatarUrl?: string | null;
+  authenticated: boolean;
   primary: ReactNode;
 };
 
@@ -18,6 +19,7 @@ export function LobbyDesktopLayout({
   onlineLabel,
   onPressOnline,
   avatarUrl,
+  authenticated,
   primary,
 }: Props) {
   return (
@@ -28,6 +30,7 @@ export function LobbyDesktopLayout({
         onlineLabel={onlineLabel}
         onPressOnline={onPressOnline}
         avatarUrl={avatarUrl}
+        authenticated={authenticated}
       />
       <View className="flex-1 min-h-0 min-w-0">{primary}</View>
     </View>

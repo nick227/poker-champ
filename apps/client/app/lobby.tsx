@@ -31,9 +31,7 @@ import { postCreateInstantGame, postCreateTable } from "@/services/post/lobby.po
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
-import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
 import { useTournamentStartLobbyEffects } from "@/features/lobby/hooks/useTournamentStartLobbyEffects";
-import { getDefaultCommunityHand } from "@/features/replay/community/communityHands";
 import { useAuthStore } from "@/stores/auth.store";
 import { serviceRegistry } from "@/registry/service.registry";
 import { mapTournamentApiError, selectJoinedTournaments } from "@/lib/tournament.utils";
@@ -53,6 +51,7 @@ import {
   LOBBY_SORT_COMPARATORS,
   type LobbySortKey,
 } from "@/features/lobby/lobbyTableSort";
+import type { LobbySortDir } from "@/features/lobby/components/lobby/LobbyTableList";
 import {
   applyLobbyFilters,
   loadLobbyFilters,
@@ -93,6 +92,7 @@ export default function LobbyScreen() {
   const showToast = useToastStore((s) => s.show);
   const isDesktopWorkspace = useIsDesktopWorkspace();
   const [sortKey, setSortKey] = useState<LobbySortKey>("name");
+  const [sortDir, setSortDir] = useState<LobbySortDir>("asc");
   const [filters, setFilters] = useState<LobbyTableFilters>(() => loadLobbyFilters());
   const [activeTab, setActiveTab] = useState<LobbyTabKey>("cash");
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -117,11 +117,6 @@ export default function LobbyScreen() {
   const [tournamentCreateModalVisible, setTournamentCreateModalVisible] = useState(false);
   const [tournamentDeleteId, setTournamentDeleteId] = useState<string | null>(null);
   const { beginJoining, clearJoining, isJoining } = useJoiningTableState();
-  const {
-    latestHandId,
-    loading: latestReplayLoading,
-    error: latestReplayError,
-  } = useLatestReplayHand();
 
   useEffect(() => {
     if (!authHydrated) return;
@@ -163,8 +158,21 @@ export default function LobbyScreen() {
   const sortedTables = useMemo(() => {
     const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));
     const filtered = applyLobbyFilters(rows, filters);
-    return [...filtered].sort(LOBBY_SORT_COMPARATORS[sortKey]);
-  }, [tables, sortKey, filters]);
+    const cmp = LOBBY_SORT_COMPARATORS[sortKey];
+    const sorted = [...filtered].sort(cmp);
+    return sortDir === "asc" ? sorted : sorted.reverse();
+  }, [tables, sortKey, sortDir, filters]);
+
+  const handleSort = useCallback((key: LobbySortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(key === "name" ? "asc" : "desc");
+      return key;
+    });
+  }, []);
 
   const updateFilters = useCallback((next: LobbyTableFilters) => {
     setFilters(next);
@@ -406,13 +414,8 @@ export default function LobbyScreen() {
   }, [registerModalTournament, refreshBankroll, refreshTournaments, showToast]);
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
-  const createTableLabel = authToken ? "New cash table" : "Login / Register";
   const createModeLabel =
-    activeTab === "tournaments"
-      ? authToken
-        ? "Create tournament"
-        : "Login / Register"
-      : createTableLabel;
+    activeTab === "tournaments" ? "Create tournament" : "New cash table";
   const onModeCreate = activeTab === "tournaments" ? handleCreateTournament : openCreateTable;
 
   const lessonNudge = showFromLessonNudge ? (
@@ -493,7 +496,8 @@ export default function LobbyScreen() {
       tables={sortedTables}
       balanceCents={bankroll}
       sortKey={sortKey}
-      onSort={setSortKey}
+      sortDir={sortDir}
+      onSort={handleSort}
       isJoining={isJoining}
       onJoin={openJoinModal}
       scrollable={isDesktopWorkspace}
@@ -579,6 +583,7 @@ export default function LobbyScreen() {
           onlineLabel={onlineLabel}
           onPressOnline={openOnlineSheet}
           avatarUrl={profile.avatarUrl}
+          authenticated={authenticated}
           primary={
             activeTab === "tournaments" ? (
               <View className="flex-1 min-h-0">
@@ -653,15 +658,7 @@ export default function LobbyScreen() {
           tournamentPrimary
         )}
         <ReplayQuickLinks
-          latestHandId={latestHandId}
-          latestHandLoading={latestReplayLoading}
-          latestHandError={latestReplayError}
           lessonsEnabled
-          onReplayLastHand={(handId) => router.push(`/replay/${encodeURIComponent(handId)}`)}
-          onCommunityHand={() => {
-            const hand = getDefaultCommunityHand();
-            router.push(`/replay/community/${encodeURIComponent(hand.id)}`);
-          }}
           onPokerSchool={() => router.push("/lessons")}
         />
       </ScrollView>

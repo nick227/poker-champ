@@ -27,7 +27,7 @@ export function ProfilePill({
   return (
     <Pressable
       onPress={onPress}
-      className="ui-row items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1"
+      className="ui-row items-center gap-2 rounded-2 border border-border bg-panel px-2 py-1"
     >
       {/* No AvatarImage onPress — outer Pressable is the only button (web forbids nested <button>). */}
       <AvatarImage
@@ -54,7 +54,7 @@ export function ProfilePill({
         <Text numberOfLines={1} variant="body" className="text-[13px]">
           {username}
         </Text>
-        <Text numberOfLines={1} variant="h2" className="font-semibold text-[14px]">
+        <Text numberOfLines={1} variant="body" className="font-semibold text-[14px] tabular-nums">
           {formatCents(amountCents)}
         </Text>
       </View>

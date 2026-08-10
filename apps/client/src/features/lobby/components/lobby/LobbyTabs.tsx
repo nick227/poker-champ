@@ -8,9 +8,7 @@ const TAB_ORDER: readonly { key: LobbyTabKey; label: string }[] = [
   { key: "tournaments", label: "Tournaments" },
 ];
 
-/**
- * Segmented HUD mode switcher for the lobby (game-client, not floating pills).
- */
+/** Segmented HUD mode switcher — selected = elevated + gold text. */
 export function LobbyTabs({
   active,
   onChange,
@@ -38,13 +36,11 @@ export function LobbyTabs({
             onPress={() => onChange(tab.key)}
             className={`btn h-9 px-3 items-center justify-center rounded-none shrink ${
               index > 0 ? "border-l border-border" : ""
-            } ${selected ? "bg-gold-soft" : "bg-transparent"}`}
+            } ${selected ? "bg-panel-elevated" : "bg-transparent"}`}
             style={{ borderRadius: 0, backgroundColor: selected ? undefined : "transparent" }}
           >
             <Text
-              className={`text-[13px] font-semibold ${
-                selected ? "text-gold" : "text-muted"
-              }`}
+              className={`text-[13px] font-semibold ${selected ? "text-gold" : "text-muted"}`}
               numberOfLines={1}
             >
               {label}

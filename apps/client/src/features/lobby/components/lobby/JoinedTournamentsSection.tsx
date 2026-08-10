@@ -3,7 +3,7 @@ import { Text } from "@/components/base/Text";
 import { useNowMs } from "@/hooks/useNowMs";
 import { selectJoinedTournaments } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
-import { JoinedTournamentCard } from "./JoinedTournamentCard";
+import { TournamentLobbyList } from "./TournamentLobbyList";
 
 type JoinedTournamentsSectionProps = {
   tournaments: TournamentSummary[];
@@ -33,26 +33,20 @@ export function JoinedTournamentsSection({
   if (joined.length === 0) return null;
 
   return (
-    <View className={`ui-stack-4 pb-2 ${dense ? "" : "px-4"}`}>
-      <View className="ui-stack-1">
-        <Text variant="h2">Your tournaments</Text>
-        <Text variant="muted" className="text-sm">
-          Scheduled and live events you are registered for.
-        </Text>
-      </View>
-      <View className="ui-stack-3">
-        {joined.map((t) => (
-          <JoinedTournamentCard
-            key={t.id}
-            tournament={t}
-            nowMs={nowMs}
-            authenticated={authenticated}
-            actionInFlight={actionInFlight}
-            onOpenDetail={onOpenTournamentDetail}
-            onAction={onTournamentAction}
-          />
-        ))}
-      </View>
+    <View className={`ui-stack-2 pb-3 ${dense ? "" : "px-4"}`}>
+      <Text variant="muted" className="text-[11px] tracking-widest uppercase">
+        Your tournaments
+      </Text>
+      <TournamentLobbyList
+        tournaments={joined}
+        nowMs={nowMs}
+        authenticated={authenticated}
+        actionInFlight={actionInFlight}
+        onOpenDetail={onOpenTournamentDetail}
+        onAction={onTournamentAction}
+        onDelete={onDeleteTournament}
+        deleteInFlightId={deleteInFlightId}
+      />
     </View>
   );
 }
