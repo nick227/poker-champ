@@ -189,31 +189,18 @@ html, body {
 }
 
 .app-nav-rail {
-  width: 220px;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  padding: 12px 10px;
-  border-right: 1px solid hsl(var(--c-border));
-  background-color: hsl(var(--c-panel) / 0.85);
 }
 
-.app-nav-rail--collapsed {
-  width: 52px;
-  padding: 12px 4px;
+.app-nav-rail-collapsed {
   background-color: transparent;
-  border-right-color: hsl(var(--c-border) / 0.45);
 }
 
-.app-nav-rail-toggle-hit {
-  flex: 1;
-  min-height: 24px;
-  background-color: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+.app-nav-rail[data-collapsed="true"] {
+  background-color: transparent;
 }
 
 #root, #root div, #root span {

@@ -9,6 +9,9 @@ import { getSettingsTargetPath } from "@/lib/authNavigation";
 import { APP_NAME } from "@/constants/copy";
 import type { PrimaryNavKey } from "@/lib/primaryNav";
 
+const RAIL_WIDTH_EXPANDED = 220;
+const RAIL_WIDTH_COLLAPSED = 52;
+
 export function NavRail({ active }: { active: PrimaryNavKey | null }) {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
@@ -20,8 +23,19 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
   return (
     <View
       // @ts-expect-error dataSet is used by react-native-web
-      dataSet={{ appNavRail: true }}
-      className={`app-nav-rail${expanded ? "" : " app-nav-rail--collapsed"}`}
+      dataSet={{ appNavRail: true, collapsed: expanded ? "false" : "true" }}
+      className={
+        expanded
+          ? "app-nav-rail border-r border-border bg-panel/85"
+          : "app-nav-rail app-nav-rail-collapsed border-r border-border/40 bg-transparent"
+      }
+      style={{
+        width: expanded ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED,
+        flexShrink: 0,
+        alignSelf: "stretch",
+        paddingVertical: 12,
+        paddingHorizontal: expanded ? 10 : 4,
+      }}
     >
       <View
         className={`ui-row items-center mb-2 ${
@@ -29,10 +43,16 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
         }`}
       >
         <Pressable
-          onPress={() => router.push("/lobby")}
+          onPress={() => {
+            if (expanded) {
+              router.push("/lobby");
+              return;
+            }
+            setExpanded(true);
+          }}
           className={`ui-touch ui-row items-center ${expanded ? "gap-2 flex-1 min-w-0" : "p-2"}`}
           accessibilityRole="link"
-          accessibilityLabel={APP_NAME}
+          accessibilityLabel={expanded ? APP_NAME : `Expand ${APP_NAME} navigation`}
         >
           <Text className="text-xl text-text">♠</Text>
           {expanded ? (
@@ -45,6 +65,7 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
           <Pressable
             onPress={() => setExpanded(false)}
             className="btn ui-touch items-center justify-center p-1.5"
+            style={{ backgroundColor: "transparent" }}
             accessibilityLabel="Collapse navigation"
           >
             <Ionicons name="chevron-back" size={18} className="text-muted" />
@@ -80,8 +101,7 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
 
       <Pressable
         onPress={toggle}
-        className="btn app-nav-rail-toggle-hit"
-        style={{ backgroundColor: "transparent", borderRadius: 0 }}
+        style={{ flex: 1, minHeight: 24, backgroundColor: "transparent" }}
         accessibilityLabel={expanded ? "Collapse navigation" : "Expand navigation"}
       />
     </View>
