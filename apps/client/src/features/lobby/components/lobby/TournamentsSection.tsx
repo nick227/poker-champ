@@ -1,7 +1,5 @@
 import { View } from "react-native";
-import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
-import { TOURNAMENT } from "@/constants/copy";
 import { useNowMs } from "@/hooks/useNowMs";
 import { TournamentCard } from "./TournamentCard";
 import { TournamentListFeedback } from "./TournamentListFeedback";
@@ -21,9 +19,10 @@ type TournamentsSectionProps = {
   onTournamentAction: (tournament: TournamentSummary) => void;
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onRetry?: () => void;
-  onCreateTournament?: () => void;
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
+  /** Desktop content frame already owns horizontal inset. */
+  dense?: boolean;
 };
 
 function SectionBlock({
@@ -82,9 +81,9 @@ export function TournamentsSection({
   onTournamentAction,
   onOpenTournamentDetail,
   onRetry,
-  onCreateTournament,
   onDeleteTournament,
   deleteInFlightId,
+  dense = false,
 }: TournamentsSectionProps) {
   const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
   const hasBrowse = groups.upcoming.length > 0 || groups.running.length > 0;
@@ -95,13 +94,8 @@ export function TournamentsSection({
     : "No tournaments scheduled yet. Log in to register when events are posted.";
 
   return (
-    <View className="ui-stack-4 px-4 pb-2">
-      <View className="ui-row flex-wrap items-center justify-between gap-2">
-        <Text variant="h2">Tournaments</Text>
-        {onCreateTournament ? (
-          <Button intent="accent" title={TOURNAMENT.create} size="sm" onPress={onCreateTournament} />
-        ) : null}
-      </View>
+    <View className={`ui-stack-4 pb-2 ${dense ? "" : "px-4"}`}>
+      <Text variant="h2">Tournaments</Text>
       <TournamentListFeedback
         busy={busy}
         error={error}

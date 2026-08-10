@@ -5,15 +5,13 @@ import { Screen } from "@/components/containers/Screen";
 import { Masthead } from "@/features/lobby";
 import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
 import { HeaderStack } from "@/components/containers/HeaderStack";
-import { GameListHeader } from "@/features/lobby";
 import { InstantGamePanels } from "@/features/lobby";
 import { ReplayQuickLinks } from "@/features/lobby";
 import { JoinedTournamentsSection, TournamentsSection } from "@/features/lobby";
 import { TournamentCreateModal, TournamentJoinModal, TournamentRegisterModal, TournamentStandingsModal } from "@/features/lobby";
-import { GameTablePanel } from "@/features/lobby";
-import { GameTablePanelSkeleton } from "@/features/lobby";
 import { EmptyState } from "@/features/lobby";
-import { LobbyTabs, type LobbyTabKey } from "@/features/lobby";
+import { type LobbyTabKey } from "@/features/lobby";
+import { LobbyModeRow } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
@@ -32,7 +30,6 @@ import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { postCreateInstantGame, postCreateTable } from "@/services/post/lobby.post";
 import { useToastStore } from "@/stores/toast.store";
 import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
-import { confirmDeleteTable } from "@/lib/deleteTable";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { useLatestReplayHand } from "@/hooks/useLatestReplayHand";
 import { useTournamentStartLobbyEffects } from "@/features/lobby/hooks/useTournamentStartLobbyEffects";
@@ -54,8 +51,6 @@ import { tournamentPath } from "@/lib/nav";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import {
   LOBBY_SORT_COMPARATORS,
-  LOBBY_SORT_CYCLE,
-  LOBBY_SORT_LABELS,
   type LobbySortKey,
 } from "@/features/lobby/lobbyTableSort";
 import {
@@ -170,8 +165,6 @@ export default function LobbyScreen() {
     const filtered = applyLobbyFilters(rows, filters);
     return [...filtered].sort(LOBBY_SORT_COMPARATORS[sortKey]);
   }, [tables, sortKey, filters]);
-
-  const cycleSort = useCallback(() => setSortKey((k) => LOBBY_SORT_CYCLE[k]), []);
 
   const updateFilters = useCallback((next: LobbyTableFilters) => {
     setFilters(next);
@@ -302,27 +295,6 @@ export default function LobbyScreen() {
     }
   }, [beginJoining, chooseTableModal, clearJoining, openTable, router, setRoomForTable, setTableName]);
 
-  const skeletonCount = 3;
-
-  const handleDeleteTable = useCallback(
-    (tableId: string) => {
-      confirmDeleteTable(tableId, {
-        onSuccess: () => {
-          // Optimistically remove the table from the store so the row disappears immediately.
-          storeRegistry.use.lobby.setState((s) => ({
-            tables: (s.tables as Array<{ tableId?: string; id?: string }>).filter(
-              (t) => (t.tableId ?? t.id) !== tableId,
-            ),
-          }));
-          refresh();
-          storeRegistry.tables().closeTable(tableId);
-          storeRegistry.table().clearTable(tableId);
-        },
-      });
-    },
-    [refresh]
-  );
-
   const openOnlineSheet = useCallback(() => {
     setOnlineSheetVisible(true);
     requestOnlinePlayers();
@@ -435,9 +407,16 @@ export default function LobbyScreen() {
 
   const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
   const createTableLabel = authToken ? "New cash table" : "Login / Register";
+  const createModeLabel =
+    activeTab === "tournaments"
+      ? authToken
+        ? "Create tournament"
+        : "Login / Register"
+      : createTableLabel;
+  const onModeCreate = activeTab === "tournaments" ? handleCreateTournament : openCreateTable;
 
   const lessonNudge = showFromLessonNudge ? (
-    <View className="mb-3 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
+    <View className="mb-3 flex-row items-center justify-between rounded-2 border border-brand/30 bg-brand/10 px-3 py-2">
       <Text variant="body" className="text-foreground flex-1 text-sm">
         Great work on that lesson — now test it at the tables!
       </Text>
@@ -446,14 +425,14 @@ export default function LobbyScreen() {
         onPress={() => { setFromLessonDismissed(true); setActiveTab("cash"); }}
         intent="accent"
         size="sm"
-        className="min-h-[30px] px-3 ml-2"
+        className="min-h-[36px] h-9 px-3 ml-2 rounded-2"
       />
       <Button
         title="Dismiss"
         onPress={() => setFromLessonDismissed(true)}
         intent="neutral"
         size="sm"
-        className="min-h-[30px] px-2 py-1 ml-1"
+        className="min-h-[36px] h-9 px-2 ml-1 rounded-2"
         textClassName="text-muted"
       />
     </View>
@@ -469,6 +448,7 @@ export default function LobbyScreen() {
         onOpenTournamentDetail={handleOpenTournamentDetail}
         onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
         deleteInFlightId={tournamentDeleteId}
+        dense={isDesktopWorkspace}
       />
       <TournamentsSection
         tournaments={tournamentList}
@@ -479,19 +459,45 @@ export default function LobbyScreen() {
         onTournamentAction={handleTournamentAction}
         onOpenTournamentDetail={handleOpenTournamentDetail}
         onRetry={() => { void refreshTournaments(); }}
-        onCreateTournament={handleCreateTournament}
         onDeleteTournament={authenticated ? handleDeleteTournament : undefined}
         deleteInFlightId={tournamentDeleteId}
+        dense={isDesktopWorkspace}
       />
     </ScrollView>
   );
 
-  const desktopTabs = (
-    <LobbyTabs
+  const modeRow = (
+    <LobbyModeRow
       active={activeTab}
       onChange={setActiveTab}
       tournamentsBadgeCount={joinedTournamentsCount}
+      createLabel={createModeLabel}
+      onCreate={onModeCreate}
       dense
+    />
+  );
+
+  const cashListStage = busy ? (
+    <View className="min-h-[160px] ui-center border border-border rounded-2 bg-panel py-8">
+      <Text variant="muted">Loading tables…</Text>
+    </View>
+  ) : error ? (
+    <View className="min-h-[160px] ui-center border border-border rounded-2 bg-panel gap-3 py-8">
+      <Text variant="danger">{error}</Text>
+      <Button title="Retry" onPress={() => { void refresh(); }} intent="secondary" size="sm" shape="hud" />
+    </View>
+  ) : sortedTables.length === 0 ? (
+    <EmptyState message="No games match your filters." />
+  ) : (
+    <LobbyTableList
+      tables={sortedTables}
+      balanceCents={bankroll}
+      sortKey={sortKey}
+      onSort={setSortKey}
+      isJoining={isJoining}
+      onJoin={openJoinModal}
+      scrollable={isDesktopWorkspace}
+      compact={!isDesktopWorkspace}
     />
   );
 
@@ -499,35 +505,17 @@ export default function LobbyScreen() {
     <View className="flex-1 min-h-0">
       {lessonNudge}
       <LobbyContinuePlaying variant="row" />
-      {desktopTabs}
+      {modeRow}
       <InstantGamePanels
-        variant="compact"
         inFlightPreset={instantStartInFlightPreset}
         onStart={handleStartInstantGame}
       />
       <LobbyDesktopToolbar
         filters={filters}
         onFiltersChange={updateFilters}
-        onCreateTable={openCreateTable}
-        onCreateTournament={handleCreateTournament}
-        createTableLabel={createTableLabel}
+        tableCount={sortedTables.length}
       />
-      {busy ? (
-        <Text variant="muted">Loading tables…</Text>
-      ) : error ? (
-        <Text variant="danger">{error}</Text>
-      ) : sortedTables.length === 0 ? (
-        <EmptyState message="No games match your filters." />
-      ) : (
-        <LobbyTableList
-          tables={sortedTables}
-          balanceCents={bankroll}
-          sortKey={sortKey}
-          onSort={setSortKey}
-          isJoining={isJoining}
-          onJoin={openJoinModal}
-        />
-      )}
+      {cashListStage}
     </View>
   );
 
@@ -596,7 +584,7 @@ export default function LobbyScreen() {
               <View className="flex-1 min-h-0">
                 {lessonNudge}
                 <LobbyContinuePlaying variant="row" />
-                {desktopTabs}
+                {modeRow}
                 {tournamentPrimary}
               </View>
             ) : (
@@ -622,21 +610,48 @@ export default function LobbyScreen() {
         />
       </HeaderStack>
       {showFromLessonNudge ? (
-        <View className="mx-4 mt-2 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
+        <View className="mx-4 mt-2 flex-row items-center justify-between rounded-2 border border-brand/30 bg-brand/10 px-3 py-2">
           <Text variant="body" className="text-foreground flex-1 text-sm">
-            Very nice!
+            Great work on that lesson — now test it at the tables!
           </Text>
           <Button
             title="Dismiss"
             onPress={() => setFromLessonDismissed(true)}
             intent="neutral"
             size="sm"
-            className="min-h-[30px] px-2 py-1"
+            shape="hud"
+            className="ml-2"
             textClassName="text-muted"
           />
         </View>
       ) : null}
       <ScrollView className="flex-1">
+        <LobbyContinuePlaying />
+        <LobbyModeRow
+          active={activeTab}
+          onChange={setActiveTab}
+          tournamentsBadgeCount={joinedTournamentsCount}
+          createLabel={createModeLabel}
+          onCreate={onModeCreate}
+        />
+        {activeTab === "cash" ? (
+          <>
+            <InstantGamePanels
+              padded
+              inFlightPreset={instantStartInFlightPreset}
+              onStart={handleStartInstantGame}
+            />
+            <LobbyDesktopToolbar
+              padded
+              filters={filters}
+              onFiltersChange={updateFilters}
+              tableCount={sortedTables.length}
+            />
+            <View className="px-4 pb-4">{cashListStage}</View>
+          </>
+        ) : (
+          tournamentPrimary
+        )}
         <ReplayQuickLinks
           latestHandId={latestHandId}
           latestHandLoading={latestReplayLoading}
@@ -649,54 +664,6 @@ export default function LobbyScreen() {
           }}
           onPokerSchool={() => router.push("/lessons")}
         />
-        <LobbyTabs
-          active={activeTab}
-          onChange={setActiveTab}
-          tournamentsBadgeCount={joinedTournamentsCount}
-        />
-        {activeTab === "cash" ? (
-          <>
-            <InstantGamePanels inFlightPreset={instantStartInFlightPreset} onStart={handleStartInstantGame} />
-            <View className="ui-row gap-3 mt-2 border-b border-border pb-2">
-              <GameListHeader
-                onSort={cycleSort}
-                onCreateGame={openCreateTable}
-              sortLabel={`Sort: ${LOBBY_SORT_LABELS[sortKey]}`}
-                createLabel={authToken ? "New Game" : "Login / Register"}
-              />
-            </View>
-            <View className="flex-1 flex-row flex-wrap p-4 pb-1">
-              {busy ? (
-                Array.from({ length: skeletonCount }).map((_, idx) => (
-                  <View key={`skeleton-${idx}`} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
-                    <GameTablePanelSkeleton />
-                  </View>
-                ))
-              ) : error ? (
-                <Text variant="danger" className="ui-stack-2 py-4">
-                  {error}
-                </Text>
-              ) : sortedTables.length === 0 ? (
-                <EmptyState message="No games available. Create one!" />
-              ) : (
-                sortedTables.map((t) => (
-                  <View key={t.id} className="w-full pb-3 md:w-1/2 md:px-1.5 lg:w-1/3">
-                    <GameTablePanel
-                      table={t}
-                      balanceCents={bankroll}
-                      isJoining={isJoining(t.id)}
-                      currentUserId={profile.userId}
-                      onJoin={() => openJoinModal(t)}
-                      onDelete={handleDeleteTable}
-                    />
-                  </View>
-                ))
-              )}
-            </View>
-          </>
-        ) : (
-          tournamentPrimary
-        )}
       </ScrollView>
       {modals}
     </Screen>

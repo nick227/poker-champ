@@ -228,6 +228,11 @@ html, body {
   font-weight: 500;
 }
 
+/* Lobby / game-client HUD controls: sharp radius (overrides .btn pill). */
+#root .lobby-hud {
+  border-radius: var(--r-2) !important;
+}
+
 .bottom-sheet {
   max-width: 100% !important;
   width: 640px !important;

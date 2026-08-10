@@ -1,6 +1,5 @@
 import { TextInput, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { Button } from "@/components/base/Button";
 import { ChipButton } from "@/components/base/ChipButton";
 import type { LobbyTableFilters } from "../../lobbyTableFilters";
 
@@ -14,73 +13,60 @@ const STAKE_CAPS: Array<{ label: string; maxBb: number | null }> = [
 type Props = {
   filters: LobbyTableFilters;
   onFiltersChange: (next: LobbyTableFilters) => void;
-  onCreateTable: () => void;
-  onCreateTournament: () => void;
-  createTableLabel: string;
+  tableCount?: number;
+  /** Extra horizontal padding when used outside the desktop content frame. */
+  padded?: boolean;
 };
 
 /**
- * Cash-games toolbar: list filters on the left, create actions on the right.
- * Replaces the old right-rail that mixed "Filters" with create + orphaned More links.
+ * Cash list controls — packed start, shared 36px height, sharper game radii.
+ * Create CTAs live on LobbyModeRow, not here.
  */
 export function LobbyDesktopToolbar({
   filters,
   onFiltersChange,
-  onCreateTable,
-  onCreateTournament,
-  createTableLabel,
+  tableCount,
+  padded = false,
 }: Props) {
   return (
-    <View className="ui-row items-center flex-wrap gap-3 border-b border-border pb-3 mb-3">
-      <View className="ui-row items-center flex-wrap gap-2 flex-1 min-w-[240px]">
-        <TextInput
-          value={filters.query}
-          onChangeText={(query) => onFiltersChange({ ...filters, query })}
-          placeholder="Search tables"
-          placeholderTextColor="hsl(0 0% 58%)"
-          className="min-w-[160px] flex-1 max-w-[220px] rounded-md border border-border bg-panel px-3 py-2 text-text"
-          // @ts-expect-error web data attribute for / focus
-          dataSet={{ lobbySearch: true }}
-        />
-        <ChipButton
-          title="Hide full"
-          selected={filters.hideFull}
-          onPress={() => onFiltersChange({ ...filters, hideFull: !filters.hideFull })}
-        />
-        <View className="ui-row flex-wrap gap-1.5">
-          {STAKE_CAPS.map((cap) => {
-            const active = filters.maxBigBlindCents === cap.maxBb;
-            return (
-              <ChipButton
-                key={cap.label}
-                title={cap.label}
-                selected={active}
-                onPress={() => onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })}
-              />
-            );
-          })}
-        </View>
+    <View className={`ui-row items-center flex-wrap gap-2 pb-3 ${padded ? "px-4" : ""}`}>
+      <TextInput
+        value={filters.query}
+        onChangeText={(query) => onFiltersChange({ ...filters, query })}
+        placeholder="Search tables"
+        placeholderTextColor="hsl(0 0% 58%)"
+        className="w-[210px] h-9 rounded-2 border border-border bg-panel px-3 text-text text-[13px]"
+        style={{ height: 36, paddingVertical: 0, borderRadius: 8 }}
+        // @ts-expect-error web data attribute for / focus
+        dataSet={{ lobbySearch: true }}
+      />
+      <ChipButton
+        title="Hide full"
+        selected={filters.hideFull}
+        onPress={() => onFiltersChange({ ...filters, hideFull: !filters.hideFull })}
+        selectedAccent="gold"
+        className="h-9 min-h-[36px] lobby-hud"
+      />
+      <View className="ui-row items-center flex-wrap gap-2">
+        {STAKE_CAPS.map((cap) => {
+          const active = filters.maxBigBlindCents === cap.maxBb;
+          return (
+            <ChipButton
+              key={cap.label}
+              title={cap.label}
+              selected={active}
+              selectedAccent="gold"
+              onPress={() => onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })}
+              className="h-9 min-h-[36px] lobby-hud"
+            />
+          );
+        })}
       </View>
-
-      <View className="ui-row items-center gap-2 shrink-0">
-        <Button
-          intent="accent"
-          title={createTableLabel}
-          onPress={onCreateTable}
-          size="sm"
-          minWidth={0}
-          className="min-h-[36px] px-3"
-        />
-        <Button
-          intent="ghost"
-          title="Create tournament"
-          onPress={onCreateTournament}
-          size="sm"
-          minWidth={0}
-          className="min-h-[36px] px-3"
-        />
-      </View>
+      {typeof tableCount === "number" ? (
+        <Text variant="muted" className="text-[12px]">
+          {tableCount} {tableCount === 1 ? "table" : "tables"}
+        </Text>
+      ) : null}
     </View>
   );
 }
-

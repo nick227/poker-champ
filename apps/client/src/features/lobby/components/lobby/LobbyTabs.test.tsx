@@ -19,7 +19,7 @@ describe("LobbyTabs", () => {
     expect(onChange).toHaveBeenCalledWith("tournaments");
   });
 
-  it("does not fire onChange again when tapping the already-active tab's label is absent", () => {
+  it("fires onChange when tapping the active tab", () => {
     const onChange = vi.fn();
     render(<LobbyTabs active="cash" onChange={onChange} />);
     fireEvent.click(screen.getByText("Cash Games"));

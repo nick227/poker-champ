@@ -20,6 +20,13 @@ export function ChipButton({
       ? "bg-gold border-gold/60"
       : "";
 
+  const selectedText =
+    selected && selectedAccent === "gold"
+      ? "text-bg font-semibold"
+      : selected
+        ? "text-text"
+        : "text-muted";
+
   return (
     <Button
       title={title}
@@ -27,9 +34,10 @@ export function ChipButton({
       disabled={disabled}
       intent="neutral"
       size="sm"
+      shape="hud"
       selected={selected}
       className={`min-w-[52px] ${selectedAccentClass} ${className}`.trim()}
-      textClassName={selected ? "text-text" : "text-muted"}
+      textClassName={selectedText}
     />
   );
 }

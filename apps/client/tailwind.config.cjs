@@ -153,9 +153,9 @@ module.exports = {
         ".ui-border-t": { "@apply border-t border-border": {} },
         ".ui-section": { "@apply border-b border-border px-4 py-3": {} },
         ".ui-section-tight": { "@apply border-b border-border px-4 py-2": {} },
-        /* Buttons */
+        /* Buttons — radius lives on shape classes, not the base .btn */
         ".btn": {
-          "@apply ui-touch flex-row items-center justify-center gap-2 rounded-full border border-transparent px-4": {},
+          "@apply ui-touch flex-row items-center justify-center gap-2 border border-transparent px-4": {},
         },
         ".btn-primary": {
           backgroundColor: "hsl(var(--btn-primary-bg))",
@@ -197,13 +197,17 @@ module.exports = {
         ".btn-accent-selected": { backgroundColor: "hsl(var(--btn-accent-bg-strong))" },
         ".btn-secondary-selected": { backgroundColor: "hsl(var(--btn-secondary-bg-strong))" },
         ".btn-neutral-selected": { borderColor: "hsl(var(--accent-purple))" },
-        ".btn-pill-sm": { "@apply min-h-[36px] px-3 py-1.5": {} },
-        ".btn-pill-md": { "@apply min-h-[34px] px-4 py-2": {} },
-        ".btn-pill-lg": { "@apply min-h-[34px] px-5 py-3": {} },
+        ".btn-pill-sm": { "@apply min-h-[36px] rounded-full px-3 py-1.5": {} },
+        ".btn-pill-md": { "@apply min-h-[34px] rounded-full px-4 py-2": {} },
+        ".btn-pill-lg": { "@apply min-h-[34px] rounded-full px-5 py-3": {} },
         ".btn-icon-sm": { "@apply h-9 w-9 min-h-[36px] min-w-[36px] rounded-full p-0": {} },
         ".btn-icon-md": { "@apply h-11 w-11 min-h-[34px] min-w-[34px] rounded-full p-0": {} },
         ".btn-icon-lg": { "@apply h-12 w-12 min-h-[48px] min-w-[48px] rounded-full p-0": {} },
-        ".btn-row": { "@apply min-h-[34px] w-full justify-between rounded-md px-3 py-2": {} },
+        ".btn-row": { "@apply min-h-[34px] w-full justify-between rounded-2 px-3 py-2": {} },
+        ".btn-hud-sm": { "@apply h-9 min-h-[36px] rounded-2 px-3": {} },
+        ".btn-hud-md": { "@apply h-10 min-h-[40px] rounded-2 px-4": {} },
+        ".btn-hud-lg": { "@apply h-11 min-h-[44px] rounded-2 px-5": {} },
+        ".lobby-hud": { "@apply rounded-2": {} },
       });
     },
   ],

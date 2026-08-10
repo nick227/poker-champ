@@ -7,7 +7,7 @@ import { emitSoundEvent } from "@/sound/emitSoundEvent";
 type LegacyVariant = "primary" | "ghost" | "danger" | "link" | "accent";
 export type ButtonIntent = "primary" | "secondary" | "neutral" | "danger" | "ghost" | "accent";
 export type ButtonSize = "sm" | "md" | "lg";
-export type ButtonShape = "pill" | "row";
+export type ButtonShape = "pill" | "row" | "hud";
 
 const INTENT_CLASS: Record<ButtonIntent, string> = {
   primary: "btn-primary",
@@ -46,6 +46,11 @@ const SHAPE_SIZE_CLASS: Record<ButtonShape, Record<ButtonSize, string>> = {
     sm: "btn-row",
     md: "btn-row",
     lg: "btn-row",
+  },
+  hud: {
+    sm: "btn-hud-sm",
+    md: "btn-hud-md",
+    lg: "btn-hud-lg",
   },
 };
 

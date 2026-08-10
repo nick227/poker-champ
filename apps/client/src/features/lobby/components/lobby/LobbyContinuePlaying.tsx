@@ -9,7 +9,7 @@ type Props = {
   variant?: "stack" | "row";
 };
 
-/** Persistent continue-playing from open multi-table seats. */
+/** Persistent resume strip from open multi-table seats (session band). */
 export function LobbyContinuePlaying({ variant = "stack" }: Props) {
   const router = useRouter();
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
@@ -22,7 +22,7 @@ export function LobbyContinuePlaying({ variant = "stack" }: Props) {
     return (
       <View className="ui-row items-center flex-wrap gap-2 pb-3">
         <Text variant="muted" className="text-[11px] tracking-widest uppercase mr-1">
-          Continue
+          Your tables
         </Text>
         {openTableIds.map((id) => {
           const name = tableNames[id] ?? id.slice(0, 8);
@@ -30,7 +30,7 @@ export function LobbyContinuePlaying({ variant = "stack" }: Props) {
             <Pressable
               key={id}
               onPress={() => router.push(tablePath(id, { buyInCents: lastBuyIn[id] }))}
-              className="rounded-md border border-primary/40 bg-brand-soft px-3 py-1.5 hover:bg-panel-elevated"
+              className="btn lobby-hud h-9 items-center justify-center border border-brand/40 bg-brand-soft px-3 hover:bg-panel-elevated"
             >
               <Text variant="body" className="text-[13px] font-semibold">
                 Resume: {name}
@@ -43,9 +43,9 @@ export function LobbyContinuePlaying({ variant = "stack" }: Props) {
   }
 
   return (
-    <View className="ui-stack-2 mb-3">
+    <View className="ui-stack-2 mb-3 px-4">
       <Text variant="muted" className="text-[11px] tracking-widest uppercase">
-        Continue playing
+        Your tables
       </Text>
       {openTableIds.map((id) => {
         const name = tableNames[id] ?? id.slice(0, 8);
@@ -53,13 +53,10 @@ export function LobbyContinuePlaying({ variant = "stack" }: Props) {
           <Pressable
             key={id}
             onPress={() => router.push(tablePath(id, { buyInCents: lastBuyIn[id] }))}
-            className="rounded-lg border border-border bg-panel px-3 py-2.5 hover:bg-panel-elevated"
+            className="btn lobby-hud h-9 justify-center border border-brand/40 bg-brand-soft px-3 hover:bg-panel-elevated"
           >
-            <Text variant="body" className="font-semibold">
-              {name}
-            </Text>
-            <Text variant="muted" className="text-[12px]">
-              Resume seat
+            <Text variant="body" className="font-semibold text-[13px]">
+              Resume: {name}
             </Text>
           </Pressable>
         );

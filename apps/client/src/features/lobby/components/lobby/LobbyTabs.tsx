@@ -1,6 +1,5 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { ChipButton } from "@/components/base/ChipButton";
 
 export type LobbyTabKey = "cash" | "tournaments";
 
@@ -10,8 +9,7 @@ const TAB_ORDER: readonly { key: LobbyTabKey; label: string }[] = [
 ];
 
 /**
- * Top-level section switcher for the lobby (GGPoker-style category tab row).
- * Pure view state - which section is visible - owned by the caller; does not touch data fetching.
+ * Segmented HUD mode switcher for the lobby (game-client, not floating pills).
  */
 export function LobbyTabs({
   active,
@@ -21,39 +19,39 @@ export function LobbyTabs({
 }: {
   active: LobbyTabKey;
   onChange: (key: LobbyTabKey) => void;
-  /** Optional count (e.g. joined/live tournaments) shown as a visual badge on the Tournaments tab. */
   tournamentsBadgeCount?: number;
-  /** Desktop workspace: no extra horizontal padding (grid owns edges). */
   dense?: boolean;
 }) {
   return (
-    <View className={`ui-row ui-inline-2 pb-3 ${dense ? "" : "px-4"}`}>
-      {TAB_ORDER.map((tab) => {
-        const showBadge = tab.key === "tournaments" && Boolean(tournamentsBadgeCount);
+    <View
+      className={`ui-row items-stretch h-9 lobby-hud border border-border overflow-hidden bg-panel ${
+        dense ? "" : "mx-4"
+      }`}
+    >
+      {TAB_ORDER.map((tab, index) => {
+        const selected = active === tab.key;
+        const showCount = tab.key === "tournaments" && Boolean(tournamentsBadgeCount);
+        const label = showCount ? `${tab.label} (${tournamentsBadgeCount})` : tab.label;
         return (
-          <View key={tab.key} className="relative">
-            <ChipButton
-              title={tab.label}
-              selected={active === tab.key}
-              onPress={() => onChange(tab.key)}
-              selectedAccent="gold"
-              className="min-w-[112px]"
-            />
-            {showBadge ? (
-              <View className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-primary items-center justify-center px-1">
-                <Text
-                  className="text-white font-bold"
-                  style={{ fontSize: 10 }}
-                  allowFontScaling={false}
-                >
-                  {tournamentsBadgeCount! > 9 ? "9+" : String(tournamentsBadgeCount)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+          <Pressable
+            key={tab.key}
+            onPress={() => onChange(tab.key)}
+            className={`btn h-9 px-3 items-center justify-center rounded-none shrink ${
+              index > 0 ? "border-l border-border" : ""
+            } ${selected ? "bg-gold-soft" : "bg-transparent"}`}
+            style={{ borderRadius: 0, backgroundColor: selected ? undefined : "transparent" }}
+          >
+            <Text
+              className={`text-[13px] font-semibold ${
+                selected ? "text-gold" : "text-muted"
+              }`}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          </Pressable>
         );
       })}
     </View>
   );
 }
-

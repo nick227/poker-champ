@@ -13,6 +13,7 @@ type JoinedTournamentsSectionProps = {
   onOpenTournamentDetail: (tournament: TournamentSummary) => void;
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
+  dense?: boolean;
 };
 
 export function JoinedTournamentsSection({
@@ -23,6 +24,7 @@ export function JoinedTournamentsSection({
   onOpenTournamentDetail,
   onDeleteTournament,
   deleteInFlightId,
+  dense = false,
 }: JoinedTournamentsSectionProps) {
   const nowMs = useNowMs();
   if (!authenticated) return null;
@@ -31,7 +33,7 @@ export function JoinedTournamentsSection({
   if (joined.length === 0) return null;
 
   return (
-    <View className="ui-stack-4 px-4 pb-2">
+    <View className={`ui-stack-4 pb-2 ${dense ? "" : "px-4"}`}>
       <View className="ui-stack-1">
         <Text variant="h2">Your tournaments</Text>
         <Text variant="muted" className="text-sm">

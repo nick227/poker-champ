@@ -1,10 +1,9 @@
 export { Masthead } from "./components/lobby/Masthead";
 export { LobbyTabs, type LobbyTabKey } from "./components/lobby/LobbyTabs";
+export { LobbyModeRow } from "./components/lobby/LobbyModeRow";
 export { OnlinePlayersSheet } from "./components/lobby/OnlinePlayersSheet";
-export { GameListHeader } from "./components/lobby/GameListHeader";
 export { InstantGamePanels } from "./components/lobby/InstantGamePanels";
 export { ReplayQuickLinks } from "./components/lobby/ReplayQuickLinks";
-export { GameTablePanel } from "./components/lobby/GameTablePanel";
 export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleton";
 export { LobbyDesktopLayout } from "./components/lobby/LobbyDesktopLayout";
 export { LobbyDesktopTopBar } from "./components/lobby/LobbyDesktopTopBar";
@@ -24,3 +23,4 @@ export { TournamentStandingsModal } from "./components/lobby/TournamentStandings
 export * from "./components/lobby/createGame.constants";
 
 export * from "./components/lobby/instantGame.presets";
+
