@@ -1,12 +1,11 @@
-import { Pressable } from "react-native";
+import { Pressable, View, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { PRESS_OPACITY } from "@/theme/animation";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
-import type { PokerActionVariant } from "../tokens/hud.tokens";
-import { HUD_ACTION_BORDER, HUD_ACTION_GRADIENT } from "../tokens/hud.tokens";
+import { HUD_ACTION, type PokerActionVariant } from "../tokens/hud.tokens";
 import { BUTTONS } from "./layout";
 
-const PRESSED_SCALE = 0.97;
+const PRESSED_SCALE = 0.98;
 
 export type { PokerActionVariant };
 
@@ -15,15 +14,14 @@ export type PokerActionButtonProps = {
   onPress: () => void;
   variant: PokerActionVariant;
   disabled?: boolean;
-  /** Layout-only additions from the caller (e.g. `flex-1 min-w-0`). */
   className?: string;
   testID?: string;
+  style?: ViewStyle;
 };
 
 /**
- * Bold, color-coded action button (Fold=red, Check/Call=green, Bet/Raise=gold, All-In=red/orange).
- * A dedicated component rather than the shared `Button` intent system so the poker-specific
- * color language here doesn't leak into unrelated buttons across the app.
+ * Flat, high-contrast poker action control.
+ * Solid fill + bold label — no soft gradients, no shared `.btn` pill chrome.
  */
 export function PokerActionButton({
   title,
@@ -32,7 +30,10 @@ export function PokerActionButton({
   disabled = false,
   className = "",
   testID,
+  style,
 }: PokerActionButtonProps) {
+  const paint = HUD_ACTION[variant];
+
   const handlePress = () => {
     if (disabled) return;
     emitSoundEvent("ui.tap");
@@ -46,25 +47,39 @@ export function PokerActionButton({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
-      className={`btn rounded-xl shadow-md ${HUD_ACTION_GRADIENT[variant]} ${HUD_ACTION_BORDER[variant]} ${className}`.trim()}
+      className={className}
       style={({ pressed }) => [
         {
-          // Fill the action row's full allocated height (BUTTONS.ROW_HEIGHT) rather than the
-          // shared Button's compact ~34px pill — reads as a chunkier, more game-like control
-          // without changing the overall action-bar band height (ACTION_BAR_HEIGHT).
           height: BUTTONS.ROW_HEIGHT,
+          minHeight: BUTTONS.ROW_HEIGHT,
+          borderRadius: 8,
+          borderWidth: 1.5,
+          borderColor: paint.border,
+          backgroundColor: paint.bg,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: 10,
           opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1,
           transform: [{ scale: disabled ? 1 : pressed ? PRESSED_SCALE : 1 }],
         },
+        style,
       ]}
     >
-      <Text
-        numberOfLines={1}
-        allowFontScaling={false}
-        className="text-white font-extrabold text-base tracking-wide"
-      >
-        {title}
-      </Text>
+      <View pointerEvents="none">
+        <Text
+          numberOfLines={1}
+          allowFontScaling={false}
+          style={{
+            color: paint.text,
+            fontWeight: "800",
+            fontSize: 15,
+            letterSpacing: 0.6,
+            textAlign: "center",
+          }}
+        >
+          {title}
+        </Text>
+      </View>
     </Pressable>
   );
 }

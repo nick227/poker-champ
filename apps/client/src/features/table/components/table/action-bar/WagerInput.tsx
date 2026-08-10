@@ -90,7 +90,7 @@ export function WagerInput({
         },
       ]}
     >
-      <View style={[actionBarStyles.wagerRow, actionBarStyles.wagerPill]} className="ui-row items-center bg-panel">
+      <View style={actionBarStyles.wagerRow}>
         <View style={actionBarStyles.wagerInputWrap}>
           <Input
             bare
@@ -106,7 +106,7 @@ export function WagerInput({
             editable={editable}
             allowFontScaling={false}
             maxLength={10}
-            style={{ maxWidth: 144 }}
+            style={{ color: "#F9FAFB", fontWeight: "700" }}
             accessibilityLabel="Bet amount input"
             accessibilityState={{ disabled: !editable }}
           />
@@ -116,12 +116,11 @@ export function WagerInput({
           onPressOut={clear}
           disabled={!editable}
           style={actionBarStyles.stepperBtn}
-          className="select-none"
           onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
           accessibilityLabel="Decrease bet by one dollar"
           accessibilityState={{ disabled: !editable }}
         >
-          <Text variant="body" allowFontScaling={false}>
+          <Text allowFontScaling={false} style={{ color: "#F9FAFB", fontSize: 18, fontWeight: "700" }}>
             −
           </Text>
         </Pressable>
@@ -130,12 +129,11 @@ export function WagerInput({
           onPressOut={clear}
           disabled={!editable}
           style={actionBarStyles.stepperBtn}
-          className="select-none"
           onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
           accessibilityLabel="Increase bet by one dollar"
           accessibilityState={{ disabled: !editable }}
         >
-          <Text variant="body" allowFontScaling={false}>
+          <Text allowFontScaling={false} style={{ color: "#F9FAFB", fontSize: 18, fontWeight: "700" }}>
             +
           </Text>
         </Pressable>

@@ -7,7 +7,7 @@ import { formatCents } from "@/lib/format";
 import { Surface } from "@/components/containers/Surface";
 import { tableGameTopBarStyles } from "./styles";
 import { APP_NAME } from "@/constants/copy";
-import { HUD_TOPBAR_GRADIENT } from "../tokens/hud.tokens";
+import { HUD_TOPBAR_BG } from "../tokens/hud.tokens";
 
 const SUIT_ACCENT = "♠";
 
@@ -51,7 +51,10 @@ export function TableGameTopBar({
     // visual chrome (shadow/gradient) lives on wrappers around it instead.
     <View collapsable={false} className="shadow-md">
       <Surface styleId="surface.sim.table.topbar">
-        <View pointerEvents="none" className={`absolute inset-0 ${HUD_TOPBAR_GRADIENT}`} />
+        <View
+          pointerEvents="none"
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: HUD_TOPBAR_BG }}
+        />
         <View className="ui-row items-center ui-inline-2 flex-1 items-start">
           <View className="flex-col items-center align-start">
             <IconButton

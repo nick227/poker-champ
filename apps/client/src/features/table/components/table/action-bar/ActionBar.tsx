@@ -4,7 +4,6 @@ import { TABLE } from "@/constants/copy";
 import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { HeroStatus } from "../table.adapter";
 import { ActionContext } from "./actionBar.logic";
-import { CONTAINER } from "./layout";
 import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
 import { actionBarStyles } from "./styles";
 import { useActionBarController, type ActionBarController } from "./actionBar.controller";
@@ -31,7 +30,6 @@ export type ActionBarProps = {
   forceDisabled?: boolean;
   hideReconnectingOverlay?: boolean;
   onAction: ActionBarOnAction;
-  /** When true, bar is interactive even if actionContext.showActions is false (e.g. lesson resume). */
   forceInteractive?: boolean;
 };
 
@@ -54,18 +52,11 @@ export function ActionBar({
   return (
     <View
       collapsable={false}
-      className="relative"
       style={[actionBarStyles.root, { maxHeight: ACTION_BAR_HEIGHT }]}
     >
       <View
         pointerEvents={interactive ? "auto" : "none"}
-        style={[
-          actionBarStyles.inner,
-          {
-            opacity: interactive ? 1 : 0.5,
-          },
-        ]}
-        className="ui-action-bar mt-2"
+        style={[actionBarStyles.inner, { opacity: interactive ? 1 : 0.55 }]}
       >
         <View style={actionBarStyles.statusRow}>
           {isAllIn ? (
@@ -78,40 +69,47 @@ export function ActionBar({
             />
           )}
         </View>
-        <View style={{ gap: CONTAINER.GAP }}>
-          <ActionButtons
-            checkCallLabel={ctrl.checkCallLabel}
-            permissions={ctrl.permissions}
-            actions={ctrl.actions}
-            wager={ctrl.wager}
-          />
-          <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />
-          <View className="ui-row justify-center rounded-md max-w-[200px] mx-auto">
-            <WagerInput
-              visible={ctrl.wager.visible}
-              display={ctrl.wager.display}
-              placeholder={ctrl.wager.placeholder}
-              editable={ctrl.permissions.canWager}
-              onChangeText={ctrl.handleBetInputChange}
-              onBlur={ctrl.normalizeBetInput}
-              onSubmitEditing={ctrl.normalizeBetInput}
-            />
-          </View>
-        </View>
+        <ActionButtons
+          checkCallLabel={ctrl.checkCallLabel}
+          permissions={ctrl.permissions}
+          actions={ctrl.actions}
+          wager={ctrl.wager}
+        />
+        <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />
+        <WagerInput
+          visible={ctrl.wager.visible}
+          display={ctrl.wager.display}
+          placeholder={ctrl.wager.placeholder}
+          editable={ctrl.permissions.canWager}
+          onChangeText={ctrl.handleBetInputChange}
+          onBlur={ctrl.normalizeBetInput}
+          onSubmitEditing={ctrl.normalizeBetInput}
+        />
       </View>
-      {ctrl.showReconnectingOverlay && !hideReconnectingOverlay && (
-        <View style={{ pointerEvents: "auto" }} className="absolute inset-0 bg-black/50 ui-center ui-stack-2 rounded-lg max-w-[140px] mx-auto">
+      {ctrl.showReconnectingOverlay && !hideReconnectingOverlay ? (
+        <View
+          pointerEvents="auto"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <Text
             numberOfLines={1}
             ellipsizeMode="tail"
-            variant="body"
-            className="text-white text-center"
             allowFontScaling={false}
+            style={{ color: "#fff", fontWeight: "700" }}
           >
             {TABLE.reconnecting}
           </Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }

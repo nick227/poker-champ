@@ -18,26 +18,26 @@ export function ActionButtons({
   wager,
 }: ActionButtonsProps) {
   return (
-    <View className="ui-row ui-center" style={actionBarStyles.buttonsRow}>
+    <View style={actionBarStyles.buttonsRow}>
       <PokerActionButton
         variant="fold"
         title={TABLE.fold}
         onPress={actions.fold}
-        className="flex-1 min-w-0"
+        style={{ flex: 1 }}
         disabled={!permissions.canFold}
       />
       <PokerActionButton
         variant="checkCall"
         title={checkCallLabel}
         onPress={actions.checkCall}
-        className="flex-1 min-w-0"
+        style={{ flex: 1 }}
         disabled={!permissions.canCheck && !permissions.canCall}
       />
       <PokerActionButton
         variant="betRaise"
         title={wager.label}
         onPress={actions.betRaise}
-        className="flex-1 min-w-0"
+        style={{ flex: 1 }}
         disabled={!permissions.canWager || wager.disabled}
       />
     </View>

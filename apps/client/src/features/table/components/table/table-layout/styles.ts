@@ -46,6 +46,8 @@ export const layoutStyles = StyleSheet.create({
     maxHeight: ACTION_BAR_HEIGHT + 24,
     flexGrow: 0,
     flexShrink: 0,
-    paddingHorizontal: TABLE_SPACING.edge,
+    // Horizontal padding lives on ActionBar — avoid double inset.
+    paddingHorizontal: 0,
+    paddingTop: 4,
   },
 });

@@ -1,5 +1,6 @@
 import { ActivityIndicator, View } from "react-native";
 import { Text } from "@/components/base/Text";
+import { HUD_STATUS } from "../tokens/hud.tokens";
 
 export type TableStatusStripProps = {
   message: string;
@@ -18,36 +19,40 @@ export function TableStatusStrip({
     <View
       testID="table-status-strip"
       style={{
-        borderWidth: showTurnCue ? 1 : 0,
-        borderColor: showTurnCue ? "#d4af37" : "transparent",
-        shadowColor: "#d4af37",
-        shadowOpacity: showTurnCue ? 0.25 : 0,
-        shadowRadius: showTurnCue ? 8 : 0,
-        shadowOffset: { width: 0, height: 0 },
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 26,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 6,
+        backgroundColor: HUD_STATUS.bg,
+        borderWidth: 1,
+        borderColor: showTurnCue ? HUD_STATUS.turnBorder : HUD_STATUS.border,
       }}
-      className="ui-row items-center justify-center bg-panel/90 rounded-sm px-3 py-1 min-h-[33px]"
     >
       {showSpinner ? (
         <ActivityIndicator
           testID="table-status-strip-spinner"
           size="small"
-          className="mr-2 opacity-70"
+          color={HUD_STATUS.text}
+          style={{ marginRight: 8 }}
         />
       ) : null}
       <Text
         testID="table-status-strip-text"
-        variant="label"
         allowFontScaling={false}
-        numberOfLines={2}
+        numberOfLines={1}
         ellipsizeMode="tail"
         style={{
           flexShrink: 1,
           minWidth: 0,
           textAlign: "center",
-          letterSpacing: 1,
-          fontSize: 16,
+          letterSpacing: 0.8,
+          fontSize: 12,
+          fontWeight: "700",
+          color: HUD_STATUS.text,
         }}
-        className="text-left"
       >
         {displayMessage}
       </Text>
