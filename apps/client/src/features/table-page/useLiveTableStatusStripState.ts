@@ -22,9 +22,11 @@ export type TournamentViewerStripInput = {
 };
 
 export const MIN_MESSAGE_DURATION_MS = 400;
-export const WINNER_HOLD_MS = 900;
+/** Keep the completed board face-up long enough to read the winner/hand. */
+export const WINNER_HOLD_MS = 4000;
 export const BOARD_RESET_FADE_MS = 180;
-export const TERMINAL_TIMEOUT_MS = 3000;
+/** Must stay above WINNER_HOLD_MS + BOARD_RESET_FADE_MS. */
+export const TERMINAL_TIMEOUT_MS = 5500;
 
 const FACE_DOWN_BOARD_CARDS: UiCard[] = Array(5).fill(null);
 

@@ -1,5 +1,6 @@
 const DEFAULT_RUNOUT_STAGE_DELAY_MS = 1000;
-const DEFAULT_HAND_RESULT_HOLD_MS = 2500;
+/** How long the completed board/result stays live before scheduling the next hand. */
+const DEFAULT_HAND_RESULT_HOLD_MS = 4500;
 export const NEXT_HAND_DELAY_MS = 0;
 
 function readEnvMs(name: string, fallback: number): number {
