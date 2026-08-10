@@ -3,6 +3,7 @@ export { SeatPlate, opponentToSeatPlateProps, type SeatPlateProps } from "./Seat
 export type { SeatPlateCards } from "./seatPlate.types";
 export { EmptySeatMarker } from "./EmptySeatMarker";
 export { SeatHoleCards } from "./SeatHoleCards";
+export { SeatFeltMarkers } from "./SeatFeltMarkers";
 export { buildHeroPlate } from "./buildHeroPlate";
 export {
   seatAnchors,

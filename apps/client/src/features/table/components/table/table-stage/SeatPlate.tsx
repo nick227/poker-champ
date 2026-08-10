@@ -2,13 +2,12 @@ import { memo } from "react";
 import { Platform, Pressable, View, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { AvatarDisc } from "../player-panel/AvatarDisc";
-import { DealerButton } from "../DealerButton";
 import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
 import { BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 import { SeatHoleCards } from "./SeatHoleCards";
-import { isBannerStatus, SeatStatusBanner } from "./SeatStatusBanner";
+import { isBannerStatus } from "./SeatStatusBanner";
 import type { SeatPlateCards } from "./seatPlate.types";
 
 export type { SeatPlateCards };
@@ -33,6 +32,7 @@ export type SeatPlateProps = {
   cardPeek?: number;
   nameplateH?: number;
   turnProgress?: number | null;
+  /** Rendered on the felt by TableStage — kept for API compat. */
   betDisplay?: string | null;
 };
 
@@ -88,22 +88,15 @@ const SeatTurnBar = memo(function SeatTurnBar({
   );
 });
 
-/** Action prompts (to call / raises) stay off the nameplate — felt announce owns those. */
-function plateBannerLabel(statusLabel: string | null | undefined): string | null {
-  if (!isBannerStatus(statusLabel)) return null;
-  return statusLabel ?? null;
-}
-
 /**
- * Seat pod: cards on the avatar face; nameplate is only name + stack;
- * dealer puck clear of cards; bet chip toward the felt.
+ * GG seat pod: cards cover the avatar only; nameplate is wider than the avatar
+ * with stack-first type. Dealer + bets are felt markers (TableStage), not here.
  */
 export function SeatPlate({
   name,
   stackDisplay,
   avatarUrl,
   userId,
-  isDealer = false,
   isActiveTurn = false,
   inactive = false,
   statusLabel,
@@ -115,24 +108,24 @@ export function SeatPlate({
   avatarSize = SEAT_PLATE.AVATAR,
   cardScale = SEAT_PLATE.CARD_SCALE,
   cardPeek = 28,
-  nameplateH = 44,
+  nameplateH = 48,
   turnProgress = null,
-  betDisplay = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const compact = width < 120;
+  // Plate wider than avatar — GG stable base.
   const plateW = Math.min(
     width,
-    Math.max(avatarSize + (compact ? 40 : 64), compact ? 88 : 156),
+    Math.max(Math.round(avatarSize * (compact ? 1.32 : 1.42)), compact ? 96 : 172),
   );
-  const banner = plateBannerLabel(statusLabel);
+  const allIn = isBannerStatus(statusLabel);
 
-  // Drop cards onto the upper ~half of the avatar (not a shelf above it).
-  const nameplateTop = cardPeek + avatarSize + (compact ? -2 : -6);
+  const avatarTop = cardPeek;
+  const nameplateOverlap = compact ? 2 : 5;
+  const nameplateTop = avatarTop + avatarSize - nameplateOverlap;
   const cardVisualHeight = Math.round(BASE_CARD_HEIGHT * cardScale);
-  const maxCardsTop = Math.max(0, nameplateTop - cardVisualHeight - 4);
-  const desiredCardsTop = cardPeek - Math.round(avatarSize * 0.42);
-  const cardsTop = Math.max(0, Math.min(desiredCardsTop, maxCardsTop));
+  // Hard seam: card bottoms stop at the nameplate top — never cover name/stack.
+  const cardsTop = Math.max(0, nameplateTop - cardVisualHeight + 6);
 
   const body = (
     <View
@@ -144,6 +137,82 @@ export function SeatPlate({
         overflow: "visible",
       }}
     >
+      <View
+        style={{
+          marginTop: cardPeek,
+          alignItems: "center",
+          zIndex: 2,
+        }}
+      >
+        <View
+          style={{
+            opacity: inactive ? 0.5 : 1,
+            width: avatarSize,
+            height: avatarSize,
+          }}
+        >
+          <AvatarDisc
+            seed={userId || name}
+            initial={initial}
+            avatarUrl={avatarUrl}
+            size={avatarSize}
+            isActiveTurn={isActiveTurn}
+          />
+        </View>
+
+        <View
+          style={{
+            marginTop: -nameplateOverlap,
+            width: plateW,
+            minHeight: Math.max(nameplateH, compact ? 42 : 50),
+            paddingHorizontal: compact ? 10 : 14,
+            paddingVertical: compact ? 7 : 9,
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 1,
+            borderRadius: compact ? 8 : 10,
+            borderWidth: isActiveTurn ? 2 : 1,
+            borderColor: isActiveTurn
+              ? "rgba(250,204,21,0.9)"
+              : inactive
+                ? "rgba(248,113,113,0.25)"
+                : "rgba(255,255,255,0.12)",
+            backgroundColor: inactive ? "rgba(8,10,12,0.92)" : "rgba(3,5,8,0.94)",
+            overflow: "hidden",
+            zIndex: 5,
+          }}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: compact ? 11 : 12,
+              color: inactive ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.88)",
+              fontWeight: "500",
+              letterSpacing: 0.2,
+              textAlign: "center",
+              width: "100%",
+            }}
+          >
+            {name}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: compact ? 15 : 17,
+              color: allIn ? "#f87171" : "#67d4ff",
+              fontVariant: ["tabular-nums"],
+              fontWeight: "800",
+              textAlign: "center",
+              width: "100%",
+            }}
+          >
+            {allIn ? "All-In" : stackDisplay}
+          </Text>
+          <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
+        </View>
+      </View>
+
+      {/* Cards above avatar, below nameplate in z — clipped to avatar seam by top math */}
       {cards?.visible ? (
         <View
           pointerEvents="none"
@@ -166,127 +235,6 @@ export function SeatPlate({
           />
         </View>
       ) : null}
-
-      <View
-        style={{
-          marginTop: cardPeek,
-          alignItems: "center",
-          zIndex: 2,
-          overflow: "visible",
-        }}
-      >
-        <View
-          style={{
-            position: "relative",
-            opacity: inactive ? 0.5 : 1,
-            width: avatarSize,
-            height: avatarSize,
-          }}
-        >
-          <AvatarDisc
-            seed={userId || name}
-            initial={initial}
-            avatarUrl={avatarUrl}
-            size={avatarSize}
-            isActiveTurn={isActiveTurn}
-          />
-          {isDealer ? (
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                // Clear of the card fan (upper avatar) — park on the lower-left rim.
-                top: Math.round(avatarSize * 0.62),
-                left: -18,
-                zIndex: 7,
-              }}
-            >
-              <DealerButton size="small" />
-            </View>
-          ) : null}
-        </View>
-
-        {/* Nameplate — identity + bankroll only */}
-        <View
-          style={{
-            marginTop: compact ? -2 : -5,
-            width: plateW,
-            minHeight: Math.max(nameplateH, compact ? 40 : 48),
-            paddingHorizontal: compact ? 10 : 14,
-            paddingTop: banner ? (compact ? 15 : 17) : compact ? 8 : 10,
-            paddingBottom: compact ? 8 : 10,
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 2,
-            borderRadius: compact ? 8 : 11,
-            borderWidth: isActiveTurn ? 2 : 1,
-            borderColor: isActiveTurn
-              ? "rgba(250,204,21,0.9)"
-              : inactive
-                ? "rgba(248,113,113,0.25)"
-                : "rgba(255,255,255,0.14)",
-            backgroundColor: inactive ? "rgba(8,10,12,0.9)" : "rgba(3,5,8,0.94)",
-            overflow: "hidden",
-            zIndex: 3,
-          }}
-        >
-          {banner ? <SeatStatusBanner label={banner} compact={compact} /> : null}
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: compact ? 12 : 14,
-              color: inactive ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.9)",
-              fontWeight: "500",
-              letterSpacing: 0.15,
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
-            {name}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: compact ? 14 : 16,
-              color: "#7dd3fc",
-              fontVariant: ["tabular-nums"],
-              fontWeight: "700",
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
-            {stackDisplay}
-          </Text>
-          <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
-        </View>
-
-        {betDisplay ? (
-          <View
-            pointerEvents="none"
-            style={{
-              marginTop: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 999,
-              backgroundColor: "rgba(0,0,0,0.84)",
-              borderWidth: 1,
-              borderColor: "rgba(212,175,55,0.55)",
-              zIndex: 5,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: compact ? 11 : 12,
-                color: "#fde68a",
-                fontVariant: ["tabular-nums"],
-                fontWeight: "700",
-              }}
-            >
-              {betDisplay}
-            </Text>
-          </View>
-        ) : null}
-      </View>
     </View>
   );
 
@@ -310,15 +258,10 @@ export function opponentToSeatPlateProps(
     turnProgress?: number | null;
   },
 ): SeatPlateProps {
-  // Never put wager/action copy ("raises", "to call") on the seat — felt announce owns that.
   const statusLabel = (() => {
     if (opts?.statusLabel !== undefined) return opts.statusLabel;
-    switch (opponent.status) {
-      case "allIn":
-        return "All in";
-      default:
-        return null;
-    }
+    if (opponent.status === "allIn") return "All in";
+    return null;
   })();
 
   return {

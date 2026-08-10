@@ -13,6 +13,7 @@ import {
 } from "./stageGeometry";
 import { EmptySeatMarker } from "./EmptySeatMarker";
 import { opponentToSeatPlateProps, SeatPlate, type SeatPlateProps } from "./SeatPlate";
+import { SeatFeltMarkers } from "./SeatFeltMarkers";
 import { StageAtmosphere } from "./StageAtmosphere";
 import { STAGE_TABLE_LIFT } from "../tokens/stage.tokens";
 
@@ -53,6 +54,9 @@ export function TableStage({
 
   const layout = size.width > 0 && size.height > 0 ? resolveStageLayout(n, size) : null;
   const opponentSlots = layout ? assignOpponentsToSlots(opponents, n, heroSeat) : [];
+  const feltCenter = layout
+    ? { x: layout.felt.x + layout.felt.w / 2, y: layout.felt.y + layout.felt.h / 2 }
+    : null;
 
   return (
     <View style={styles.host} onLayout={onLayout} collapsable={false}>
@@ -110,7 +114,7 @@ export function TableStage({
           {board}
         </View>
       ) : null}
-      {layout
+      {layout && feltCenter
         ? layout.seats.map((anchor) => {
             const plateW = layout.plate.width;
             const plateH = layout.plate.height;
@@ -154,13 +158,22 @@ export function TableStage({
                   cardFacePackId={heroPlate.cardFacePackId || cardFacePackId}
                 />
               );
-              return onHeroBounds ? (
-                <MeasuredBoundsReporter key="hero" onBounds={onHeroBounds} style={style}>
-                  {plate}
-                </MeasuredBoundsReporter>
-              ) : (
-                <View key="hero" style={style}>
-                  {plate}
+              return (
+                <View key="hero" collapsable={false}>
+                  <SeatFeltMarkers
+                    seat={{ x: anchor.x, y: anchor.y }}
+                    feltCenter={feltCenter}
+                    avatarSize={layout.avatarSize}
+                    isDealer={heroPlate.isDealer}
+                    betDisplay={heroPlate.betDisplay}
+                  />
+                  {onHeroBounds ? (
+                    <MeasuredBoundsReporter onBounds={onHeroBounds} style={style}>
+                      {plate}
+                    </MeasuredBoundsReporter>
+                  ) : (
+                    <View style={style}>{plate}</View>
+                  )}
                 </View>
               );
             }
@@ -187,17 +200,25 @@ export function TableStage({
                 onPress={onPlayerPress ? () => onPlayerPress(opponent) : undefined}
               />
             );
-            return onSeatBounds ? (
-              <MeasuredBoundsReporter
-                key={opponent.id}
-                onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
-                style={style}
-              >
-                {plate}
-              </MeasuredBoundsReporter>
-            ) : (
-              <View key={opponent.id} style={style}>
-                {plate}
+            return (
+              <View key={opponent.id} collapsable={false}>
+                <SeatFeltMarkers
+                  seat={{ x: anchor.x, y: anchor.y }}
+                  feltCenter={feltCenter}
+                  avatarSize={layout.avatarSize}
+                  isDealer={opponent.isDealer}
+                  betDisplay={props.betDisplay}
+                />
+                {onSeatBounds ? (
+                  <MeasuredBoundsReporter
+                    onBounds={(rect) => onSeatBounds(opponent.seat, rect)}
+                    style={style}
+                  >
+                    {plate}
+                  </MeasuredBoundsReporter>
+                ) : (
+                  <View style={style}>{plate}</View>
+                )}
               </View>
             );
           })
