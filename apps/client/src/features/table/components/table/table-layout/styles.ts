@@ -41,15 +41,6 @@ export const layoutStyles = StyleSheet.create({
     // Let south nameplates paint above the host edge; HUD sits below in layout.
     overflow: "visible",
   },
-  /** Borderless action/status line over the south felt edge. */
-  stageAnnounce: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 10,
-    zIndex: 5,
-    alignItems: "center",
-  },
   dealerBar: {
     maxHeight: DEALER_BAR_HEIGHT,
     flexGrow: 0,

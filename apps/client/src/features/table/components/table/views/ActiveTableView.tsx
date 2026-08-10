@@ -118,9 +118,21 @@ export function ActiveTableView({
     onBoardBounds,
     onCardSlotBounds,
     onSeatBounds,
+    boardAnnounce: (
+      <DealerAnnounceBar
+        hand={
+          snapshot.hand
+            ? { street: snapshot.hand.street, potCents: snapshot.hand.potCents }
+            : undefined
+        }
+        actionMessage={actionMessage}
+        handResultMessage={handResultMessage}
+        tableStatus={tableStatus}
+        nextHandAtTs={snapshot.nextHandAtTs}
+      />
+    ),
   });
   const {
-    handSummary,
     actionContext,
     canAct,
     heroStatus,
@@ -315,15 +327,6 @@ export function ActiveTableView({
       {...shellBaseProps}
       activeTurnProgress={activeTurnProgress}
       turnCountdownSeconds={turnCountdownSeconds}
-      dealerBar={
-        <DealerAnnounceBar
-          hand={handSummary}
-          actionMessage={actionMessage}
-          handResultMessage={handResultMessage}
-          tableStatus={tableStatus}
-          nextHandAtTs={snapshot.nextHandAtTs}
-        />
-      }
       board={board}
       onSeatBounds={onSeatBounds}
       onHeroBounds={onHeroBounds}

@@ -1,4 +1,4 @@
-import { Animated, View, type LayoutChangeEvent } from "react-native";
+import { Animated, View, type LayoutChangeEvent, type ReactNode } from "react-native";
 import type { UiCard } from "../table.adapter";
 import { CommunityBoard } from "./CommunityBoard";
 import { Text } from "@/components/base/Text";
@@ -15,6 +15,8 @@ export type BoardAreaProps = {
   animateReset?: boolean;
   onCardSlotBounds?: (index: number, rect: Rect) => void;
   fitContent?: boolean;
+  /** Dealer/status copy — flows under community cards (not over seats). */
+  announce?: ReactNode;
 };
 
 export function BoardArea({
@@ -23,6 +25,7 @@ export function BoardArea({
   animateReset = false,
   onCardSlotBounds,
   fitContent = false,
+  announce = null,
 }: BoardAreaProps) {
   const { formatPot } = useTableMoneyDisplay();
   const potValue = typeof potCents === "number" ? formatPot(potCents) : "--";
@@ -69,23 +72,22 @@ export function BoardArea({
             opacity: fadeOpacity,
             flex: 1,
             width: "100%",
+            alignItems: "center",
             justifyContent: "center",
-            position: "relative",
           },
         ]}
       >
-        {/* Pot floats above center so community cards stay vertically centered on the felt. */}
+        {/* Pot sits in normal flow directly above the cards (fixed gap), not a percentage-based
+            absolute offset -- that guessed at the cards' rendered height and, once the board
+            shrank to stop dominating the felt, landed the pot badge on top of a card instead of
+            above it. A column stack can never overlap regardless of board box size. */}
         <View
           pointerEvents="none"
           style={[
             boardAreaStyles.potContainer,
             {
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: "58%",
               alignItems: "center",
-              zIndex: 2,
+              marginBottom: 10,
             },
           ]}
         >
@@ -118,6 +120,12 @@ export function BoardArea({
           targetWidth={box.width > 0 ? box.width : undefined}
           targetHeight={box.height > 0 ? box.height : undefined}
         />
+
+        {announce ? (
+          <View pointerEvents="none" style={{ marginTop: 8, width: "100%", alignItems: "center" }}>
+            {announce}
+          </View>
+        ) : null}
       </Animated.View>
     </View>
   );

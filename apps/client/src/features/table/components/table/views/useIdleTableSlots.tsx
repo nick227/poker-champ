@@ -51,6 +51,12 @@ export function useIdleTableSlots(
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",
+    boardAnnounce: (
+      <FeltActionAnnounce
+        message={statusStrip?.message ?? ""}
+        showSpinner={Boolean(statusStrip?.showSpinner)}
+      />
+    ),
   });
 
   if (!snapshot) {
@@ -125,12 +131,7 @@ export function useIdleTableSlots(
 
   return {
     ...shellBaseProps,
-    dealerBar: (
-      <FeltActionAnnounce
-        message={statusStrip?.message ?? ""}
-        showSpinner={Boolean(statusStrip?.showSpinner)}
-      />
-    ),
+    dealerBar: null,
     board,
     onSeatBounds: actions.reportSeatBounds,
     onHeroBounds: actions.reportHeroBounds,

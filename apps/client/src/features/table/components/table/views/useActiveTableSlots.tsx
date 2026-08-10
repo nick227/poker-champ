@@ -62,6 +62,8 @@ export function useActiveTableSlots(
   const statusStrip = liveTableState?.statusStrip;
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
   const { formatStack, formatBet } = useTableMoneyDisplay();
+  const announceMessage = statusStrip?.message ?? "";
+  const announceSpinner = Boolean(statusStrip?.showSpinner);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
@@ -80,6 +82,7 @@ export function useActiveTableSlots(
     boardCardsOverride: statusStrip?.boardCardsOverride,
     potCentsOverride: statusStrip?.potCentsOverride,
     animateBoardReset: statusStrip?.statusPhase === "boardReset",
+    boardAnnounce: feltAnnounce(announceMessage, announceSpinner),
   });
 
   const {
@@ -229,8 +232,6 @@ export function useActiveTableSlots(
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
 
   let bottom: ReactNode = null;
-  let announceMessage = statusStrip?.message ?? "";
-  let announceSpinner = Boolean(statusStrip?.showSpinner);
   const tournamentSpectator = snapshot ? isTournamentEliminatedSpectator(snapshot) : false;
   if (!heroIsSeated && tournamentSpectator) {
     bottom = (
@@ -319,7 +320,7 @@ export function useActiveTableSlots(
     ...shellBaseProps,
     activeTurnProgress,
     turnCountdownSeconds,
-    dealerBar: feltAnnounce(announceMessage, announceSpinner),
+    dealerBar: null,
     board,
     onSeatBounds: actions.reportSeatBounds,
     onHeroBounds: actions.reportHeroBounds,

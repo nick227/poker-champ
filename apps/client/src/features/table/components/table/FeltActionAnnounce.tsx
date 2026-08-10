@@ -7,7 +7,7 @@ type Props = {
 };
 
 /**
- * Borderless action/status line parked on the felt above the HUD.
+ * Borderless dealer/status line in the board stack (under community cards).
  * Not a control — no border, no panel chrome.
  */
 export function FeltActionAnnounce({ message, showSpinner = false }: Props) {

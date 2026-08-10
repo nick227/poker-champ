@@ -54,6 +54,8 @@ type UseTableViewShellFrameParams = {
   boardCardsOverride?: UiCard[] | null;
   potCentsOverride?: number;
   animateBoardReset?: boolean;
+  /** Dealer/status line rendered under community cards in the board stack. */
+  boardAnnounce?: ReactNode;
 };
 
 export function useTableViewShellFrame({
@@ -74,6 +76,7 @@ export function useTableViewShellFrame({
   boardCardsOverride,
   potCentsOverride,
   animateBoardReset = false,
+  boardAnnounce = null,
 }: UseTableViewShellFrameParams) {
   const { formatBet, isTournamentTable } = useTableMoneyDisplay();
   const formatChipAmount = isTournamentTable ? formatBet : formatCents;
@@ -121,6 +124,7 @@ export function useTableViewShellFrame({
       animateReset={animateBoardReset}
       onCardSlotBounds={onCardSlotBounds}
       fitContent
+      announce={boardAnnounce}
     />
   );
   const board = onBoardBounds ? (
