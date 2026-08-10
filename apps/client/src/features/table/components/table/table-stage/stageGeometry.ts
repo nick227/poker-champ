@@ -17,17 +17,20 @@ export type SeatAnchor = {
 
 /**
  * GG oblong table + compact rim seats.
- * Felt is wide/short; seats sit on the rail; pods are short (cards overlay avatar).
+ * Felt is wide/short; seat anchors sit on the cushion edge (not floating in void).
  */
 export const STAGE_LAYOUT_NORM = Object.freeze({
   MIN_SEATS: 2,
   MAX_SEATS: 9,
   /** Flat oblong felt (wider than tall). */
-  felt: { cx: 0.5, cy: 0.46, rx: 0.42, ry: 0.22 },
-  /** Seat anchors on outer rim — outside green, inside stage. */
-  rail: { cx: 0.5, cy: 0.46, rx: 0.48, ry: 0.36 },
+  felt: { cx: 0.5, cy: 0.48, rx: 0.44, ry: 0.28 },
+  /**
+   * Seat anchors = felt edge + small pad so avatars straddle the rail.
+   * Previous rail.ry (0.36 vs felt 0.22) left a huge void gap — keep this tight.
+   */
+  rail: { cx: 0.5, cy: 0.48, rx: 0.47, ry: 0.31 },
   /** Board sits in the flat center. */
-  board: { x: 0.22, y: 0.3, w: 0.56, h: 0.3 } satisfies NormRect,
+  board: { x: 0.24, y: 0.34, w: 0.52, h: 0.28 } satisfies NormRect,
   /** Compact pod width. */
   plateFromStage: 0.2,
   plateMinW: 112,

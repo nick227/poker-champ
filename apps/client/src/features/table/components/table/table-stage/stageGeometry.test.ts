@@ -20,15 +20,20 @@ describe("stageGeometry", () => {
     expect(STAGE_LAYOUT_FELT_NORM.w).toBeGreaterThan(STAGE_LAYOUT_FELT_NORM.h);
   });
 
-  it("keeps rail outside the felt oval", () => {
-    expect(STAGE_LAYOUT_NORM.rail.rx).toBeGreaterThan(STAGE_LAYOUT_NORM.felt.rx);
-    expect(STAGE_LAYOUT_NORM.rail.ry).toBeGreaterThan(STAGE_LAYOUT_NORM.felt.ry);
+  it("keeps rail just outside the felt (no floating void gap)", () => {
+    const { felt, rail } = STAGE_LAYOUT_NORM;
+    expect(rail.rx).toBeGreaterThan(felt.rx);
+    expect(rail.ry).toBeGreaterThan(felt.ry);
+    // Avatar should sit on the cushion — not a large dark band away from felt.
+    expect(rail.rx - felt.rx).toBeLessThan(0.05);
+    expect(rail.ry - felt.ry).toBeLessThan(0.05);
   });
 
-  it("places hero south outside the felt", () => {
+  it("places hero south on the felt rim", () => {
     const south = seatAnchorNorm(0, 6);
     const feltEdge = STAGE_LAYOUT_NORM.felt.cy + STAGE_LAYOUT_NORM.felt.ry;
     expect(south.y).toBeGreaterThan(feltEdge);
+    expect(south.y - feltEdge).toBeLessThan(0.05);
   });
 
   it("keeps all seat pods fully on-screen", () => {
