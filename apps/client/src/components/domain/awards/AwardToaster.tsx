@@ -6,6 +6,9 @@ import { parseGraphic } from "@/services/awards.service";
 
 const AUTO_DISMISS_MS = 3000;
 
+/** Same surface language as Toast (error reporting): dark panel, light body text. */
+const TOAST_SURFACE = "absolute bottom-24 left-4 z-50 max-w-sm rounded-lg border border-border bg-panel ui-p-4";
+
 export function AwardToaster({
   awards,
   onDismiss,
@@ -37,18 +40,20 @@ export function AwardToaster({
       onPress={onDismiss}
       accessibilityRole="button"
       accessibilityLabel={`Award earned: ${first.name}`}
-      className="absolute bottom-24 left-4 z-50 max-w-[220px] flex-row items-center gap-2 rounded-md border border-brand/40 bg-panel/95 px-2.5 py-1.5"
+      className={`${TOAST_SURFACE} flex-row items-start gap-3`}
+      data-testid="award-toast"
     >
-      <Text variant="body" className="text-base leading-none">
+      <Text variant="h2" className="leading-none">
         {parseGraphic(first.graphic)}
       </Text>
       <View className="min-w-0 flex-1">
-        <Text variant="label" className="text-brand text-xs font-semibold" numberOfLines={1}>
-          {first.name}
+        <Text variant="body">{first.name}</Text>
+        <Text variant="muted" className="mt-0.5" numberOfLines={2}>
+          {first.reason}
         </Text>
         {restCount > 0 ? (
-          <Text variant="muted" className="text-[10px]" numberOfLines={1}>
-            +{restCount} more
+          <Text variant="muted" className="mt-1">
+            +{restCount} more award{restCount === 1 ? "" : "s"}
           </Text>
         ) : null}
       </View>
