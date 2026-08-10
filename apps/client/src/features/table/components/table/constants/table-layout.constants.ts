@@ -11,8 +11,11 @@ export const BOARD_AREA_HEIGHT_LANDSCAPE = 180;
 
 export const GAME_AREA_HEIGHT = BOARD_AREA_HEIGHT + DEALER_BAR_HEIGHT;
 
-/** Max action HUD height (acting). Idle HUD is shorter via min/max styles. */
-export const ACTION_BAR_HEIGHT = 140;
+/**
+ * Acting HUD: primary act row (54) + optional wager input (40) + gaps/padding.
+ * Action copy lives on the felt, not in this band.
+ */
+export const ACTION_BAR_HEIGHT = 120;
 
 /** Vertical band height for hero section. Shell contract; component layout lives in hero-zone/layout.ts. */
 export const HERO_ZONE_HEIGHT = 124;

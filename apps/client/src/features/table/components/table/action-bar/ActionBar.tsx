@@ -9,9 +9,9 @@ import { actionBarStyles } from "./styles";
 import { useActionBarController, type ActionBarController } from "./actionBar.controller";
 import { ActionButtons } from "./ActionButtons";
 import { AllInBanner } from "./AllInBanner";
-import { TableStatusStrip } from "./TableStatusStrip";
 import { WagerChips } from "./WagerChips";
 import { WagerInput } from "./WagerInput";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 export { ACTION_BAR_HEIGHT };
 
@@ -24,6 +24,7 @@ export type ActionBarProps = {
   heroStatus: HeroStatus;
   actionOptions?: HeroActionOptions;
   potCents?: number;
+  /** @deprecated Action copy lives on the felt (`FeltActionAnnounce`), not in the HUD. */
   statusMessage?: string;
   showStatusSpinner?: boolean;
   showTurnCue?: boolean;
@@ -35,19 +36,48 @@ export type ActionBarProps = {
 
 export function ActionBar({
   actionContext,
-  statusMessage,
-  showStatusSpinner = false,
-  showTurnCue = false,
   forceDisabled = false,
   hideReconnectingOverlay = false,
   forceInteractive = false,
   heroStatus,
+  statusMessage: _statusMessage,
+  showStatusSpinner: _showStatusSpinner,
+  showTurnCue: _showTurnCue,
   ...rest
 }: ActionBarProps) {
+  const isMobile = useIsMobile();
   const ctrl: ActionBarController = useActionBarController({ actionContext, heroStatus, ...rest });
   const interactive = !forceDisabled && (ctrl.showActions || forceInteractive);
-  const resolvedStatusMessage = statusMessage ?? ctrl.statusFallbackLabel;
   const isAllIn = !ctrl.showActions && heroStatus === "ALL_IN";
+
+  if (isAllIn) {
+    return (
+      <View collapsable={false} style={[actionBarStyles.root, { maxHeight: ACTION_BAR_HEIGHT }]}>
+        <AllInBanner visible />
+      </View>
+    );
+  }
+
+  const acts = (
+    <ActionButtons
+      checkCallLabel={ctrl.checkCallLabel}
+      permissions={ctrl.permissions}
+      actions={ctrl.actions}
+      wager={ctrl.wager}
+    />
+  );
+  const chips = <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />;
+  const wagerInput = (
+    <WagerInput
+      visible={ctrl.wager.visible}
+      display={ctrl.wager.display}
+      placeholder={ctrl.wager.placeholder}
+      editable={ctrl.permissions.canWager}
+      onChangeText={ctrl.handleBetInputChange}
+      onBlur={ctrl.normalizeBetInput}
+      onSubmitEditing={ctrl.normalizeBetInput}
+    />
+  );
 
   return (
     <View
@@ -58,33 +88,21 @@ export function ActionBar({
         pointerEvents={interactive ? "auto" : "none"}
         style={[actionBarStyles.inner, { opacity: interactive ? 1 : 0.55 }]}
       >
-        <View style={actionBarStyles.statusRow}>
-          {isAllIn ? (
-            <AllInBanner visible />
-          ) : (
-            <TableStatusStrip
-              message={resolvedStatusMessage}
-              showSpinner={showStatusSpinner}
-              showTurnCue={showTurnCue}
-            />
-          )}
-        </View>
-        <ActionButtons
-          checkCallLabel={ctrl.checkCallLabel}
-          permissions={ctrl.permissions}
-          actions={ctrl.actions}
-          wager={ctrl.wager}
-        />
-        <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />
-        <WagerInput
-          visible={ctrl.wager.visible}
-          display={ctrl.wager.display}
-          placeholder={ctrl.wager.placeholder}
-          editable={ctrl.permissions.canWager}
-          onChangeText={ctrl.handleBetInputChange}
-          onBlur={ctrl.normalizeBetInput}
-          onSubmitEditing={ctrl.normalizeBetInput}
-        />
+        {isMobile ? (
+          <>
+            {acts}
+            {chips}
+            {wagerInput}
+          </>
+        ) : (
+          <View style={actionBarStyles.desktopControls}>
+            <View style={actionBarStyles.desktopPrimaryRow}>
+              {chips ? <View style={actionBarStyles.desktopChips}>{chips}</View> : null}
+              <View style={actionBarStyles.desktopActs}>{acts}</View>
+            </View>
+            {ctrl.wager.visible ? wagerInput : null}
+          </View>
+        )}
       </View>
       {ctrl.showReconnectingOverlay && !hideReconnectingOverlay ? (
         <View

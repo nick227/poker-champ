@@ -10,7 +10,7 @@ export const actionBarStyles = StyleSheet.create({
     width: "100%",
     gap: CONTAINER.GAP,
     paddingTop: 4,
-    paddingBottom: 2,
+    paddingBottom: 6,
   },
   statusRow: {
     minHeight: STATUS.ROW_HEIGHT,
@@ -21,6 +21,9 @@ export const actionBarStyles = StyleSheet.create({
     alignItems: "stretch",
     gap: BUTTONS.GAP,
     height: BUTTONS.ROW_HEIGHT,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
   },
   chipsRow: {
     flexDirection: "row",
@@ -29,6 +32,29 @@ export const actionBarStyles = StyleSheet.create({
     flexWrap: "wrap",
     gap: BUTTONS.CHIPS_GAP,
     minHeight: BUTTONS.CHIPS_ROW_HEIGHT,
+  },
+  /** Desktop: chips + primary acts in one balanced band. */
+  desktopControls: {
+    width: "100%",
+    maxWidth: 920,
+    alignSelf: "center",
+    gap: CONTAINER.GAP,
+  },
+  desktopPrimaryRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+  },
+  desktopChips: {
+    flexShrink: 0,
+  },
+  desktopActs: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: 640,
   },
   betInputPlaceholder: {
     height: BUTTONS.BET_INPUT_ROW_HEIGHT,

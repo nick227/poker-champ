@@ -8,7 +8,6 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
-import { TableStatusStrip } from "../action-bar/TableStatusStrip";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
@@ -17,28 +16,10 @@ import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
 import { EmptyTableStartCta } from "./EmptyTableStartCta";
+import { FeltActionAnnounce } from "../FeltActionAnnounce";
 import { buildHeroPlate } from "../table-stage";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
-
-function renderStatusStripPanel(
-  message: string,
-  showSpinner: boolean,
-  showTurnCue: boolean,
-) {
-  return (
-    <View
-      style={{ flex: 1, width: "100%", justifyContent: "flex-start" }}
-      className="ui-p-inline-4 pt-2"
-    >
-      <TableStatusStrip
-        message={message}
-        showSpinner={showSpinner}
-        showTurnCue={showTurnCue}
-      />
-    </View>
-  );
-}
 
 export function useIdleTableSlots(
   snapshot: TableSnapshotPayload | null,
@@ -84,7 +65,7 @@ export function useIdleTableSlots(
   const rejoinState = (renderModel.rejoinUiState ?? "idle") as RejoinUiState;
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
 
-  let bottom: ReactNode;
+  let bottom: ReactNode = null;
   if (heroIsSittingOut) {
     bottom = (
       <RejoinCTA
@@ -126,12 +107,6 @@ export function useIdleTableSlots(
         onAddBot={actions.openAddBotPicker}
       />
     );
-  } else {
-    bottom = renderStatusStripPanel(
-      statusStrip?.message ?? "",
-      statusStrip?.showSpinner ?? false,
-      statusStrip?.showTurnCue ?? false,
-    );
   }
 
   const heroUserName = snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.name;
@@ -149,7 +124,12 @@ export function useIdleTableSlots(
 
   return {
     ...shellBaseProps,
-    dealerBar: null,
+    dealerBar: (
+      <FeltActionAnnounce
+        message={statusStrip?.message ?? ""}
+        showSpinner={Boolean(statusStrip?.showSpinner)}
+      />
+    ),
     board,
     onSeatBounds: actions.reportSeatBounds,
     onHeroBounds: actions.reportHeroBounds,

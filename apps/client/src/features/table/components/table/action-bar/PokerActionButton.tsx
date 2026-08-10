@@ -52,13 +52,13 @@ export function PokerActionButton({
         {
           height: BUTTONS.ROW_HEIGHT,
           minHeight: BUTTONS.ROW_HEIGHT,
-          borderRadius: 8,
-          borderWidth: 1.5,
+          borderRadius: 10,
+          borderWidth: 2,
           borderColor: paint.border,
           backgroundColor: paint.bg,
           alignItems: "center",
           justifyContent: "center",
-          paddingHorizontal: 10,
+          paddingHorizontal: 12,
           opacity: disabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1,
           transform: [{ scale: disabled ? 1 : pressed ? PRESSED_SCALE : 1 }],
         },
@@ -71,9 +71,9 @@ export function PokerActionButton({
           allowFontScaling={false}
           style={{
             color: paint.text,
-            fontWeight: "800",
-            fontSize: 15,
-            letterSpacing: 0.6,
+            fontWeight: "900",
+            fontSize: BUTTONS.LABEL_SIZE,
+            letterSpacing: 0.4,
             textAlign: "center",
           }}
         >

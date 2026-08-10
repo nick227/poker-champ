@@ -19,7 +19,7 @@ const EXPECTED_TOTAL_FIXED_HEIGHT =
 
 describe("table-layout.constants (shell band heights)", () => {
   it("sum of normal band heights snapshot unchanged (update test if intentionally changed)", () => {
-    expect(EXPECTED_TOTAL_FIXED_HEIGHT).toBe(526);
+    expect(EXPECTED_TOTAL_FIXED_HEIGHT).toBe(506);
   });
 });
 

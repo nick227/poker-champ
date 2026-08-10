@@ -169,6 +169,12 @@ export function TableSceneShell({
                 onHeroBounds={onHeroBounds}
                 activeTurnProgress={activeTurnProgress}
               />
+              {/* Action copy sits on the felt, not inside the control strip. */}
+              {dealerBar ? (
+                <View pointerEvents="none" style={layoutStyles.stageAnnounce}>
+                  {dealerBar}
+                </View>
+              ) : null}
             </View>
             {!hideBottomSection ? (
               <Surface
@@ -183,7 +189,6 @@ export function TableSceneShell({
                   },
                 ]}
               >
-                {dealerBar}
                 {bottom}
               </Surface>
             ) : null}

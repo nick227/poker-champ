@@ -7,16 +7,19 @@ import { PokerActionButton } from "./PokerActionButton";
 type ActionButtonsProps = {
   checkCallLabel: string;
   permissions: Permissions;
-  actions: Pick<ActionHandlers, "fold" | "checkCall" | "betRaise">;
+  actions: Pick<ActionHandlers, "fold" | "checkCall" | "betRaise" | "allIn">;
   wager: Pick<Wager, "label" | "disabled">;
 };
 
+/** Primary act row — equal-width Fold / Check-Call / Bet-Raise / All-In. */
 export function ActionButtons({
   checkCallLabel,
   permissions,
   actions,
   wager,
 }: ActionButtonsProps) {
+  const showAllIn = permissions.canAllIn;
+
   return (
     <View style={actionBarStyles.buttonsRow}>
       <PokerActionButton
@@ -40,6 +43,15 @@ export function ActionButtons({
         style={{ flex: 1 }}
         disabled={!permissions.canWager || wager.disabled}
       />
+      {showAllIn ? (
+        <PokerActionButton
+          variant="allIn"
+          title={TABLE.allIn}
+          onPress={actions.allIn}
+          style={{ flex: 1 }}
+          disabled={!permissions.canAllIn}
+        />
+      ) : null}
     </View>
   );
 }

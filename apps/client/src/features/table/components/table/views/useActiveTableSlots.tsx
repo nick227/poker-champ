@@ -11,7 +11,7 @@ import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
 import type { Opponent } from "../opponent-strip";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
-import { TableStatusStrip } from "../action-bar/TableStatusStrip";
+import { FeltActionAnnounce } from "../FeltActionAnnounce";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA } from "../RejoinCTA";
@@ -33,23 +33,8 @@ export type LiveTableSlotState = {
   statusStrip?: LiveTableStatusStripState;
 };
 
-function renderStatusStripPanel(
-  message: string,
-  showSpinner: boolean,
-  showTurnCue: boolean,
-) {
-  return (
-    <View
-      style={{ flex: 1, width: "100%", justifyContent: "flex-start" }}
-      className="ui-p-inline-4 pt-2"
-    >
-      <TableStatusStrip
-        message={message}
-        showSpinner={showSpinner}
-        showTurnCue={showTurnCue}
-      />
-    </View>
-  );
+function feltAnnounce(message: string, showSpinner = false) {
+  return <FeltActionAnnounce message={message} showSpinner={showSpinner} />;
 }
 
 function getOptimisticActionMessage(payload: Parameters<ActionBarOnAction>[0] | null): string {
@@ -276,7 +261,9 @@ export function useActiveTableSlots(
   const rejoinState = renderModel.rejoinUiState ?? "idle";
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
 
-  let bottom: ReactNode;
+  let bottom: ReactNode = null;
+  let announceMessage = statusStrip?.message ?? "";
+  let announceSpinner = Boolean(statusStrip?.showSpinner);
   const tournamentSpectator = snapshot ? isTournamentEliminatedSpectator(snapshot) : false;
   if (!heroIsSeated && tournamentSpectator) {
     bottom = (
@@ -315,11 +302,9 @@ export function useActiveTableSlots(
       />
     );
   } else if (optimisticAction) {
-    bottom = renderStatusStripPanel(
-      getOptimisticActionMessage(optimisticAction),
-      true,
-      false,
-    );
+    announceMessage = getOptimisticActionMessage(optimisticAction);
+    announceSpinner = true;
+    bottom = null;
   } else if (!waitingBetweenHands && showHeroActionBar) {
     bottom = (
       <ActionBar
@@ -327,9 +312,6 @@ export function useActiveTableSlots(
         heroStatus={heroStatus}
         actionOptions={heroActionOptions}
         potCents={potCents}
-        statusMessage={statusStrip?.message ?? ""}
-        showStatusSpinner={statusStrip?.showSpinner}
-        showTurnCue={statusStrip?.showTurnCue}
         hideReconnectingOverlay
         onAction={handleAction}
         forceInteractive={false}
@@ -343,11 +325,7 @@ export function useActiveTableSlots(
       />
     );
   } else {
-    bottom = renderStatusStripPanel(
-      statusStrip?.message ?? "",
-      statusStrip?.showSpinner ?? false,
-      statusStrip?.showTurnCue ?? false,
-    );
+    bottom = null;
   }
 
   const heroRoundBetCents =
@@ -373,7 +351,7 @@ export function useActiveTableSlots(
   return {
     ...shellBaseProps,
     activeTurnProgress,
-    dealerBar: null,
+    dealerBar: feltAnnounce(announceMessage, announceSpinner),
     board,
     onSeatBounds: actions.reportSeatBounds,
     onHeroBounds: actions.reportHeroBounds,

@@ -30,7 +30,7 @@ function myTurnContext() {
 }
 
 describe("ActionBar all-in banner wiring", () => {
-  it("shows the ALL-IN banner instead of the status strip when hero is all-in and not acting", () => {
+  it("shows the ALL-IN banner when hero is all-in and not acting", () => {
     render(
       <ActionBar actionContext={notMyTurnContext()} heroStatus="ALL_IN" onAction={vi.fn()} />,
     );
@@ -38,12 +38,12 @@ describe("ActionBar all-in banner wiring", () => {
     expect(screen.queryByTestId("table-status-strip")).toBeNull();
   });
 
-  it("shows the plain status strip (not the ALL-IN banner) for other hero statuses", () => {
+  it("keeps action status out of the HUD for other hero statuses", () => {
     render(
       <ActionBar actionContext={notMyTurnContext()} heroStatus="FOLDED" onAction={vi.fn()} />,
     );
     expect(screen.queryByTestId("all-in-banner")).toBeNull();
-    expect(screen.getByTestId("table-status-strip")).toBeTruthy();
+    expect(screen.queryByTestId("table-status-strip")).toBeNull();
   });
 
   it("does not show the ALL-IN banner while the hero still has actions to take", () => {
