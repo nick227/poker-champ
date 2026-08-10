@@ -46,10 +46,8 @@ export function TableGameTopBar({
   const subtitle = formatBlindsLine(smallBlindCents, bigBlindCents, minBuyInCents);
 
   return (
-    // Plain View wrapper (not Surface) carries the elevation shadow that separates the HUD
-    // band from the felt below — Surface className is layout-only per lint guardrail, so
-    // visual chrome (shadow/gradient) lives on wrappers around it instead.
-    <View collapsable={false} className="shadow-md">
+    // Thin overlay on the dark stage — no panel elevation / rounded app chrome.
+    <View collapsable={false}>
       <Surface styleId="surface.sim.table.topbar">
         <View
           pointerEvents="none"

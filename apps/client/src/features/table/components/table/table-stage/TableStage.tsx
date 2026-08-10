@@ -13,6 +13,8 @@ import {
 } from "./stageGeometry";
 import { EmptySeatMarker } from "./EmptySeatMarker";
 import { opponentToSeatPlateProps, SeatPlate, type SeatPlateProps } from "./SeatPlate";
+import { StageAtmosphere } from "./StageAtmosphere";
+import { STAGE_TABLE_LIFT } from "../tokens/stage.tokens";
 
 export type TableStageProps = {
   opponents: Opponent[];
@@ -54,6 +56,24 @@ export function TableStage({
 
   return (
     <View style={styles.host} onLayout={onLayout} collapsable={false}>
+      <StageAtmosphere />
+      {layout ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: layout.felt.x,
+            top: layout.felt.y + 4,
+            width: layout.felt.w,
+            height: layout.felt.h,
+            borderRadius: layout.feltRadius,
+            backgroundColor: STAGE_TABLE_LIFT,
+            opacity: 0.85,
+            transform: [{ scaleX: 1.01 }, { scaleY: 1.02 }],
+            zIndex: 0,
+          }}
+        />
+      ) : null}
       {layout ? (
         <View
           pointerEvents="none"
@@ -65,6 +85,7 @@ export function TableStage({
             height: layout.felt.h,
             borderRadius: layout.feltRadius,
             overflow: "hidden",
+            zIndex: 1,
           }}
         >
           <FeltBackground
@@ -101,7 +122,7 @@ export function TableStage({
               top: anchor.y - avatarCenterFromTop,
               width: plateW,
               height: plateH,
-              zIndex: 2,
+              zIndex: 3,
               overflow: "visible" as const,
               backgroundColor: "transparent" as const,
             };
@@ -146,11 +167,7 @@ export function TableStage({
 
             const opponent = opponentSlots[anchor.slotIndex];
             if (!opponent) {
-              return (
-                <View key={`empty-${anchor.slotIndex}`} style={style} pointerEvents="none">
-                  <EmptySeatMarker width={plateW} height={plateH} />
-                </View>
-              );
+              return null;
             }
 
             const betCents = opponent.roundBetCents ?? 0;
@@ -199,7 +216,7 @@ const styles = StyleSheet.create({
   },
   boardSafe: {
     position: "absolute",
-    zIndex: 1,
+    zIndex: 2,
     alignItems: "center",
     justifyContent: "center",
   },

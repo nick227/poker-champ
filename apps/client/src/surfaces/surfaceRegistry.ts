@@ -121,8 +121,8 @@ export const surfaceRegistry: Record<SurfaceStyleId, SurfaceDefinition> = {
     elevationPreset: 0,
   }),
   "surface.sim.table.topbar": createDefinition(
-    "ui-row items-center justify-between ui-inline-3 border-b border-border-subtle px-4 py-2",
-    { paddingPreset: "md", elevationPreset: 1 },
+    "ui-row items-center justify-between ui-inline-3 px-4 py-2",
+    { paddingPreset: "md", elevationPreset: 0 },
   ),
   "surface.sim.table.announce": createDefinition(
     "ui-row items-center justify-center px-4 min-h-[44px] w-full",

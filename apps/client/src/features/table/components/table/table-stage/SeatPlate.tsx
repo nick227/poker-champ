@@ -7,6 +7,7 @@ import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
 import { SeatHoleCards } from "./SeatHoleCards";
+import { isBannerStatus, SeatStatusBanner } from "./SeatStatusBanner";
 import type { SeatPlateCards } from "./seatPlate.types";
 
 export type { SeatPlateCards };
@@ -95,6 +96,7 @@ export function SeatPlate({
   stackDisplay,
   avatarUrl,
   userId,
+  seat,
   isDealer = false,
   isActiveTurn = false,
   inactive = false,
@@ -112,14 +114,17 @@ export function SeatPlate({
   betDisplay = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
-  const plateW = Math.min(width, Math.max(avatarSize + 28, 96));
+  const compact = width < 120;
+  const plateW = Math.min(
+    width,
+    Math.max(avatarSize + (compact ? 28 : 62), compact ? 76 : 170),
+  );
 
   const body = (
     <View
       style={{
         width,
         height,
-        opacity: inactive ? 0.55 : 1,
         alignItems: "center",
         backgroundColor: "transparent",
       }}
@@ -139,46 +144,77 @@ export function SeatPlate({
             zIndex: 3,
           }}
         >
-          <SeatHoleCards cards={cards} packId={cardFacePackId} scale={cardScale} />
+          <SeatHoleCards
+            cards={cards}
+            packId={cardFacePackId}
+            scale={cardScale}
+            inactive={inactive}
+          />
         </View>
       ) : null}
 
       <View style={{ marginTop: cardPeek, alignItems: "center", zIndex: 2 }}>
-        <View style={{ position: "relative" }}>
+        <View style={{ position: "relative", opacity: inactive ? 0.52 : 1 }}>
           <AvatarDisc
             seed={userId || name}
             initial={initial}
             avatarUrl={avatarUrl}
             size={avatarSize}
             isActiveTurn={isActiveTurn}
+            badgeLabel={seat}
           />
           {isDealer ? (
-            <View style={{ position: "absolute", top: -2, left: -6 }}>
+            <View
+              style={{
+                position: "absolute",
+                bottom: -2,
+                left: -10,
+                zIndex: 5,
+              }}
+            >
               <DealerButton size="tiny" />
             </View>
           ) : null}
         </View>
 
-        {/* Single compact nameplate (GG) — name + stack only */}
+        {/* Single compact nameplate (GG) — name + stack; banner for All-In */}
         <View
           style={{
-            marginTop: -2,
+            marginTop: compact ? -3 : -8,
             width: plateW,
             height: nameplateH,
-            paddingHorizontal: 6,
+            paddingHorizontal: compact ? 4 : 10,
+            paddingTop: isBannerStatus(statusLabel) ? (compact ? 12 : 14) : 0,
             justifyContent: "center",
             alignItems: "center",
-            borderRadius: 6,
-            backgroundColor: "rgba(0,0,0,0.78)",
+            borderRadius: compact ? 6 : 9,
+            borderWidth: isActiveTurn ? 2 : 1,
+            borderColor: isActiveTurn
+              ? "rgba(250,204,21,0.9)"
+              : inactive
+                ? "rgba(248,113,113,0.28)"
+                : "rgba(255,255,255,0.14)",
+            backgroundColor: inactive ? "rgba(8,10,12,0.88)" : "rgba(4,6,9,0.96)",
             overflow: "hidden",
+            boxShadow: [
+              {
+                offsetX: 0,
+                offsetY: isActiveTurn ? 0 : 5,
+                blurRadius: isActiveTurn ? 14 : 10,
+                color: isActiveTurn ? "rgba(250,204,21,0.3)" : "rgba(0,0,0,0.7)",
+              },
+            ],
           }}
         >
+          {isBannerStatus(statusLabel) ? (
+            <SeatStatusBanner label={statusLabel!} compact={compact} />
+          ) : null}
           <Text
             numberOfLines={1}
             style={{
-              fontSize: 11,
-              color: "#fff",
-              fontWeight: "700",
+              fontSize: compact ? 11 : 13,
+              color: inactive ? "rgba(255,255,255,0.65)" : "#fff",
+              fontWeight: "800",
               textAlign: "center",
               width: "100%",
             }}
@@ -188,15 +224,16 @@ export function SeatPlate({
           <Text
             numberOfLines={1}
             style={{
-              fontSize: 11,
-              color: statusLabel ? "#fca5a5" : "#7dd3fc",
+              fontSize: compact ? 12 : 15,
+              color:
+                statusLabel && !isBannerStatus(statusLabel) ? "#fca5a5" : "#67d4ff",
               fontVariant: ["tabular-nums"],
-              fontWeight: "700",
+              fontWeight: "800",
               textAlign: "center",
               width: "100%",
             }}
           >
-            {statusLabel ?? stackDisplay}
+            {statusLabel && !isBannerStatus(statusLabel) ? statusLabel : stackDisplay}
           </Text>
           <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
         </View>
@@ -209,8 +246,8 @@ export function SeatPlate({
             position: "absolute",
             top: cardPeek + avatarSize * 0.15,
             right: -2,
-            paddingHorizontal: 5,
-            paddingVertical: 1,
+            paddingHorizontal: 7,
+            paddingVertical: 3,
             borderRadius: 999,
             backgroundColor: "rgba(0,0,0,0.75)",
             borderWidth: 1,
@@ -218,7 +255,7 @@ export function SeatPlate({
             zIndex: 4,
           }}
         >
-          <Text style={{ fontSize: 9, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
+          <Text style={{ fontSize: 11, color: "#fde68a", fontVariant: ["tabular-nums"], fontWeight: "700" }}>
             {betDisplay}
           </Text>
         </View>
@@ -246,6 +283,23 @@ export function opponentToSeatPlateProps(
     turnProgress?: number | null;
   },
 ): SeatPlateProps {
+  const statusLabel = (() => {
+    if (opts?.statusLabel !== undefined) return opts.statusLabel;
+    if (opponent.actionLabel) return opponent.actionLabel;
+    switch (opponent.status) {
+      case "folded":
+        return "Folded";
+      case "allIn":
+        return "All in";
+      case "sittingOut":
+        return "Sitting out";
+      case "reconnecting":
+        return "Reconnecting";
+      default:
+        return null;
+    }
+  })();
+
   return {
     name: opponent.name,
     stackDisplay,
@@ -256,7 +310,7 @@ export function opponentToSeatPlateProps(
     isActiveTurn: Boolean(opponent.isActive),
     inactive:
       opts?.inactive ?? (opponent.status === "folded" || opponent.status === "sittingOut"),
-    statusLabel: opts?.statusLabel ?? opponent.actionLabel ?? null,
+    statusLabel,
     cards: opponent.cards,
     cardFacePackId,
     betDisplay: opts?.betDisplay ?? null,

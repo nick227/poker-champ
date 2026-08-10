@@ -4,18 +4,25 @@
  * editing the shared token files in parallel.
  */
 
-/** Rail (padded cushion) color — dark, slightly warm/green so it reads as leatherette, not pure black. */
-export const FELT_RAIL_COLOR = "hsl(150, 22%, 7%)";
+/** Rail (padded cushion) mid-tone — warm dark leatherette, not pure black. */
+export const FELT_RAIL_COLOR = "hsl(150, 18%, 10%)";
+
+/** Bevel stops for padded rail body (web gradient). */
+export const FELT_RAIL_BEVEL_HIGHLIGHT = "hsl(150, 14%, 18%)";
+export const FELT_RAIL_BEVEL_SHADOW = "hsl(150, 22%, 5%)";
+
+/** Thin outer ring — muted gold so the oval reads as furniture. */
+export const FELT_RAIL_OUTER_RING = "hsla(43, 48%, 42%, 0.55)";
 
 /** Thin bright seam between rail and felt, like a rail's stitched edge. */
-export const FELT_RAIL_SEAM_COLOR = "hsla(43, 55%, 60%, 0.28)";
+export const FELT_RAIL_SEAM_COLOR = "hsla(43, 62%, 58%, 0.42)";
 
 /** Corner radius + rail thickness, tuned per viewport so the band reads as an oval/rounded table
  *  silhouette without clipping the community-card row (which sits close to the felt's top edge). */
 export const FELT_GEOMETRY = Object.freeze({
   /** Larger radius so a desktop stage host reads as an oval table, not a phone band. */
-  desktop: { radius: 96, railWidth: 12 },
-  compact: { radius: 14, railWidth: 6 },
+  desktop: { radius: 110, railWidth: 22 },
+  compact: { radius: 14, railWidth: 7 },
 } as const);
 
 export function getFeltGeometry(compact: boolean) {
@@ -35,4 +42,4 @@ export const FELT_SHADING_DELTA = Object.freeze({
 export const FELT_SHADING_FALLBACK_HSL = "158 30% 14%";
 
 /** Vignette (corner darkening) opacity — web only; native gets a lighter static approximation. */
-export const FELT_VIGNETTE_OPACITY = 0.4;
+export const FELT_VIGNETTE_OPACITY = 0.48;

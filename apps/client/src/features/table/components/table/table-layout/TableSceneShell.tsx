@@ -111,7 +111,8 @@ export function TableSceneShell({
     }).start();
   }, [reducedMotion, revealDurationMs, revealOpacity, revealed, showStatusView]);
 
-  const hudMax = ACTION_BAR_HEIGHT + insets.bottom;
+  const hudBottomPadding = Math.max(insets.bottom, 8);
+  const hudMax = ACTION_BAR_HEIGHT + hudBottomPadding;
 
   return (
     <View
@@ -137,7 +138,7 @@ export function TableSceneShell({
         boardAreaHeight={boardAreaHeight}
         layoutScale={layoutScale}
       >
-        <View className="bg-panel/90 rounded-t-lg" collapsable={false} style={layoutStyles.titleSection}>
+        <View collapsable={false} style={layoutStyles.titleSection}>
           <TableGameTopBar
             tableName={tableName}
             smallBlindCents={smallBlindCents}
@@ -178,7 +179,7 @@ export function TableSceneShell({
                   layoutStyles.actionHudSection,
                   {
                     maxHeight: hudMax,
-                    paddingBottom: Math.max(insets.bottom, 8),
+                    paddingBottom: hudBottomPadding,
                   },
                 ]}
               >

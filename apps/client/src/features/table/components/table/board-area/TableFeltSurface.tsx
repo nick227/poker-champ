@@ -1,7 +1,6 @@
 import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import type { ResolvedBackground } from "@/theme/backgrounds/background.types";
 import {
-  FELT_RAIL_COLOR,
   FELT_RAIL_SEAM_COLOR,
   FELT_SHADING_DELTA,
   FELT_VIGNETTE_OPACITY,
@@ -13,6 +12,7 @@ import {
   hslTripletToCss,
   resolveFeltShadingBase,
 } from "./feltShading";
+import { FeltRailLayers } from "./FeltRailLayers";
 
 export type TableFeltSurfaceProps = {
   /** Resolved felt background (drives shading tone). Omit to use the app's default felt tone. */
@@ -62,12 +62,7 @@ export function TableFeltSurface({
       collapsable={false}
       style={StyleSheet.absoluteFillObject}
     >
-      {/* Rail: the padded outer edge. Own background clips to its rounded corners automatically. */}
-      <View
-        testID="table-felt-rail"
-        collapsable={false}
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: FELT_RAIL_COLOR, borderRadius: radius }]}
-      />
+      <FeltRailLayers radius={radius} compact={compact} />
       {/* Felt: inset from the rail by railWidth, with a stitched seam border. */}
       <View
         testID="table-felt-inner"
