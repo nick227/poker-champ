@@ -97,12 +97,13 @@ export function TableStage({
             const style = {
               position: "absolute" as const,
               left: anchor.x - plateW / 2,
-              top: anchor.y - plateH * 0.62,
+              // Anchor near avatar (lower-middle of compact pod).
+              top: anchor.y - plateH * 0.55,
               width: plateW,
               height: plateH,
               zIndex: 2,
-              // Allow hole cards to overhang — never clip the dominant cards.
               overflow: "visible" as const,
+              backgroundColor: "transparent" as const,
             };
             const isHero = anchor.slotIndex === 0;
             const sizeProps = {

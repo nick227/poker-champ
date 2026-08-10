@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { AvatarDisc } from "../player-panel/AvatarDisc";
 import { DealerButton } from "../DealerButton";
@@ -32,6 +32,23 @@ export type SeatPlateProps = {
   betDisplay?: string | null;
 };
 
+/** Kill RN-web <button> UA chrome (gray rounded oval behind opponents). */
+const PRESSABLE_RESET: ViewStyle = {
+  backgroundColor: "transparent",
+  borderWidth: 0,
+  padding: 0,
+  margin: 0,
+  ...(Platform.OS === "web"
+    ? ({
+        boxShadow: "none",
+        outlineStyle: "none",
+        appearance: "none",
+        WebkitAppearance: "none",
+        cursor: "pointer",
+      } as ViewStyle)
+    : null),
+};
+
 const SeatTurnBar = memo(function SeatTurnBar({
   show,
   progress,
@@ -44,9 +61,9 @@ const SeatTurnBar = memo(function SeatTurnBar({
     <View
       pointerEvents="none"
       style={{
-        width: "78%",
+        width: "70%",
         height: 3,
-        marginTop: 3,
+        marginTop: 2,
         borderRadius: 2,
         overflow: "hidden",
         backgroundColor: "hsla(0,0%,0%,0.45)",
@@ -63,9 +80,15 @@ const SeatTurnBar = memo(function SeatTurnBar({
   );
 });
 
+const nameShadow = {
+  textShadowColor: "rgba(0,0,0,0.95)",
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 3,
+} as const;
+
 /**
- * GG-style seat: large hole cards dominate; avatar on rail; compact name/stack under avatar.
- * No wide gray dashboard capsule.
+ * Compact GG seat: cards → avatar → name/stack → bet.
+ * No host fill, no gray chrome, tight vertical rhythm.
  */
 export function SeatPlate({
   name,
@@ -92,18 +115,19 @@ export function SeatPlate({
     <View
       style={{
         width,
-        height,
+        // Prefer content height; outer host still supplies a max box for layout.
+        maxHeight: height,
         opacity: inactive ? 0.55 : 1,
         alignItems: "center",
         justifyContent: "flex-start",
+        backgroundColor: "transparent",
       }}
     >
-      {/* Cards first in paint order underlay; elevated z so they read as the hero of the cluster */}
-      <View style={{ zIndex: 3, marginBottom: -avatarSize * 0.42 }}>
+      <View style={{ zIndex: 3, marginBottom: -avatarSize * 0.48 }}>
         {cards ? (
           <SeatHoleCards cards={cards} packId={cardFacePackId} scale={cardScale} />
         ) : (
-          <View style={{ height: avatarSize * 0.35 }} />
+          <View style={{ height: 4 }} />
         )}
       </View>
 
@@ -123,25 +147,16 @@ export function SeatPlate({
           ) : null}
         </View>
 
-        {/* Name + stack under avatar — text on dark void, no gray tile */}
-        <View
-          style={{
-            marginTop: 4,
-            maxWidth: Math.min(width * 0.95, avatarSize * 2.6),
-            alignItems: "center",
-          }}
-        >
+        <View style={{ marginTop: 2, maxWidth: width, alignItems: "center" }}>
           <Text
             numberOfLines={1}
             style={{
-              fontSize: 12,
+              fontSize: 11,
               color: "#fff",
               fontWeight: "700",
               textAlign: "center",
-              textShadowColor: "rgba(0,0,0,0.95)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 3,
               maxWidth: width - 4,
+              ...nameShadow,
             }}
           >
             {name}
@@ -149,14 +164,12 @@ export function SeatPlate({
           <Text
             numberOfLines={1}
             style={{
-              fontSize: 12,
+              fontSize: 11,
               color: "#7dd3fc",
               fontVariant: ["tabular-nums"],
               fontWeight: "700",
               textAlign: "center",
-              textShadowColor: "rgba(0,0,0,0.95)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 3,
+              ...nameShadow,
             }}
           >
             {stackDisplay}
@@ -168,10 +181,7 @@ export function SeatPlate({
                 fontSize: 10,
                 color: "#fca5a5",
                 fontWeight: "800",
-                marginTop: 1,
-                textShadowColor: "rgba(0,0,0,0.9)",
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 2,
+                ...nameShadow,
               }}
             >
               {statusLabel}
@@ -179,35 +189,37 @@ export function SeatPlate({
           ) : null}
         </View>
 
+        {betDisplay ? (
+          <View
+            pointerEvents="none"
+            style={{
+              marginTop: 3,
+              paddingHorizontal: 6,
+              paddingVertical: 1,
+              borderRadius: 999,
+              backgroundColor: "rgba(0,0,0,0.7)",
+              borderWidth: 1,
+              borderColor: "rgba(212,175,55,0.4)",
+            }}
+          >
+            <Text style={{ fontSize: 10, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
+              {betDisplay}
+            </Text>
+          </View>
+        ) : null}
+
         <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} />
       </View>
-
-      {betDisplay ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            bottom: 2,
-            paddingHorizontal: 7,
-            paddingVertical: 2,
-            borderRadius: 999,
-            backgroundColor: "rgba(0,0,0,0.65)",
-            borderWidth: 1,
-            borderColor: "rgba(212,175,55,0.4)",
-            zIndex: 4,
-          }}
-        >
-          <Text style={{ fontSize: 10, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
-            {betDisplay}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 
   if (!onPress) return body;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={PRESSABLE_RESET}
+    >
       {body}
     </Pressable>
   );

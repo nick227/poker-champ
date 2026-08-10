@@ -29,14 +29,14 @@ export const STAGE_LAYOUT_NORM = Object.freeze({
   /** Community + pot — clear center of felt. */
   board: { x: 0.2, y: 0.26, w: 0.6, h: 0.4 } satisfies NormRect,
   /** Pod width from min(stage). Tall enough for dominant hole cards. */
-  plateFromStage: 0.3,
-  plateMinW: 160,
-  plateMaxW: 248,
-  /** Host height = width * this (card stack + avatar + nameplate). */
-  plateAspect: 1.28,
+  plateFromStage: 0.26,
+  plateMinW: 140,
+  plateMaxW: 210,
+  /** Compact host — content packs tight; no tall empty oval. */
+  plateAspect: 1.05,
   heroCardScale: 1.08,
   oppCardScale: 0.9,
-  avatarFrac: 0.28,
+  avatarFrac: 0.3,
 } as const);
 
 function feltRectNorm(): NormRect {

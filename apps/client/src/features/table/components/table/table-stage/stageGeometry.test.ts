@@ -48,7 +48,7 @@ describe("stageGeometry", () => {
   it("sizes card-dominant pods and large board zone", () => {
     const layout = resolveStageLayout(6, { width: 1000, height: 700 });
     expect(layout.plate.width).toBeGreaterThanOrEqual(STAGE_LAYOUT_NORM.plateMinW);
-    expect(layout.plate.height).toBeGreaterThan(layout.plate.width);
+    expect(layout.plate.height).toBeGreaterThanOrEqual(layout.plate.width);
     expect(layout.heroCardScale).toBeGreaterThan(layout.oppCardScale);
     expect(layout.heroCardScale).toBeGreaterThanOrEqual(0.9);
     expect(layout.board.w / 1000).toBeCloseTo(STAGE_LAYOUT_NORM.board.w, 2);
