@@ -26,6 +26,10 @@ describe("resolvePrimaryNavActive", () => {
     expect(resolvePrimaryNavActive("/blog")).toBe("lobby");
   });
 
+  it("maps slots to its own primary tab", () => {
+    expect(resolvePrimaryNavActive("/slots")).toBe("slots");
+  });
+
   it("leaves table with no primary tab", () => {
     expect(resolvePrimaryNavActive("/table/xyz")).toBeNull();
   });

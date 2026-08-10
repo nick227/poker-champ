@@ -10,9 +10,10 @@ describe("screen registry", () => {
   it("exposes bottom bar screens from registry metadata", () => {
     const keys = bottomBarScreens.map((s) => s.key);
     expect(keys).toContain("lobby");
+    expect(keys).toContain("slots");
     expect(keys).toContain("lessons");
     expect(keys).toContain("settings");
     expect(keys).not.toContain("history");
-    expect(keys).not.toContain("slots");
+    expect(keys.indexOf("slots")).toBeGreaterThan(keys.indexOf("lobby"));
   });
 });

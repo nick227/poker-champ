@@ -1,6 +1,6 @@
 import type { ScreenKey } from "@/registry/screen.registry";
 
-export type PrimaryNavKey = Extract<ScreenKey, "lobby" | "lessons" | "leaderboard" | "settings">;
+export type PrimaryNavKey = Extract<ScreenKey, "lobby" | "slots" | "lessons" | "leaderboard" | "settings">;
 
 /** Routes that use the phone/desktop primary chrome (BottomBar / NavRail). */
 export function shouldShowPrimaryNav(pathname: string): boolean {
@@ -10,6 +10,7 @@ export function shouldShowPrimaryNav(pathname: string): boolean {
 }
 
 export function resolvePrimaryNavActive(pathname: string): PrimaryNavKey | null {
+  if (pathname.startsWith("/slots")) return "slots";
   if (pathname.startsWith("/lessons") || pathname.startsWith("/lesson")) return "lessons";
   if (pathname.startsWith("/leaderboard")) return "leaderboard";
   if (pathname.startsWith("/settings")) return "settings";
@@ -17,7 +18,6 @@ export function resolvePrimaryNavActive(pathname: string): PrimaryNavKey | null 
     pathname.startsWith("/lobby") ||
     pathname.startsWith("/tournaments") ||
     pathname.startsWith("/blog") ||
-    pathname.startsWith("/slots") ||
     pathname.startsWith("/replay") ||
     pathname.startsWith("/history") ||
     pathname.startsWith("/membership")
