@@ -8,7 +8,6 @@ import {
   ACTION_BAR_HEIGHT,
   DEALER_BAR_HEIGHT,
 } from "../constants/table-layout.constants";
-import { TABLE_SPACING } from "../tokens/spacing.tokens";
 
 export const layoutStyles = StyleSheet.create({
   root: {
