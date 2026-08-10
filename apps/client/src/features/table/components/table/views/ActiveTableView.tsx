@@ -141,14 +141,14 @@ export function ActiveTableView({
 
   const turnDeadlineMs = snapshot.hand?.turnDeadlineMs;
   const turnTimeoutTotalMs = snapshot.hand?.turnTimeoutTotalMs;
+  const hasOpponentToAct = opponents.some((o) => o.isActive);
+  const seatToAct = isHeroToAct || hasOpponentToAct;
   const turnCountdownSeconds = useTurnCountdown(
-    isHeroToAct,
+    seatToAct,
     tableMode === "live",
     turnDeadlineMs,
     turnTimeoutTotalMs,
   );
-  const hasOpponentToAct = opponents.some((o) => o.isActive);
-  const seatToAct = isHeroToAct || hasOpponentToAct;
   const activeTurnProgress = useTurnProgress(seatToAct, tableMode === "live", turnTimeoutTotalMs);
 
   useEffect(() => {
@@ -324,6 +324,7 @@ export function ActiveTableView({
           cardFacePackId,
           betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
           turnProgress: isHeroToAct ? activeTurnProgress : null,
+          turnCountdownSeconds: isHeroToAct ? turnCountdownSeconds : null,
         })
       : null;
 
@@ -331,6 +332,7 @@ export function ActiveTableView({
     <TableSceneShell
       {...shellBaseProps}
       activeTurnProgress={activeTurnProgress}
+      turnCountdownSeconds={turnCountdownSeconds}
       dealerBar={
         <DealerAnnounceBar
           hand={handSummary}

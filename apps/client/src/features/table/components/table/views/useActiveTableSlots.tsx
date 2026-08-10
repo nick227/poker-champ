@@ -121,14 +121,14 @@ export function useActiveTableSlots(
 
   const turnDeadlineMs = snapshot?.hand?.turnDeadlineMs;
   const turnTimeoutTotalMs = snapshot?.hand?.turnTimeoutTotalMs;
+  const hasOpponentToAct = opponents.some((o) => o.isActive);
+  const seatToAct = isHeroToAct || hasOpponentToAct;
   const turnCountdownSeconds = useTurnCountdown(
-    isHeroToAct,
+    seatToAct,
     true,
     turnDeadlineMs,
     turnTimeoutTotalMs,
   );
-  const hasOpponentToAct = opponents.some((o) => o.isActive);
-  const seatToAct = isHeroToAct || hasOpponentToAct;
   const activeTurnProgress = useTurnProgress(seatToAct, true, turnTimeoutTotalMs);
 
   const heroIsSeated = snapshot?.hero.youAreSeated ?? false;
@@ -345,12 +345,14 @@ export function useActiveTableSlots(
         cardFacePackId,
         betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
         turnProgress: isHeroToAct ? activeTurnProgress : null,
+        turnCountdownSeconds: isHeroToAct ? turnCountdownSeconds : null,
       })
     : null;
 
   return {
     ...shellBaseProps,
     activeTurnProgress,
+    turnCountdownSeconds,
     dealerBar: feltAnnounce(announceMessage, announceSpinner),
     board,
     onSeatBounds: actions.reportSeatBounds,

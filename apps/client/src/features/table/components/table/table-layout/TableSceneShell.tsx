@@ -35,6 +35,7 @@ export type TableSceneShellProps = {
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   onHeroBounds?: (rect: Rect) => void;
   activeTurnProgress?: number | null;
+  turnCountdownSeconds?: number | null;
   dealerBar: ReactNode;
   board: ReactNode;
   /** @deprecated hero is on the stage ring via heroPlate */
@@ -73,6 +74,7 @@ export function TableSceneShell({
   onSeatBounds,
   onHeroBounds,
   activeTurnProgress,
+  turnCountdownSeconds = null,
   dealerBar,
   board,
   heroPlate = null,
@@ -168,6 +170,7 @@ export function TableSceneShell({
                 onSeatBounds={onSeatBounds}
                 onHeroBounds={onHeroBounds}
                 activeTurnProgress={activeTurnProgress}
+                turnCountdownSeconds={turnCountdownSeconds}
               />
               {/* Action copy sits on the felt, not inside the control strip. */}
               {dealerBar ? (

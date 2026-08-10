@@ -17,6 +17,7 @@ export function buildHeroPlate(params: {
   statusLabel?: string | null;
   betDisplay?: string | null;
   turnProgress?: number | null;
+  turnCountdownSeconds?: number | null;
 }): SeatPlateProps {
   const name = params.userName?.trim() || "You";
   const left = params.cards[0] ?? null;
@@ -53,5 +54,6 @@ export function buildHeroPlate(params: {
     cardFacePackId: params.cardFacePackId,
     betDisplay: params.betDisplay ?? null,
     turnProgress: params.turnProgress ?? null,
+    turnCountdownSeconds: params.turnCountdownSeconds ?? null,
   };
 }

@@ -28,6 +28,7 @@ export type TableStageProps = {
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   onHeroBounds?: (rect: Rect) => void;
   activeTurnProgress?: number | null;
+  turnCountdownSeconds?: number | null;
 };
 
 export function TableStage({
@@ -40,6 +41,7 @@ export function TableStage({
   onSeatBounds,
   onHeroBounds,
   activeTurnProgress = null,
+  turnCountdownSeconds = null,
 }: TableStageProps) {
   const [size, setSize] = useState<StageSize>({ width: 0, height: 0 });
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
@@ -155,6 +157,11 @@ export function TableStage({
                   turnProgress={
                     heroPlate.isActiveTurn ? (heroPlate.turnProgress ?? activeTurnProgress) : null
                   }
+                  turnCountdownSeconds={
+                    heroPlate.isActiveTurn
+                      ? (heroPlate.turnCountdownSeconds ?? turnCountdownSeconds)
+                      : null
+                  }
                   cardFacePackId={heroPlate.cardFacePackId || cardFacePackId}
                 />
               );
@@ -191,6 +198,7 @@ export function TableStage({
               {
                 betDisplay: betCents > 0 ? formatBet(betCents) : null,
                 turnProgress: opponent.isActive ? activeTurnProgress : null,
+                turnCountdownSeconds: opponent.isActive ? turnCountdownSeconds : null,
               },
             );
             const plate = (

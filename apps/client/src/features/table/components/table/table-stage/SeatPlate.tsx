@@ -1,4 +1,3 @@
-import { memo } from "react";
 import { Platform, Pressable, View, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { AvatarDisc } from "../player-panel/AvatarDisc";
@@ -7,6 +6,7 @@ import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
 import { BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 import { SeatHoleCards } from "./SeatHoleCards";
+import { SeatTurnAura } from "./SeatTurnAura";
 import { isBannerStatus } from "./SeatStatusBanner";
 import type { SeatPlateCards } from "./seatPlate.types";
 
@@ -32,6 +32,7 @@ export type SeatPlateProps = {
   cardPeek?: number;
   nameplateH?: number;
   turnProgress?: number | null;
+  turnCountdownSeconds?: number | null;
   /** Rendered on the felt by TableStage — kept for API compat. */
   betDisplay?: string | null;
 };
@@ -51,42 +52,6 @@ const PRESSABLE_RESET: ViewStyle = {
       } as ViewStyle)
     : null),
 };
-
-const SeatTurnBar = memo(function SeatTurnBar({
-  show,
-  progress,
-  width,
-}: {
-  show: boolean;
-  progress: number | null | undefined;
-  width: number;
-}) {
-  if (!show || progress == null) return null;
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: "absolute",
-        left: 6,
-        right: 6,
-        bottom: 0,
-        height: 3,
-        borderRadius: 2,
-        overflow: "hidden",
-        backgroundColor: "hsla(0,0%,0%,0.45)",
-        width: width - 12,
-      }}
-    >
-      <View
-        style={{
-          height: "100%",
-          width: `${Math.max(0, Math.min(1, progress)) * 100}%`,
-          backgroundColor: "hsl(45, 96%, 58%)",
-        }}
-      />
-    </View>
-  );
-});
 
 /**
  * GG seat pod: cards cover the avatar only; nameplate is wider than the avatar
@@ -110,6 +75,7 @@ export function SeatPlate({
   cardPeek = 28,
   nameplateH = 48,
   turnProgress = null,
+  turnCountdownSeconds = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const compact = width < 120;
@@ -119,6 +85,7 @@ export function SeatPlate({
     Math.max(Math.round(avatarSize * (compact ? 1.32 : 1.42)), compact ? 96 : 172),
   );
   const allIn = isBannerStatus(statusLabel);
+  const showTurnAura = Boolean(isActiveTurn);
 
   const avatarTop = cardPeek;
   const nameplateOverlap = compact ? 2 : 5;
@@ -144,20 +111,22 @@ export function SeatPlate({
           zIndex: 2,
         }}
       >
-        <View
-          style={{
-            opacity: inactive ? 0.5 : 1,
-            width: avatarSize,
-            height: avatarSize,
-          }}
-        >
-          <AvatarDisc
-            seed={userId || name}
-            initial={initial}
-            avatarUrl={avatarUrl}
+        <View style={{ opacity: inactive ? 0.5 : 1 }}>
+          <SeatTurnAura
             size={avatarSize}
-            isActiveTurn={isActiveTurn}
-          />
+            active={showTurnAura}
+            progress={showTurnAura ? turnProgress : null}
+            countdownSeconds={showTurnAura ? turnCountdownSeconds : null}
+          >
+            <AvatarDisc
+              seed={userId || name}
+              initial={initial}
+              avatarUrl={avatarUrl}
+              size={avatarSize}
+              // Aura owns the turn ring — keep disc idle frame to avoid double chrome.
+              isActiveTurn={false}
+            />
+          </SeatTurnAura>
         </View>
 
         <View
@@ -171,12 +140,10 @@ export function SeatPlate({
             alignItems: "center",
             gap: 1,
             borderRadius: compact ? 8 : 10,
-            borderWidth: isActiveTurn ? 2 : 1,
-            borderColor: isActiveTurn
-              ? "rgba(250,204,21,0.9)"
-              : inactive
-                ? "rgba(248,113,113,0.25)"
-                : "rgba(255,255,255,0.12)",
+            borderWidth: 1,
+            borderColor: inactive
+              ? "rgba(248,113,113,0.25)"
+              : "rgba(255,255,255,0.12)",
             backgroundColor: inactive ? "rgba(8,10,12,0.92)" : "rgba(3,5,8,0.94)",
             overflow: "hidden",
             zIndex: 5,
@@ -208,7 +175,6 @@ export function SeatPlate({
           >
             {allIn ? "All-In" : stackDisplay}
           </Text>
-          <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
         </View>
       </View>
 
@@ -256,6 +222,7 @@ export function opponentToSeatPlateProps(
     isWinner?: boolean;
     betDisplay?: string | null;
     turnProgress?: number | null;
+    turnCountdownSeconds?: number | null;
   },
 ): SeatPlateProps {
   const statusLabel = (() => {
@@ -279,5 +246,6 @@ export function opponentToSeatPlateProps(
     cardFacePackId,
     betDisplay: opts?.betDisplay ?? null,
     turnProgress: opts?.turnProgress ?? null,
+    turnCountdownSeconds: opts?.turnCountdownSeconds ?? null,
   };
 }
