@@ -93,12 +93,12 @@ export function TableStage({
         ? layout.seats.map((anchor) => {
             const plateW = layout.plate.width;
             const plateH = layout.plate.height;
-            // Anchor ≈ avatar band (lower half of tall card-dominant pod).
+            // Anchor = avatar center on the rail.
+            const avatarCenterFromTop = layout.cardPeek + layout.avatarSize / 2;
             const style = {
               position: "absolute" as const,
               left: anchor.x - plateW / 2,
-              // Anchor near avatar (lower-middle of compact pod).
-              top: anchor.y - plateH * 0.55,
+              top: anchor.y - avatarCenterFromTop,
               width: plateW,
               height: plateH,
               zIndex: 2,
@@ -111,6 +111,8 @@ export function TableStage({
               height: plateH,
               avatarSize: layout.avatarSize,
               cardScale: isHero ? layout.heroCardScale : layout.oppCardScale,
+              cardPeek: layout.cardPeek,
+              nameplateH: layout.nameplateH,
             };
 
             if (isHero) {

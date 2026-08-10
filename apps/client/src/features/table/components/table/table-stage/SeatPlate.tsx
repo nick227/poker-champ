@@ -28,11 +28,12 @@ export type SeatPlateProps = {
   height?: number;
   avatarSize?: number;
   cardScale?: number;
+  cardPeek?: number;
+  nameplateH?: number;
   turnProgress?: number | null;
   betDisplay?: string | null;
 };
 
-/** Kill RN-web <button> UA chrome (gray rounded oval behind opponents). */
 const PRESSABLE_RESET: ViewStyle = {
   backgroundColor: "transparent",
   borderWidth: 0,
@@ -52,21 +53,26 @@ const PRESSABLE_RESET: ViewStyle = {
 const SeatTurnBar = memo(function SeatTurnBar({
   show,
   progress,
+  width,
 }: {
   show: boolean;
   progress: number | null | undefined;
+  width: number;
 }) {
   if (!show || progress == null) return null;
   return (
     <View
       pointerEvents="none"
       style={{
-        width: "70%",
+        position: "absolute",
+        left: 4,
+        right: 4,
+        bottom: 0,
         height: 3,
-        marginTop: 2,
         borderRadius: 2,
         overflow: "hidden",
         backgroundColor: "hsla(0,0%,0%,0.45)",
+        width: width - 8,
       }}
     >
       <View
@@ -80,15 +86,9 @@ const SeatTurnBar = memo(function SeatTurnBar({
   );
 });
 
-const nameShadow = {
-  textShadowColor: "rgba(0,0,0,0.95)",
-  textShadowOffset: { width: 0, height: 1 },
-  textShadowRadius: 3,
-} as const;
-
 /**
- * Compact GG seat: cards → avatar → name/stack → bet.
- * No host fill, no gray chrome, tight vertical rhythm.
+ * GG compact seat:
+ * avatar + single black nameplate; hole cards overlay the avatar (short cluster).
  */
 export function SeatPlate({
   name,
@@ -106,32 +106,44 @@ export function SeatPlate({
   height = SEAT_PLATE.HEIGHT,
   avatarSize = SEAT_PLATE.AVATAR,
   cardScale = SEAT_PLATE.CARD_SCALE,
+  cardPeek = 28,
+  nameplateH = 34,
   turnProgress = null,
   betDisplay = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
+  const plateW = Math.min(width, Math.max(avatarSize + 28, 96));
 
   const body = (
     <View
       style={{
         width,
-        // Prefer content height; outer host still supplies a max box for layout.
-        maxHeight: height,
+        height,
         opacity: inactive ? 0.55 : 1,
         alignItems: "center",
-        justifyContent: "flex-start",
         backgroundColor: "transparent",
       }}
     >
-      <View style={{ zIndex: 3, marginBottom: -avatarSize * 0.48 }}>
-        {cards ? (
+      {/* Cards absolutely over avatar — do not grow the vertical stack */}
+      {cards?.visible ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: cardPeek + avatarSize * 0.55,
+            alignItems: "center",
+            justifyContent: "flex-start",
+            zIndex: 3,
+          }}
+        >
           <SeatHoleCards cards={cards} packId={cardFacePackId} scale={cardScale} />
-        ) : (
-          <View style={{ height: 4 }} />
-        )}
-      </View>
+        </View>
+      ) : null}
 
-      <View style={{ zIndex: 2, alignItems: "center" }}>
+      <View style={{ marginTop: cardPeek, alignItems: "center", zIndex: 2 }}>
         <View style={{ position: "relative" }}>
           <AvatarDisc
             seed={userId || name}
@@ -147,7 +159,20 @@ export function SeatPlate({
           ) : null}
         </View>
 
-        <View style={{ marginTop: 2, maxWidth: width, alignItems: "center" }}>
+        {/* Single compact nameplate (GG) — name + stack only */}
+        <View
+          style={{
+            marginTop: -2,
+            width: plateW,
+            height: nameplateH,
+            paddingHorizontal: 6,
+            justifyContent: "center",
+            alignItems: "center",
+            borderRadius: 6,
+            backgroundColor: "rgba(0,0,0,0.78)",
+            overflow: "hidden",
+          }}
+        >
           <Text
             numberOfLines={1}
             style={{
@@ -155,8 +180,7 @@ export function SeatPlate({
               color: "#fff",
               fontWeight: "700",
               textAlign: "center",
-              maxWidth: width - 4,
-              ...nameShadow,
+              width: "100%",
             }}
           >
             {name}
@@ -165,61 +189,46 @@ export function SeatPlate({
             numberOfLines={1}
             style={{
               fontSize: 11,
-              color: "#7dd3fc",
+              color: statusLabel ? "#fca5a5" : "#7dd3fc",
               fontVariant: ["tabular-nums"],
               fontWeight: "700",
               textAlign: "center",
-              ...nameShadow,
+              width: "100%",
             }}
           >
-            {stackDisplay}
+            {statusLabel ?? stackDisplay}
           </Text>
-          {statusLabel ? (
-            <Text
-              numberOfLines={1}
-              style={{
-                fontSize: 10,
-                color: "#fca5a5",
-                fontWeight: "800",
-                ...nameShadow,
-              }}
-            >
-              {statusLabel}
-            </Text>
-          ) : null}
+          <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} width={plateW} />
         </View>
-
-        {betDisplay ? (
-          <View
-            pointerEvents="none"
-            style={{
-              marginTop: 3,
-              paddingHorizontal: 6,
-              paddingVertical: 1,
-              borderRadius: 999,
-              backgroundColor: "rgba(0,0,0,0.7)",
-              borderWidth: 1,
-              borderColor: "rgba(212,175,55,0.4)",
-            }}
-          >
-            <Text style={{ fontSize: 10, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
-              {betDisplay}
-            </Text>
-          </View>
-        ) : null}
-
-        <SeatTurnBar show={Boolean(isActiveTurn)} progress={turnProgress} />
       </View>
+
+      {betDisplay ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: cardPeek + avatarSize * 0.15,
+            right: -2,
+            paddingHorizontal: 5,
+            paddingVertical: 1,
+            borderRadius: 999,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            borderWidth: 1,
+            borderColor: "rgba(212,175,55,0.45)",
+            zIndex: 4,
+          }}
+        >
+          <Text style={{ fontSize: 9, color: "#fde68a", fontVariant: ["tabular-nums"] }}>
+            {betDisplay}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 
   if (!onPress) return body;
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={PRESSABLE_RESET}
-    >
+    <Pressable onPress={onPress} accessibilityRole="button" style={PRESSABLE_RESET}>
       {body}
     </Pressable>
   );

@@ -3,7 +3,7 @@ import { PlayingCard } from "../PlayingCard";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import type { SeatPlateCards } from "./seatPlate.types";
 
-/** Dominant hole-card fan — largest element in the seat cluster (GG-style). */
+/** Compact hole-card fan — overlays the avatar (GG), does not stack a tall column. */
 export function SeatHoleCards({
   cards,
   packId,
@@ -32,12 +32,10 @@ export function SeatHoleCards({
         alignItems: "flex-end",
         justifyContent: "center",
         transform: [{ scale }],
-        // Overlap cards like GG; negative margin pulls pair tight.
-        marginHorizontal: -6,
       }}
     >
-      <View style={{ marginRight: -18, transform: [{ rotate: "-14deg" }], zIndex: 1 }}>{left}</View>
-      <View style={{ transform: [{ rotate: "12deg" }], zIndex: 2 }}>{right}</View>
+      <View style={{ marginRight: -22, transform: [{ rotate: "-12deg" }], zIndex: 1 }}>{left}</View>
+      <View style={{ transform: [{ rotate: "10deg" }], zIndex: 2 }}>{right}</View>
     </View>
   );
 }
