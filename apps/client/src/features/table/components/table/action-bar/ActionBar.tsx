@@ -58,27 +58,6 @@ export function ActionBar({
     );
   }
 
-  const acts = (
-    <ActionButtons
-      checkCallLabel={ctrl.checkCallLabel}
-      permissions={ctrl.permissions}
-      actions={ctrl.actions}
-      wager={ctrl.wager}
-    />
-  );
-  const chips = <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />;
-  const wagerInput = (
-    <WagerInput
-      visible={ctrl.wager.visible}
-      display={ctrl.wager.display}
-      placeholder={ctrl.wager.placeholder}
-      editable={ctrl.permissions.canWager}
-      onChangeText={ctrl.handleBetInputChange}
-      onBlur={ctrl.normalizeBetInput}
-      onSubmitEditing={ctrl.normalizeBetInput}
-    />
-  );
-
   return (
     <View
       collapsable={false}
@@ -88,21 +67,27 @@ export function ActionBar({
         pointerEvents={interactive ? "auto" : "none"}
         style={[actionBarStyles.inner, { opacity: interactive ? 1 : 0.55 }]}
       >
-        {isMobile ? (
-          <>
-            {acts}
-            {chips}
-            {wagerInput}
-          </>
-        ) : (
-          <View style={actionBarStyles.desktopControls}>
-            <View style={actionBarStyles.desktopPrimaryRow}>
-              {chips ? <View style={actionBarStyles.desktopChips}>{chips}</View> : null}
-              <View style={actionBarStyles.desktopActs}>{acts}</View>
-            </View>
-            {ctrl.wager.visible ? wagerInput : null}
-          </View>
-        )}
+        {/* Same stack on tablet + desktop: sizing row (min/half/pot + $ stepper), then acts. */}
+        <View style={actionBarStyles.sizingRow}>
+          <WagerChips permissions={ctrl.permissions} actions={ctrl.actions} />
+          <WagerInput
+            visible={ctrl.wager.visible}
+            display={ctrl.wager.display}
+            placeholder={ctrl.wager.placeholder}
+            editable={ctrl.permissions.canWager}
+            onChangeText={ctrl.handleBetInputChange}
+            onBlur={ctrl.normalizeBetInput}
+            onSubmitEditing={ctrl.normalizeBetInput}
+            style={actionBarStyles.sizingWagerInputWrap}
+          />
+        </View>
+        <ActionButtons
+          checkCallLabel={ctrl.checkCallLabel}
+          permissions={ctrl.permissions}
+          actions={ctrl.actions}
+          wager={ctrl.wager}
+          compact={isMobile}
+        />
       </View>
       {ctrl.showReconnectingOverlay && !hideReconnectingOverlay ? (
         <View

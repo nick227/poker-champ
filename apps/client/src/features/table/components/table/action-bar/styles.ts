@@ -8,6 +8,8 @@ export const actionBarStyles = StyleSheet.create({
   },
   inner: {
     width: "100%",
+    maxWidth: 920,
+    alignSelf: "center",
     gap: CONTAINER.GAP,
     paddingTop: 4,
     paddingBottom: 6,
@@ -33,28 +35,19 @@ export const actionBarStyles = StyleSheet.create({
     gap: BUTTONS.CHIPS_GAP,
     minHeight: BUTTONS.CHIPS_ROW_HEIGHT,
   },
-  /** Desktop: chips + primary acts in one balanced band. */
-  desktopControls: {
-    width: "100%",
-    maxWidth: 920,
-    alignSelf: "center",
-    gap: CONTAINER.GAP,
-  },
-  desktopPrimaryRow: {
-    width: "100%",
+  /** Sizing chips + wager stepper above the act row (tablet + desktop). */
+  sizingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 14,
+    gap: BUTTONS.CHIPS_GAP,
+    width: "100%",
   },
-  desktopChips: {
-    flexShrink: 0,
-  },
-  desktopActs: {
-    flexGrow: 1,
-    flexShrink: 1,
+  sizingWagerInputWrap: {
+    flex: 1,
     minWidth: 0,
-    maxWidth: 640,
+    maxWidth: 320,
+    width: "auto",
   },
   betInputPlaceholder: {
     height: BUTTONS.BET_INPUT_ROW_HEIGHT,
