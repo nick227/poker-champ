@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PokerState } from "../../../state/PokerState.js";
 import { PlayerState } from "../../../state/PlayerState.js";
-import { preparePlayersForNextHand, resolvePlayersReadyForNextHand } from "./TableNavigator.js";
+import { preparePlayersForNextHand, resolvePlayersReadyForNextHand, settlePlayerStatusesAfterHand } from "./TableNavigator.js";
 
 function seat(state: PokerState, seatIndex: number, id: string, status: PlayerState["status"]): void {
   const player = new PlayerState();
@@ -39,6 +39,19 @@ describe("TableNavigator tournament ghost stacks", () => {
 
     expect(state.playersById.get("ghost_1")?.status).toBe("ACTIVE");
     expect(state.playersById.get("ghost_2")?.status).toBe("ACTIVE");
+  });
+
+  it("settlePlayerStatusesAfterHand clears ALL_IN to ACTIVE/OUT from stacks", () => {
+    const state = new PokerState();
+    seat(state, 0, "winner", "ALL_IN");
+    seat(state, 1, "busted", "ALL_IN");
+    state.playersById.get("winner")!.stackCents = 4000;
+    state.playersById.get("busted")!.stackCents = 0;
+
+    settlePlayerStatusesAfterHand(state);
+
+    expect(state.playersById.get("winner")?.status).toBe("ACTIVE");
+    expect(state.playersById.get("busted")?.status).toBe("OUT");
   });
 
   it("keeps abandoned cash-game seats out of the next hand", () => {

@@ -94,9 +94,21 @@ const SEAT_STATUS_TO_OPPONENT: Record<string, Opponent["status"]> = {
   WAITING: "active",
 };
 
+function isHandResultSettled(snapshot: TableSnapshotPayload): boolean {
+  if (!snapshot.hand) return true;
+  const resultHandId = snapshot.lastHandResult?.handId;
+  return resultHandId != null && resultHandId === snapshot.hand.handId;
+}
+
 function getSeatOpponentStatus(
-  seat: { connected?: boolean; disconnectDeadlineTs?: number; status?: string },
+  seat: {
+    connected?: boolean;
+    disconnectDeadlineTs?: number;
+    status?: string;
+    stackCents?: number;
+  },
   serverNowTs?: number,
+  handActive = true,
 ): Opponent["status"] {
   if (!seat.connected) {
     if (seat.status === "ABANDONED" || seat.status === "OUT") return "sittingOut";
@@ -105,6 +117,11 @@ function getSeatOpponentStatus(
     return serverNowTs < deadline ? "reconnecting" : "sittingOut";
   }
   if (seat.status === "ABANDONED" || seat.status === "OUT") return "sittingOut";
+  // After payout / between hands: never keep All-In/Folded chrome — show stack (or busted).
+  if (!handActive) {
+    if ((seat.stackCents ?? 0) <= 0) return "sittingOut";
+    return "active";
+  }
   return SEAT_STATUS_TO_OPPONENT[seat.status ?? ""] ?? "active";
 }
 
@@ -158,8 +175,14 @@ export function getHeroDisplayStatus(snapshot: TableSnapshotPayload, seatContext
     return now < deadline ? "RECONNECTING" : "SITTING_OUT";
   }
   const s = heroSeat.status;
-  if (s === "WAITING") return "ACTIVE";
   if (s === "OUT" || s === "ABANDONED") return "SITTING_OUT";
+  // After payout (and between hands): All-In/Folded are hand-scoped — show stack or busted.
+  if (isHandResultSettled(snapshot)) {
+    if (s === "ALL_IN" || s === "FOLDED" || s === "ACTIVE" || s === "WAITING") {
+      return heroSeat.stackCents > 0 ? "ACTIVE" : "SITTING_OUT";
+    }
+  }
+  if (s === "WAITING") return "ACTIVE";
   return s as SeatDisplayStatus;
 }
 
@@ -216,7 +239,7 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       isDealer: seat.seat === snapshot.hand?.dealerSeat,
       isActive: seat.isToAct,
       isBot: seat.isBot ?? false,
-      status: getSeatOpponentStatus(seat, serverNowTs),
+      status: getSeatOpponentStatus(seat, serverNowTs, !isHandResultSettled(snapshot)),
       ...(seat.roundBetCents > 0 ? { roundBetCents: seat.roundBetCents } : {}),
       ...(seat.avatarUrl && { avatarUrl: seat.avatarUrl }),
       cards,

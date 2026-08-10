@@ -281,4 +281,47 @@ describe("HandOrchestrator", () => {
     expect(state.roundState).toBe("HAND_COMPLETE");
     expect(currentHand).toBeNull();
   });
+
+  it("transitionToWaiting settles ALL_IN seats to ACTIVE/OUT from stacks", () => {
+    const state = createState();
+    state.street = "SHOWDOWN";
+    addSeatedPlayer(state, "hero", 0);
+    addSeatedPlayer(state, "bot", 1);
+    state.playersById.get("hero")!.status = "ALL_IN";
+    state.playersById.get("hero")!.stackCents = 5000;
+    state.playersById.get("bot")!.status = "ALL_IN";
+    state.playersById.get("bot")!.stackCents = 0;
+    state.playersById.get("bot")!.roundBetCents = 200;
+
+    const orchestrator = new HandOrchestrator({
+      state,
+      handLifecycleService: {
+        startHand: async () => [],
+        advanceStreetOrShowdown: async () => [],
+        finishHandByLastStanding: async () => [],
+        finishHandShowdownWithSidePots: async () => [],
+      } as any,
+      clearPendingHumanTurnTimeout: () => {},
+      createHandContext: () => new HandContext(),
+      setCurrentHand: () => {},
+      getCurrentHand: () => null,
+      initPreflopFlagsForHand: () => {},
+      executeHandLifecyclePlans: async () => {},
+      requestDrive: async () => {},
+      enqueueSerializedStateMutation: async (work) => work(),
+      sendTableSnapshotToAll: async () => {},
+      isDisposed: () => false,
+      getLastHandResult: () => undefined,
+      getOnHandEndedAwards: () => undefined,
+      getDealtHumanUserIds: () => [],
+      recordSessionHandResult: () => {},
+      getSessionState: () => ({ sessionId: "s1", sessionHands: 0, consecutiveWins: 0 }),
+    });
+
+    orchestrator.transitionToWaiting();
+
+    expect(state.playersById.get("hero")?.status).toBe("ACTIVE");
+    expect(state.playersById.get("bot")?.status).toBe("OUT");
+    expect(state.playersById.get("bot")?.roundBetCents).toBe(0);
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { getHeroStackCents, getPotCents, mapSeatsToOpponents } from "./table.adapter";
+import { getHeroDisplayStatus, getHeroStackCents, getPotCents, mapSeatsToOpponents } from "./table.adapter";
 
 function makeSnapshot(): TableSnapshotPayload {
   return {
@@ -157,6 +157,55 @@ describe("table adapter money mapping", () => {
     };
     const opponents = mapSeatsToOpponents(snapshot);
     expect(opponents[0]?.cards).toEqual({ faceDown: true, visible: true });
+  });
+
+  it("after all-in showdown, shows stacks instead of All-In for winner and busted seats", () => {
+    const snapshot = makeSnapshot();
+    const settled: TableSnapshotPayload = {
+      ...snapshot,
+      hand: {
+        ...snapshot.hand!,
+        handId: "h1",
+        street: "SHOWDOWN",
+        potCents: 0,
+        board: ["As", "Kd", "7h", "2c", "9s"],
+        toActSeat: null as unknown as number,
+      },
+      seats: [
+        { ...snapshot.seats[0], status: "ALL_IN", stackCents: 4400 },
+        { ...snapshot.seats[1], status: "ALL_IN", stackCents: 0, isBot: true },
+      ],
+      lastHandResult: {
+        handId: "h1",
+        reason: "SHOWDOWN",
+        winnerId: "hero",
+        potCents: 3600,
+        payoutsByUserId: { hero: 3600 },
+        board: ["As", "Kd", "7h", "2c", "9s"],
+      },
+    };
+
+    expect(getHeroDisplayStatus(settled)).toBe("ACTIVE");
+    expect(getHeroStackCents(settled)).toBe(4400);
+
+    const opponents = mapSeatsToOpponents(settled);
+    expect(opponents[0]?.status).toBe("sittingOut");
+    expect(opponents[0]?.stackCents).toBe(0);
+  });
+
+  it("keeps All-In status while the hand is still live (not yet settled)", () => {
+    const snapshot = makeSnapshot();
+    const liveAllIn: TableSnapshotPayload = {
+      ...snapshot,
+      lastHandResult: undefined,
+      seats: [
+        { ...snapshot.seats[0], status: "ALL_IN", stackCents: 0 },
+        { ...snapshot.seats[1], status: "ALL_IN", stackCents: 0 },
+      ],
+    };
+
+    expect(getHeroDisplayStatus(liveAllIn)).toBe("ALL_IN");
+    expect(mapSeatsToOpponents(liveAllIn)[0]?.status).toBe("allIn");
   });
 
   it("maps opponent showdown cards as face-up when waiting after showdown", () => {

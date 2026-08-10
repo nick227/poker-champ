@@ -159,3 +159,19 @@ export function preparePlayersForNextHand(state: PokerState): void {
     }
   }
 }
+
+/**
+ * After a hand settles, clear hand-scoped statuses (ALL_IN/FOLDED) so seats show
+ * real stacks during WAITING — winners show chips, busted players show OUT/zero.
+ */
+export function settlePlayerStatusesAfterHand(state: PokerState): void {
+  for (const player of state.playersById.values()) {
+    if (player.status === "ABANDONED") continue;
+    if (player.stackCents <= 0) {
+      player.status = "OUT";
+      continue;
+    }
+    if (player.status === "OUT") continue;
+    player.status = "ACTIVE";
+  }
+}

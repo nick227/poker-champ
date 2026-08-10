@@ -6,7 +6,7 @@ import type { HandContext } from "../HandContext.js";
 import { NEXT_HAND_DELAY_MS } from "../timing.js";
 import type { HandLifecyclePlan, HandLifecycleService } from "./HandLifecycleService.js";
 import type { SnapshotReason } from "./SnapshotService.js";
-import { resolvePlayersReadyForNextHand } from "../utils/TableNavigator.js";
+import { resolvePlayersReadyForNextHand, settlePlayerStatusesAfterHand } from "../utils/TableNavigator.js";
 import type { NextStepOwner } from "../decision/types.js";
 
 type HandEndedAwardsCallback = (
@@ -85,7 +85,11 @@ export class HandOrchestrator {
     // Clear all needsAction flags - no one should need action in WAITING
     for (const p of this.deps.state.playersById.values()) {
       p.needsAction = false;
+      p.roundBetCents = 0;
     }
+    // ALL_IN/FOLDED are hand-scoped — settle to ACTIVE/OUT from post-payout stacks
+    // so bankrolls show chips (or zero) instead of stale "All-In" between hands.
+    settlePlayerStatusesAfterHand(this.deps.state);
     this.deps.setCurrentHand(null);
   }
 
