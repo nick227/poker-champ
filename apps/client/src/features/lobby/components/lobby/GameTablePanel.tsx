@@ -1,5 +1,5 @@
-import { Animated, Easing, Pressable, View } from "react-native";
-import { useRef, useState } from "react";
+import { View } from "react-native";
+
 import {
   formatCashLobbyJoinHint,
   hasCashLobbyActiveHumans,
@@ -13,7 +13,7 @@ import { GamePanelPrimaryLine } from "./GamePanelPrimaryLine";
 import { GamePanelStats } from "./GamePanelStats";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
 import { Surface } from "@/components/containers/Surface";
-import { USE_NATIVE_DRIVER } from "@/theme/animation";
+
 
 export function GameTablePanel({
   table,
@@ -30,8 +30,6 @@ export function GameTablePanel({
   onDelete?: (tableId: string) => void;
   currentUserId?: string;
 }) {
-  const [pressed, setPressed] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
   const { canJoin, joinBlockReason } = resolveCashLobbyJoin(table, balanceCents);
   const joinHint = formatCashLobbyJoinHint(joinBlockReason);
   const hasActiveHumans = hasCashLobbyActiveHumans(table);
@@ -43,38 +41,12 @@ export function GameTablePanel({
 
   return (
     <Surface
-      as={Animated.View}
       styleId="surface.list.panel"
       data-table-id={table.id}
       style={{
         minHeight: GAME_PANEL_LAYOUT.cardMinHeight,
-        transform: [{ scale }],
-        shadowOpacity: pressed ? 0.06 : 0.12,
-        elevation: pressed ? 1 : 2,
       }}
     >
-      <Pressable
-        onPress={onJoin}
-        disabled={isJoining || !canJoin}
-        onPressIn={() => {
-          setPressed(true);
-          Animated.timing(scale, {
-            toValue: 0.98,
-            duration: 120,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: USE_NATIVE_DRIVER,
-          }).start();
-        }}
-        onPressOut={() => {
-          setPressed(false);
-          Animated.timing(scale, {
-            toValue: 1,
-            duration: 120,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: USE_NATIVE_DRIVER,
-          }).start();
-        }}
-      >
         <View className="ui-stack-3" style={{ minHeight: GAME_PANEL_LAYOUT.contentMinHeight }}>
           <GamePanelPrimaryLine
             gameName={table.name}
@@ -93,9 +65,6 @@ export function GameTablePanel({
             creatorName={table.creatorName}
             creatorAvatarUrl={table.creatorAvatarUrl}
             updatedAt={table.updatedAt}
-            canJoin={canJoin}
-            onJoin={onJoin}
-            isJoining={isJoining}
           />
           <GamePanelStats
             players={table.players}
@@ -110,10 +79,12 @@ export function GameTablePanel({
               joinHint={joinHint}
               canDelete={Boolean(canDelete)}
               onDelete={() => onDelete?.(table.id)}
+              canJoin={canJoin}
+              isJoining={isJoining}
+              onJoin={onJoin}
             />
           </View>
         </View>
-      </Pressable>
     </Surface>
   );
 }

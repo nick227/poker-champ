@@ -1,7 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { AvatarImage } from "@/components/base/AvatarImage";
-import { ConfirmButton } from "@/components/base/ConfirmButton";
 import { GAME_PANEL_LAYOUT } from "./gamePanel.layout";
 
 const AVATAR_SIZE = 40;
@@ -23,45 +22,32 @@ function formatUpdatedAt(updatedAt: string): string {
   return "Updated recently";
 }
 
+/** Informational creator row — no Join action here. Join lives exclusively in GamePanelFooter. */
 export function GamePanelHeader({
   creatorName,
   creatorAvatarUrl,
   updatedAt,
-  canJoin,
-  onJoin,
-  isJoining,
 }: {
   creatorName: string;
   creatorAvatarUrl: string | null;
   updatedAt: string;
-  canJoin?: boolean;
-  onJoin?: () => void;
-  isJoining?: boolean;
 }) {
   return (
-    <View className="ui-row items-center justify-between" style={{ minHeight: GAME_PANEL_LAYOUT.headerMinHeight }}>
-      <View className="ui-row items-center gap-2 flex-1 bg-panel/60 rounded-lg px-2 py-1 border border-border-subtle">
-        <AvatarImage
-          avatarUrl={creatorAvatarUrl ?? undefined}
-          initial={getInitial(creatorName)}
-          style={styles.avatar}
-          imageStyle={styles.avatarImage}
-          className="rounded-full bg-panel border border-border"
-        />
-        <View className="flex-1 min-w-[120px] min-h-[34px] justify-center">
-          <Text variant="body" className="font-semibold text-[14px]" numberOfLines={1}>{creatorName}</Text>
-          <Text variant="muted" className="text-[11px]" numberOfLines={1}>{formatUpdatedAt(updatedAt)}</Text>
-        </View>
+    <View
+      className="ui-row items-center gap-2 flex-1 bg-panel/60 rounded-lg px-2 py-1 border border-border-subtle"
+      style={{ minHeight: GAME_PANEL_LAYOUT.headerMinHeight }}
+    >
+      <AvatarImage
+        avatarUrl={creatorAvatarUrl ?? undefined}
+        initial={getInitial(creatorName)}
+        style={styles.avatar}
+        imageStyle={styles.avatarImage}
+        className="rounded-full bg-panel border border-border"
+      />
+      <View className="flex-1 min-w-[120px] min-h-[34px] justify-center">
+        <Text variant="body" className="font-semibold text-[14px]" numberOfLines={1}>{creatorName}</Text>
+        <Text variant="muted" className="text-[11px]" numberOfLines={1}>{formatUpdatedAt(updatedAt)}</Text>
       </View>
-      {canJoin !== undefined && onJoin && (
-        <View className="ui-row justify-end items-end w-full flex-1">
-          <ConfirmButton
-            title={isJoining ? "Joining..." : "Join Table"}
-            onPress={onJoin}
-            disabled={isJoining || !canJoin}
-          />
-        </View>
-      )}
     </View>
   );
 }
@@ -76,3 +62,4 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE,
   },
 });
+

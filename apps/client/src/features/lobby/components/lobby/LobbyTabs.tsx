@@ -1,4 +1,5 @@
 import { View } from "react-native";
+import { Text } from "@/components/base/Text";
 import { ChipButton } from "@/components/base/ChipButton";
 
 export type LobbyTabKey = "cash" | "tournaments";
@@ -20,7 +21,7 @@ export function LobbyTabs({
 }: {
   active: LobbyTabKey;
   onChange: (key: LobbyTabKey) => void;
-  /** Optional count (e.g. joined/live tournaments) shown appended to the Tournaments tab label. */
+  /** Optional count (e.g. joined/live tournaments) shown as a visual badge on the Tournaments tab. */
   tournamentsBadgeCount?: number;
   /** Desktop workspace: no extra horizontal padding (grid owns edges). */
   dense?: boolean;
@@ -29,18 +30,30 @@ export function LobbyTabs({
     <View className={`ui-row ui-inline-2 pb-3 ${dense ? "" : "px-4"}`}>
       {TAB_ORDER.map((tab) => {
         const showBadge = tab.key === "tournaments" && Boolean(tournamentsBadgeCount);
-        const label = showBadge ? `${tab.label} (${tournamentsBadgeCount})` : tab.label;
         return (
-          <ChipButton
-            key={tab.key}
-            title={label}
-            selected={active === tab.key}
-            onPress={() => onChange(tab.key)}
-            selectedAccent="gold"
-            className="min-w-[112px]"
-          />
+          <View key={tab.key} className="relative">
+            <ChipButton
+              title={tab.label}
+              selected={active === tab.key}
+              onPress={() => onChange(tab.key)}
+              selectedAccent="gold"
+              className="min-w-[112px]"
+            />
+            {showBadge ? (
+              <View className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-primary items-center justify-center px-1">
+                <Text
+                  className="text-white font-bold"
+                  style={{ fontSize: 10 }}
+                  allowFontScaling={false}
+                >
+                  {tournamentsBadgeCount! > 9 ? "9+" : String(tournamentsBadgeCount)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         );
       })}
     </View>
   );
 }
+

@@ -398,14 +398,47 @@ model Tournament {
   roomId     String?
   finishedAt DateTime?
 
+  /// Hand-for-hand near the money bubble (MTT proposal Phase 4): true while every live table is
+  /// finishing its current hand and holding before the next one, waiting for all tables to catch
+  /// up so no table plays extra hands relative to another this close to the money.
+  handForHandActive Boolean @default(false)
+
   createdByUserId String?
   createdBy       User?   @relation("TournamentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   registrations TournamentRegistration[]
   transactions  BalanceTransaction[]
   playerResults TournamentPlayerResult[]
+  tables        TournamentTable[]
 
   @@index([createdByUserId])
+}
+
+/// Multi-table tournament (MTT) support. One row per physical table a Tournament spans.
+/// A single-table tournament (the common case while maxPlayers stays capped) is just the
+/// N=1 case: exactly one TournamentTable row with tableNumber=1. Additive-only; does not
+/// replace Tournament.tableId/roomId, which remain deprecated convenience fields mirroring
+/// table #1. See docs/proposals/MULTI_TABLE_TOURNAMENT_PROPOSAL.md.
+model TournamentTable {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  tableNumber Int // 1-based, stable for the tournament's lifetime even after breaks
+  tableId     String? // PokerTable.id once provisioned (mirrors Tournament.tableId today)
+  roomId      String? // Colyseus room id once provisioned (mirrors Tournament.roomId today)
+  status      String   @default("OPEN") // OPEN | BREAKING | CLOSED
+  /// Hand-for-hand (MTT proposal Phase 4): this table finished its current hand and is holding,
+  /// waiting for every other live OPEN table to also report ready before all are released together.
+  handForHandReady Boolean @default(false)
+
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+
+  registrations TournamentRegistration[]
+
+  @@unique([tournamentId, tableNumber])
+  @@index([tournamentId, status])
 }
 
 model TournamentPlayerResult {
@@ -450,7 +483,11 @@ model TournamentRegistration {
 
   isBot Boolean @default(false)
 
+  tournamentTableId String?
+  tournamentTable    TournamentTable? @relation(fields: [tournamentTableId], references: [id], onDelete: SetNull)
+
   @@unique([tournamentId, userId])
+  @@index([tournamentTableId])
 }
 
 model UserSession {

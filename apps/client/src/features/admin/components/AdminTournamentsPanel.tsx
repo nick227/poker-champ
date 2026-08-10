@@ -15,13 +15,19 @@ import { useToastStore } from "@/stores/toast.store";
 function AdminTournamentRow({
   tournament,
   cancelBusy,
+  rebalanceBusy,
   onCancel,
+  onRebalance,
 }: {
   tournament: TournamentSummary;
   cancelBusy: boolean;
+  rebalanceBusy: boolean;
   onCancel: (id: string) => void;
+  onRebalance: (id: string) => void;
 }) {
   const canCancel = tournament.status === "REGISTERING";
+  // Manual balance override only makes sense for a live multi-table tournament (2+ open tables).
+  const canRebalance = tournament.status === "RUNNING" && (tournament.openTableCount ?? 0) >= 2;
   const botFillSummary = formatTournamentBotFillSummary(tournament);
 
   return (
@@ -29,9 +35,11 @@ function AdminTournamentRow({
       <View className="ui-stack-3 p-4">
         <View className="ui-stack-2">
           <View className="ui-row flex-wrap items-start justify-between gap-2">
-            <Text variant="h2" numberOfLines={2} className="min-w-0 flex-1">
-              {tournament.name}
-            </Text>
+            <View className="min-w-0 flex-1">
+              <Text variant="h2" numberOfLines={2}>
+                {tournament.name}
+              </Text>
+            </View>
             <Text variant="label" className="text-brand shrink-0">
               {formatTournamentStatus(tournament.status)}
             </Text>
@@ -46,6 +54,11 @@ function AdminTournamentRow({
           <Text variant="body">Stack {tournament.startingStackCents.toLocaleString()}</Text>
         </View>
         {botFillSummary ? <Text variant="muted">{botFillSummary}</Text> : null}
+        {tournament.tableCount != null && tournament.tableCount > 1 ? (
+          <Text variant="muted">
+            {tournament.openTableCount ?? tournament.tableCount}/{tournament.tableCount} tables open
+          </Text>
+        ) : null}
         {tournament.tableId || tournament.roomId ? (
           <View className="ui-stack-1">
             {tournament.tableId ? (
@@ -59,6 +72,16 @@ function AdminTournamentRow({
               </Text>
             ) : null}
           </View>
+        ) : null}
+        {canRebalance ? (
+          <Button
+            title="Rebalance now"
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            loading={rebalanceBusy}
+            onPress={() => onRebalance(tournament.id)}
+          />
         ) : null}
         {canCancel ? (
           <Button
@@ -82,6 +105,7 @@ export function AdminTournamentsPanel() {
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [cancelKey, setCancelKey] = useState<string | null>(null);
+  const [rebalanceKey, setRebalanceKey] = useState<string | null>(null);
 
   const loadTournaments = useCallback(async () => {
     setListLoading(true);
@@ -123,6 +147,22 @@ export function AdminTournamentsPanel() {
     [loadTournaments, showToast],
   );
 
+  const handleRebalance = useCallback(
+    async (tournamentId: string) => {
+      setRebalanceKey(tournamentId);
+      const res = await serviceRegistry.post.tournamentRebalance(tournamentId);
+      if (!res.ok) {
+        showToast(mapTournamentApiError(res.error.message || "Rebalance failed", res.error.code), "danger");
+        setRebalanceKey(null);
+        return;
+      }
+      showToast(res.data.moved ? "Moved one player to balance tables" : "Tables already balanced", "success");
+      await loadTournaments();
+      setRebalanceKey(null);
+    },
+    [loadTournaments, showToast],
+  );
+
   return (
     <View className="flex-1 mt-4">
       <Surface styleId="surface.list.panel">
@@ -152,7 +192,9 @@ export function AdminTournamentsPanel() {
               key={t.id}
               tournament={t}
               cancelBusy={cancelKey === t.id}
+              rebalanceBusy={rebalanceKey === t.id}
               onCancel={(id) => { void handleCancel(id); }}
+              onRebalance={(id) => { void handleRebalance(id); }}
             />
           ))}
         </ScrollView>

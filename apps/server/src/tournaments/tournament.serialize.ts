@@ -3,6 +3,9 @@ import type { TournamentPlayerStatus } from "./tournament-player-status.js";
 
 type TournamentWithCount = Tournament & {
   _count?: { registrations: number };
+  /** MTT proposal Phase 5: table rows, when the caller included them, to surface a multi-table
+   *  indicator. Omitted from the response entirely for the common N=1/never-provisioned case. */
+  tables?: { status: string }[];
 };
 
 export type TournamentApiResponse = Tournament & {
@@ -11,6 +14,8 @@ export type TournamentApiResponse = Tournament & {
   isCreator?: boolean;
   tableLive?: boolean;
   playerStatus?: TournamentPlayerStatus;
+  tableCount?: number;
+  openTableCount?: number;
 };
 
 export function toTournamentResponse(
@@ -22,10 +27,13 @@ export function toTournamentResponse(
     playerStatus?: TournamentPlayerStatus;
   },
 ): TournamentApiResponse {
-  const { _count, ...rest } = tournament;
+  const { _count, tables, ...rest } = tournament;
   return {
     ...rest,
     registeredCount: _count?.registrations ?? 0,
+    ...(tables && tables.length > 1
+      ? { tableCount: tables.length, openTableCount: tables.filter((t) => t.status === "OPEN").length }
+      : {}),
     ...(opts?.isRegistered === undefined ? {} : { isRegistered: opts.isRegistered }),
     ...(opts?.isCreator === undefined ? {} : { isCreator: opts.isCreator }),
     ...(opts?.tableLive === undefined ? {} : { tableLive: opts.tableLive }),

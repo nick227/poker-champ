@@ -9,6 +9,10 @@ type ActionButtonsProps = {
   permissions: Permissions;
   actions: Pick<ActionHandlers, "fold" | "checkCall" | "betRaise" | "allIn">;
   wager: Pick<Wager, "label" | "disabled">;
+  /** Mobile: the bet/raise amount is already shown in the wager stepper right above
+   * this row, and the button itself is too narrow (~1/4 of a 390px screen) to fit
+   * "Raise: $1,234" without clipping the digits — so drop the amount here. */
+  compact?: boolean;
 };
 
 /** Primary act row — equal-width Fold / Check-Call / Bet-Raise / All-In. */
@@ -17,8 +21,10 @@ export function ActionButtons({
   permissions,
   actions,
   wager,
+  compact = false,
 }: ActionButtonsProps) {
   const showAllIn = permissions.canAllIn;
+  const wagerTitle = compact ? wager.label.split(":")[0].trim() : wager.label;
 
   return (
     <View style={actionBarStyles.buttonsRow}>
@@ -38,7 +44,7 @@ export function ActionButtons({
       />
       <PokerActionButton
         variant="betRaise"
-        title={wager.label}
+        title={wagerTitle}
         onPress={actions.betRaise}
         style={{ flex: 1 }}
         disabled={!permissions.canWager || wager.disabled}

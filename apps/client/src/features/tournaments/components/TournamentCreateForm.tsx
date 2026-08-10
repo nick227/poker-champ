@@ -5,6 +5,7 @@ import { ChipButton } from "@/components/base/ChipButton";
 import { Input } from "@/components/base/Input";
 import { Text } from "@/components/base/Text";
 import {
+  MAX_SINGLE_TABLE_PLAYERS,
   TOURNAMENT_ENTRY_FEE_OPTIONS,
   TOURNAMENT_MAX_PLAYERS_OPTIONS,
   TOURNAMENT_MAX_REBUYS_OPTIONS,
@@ -251,6 +252,11 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
           />
         ))}
       </ChipSection>
+      <Text variant="muted">
+        {maxPlayers > MAX_SINGLE_TABLE_PLAYERS
+          ? `Spans ${Math.ceil(maxPlayers / MAX_SINGLE_TABLE_PLAYERS)} tables of ${MAX_SINGLE_TABLE_PLAYERS}, balanced automatically as players bust.`
+          : `Fields over ${MAX_SINGLE_TABLE_PLAYERS} span multiple tables of ${MAX_SINGLE_TABLE_PLAYERS}.`}
+      </Text>
 
       <ChipSection label="Format">
         <ChipButton title="Freeze-out" selected={playFormat === "FREEZEOUT"} onPress={() => setPlayFormat("FREEZEOUT")} />

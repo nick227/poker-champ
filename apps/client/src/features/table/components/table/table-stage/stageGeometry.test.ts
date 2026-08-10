@@ -44,15 +44,34 @@ describe("stageGeometry", () => {
       const top = s.y - avatarCenterFromTop;
       const bottom = top + layout.plate.height;
       expect(top).toBeGreaterThanOrEqual(STAGE_LAYOUT_NORM.stagePad - 0.5);
-      expect(bottom).toBeLessThanOrEqual(stage.height - STAGE_LAYOUT_NORM.stagePad + 0.5);
+      const bottomPad = s.slotIndex === 0 ? 2 : STAGE_LAYOUT_NORM.stagePad;
+      expect(bottom).toBeLessThanOrEqual(stage.height - bottomPad + 0.5);
     }
   });
 
   it("builds short compact pods (not card-tall towers)", () => {
     const layout = resolveStageLayout(6, { width: 1000, height: 700 });
-    expect(layout.plate.height).toBeLessThan(layout.plate.width * 1.15);
-    expect(layout.plate.height).toBeLessThan(140);
-    expect(layout.heroCardScale).toBeLessThan(0.85);
+    expect(layout.plate.height).toBeLessThan(layout.plate.width * 1.3);
+    expect(layout.plate.height).toBeLessThan(185);
+    expect(layout.heroCardScale).toBeLessThan(1.4);
+    expect(layout.heroCardScale).toBeGreaterThan(layout.oppCardScale);
+  });
+
+  it("keeps the felt and player pods large in a shallow desktop stage", () => {
+    const stage = { width: 1920, height: 552 };
+    const layout = resolveStageLayout(6, stage);
+
+    expect(layout.felt.w / stage.width).toBeCloseTo(0.86, 2);
+    expect(layout.plate.width).toBeGreaterThanOrEqual(230);
+    expect(layout.board.w / layout.felt.w).toBeCloseTo(0.46, 2);
+  });
+
+  it("gives the board more width on medium and compact stages", () => {
+    const medium = resolveStageLayout(6, { width: 1365, height: 540 });
+    const compact = resolveStageLayout(6, { width: 390, height: 620 });
+
+    expect(medium.board.w / medium.felt.w).toBeCloseTo(0.5, 2);
+    expect(compact.board.w / compact.felt.w).toBeCloseTo(0.78, 2);
   });
 
   it("maps opponents by seat index with gaps", () => {

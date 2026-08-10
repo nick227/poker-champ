@@ -194,8 +194,12 @@ describe("Tournament M11 bot-filled QA tournaments", () => {
       state: room.state,
       tableName: room.state.tableName,
       removeBustedPlayer: (userId) => room.removeTournamentBustedPlayer(userId),
+      removePlayerForTableTransfer: (userId) => room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {},
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
 
     room.state.street = "WAITING";
@@ -206,8 +210,12 @@ describe("Tournament M11 bot-filled QA tournaments", () => {
       state: room.state,
       tableName: room.state.tableName,
       removeBustedPlayer: (userId) => room.removeTournamentBustedPlayer(userId),
+      removePlayerForTableTransfer: (userId) => room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {},
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
 
     const finished = await prisma.tournament.findUniqueOrThrow({ where: { id: tournamentId } });

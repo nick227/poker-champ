@@ -48,12 +48,15 @@ type MultiTableState = {
   tableJoinById: Record<string, TableJoinState>;
   roomIdByTableId: Record<string, string>;
   lastBuyInCentsByTableId: Record<string, number>;
+  /** Human-readable table name keyed by tableId, for display in lobby (e.g. LobbyContinuePlaying). */
+  tableNameByTableId: Record<string, string>;
   tableMetaUpdatedAt: Record<string, number>;
   openTable: (id: string, joinState?: TableJoinState) => void;
   closeTable: (id: string) => void;
   setActive: (id: string) => void;
   setRoomForTable: (tableId: string, roomId: string) => void;
   setLastBuyIn: (tableId: string, buyInCents: number) => void;
+  setTableName: (tableId: string, name: string) => void;
   pruneExpiredTables: () => void;
   registerTableSender: (id: string, sender: RealtimeSender) => void;
   unregisterTableSender: (id: string) => void;
@@ -86,6 +89,7 @@ export const useMultiTableStore = create<MultiTableState>()(
       tableJoinById: {},
       roomIdByTableId: {},
       lastBuyInCentsByTableId: {},
+      tableNameByTableId: {},
       tableMetaUpdatedAt: {},
       openTable: (id, joinState) =>
         set((s) => {
@@ -143,6 +147,7 @@ export const useMultiTableStore = create<MultiTableState>()(
           const { [id]: __, ...restJoin } = s.tableJoinById;
           const { [id]: ___, ...restRoomId } = s.roomIdByTableId;
           const { [id]: ____, ...restBuyIn } = s.lastBuyInCentsByTableId;
+          const { [id]: _n, ...restNames } = s.tableNameByTableId;
           const { [id]: _____, ...restUpdatedAt } = s.tableMetaUpdatedAt;
           return {
             openTableIds: open,
@@ -152,6 +157,7 @@ export const useMultiTableStore = create<MultiTableState>()(
             tableJoinById: restJoin,
             roomIdByTableId: restRoomId,
             lastBuyInCentsByTableId: restBuyIn,
+            tableNameByTableId: restNames,
             tableMetaUpdatedAt: restUpdatedAt,
           };
         }),
@@ -176,6 +182,17 @@ export const useMultiTableStore = create<MultiTableState>()(
           lastBuyInCentsByTableId: {
             ...s.lastBuyInCentsByTableId,
             [tableId]: buyInCents,
+          },
+          tableMetaUpdatedAt: {
+            ...s.tableMetaUpdatedAt,
+            [tableId]: Date.now(),
+          },
+        })),
+      setTableName: (tableId, name) =>
+        set((s) => ({
+          tableNameByTableId: {
+            ...s.tableNameByTableId,
+            [tableId]: name,
           },
           tableMetaUpdatedAt: {
             ...s.tableMetaUpdatedAt,
@@ -324,6 +341,7 @@ export const useMultiTableStore = create<MultiTableState>()(
           tableJoinById: {},
           roomIdByTableId: {},
           lastBuyInCentsByTableId: {},
+          tableNameByTableId: {},
           tableMetaUpdatedAt: {},
         }),
       registerTableDisconnect: (tableId, disconnect) => {
@@ -352,6 +370,7 @@ export const useMultiTableStore = create<MultiTableState>()(
         tableJoinById: state.tableJoinById,
         roomIdByTableId: state.roomIdByTableId,
         lastBuyInCentsByTableId: state.lastBuyInCentsByTableId,
+        tableNameByTableId: state.tableNameByTableId,
         tableMetaUpdatedAt: state.tableMetaUpdatedAt,
       }),
     },

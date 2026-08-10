@@ -9,4 +9,6 @@ export type TournamentTableOverlay = {
   anteCents: number;
   nextLevelAtTs: number | null;
   playFormat?: TournamentPlayFormat;
+  /** Which table of the tournament this room is (multi-table tournaments). */
+  tableNumber?: number;
 };

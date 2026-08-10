@@ -15,6 +15,8 @@ import {
   countTournamentRebuysForUser,
   sweepExpiredRebuyPendingPlayers,
 } from "./tournament-rebuy.js";
+import { tournamentTableBalancer } from "./tournament-table-balancer.js";
+import { tournamentHandForHand } from "./tournament-hand-for-hand.js";
 
 export type TournamentReconcileContext = {
   tournamentId: string;
@@ -23,8 +25,12 @@ export type TournamentReconcileContext = {
   state: PokerState;
   tableName: string;
   removeBustedPlayer: (userId: string) => Promise<void>;
+  removePlayerForTableTransfer: (userId: string, destinationTableNumber?: number) => Promise<number | null>;
   onOverlayUpdated: (overlay: TournamentTableOverlay | null) => void;
   onPlayEnded: () => void;
+  onTableBreaking: () => void;
+  onHandForHandHold: () => void;
+  onHandForHandRelease: () => void;
   emitSnapshot?: () => Promise<void>;
 };
 
@@ -52,6 +58,11 @@ export class TournamentTableReconciler {
       return;
     }
 
+    const myTable = await prisma.tournamentTable.findFirst({
+      where: { tournamentId: ctx.tournamentId, roomId: ctx.roomId },
+      select: { id: true, tableNumber: true },
+    });
+
     const level = getBlindLevel(tournament.blindStructureId, tournament.currentLevel);
     ctx.onOverlayUpdated({
       tournamentId: tournament.id,
@@ -62,6 +73,7 @@ export class TournamentTableReconciler {
       anteCents: level.anteCents,
       nextLevelAtTs: tournament.nextLevelAt?.getTime() ?? null,
       playFormat: tournament.playFormat as "FREEZEOUT" | "REBUY",
+      ...(myTable ? { tableNumber: myTable.tableNumber } : {}),
     });
 
     const now = new Date();
@@ -146,8 +158,18 @@ export class TournamentTableReconciler {
     }));
 
     const rebuyPendingCount = countRebuyPendingRegistrations(refreshed.registrations);
+    const remainingRegistrationCount = refreshed.registrations.filter((r) => r.finishPlace == null).length;
+    // Multi-table tournaments (MTT proposal): a table can independently narrow to a single local
+    // survivor via ctx.state while other TournamentTable rows still have live players -- ctx.state
+    // only reflects THIS table's room, not the whole tournament. Gate winner detection on the
+    // tournament-wide remaining-registration count (finishPlace still null) so an N>1 tournament
+    // never finishes early just because one table happened to thin out first; the actual winner
+    // gets correctly detected once the field has narrowed onto a single table (table balancing
+    // consolidates it there) and that table's own next post-hand reconcile runs. For an N=1
+    // tournament remainingRegistrationCount always equals this table's own population, so this is
+    // a no-op there -- identical to pre-multi-table behavior.
     const winnerId =
-      rebuyPendingCount === 0
+      rebuyPendingCount === 0 && remainingRegistrationCount <= 1
         ? resolveTournamentWinnerUserId(ctx.state, registrationRows)
         : null;
     if (winnerId) {
@@ -191,7 +213,27 @@ export class TournamentTableReconciler {
       if (ctx.emitSnapshot) {
         await ctx.emitSnapshot();
       }
+      return;
     }
+
+    if (!myTable) return;
+
+    // Hand-for-hand (Phase 4) takes priority over balancing: once active, tables hold at WAITING
+    // synchronized to the bubble, so reshuffling seats mid-hold would fight that synchronization.
+    // Balancing resumes normally once hand-for-hand releases (or never activates, the N=1/not-near-
+    // the-bubble common case).
+    const handForHand = await tournamentHandForHand.reconcileAfterHand(
+      ctx.tournamentId,
+      myTable.id,
+      remainingRegistrationCount,
+      { onHold: ctx.onHandForHandHold, onRelease: ctx.onHandForHandRelease },
+    );
+    if (handForHand.active) return;
+
+    await tournamentTableBalancer.reconcileAfterHand(ctx.tournamentId, myTable.id, {
+      removePlayerForTableTransfer: ctx.removePlayerForTableTransfer,
+      onTableBreaking: ctx.onTableBreaking,
+    });
   }
 }
 

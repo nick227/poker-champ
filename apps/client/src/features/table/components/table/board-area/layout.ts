@@ -15,17 +15,17 @@ export const CONTAINER = Object.freeze({
 
 export const BOARD = Object.freeze({
   /** Spacing between community cards row and pot. */
-  POT_MARGIN_TOP: 10,
+  POT_MARGIN_BOTTOM: 12,
 } as const);
 
 export const CARDS = Object.freeze({
-  GAP_DESKTOP: 32,
+  GAP_DESKTOP: 10,
   GAP_MOBILE: 4,
   SCALE: 1.1,
   SCALE_LANDSCAPE: 1.25,
 } as const);
 
 export const POT = Object.freeze({
-  PADDING_VERTICAL: 4,
-  PADDING_HORIZONTAL: 16,
+  PADDING_VERTICAL: 6,
+  PADDING_HORIZONTAL: 18,
 } as const);

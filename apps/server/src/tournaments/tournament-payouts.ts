@@ -1,20 +1,36 @@
 export type PayoutSlot = { place: number; percent: number };
 
+/**
+ * Field-size-aware ITM payout tiers (MTT proposal, "Hand-for-hand and ITM payout tiers"): paid
+ * depth scales with entrant count, roughly the standard live/online ~12-15% cash rate, instead of
+ * a fixed top-3 that made no sense once multi-table fields (up to 180) shipped. Percentages are a
+ * smooth decreasing curve per tier (harmonic-style decay, front-loaded toward 1st) -- product-
+ * approved shape, not a novel one. Each curve sums to 100; any rounding remainder lands on 1st
+ * place via computePayoutAmountsByPlace, same as before this change.
+ *
+ * Tiers <=9 entrants are byte-for-byte unchanged from the original fixed table (2 -> 100;
+ * 3 -> 70/30; 6-9 -> 50/30/20). 4-5 entrants now pay 2 places (70/30) instead of 3 -- the one
+ * behavior change below the multi-table threshold, intentional: 3 places on a 4-5 person field
+ * was already a shallow "everyone almost cashes" structure that doesn't hold up once deeper
+ * fields exist to compare against.
+ */
+const PAYOUT_PERCENT_CURVES: { maxEntrants: number; percents: number[] }[] = [
+  { maxEntrants: 2, percents: [100] },
+  { maxEntrants: 5, percents: [70, 30] },
+  { maxEntrants: 9, percents: [50, 30, 20] },
+  { maxEntrants: 19, percents: [41.5, 25.6, 18.5, 14.4] },
+  { maxEntrants: 39, percents: [34.1, 21, 15.1, 11.8, 9.7, 8.3] },
+  { maxEntrants: 79, percents: [28.6, 17.6, 12.7, 9.9, 8.2, 6.9, 6, 5.3, 4.8] },
+  { maxEntrants: 143, percents: [24.1, 14.9, 10.7, 8.4, 6.9, 5.9, 5.1, 4.5, 4, 3.6, 3.3, 3.1, 2.8, 2.7] },
+  {
+    maxEntrants: Infinity,
+    percents: [22.1, 13.6, 9.8, 7.7, 6.3, 5.4, 4.7, 4.1, 3.7, 3.3, 3.1, 2.8, 2.6, 2.4, 2.3, 2.1, 2, 2],
+  },
+];
+
 export function getPayoutSlots(entrantCount: number): PayoutSlot[] {
-  if (entrantCount <= 2) {
-    return [{ place: 1, percent: 100 }];
-  }
-  if (entrantCount === 3) {
-    return [
-      { place: 1, percent: 70 },
-      { place: 2, percent: 30 },
-    ];
-  }
-  return [
-    { place: 1, percent: 50 },
-    { place: 2, percent: 30 },
-    { place: 3, percent: 20 },
-  ];
+  const tier = PAYOUT_PERCENT_CURVES.find((t) => entrantCount <= t.maxEntrants)!;
+  return tier.percents.map((percent, i) => ({ place: i + 1, percent }));
 }
 
 /** Returns payout cents keyed by finish place (1st, 2nd, 3rd). */

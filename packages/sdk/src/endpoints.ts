@@ -118,6 +118,11 @@ export const tournaments = {
       "POST",
       pathWithParams("/api/tournaments/{id}/cancel", path as Record<string, string | number>),
     ),
+  rebalance: (path: PathParams<Operation<"/api/tournaments/{id}/rebalance", "post">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/rebalance", "post">>>(
+      "POST",
+      pathWithParams("/api/tournaments/{id}/rebalance", path as Record<string, string | number>),
+    ),
 };
 
 export const admin = {

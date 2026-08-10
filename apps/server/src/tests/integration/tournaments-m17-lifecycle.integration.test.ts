@@ -177,8 +177,12 @@ describe.skipIf(!hasDatabase)("Tournament M17 lifecycle — late reg close and f
         removeBustedPlayer: async (userId) => {
           room.state.playersById.delete(userId);
         },
+        removePlayerForTableTransfer: async (userId) => room.removeTournamentPlayerForTableTransfer(userId),
         onOverlayUpdated: () => {},
         onPlayEnded: () => {},
+        onTableBreaking: () => {},
+        onHandForHandHold: () => {},
+        onHandForHandRelease: () => {},
       });
     }
 

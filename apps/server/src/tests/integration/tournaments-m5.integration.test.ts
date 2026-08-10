@@ -238,8 +238,12 @@ describe("Tournament M5 hardening and E2E smoke", () => {
       state: room.state,
       tableName: room.state.tableName,
       removeBustedPlayer: (userId) => room.removeTournamentBustedPlayer(userId),
+      removePlayerForTableTransfer: (userId) => room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {},
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
 
     for (let i = 0; i < 20; i++) {

@@ -23,8 +23,6 @@ export function ReplayQuickLinks({
   lessonsEnabled = false,
   onPokerSchool,
 }: ReplayQuickLinksProps) {
-  const canPressReplayButton = !latestHandLoading && Boolean(latestHandId);
-  const replayButtonTitle = latestHandLoading ? "Loading..." : "Replay hand";
   const router = useRouter();
 
   return (
@@ -38,13 +36,12 @@ export function ReplayQuickLinks({
             Site Leaderboard
           </Text>
           <Text variant="muted" className="mt-1 text-xs">
-            ARe you up there?
+            Are you up there?
           </Text>
           <View className="mt-3">
             <Button
               title="Leaderboard"
               onPress={() => router.push("/leaderboard")}
-              disabled={!canPressReplayButton}
               minWidth={0}
               className="w-full"
             />

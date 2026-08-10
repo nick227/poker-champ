@@ -22,6 +22,15 @@ function derivePatternColors(patternHsl: string): { lighter: string; darker: str
   };
 }
 
+/** Translucent, pattern-toned card edge — the shared `border-border-subtle` class (near-black)
+ *  is barely visible against these dark card-back fills, which is part of why they can read as
+ *  flat placeholder tiles rather than defined objects. A faint edge in the pattern's own hue
+ *  gives every card back a visible silhouette without introducing a new, unrelated color. */
+function deriveEdgeColor(patternHsl: string): string {
+  const { h, s, l } = parseHsl(patternHsl);
+  return `hsla(${h}, ${s}%, ${Math.min(100, l + 20)}%, 0.4)`;
+}
+
 interface CardBackPatternProps {
   pattern: CardBackPatternId;
   backgroundHsl: string;
@@ -39,21 +48,23 @@ export function CardBackPattern({
 }: CardBackPatternProps) {
   const baseColor = `hsl(${backgroundHsl})`;
   const { lighter: lighterColor, darker: darkerColor } = derivePatternColors(patternHsl);
+  const edgeColor = deriveEdgeColor(patternHsl);
 
   switch (pattern) {
     case "classic":
       return (
-        <View 
+        <View
           style={[
             vars({
               "--pattern-base": baseColor,
               "--pattern-light": lighterColor,
               "--pattern-dark": darkerColor,
             }),
-            { 
-              width: width, 
+            {
+              width: width,
               height: height,
-              backgroundColor: baseColor
+              backgroundColor: baseColor,
+              borderColor: edgeColor,
             }
           ]}
           className="rounded-card border border-border-subtle"
@@ -110,17 +121,18 @@ export function CardBackPattern({
 
     case "geometric":
       return (
-        <View 
+        <View
           style={[
             vars({
               "--pattern-base": baseColor,
               "--pattern-light": lighterColor,
               "--pattern-dark": darkerColor,
             }),
-            { 
-              width: width, 
+            {
+              width: width,
               height: height,
-              backgroundColor: baseColor
+              backgroundColor: baseColor,
+              borderColor: edgeColor,
             }
           ]}
           className="rounded-card border border-border-subtle"
@@ -176,17 +188,18 @@ export function CardBackPattern({
 
     case "ornate":
       return (
-        <View 
+        <View
           style={[
             vars({
               "--pattern-base": baseColor,
               "--pattern-light": lighterColor,
               "--pattern-dark": darkerColor,
             }),
-            { 
-              width: width, 
+            {
+              width: width,
               height: height,
-              backgroundColor: baseColor
+              backgroundColor: baseColor,
+              borderColor: edgeColor,
             }
           ]}
           className="rounded-card border border-border-subtle"
@@ -240,32 +253,85 @@ export function CardBackPattern({
               width: width,
               height: height,
               backgroundColor: baseColor,
+              borderColor: edgeColor,
             },
           ]}
           className="rounded-card border border-border-subtle"
         >
-          {/* Understated card back: a solid field, a thin inset frame, and a small centered
-              diamond emblem — reads as "a card back" rather than a loading skeleton. */}
+          {/* Understated card back: a double inset frame (outer hairline + inner border) and a
+              small centered diamond emblem with its own outline — reads as an intentional,
+              quality card back rather than a loading skeleton or placeholder tile. */}
           <View className="flex-1 justify-center items-center">
+            {/* Outer hairline, close to the card edge. */}
             <View
               pointerEvents="none"
               style={{
                 position: "absolute",
-                top: height * 0.1,
-                left: width * 0.1,
-                right: width * 0.1,
-                bottom: height * 0.1,
+                top: height * 0.06,
+                left: width * 0.06,
+                right: width * 0.06,
+                bottom: height * 0.06,
+                borderWidth: 1,
+                borderRadius: 6,
+                borderColor: lighterColor,
+                opacity: 0.45,
+              }}
+            />
+            {/* Inner frame, sets off the emblem. */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: height * 0.12,
+                left: width * 0.12,
+                right: width * 0.12,
+                bottom: height * 0.12,
                 borderWidth: 1.5,
                 borderRadius: 4,
                 borderColor: darkerColor,
-                opacity: 0.7,
+                opacity: 0.85,
+              }}
+            />
+            {/* Small corner pips, echo the emblem without competing with it. */}
+            {[
+              { top: height * 0.18, left: width * 0.18 },
+              { top: height * 0.18, right: width * 0.18 },
+              { bottom: height * 0.18, left: width * 0.18 },
+              { bottom: height * 0.18, right: width * 0.18 },
+            ].map((pos, i) => (
+              <View
+                key={i}
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  width: width * 0.07,
+                  height: width * 0.07,
+                  borderWidth: 1,
+                  borderColor: lighterColor,
+                  opacity: 0.5,
+                  transform: [{ rotate: "45deg" }],
+                  ...pos,
+                }}
+              />
+            ))}
+            <View
+              style={{
+                width: width * 0.24,
+                height: width * 0.24,
+                backgroundColor: baseColor,
+                borderWidth: 1.5,
+                borderColor: lighterColor,
+                transform: [{ rotate: "45deg" }],
               }}
             />
             <View
+              pointerEvents="none"
               style={{
-                width: width * 0.22,
-                height: width * 0.22,
+                position: "absolute",
+                width: width * 0.13,
+                height: width * 0.13,
                 backgroundColor: lighterColor,
+                opacity: 0.9,
                 transform: [{ rotate: "45deg" }],
               }}
             />
@@ -275,17 +341,18 @@ export function CardBackPattern({
 
     case "gradient":
       return (
-        <View 
+        <View
           style={[
             vars({
               "--pattern-base": baseColor,
               "--pattern-light": lighterColor,
               "--pattern-dark": darkerColor,
             }),
-            { 
-              width: width, 
+            {
+              width: width,
               height: height,
-              backgroundColor: baseColor
+              backgroundColor: baseColor,
+              borderColor: edgeColor,
             }
           ]}
           className="rounded-card border border-border-subtle"

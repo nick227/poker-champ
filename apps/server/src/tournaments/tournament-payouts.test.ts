@@ -44,6 +44,41 @@ describe("tournament payouts", () => {
     expect(payouts.size).toBe(0);
   });
 
+  it("scales paid places with field size (MTT proposal ITM tiers) at each tier boundary", () => {
+    expect(getPayoutSlots(4)).toHaveLength(2); // 3-5 -> 2 (not 3, the one below-multi-table change)
+    expect(getPayoutSlots(5)).toHaveLength(2);
+    expect(getPayoutSlots(6)).toHaveLength(3); // 6-9 -> 3, unchanged historical default
+    expect(getPayoutSlots(9)).toHaveLength(3);
+    expect(getPayoutSlots(10)).toHaveLength(4);
+    expect(getPayoutSlots(19)).toHaveLength(4);
+    expect(getPayoutSlots(20)).toHaveLength(6);
+    expect(getPayoutSlots(39)).toHaveLength(6);
+    expect(getPayoutSlots(40)).toHaveLength(9);
+    expect(getPayoutSlots(79)).toHaveLength(9);
+    expect(getPayoutSlots(80)).toHaveLength(14);
+    expect(getPayoutSlots(143)).toHaveLength(14);
+    expect(getPayoutSlots(144)).toHaveLength(18);
+    expect(getPayoutSlots(180)).toHaveLength(18);
+  });
+
+  it("every payout tier's percentages sum to 100 and decrease monotonically by place", () => {
+    for (const entrantCount of [2, 4, 6, 10, 20, 40, 80, 144]) {
+      const slots = getPayoutSlots(entrantCount);
+      const total = slots.reduce((sum, s) => sum + s.percent, 0);
+      expect(total).toBeCloseTo(100, 5);
+      for (let i = 1; i < slots.length; i++) {
+        expect(slots[i]!.percent).toBeLessThanOrEqual(slots[i - 1]!.percent);
+      }
+    }
+  });
+
+  it("distributes a full prize pool with no leftover cents for a deep (14-place) field", () => {
+    const amounts = computePayoutAmountsByPlace(1_000_000, 100);
+    expect(amounts.size).toBe(14);
+    expect([...amounts.values()].reduce((sum, v) => sum + v, 0)).toBe(1_000_000);
+    expect(amounts.get(1)).toBeGreaterThan(amounts.get(14)!);
+  });
+
   it("normalizes unpaid payout slots across payable humans", () => {
     const payouts = computeHumanPayoutAmountsByUserId(10_000, 6, [
       { userId: "human_winner", finishPlace: 1 },

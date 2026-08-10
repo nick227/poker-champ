@@ -273,6 +273,7 @@ export class SnapshotService {
     /** Turn timeout duration (ms) so client can stay in sync. */
     getTurnTimeoutTotalMs: () => number;
     getTournamentTableOverlay?: () => TournamentTableOverlay | null;
+    getMovedToTableNumber?: (userId: string) => number | undefined;
   }) {}
 
   // ============================================================================
@@ -680,6 +681,7 @@ export class SnapshotService {
         anteCents: overlay.anteCents,
         ...(overlay.nextLevelAtTs != null ? { nextLevelAtTs: overlay.nextLevelAtTs } : {}),
         ...(overlay.playFormat != null ? { playFormat: overlay.playFormat } : {}),
+        ...(overlay.tableNumber != null ? { tableNumber: overlay.tableNumber } : {}),
       },
     };
   }
@@ -765,6 +767,20 @@ export class SnapshotService {
       payoutCents: 0,
     };
   }
+
+    // Active, not eliminated/finished/rebuy-pending: no viewer payload needed UNLESS a
+    // table-balance move just relocated them (MTT proposal Phase 3) -- surface that once so the
+    // client can show a transition and reconnect to the new room.
+    const movedToTableNumber = this.deps.getMovedToTableNumber?.(userId);
+    if (movedToTableNumber != null) {
+      return {
+        isEliminated: false,
+        isWinner: false,
+        finishPlace: null,
+        payoutCents: 0,
+        movedToTableNumber,
+      };
+    }
 
     return undefined;
   }

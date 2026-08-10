@@ -55,6 +55,7 @@ import type { TournamentSummary } from "@/services/tournaments.types";
 import {
   LOBBY_SORT_COMPARATORS,
   LOBBY_SORT_CYCLE,
+  LOBBY_SORT_LABELS,
   type LobbySortKey,
 } from "@/features/lobby/lobbyTableSort";
 import {
@@ -90,6 +91,7 @@ export default function LobbyScreen() {
   } = storeRegistry.use.tournaments();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
+  const setTableName = storeRegistry.use.tables((s) => s.setTableName);
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
@@ -102,6 +104,7 @@ export default function LobbyScreen() {
   const [instantStartInFlightPreset, setInstantStartInFlightPreset] = useState<InstantGamePresetId | null>(null);
   const [chooseTableModal, setChooseTableModal] = useState<{
     id: string;
+    name: string;
     roomId?: string;
     minBuyInCents: number;
     maxBuyInCents: number;
@@ -199,6 +202,7 @@ export default function LobbyScreen() {
       }
       setChooseTableModal({
         id: t.id,
+        name: t.name,
         roomId: t.roomId,
         minBuyInCents: t.minBuyInCents,
         maxBuyInCents: t.maxBuyInCents,
@@ -264,6 +268,7 @@ export default function LobbyScreen() {
         ? (created as { roomId: string }).roomId
         : "";
       if (createdRoomId) setRoomForTable(tableId, createdRoomId);
+      setTableName(tableId, createConfig.name ?? presetId);
       openTable(tableId, { buyInCents: createConfig.minBuyInCents });
       router.push(
         tablePath(tableId, {
@@ -286,6 +291,7 @@ export default function LobbyScreen() {
 
     try {
       if (chooseTableModal.roomId) setRoomForTable(targetTableId, chooseTableModal.roomId);
+      setTableName(targetTableId, chooseTableModal.name);
       openTable(targetTableId, { buyInCents: opts.buyInCents });
       router.push(tablePath(targetTableId, { buyInCents: opts.buyInCents }));
       setChooseTableModal(null);
@@ -294,7 +300,7 @@ export default function LobbyScreen() {
       clearJoining(targetTableId);
       useToastStore.getState().show((e as Error).message ?? "Failed to join table", "danger");
     }
-  }, [beginJoining, chooseTableModal, clearJoining, openTable, router, setRoomForTable]);
+  }, [beginJoining, chooseTableModal, clearJoining, openTable, router, setRoomForTable, setTableName]);
 
   const skeletonCount = 3;
 
@@ -433,14 +439,21 @@ export default function LobbyScreen() {
   const lessonNudge = showFromLessonNudge ? (
     <View className="mb-3 flex-row items-center justify-between rounded-xl border border-brand/30 bg-brand/10 px-3 py-2">
       <Text variant="body" className="text-foreground flex-1 text-sm">
-        Very nice!
+        Great work on that lesson — now test it at the tables!
       </Text>
+      <Button
+        title="Play now"
+        onPress={() => { setFromLessonDismissed(true); setActiveTab("cash"); }}
+        intent="accent"
+        size="sm"
+        className="min-h-[30px] px-3 ml-2"
+      />
       <Button
         title="Dismiss"
         onPress={() => setFromLessonDismissed(true)}
         intent="neutral"
         size="sm"
-        className="min-h-[30px] px-2 py-1"
+        className="min-h-[30px] px-2 py-1 ml-1"
         textClassName="text-muted"
       />
     </View>
@@ -648,7 +661,7 @@ export default function LobbyScreen() {
               <GameListHeader
                 onSort={cycleSort}
                 onCreateGame={openCreateTable}
-                sortLabel={`Sort: ${sortKey}`}
+              sortLabel={`Sort: ${LOBBY_SORT_LABELS[sortKey]}`}
                 createLabel={authToken ? "New Game" : "Login / Register"}
               />
             </View>

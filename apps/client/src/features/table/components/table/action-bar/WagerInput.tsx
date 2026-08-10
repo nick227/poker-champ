@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Input } from "@/components/base/Input";
 import { formatInputFromCents, parseInputToCents } from "./actionBar.logic";
@@ -17,6 +17,8 @@ type WagerInputProps = {
   onChangeText: (text: string) => void;
   onBlur: () => number;
   onSubmitEditing: () => number;
+  /** Optional container override — used to let the input share a row with the sizing chips on mobile. */
+  style?: StyleProp<ViewStyle>;
 };
 
 function useStepRepeat(onStepRef: React.MutableRefObject<(delta: number) => void>) {
@@ -57,6 +59,7 @@ export function WagerInput({
   onChangeText,
   onBlur,
   onSubmitEditing,
+  style,
 }: WagerInputProps) {
   const step = useCallback(
     (delta: number) => {
@@ -88,6 +91,7 @@ export function WagerInput({
         {
           opacity: visible ? 1 : 0,
         },
+        style,
       ]}
     >
       <View style={actionBarStyles.wagerRow}>
@@ -111,12 +115,14 @@ export function WagerInput({
             accessibilityState={{ disabled: !editable }}
           />
         </View>
+        {/* No onPointerDown preventDefault here: on web it silently swallowed the
+         * pointerdown before Pressability's own onPressIn ran, so the +/- buttons
+         * never registered a tap or a press-and-hold repeat at all. */}
         <Pressable
           onPressIn={onMinusPressIn}
           onPressOut={clear}
           disabled={!editable}
           style={actionBarStyles.stepperBtn}
-          onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
           accessibilityLabel="Decrease bet by one dollar"
           accessibilityState={{ disabled: !editable }}
         >
@@ -129,7 +135,6 @@ export function WagerInput({
           onPressOut={clear}
           disabled={!editable}
           style={actionBarStyles.stepperBtn}
-          onPointerDown={(e) => (e as { preventDefault?: () => void }).preventDefault?.()}
           accessibilityLabel="Increase bet by one dollar"
           accessibilityState={{ disabled: !editable }}
         >

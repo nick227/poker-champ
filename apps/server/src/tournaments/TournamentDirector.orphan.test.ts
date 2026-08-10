@@ -6,6 +6,12 @@ const mocks = vi.hoisted(() => ({
       findMany: vi.fn(),
       update: vi.fn(),
     },
+    // No TournamentTable rows in these scenarios -> reconcileOrphanRunningTournaments falls back
+    // to the original single-room check, unchanged. See TournamentDirector.reconcileOrphanRunningTournaments.
+    tournamentTable: {
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn(),
+    },
   },
   loadLivePokerRoomIds: vi.fn(),
   processTournamentFinishResults: vi.fn(),

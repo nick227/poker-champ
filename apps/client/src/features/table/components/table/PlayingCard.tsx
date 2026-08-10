@@ -22,10 +22,22 @@ const RANKS: Record<string, string> = {
 
 const isRedSuit = (suit: string) => suit === "h" || suit === "d";
 
+/** Grounding shadow shared by every card render (face-up or face-down, any pack/pattern) so
+ *  cards read as small physical objects resting on the felt rather than flat colored tiles —
+ *  matches the clear drop shadow every card has in the GGPoker reference. RN's array boxShadow
+ *  style works cross-platform (same pattern already used by AvatarDisc's ring shadow). */
+const CARD_SHADOW = {
+  boxShadow: [
+    { offsetX: 0, offsetY: 2, blurRadius: 5, color: "rgba(0,0,0,0.55)" },
+    { offsetX: 0, offsetY: 1, blurRadius: 1, color: "rgba(0,0,0,0.4)" },
+  ],
+} as const;
+
 const cardStyle = {
   width: DEFAULT_CARD_DIMENSIONS.width,
   height: DEFAULT_CARD_DIMENSIONS.height,
   borderWidth: 1,
+  ...CARD_SHADOW,
 } as const;
 
 const cardLayout = {
@@ -159,12 +171,17 @@ function CardBack() {
   if (!procedural) return null;
 
   return (
-    <CardBackPattern
-      pattern={procedural.id}
-      backgroundHsl={procedural.background}
-      patternHsl={procedural.pattern}
-      width={DEFAULT_CARD_DIMENSIONS.width}
-      height={DEFAULT_CARD_DIMENSIONS.height}
-    />
+    // Wrapper carries the shared grounding shadow — CardBackPattern sets its own explicit
+    // width/height/background per pattern, so the shadow is layered on from here rather than
+    // duplicated into every pattern branch.
+    <View style={CARD_SHADOW}>
+      <CardBackPattern
+        pattern={procedural.id}
+        backgroundHsl={procedural.background}
+        patternHsl={procedural.pattern}
+        width={DEFAULT_CARD_DIMENSIONS.width}
+        height={DEFAULT_CARD_DIMENSIONS.height}
+      />
+    </View>
   );
 }

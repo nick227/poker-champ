@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Animated, Image, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import { Animated, Image, Platform, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { Text } from "@/components/base/Text";
 import { getAvatarImageUri } from "@/lib/avatar";
 import { getAvatarColors } from "./avatarColor";
@@ -123,44 +123,76 @@ export function AvatarDisc({
         }}
       >
         <View
-          style={{
-            width: discSize,
-            height: discSize,
-            borderRadius: discSize / 2,
-            backgroundColor: colors.base,
-            overflow: "hidden",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          style={[
+            {
+              width: discSize,
+              height: discSize,
+              borderRadius: discSize / 2,
+              backgroundColor: colors.base,
+              overflow: "hidden",
+              justifyContent: "center",
+              alignItems: "center",
+            },
+            // On web, a real diagonal gradient reads as a proper lit sphere instead of the two
+            // flat semi-transparent overlay blobs below (which was the only option without a
+            // gradient dependency, and reads a bit blotchy rather than a smooth sheen). Native
+            // keeps the layered-overlay approximation since RN core Views can't do CSS gradients.
+            Platform.OS === "web"
+              ? ({
+                  backgroundImage: `linear-gradient(135deg, ${colors.light} 0%, ${colors.base} 55%, ${colors.dark} 100%)`,
+                } as unknown as ViewStyle)
+              : null,
+          ]}
         >
-          {/* Sheen + shade overlays fake a gradient (real gradients need expo-linear-gradient / react-native-svg,
-              neither of which is an installed dependency in this repo — see report). */}
-          <View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              width: discSize * 0.95,
-              height: discSize * 0.95,
-              borderRadius: (discSize * 0.95) / 2,
-              top: -discSize * 0.3,
-              left: -discSize * 0.08,
-              backgroundColor: colors.light,
-              opacity: 0.55,
-            }}
-          />
-          <View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              width: discSize * 1.1,
-              height: discSize * 1.1,
-              borderRadius: (discSize * 1.1) / 2,
-              bottom: -discSize * 0.4,
-              right: -discSize * 0.2,
-              backgroundColor: colors.dark,
-              opacity: 0.4,
-            }}
-          />
+          {Platform.OS === "web" ? (
+            // Small specular highlight blob — the extra glassy touch a flat gradient alone
+            // doesn't give, kept subtle so it stays a sheen rather than a shine/gloss sticker.
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: discSize * 0.55,
+                height: discSize * 0.4,
+                borderRadius: discSize * 0.3,
+                top: discSize * 0.08,
+                left: discSize * 0.16,
+                backgroundColor: "hsla(0, 0%, 100%, 0.4)",
+                opacity: 0.35,
+                transform: [{ rotate: "-18deg" }],
+              }}
+            />
+          ) : (
+            <>
+              {/* Sheen + shade overlays fake a gradient (real gradients need expo-linear-gradient / react-native-svg,
+                  neither of which is an installed dependency in this repo — see report). */}
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  width: discSize * 0.95,
+                  height: discSize * 0.95,
+                  borderRadius: (discSize * 0.95) / 2,
+                  top: -discSize * 0.3,
+                  left: -discSize * 0.08,
+                  backgroundColor: colors.light,
+                  opacity: 0.55,
+                }}
+              />
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  width: discSize * 1.1,
+                  height: discSize * 1.1,
+                  borderRadius: (discSize * 1.1) / 2,
+                  bottom: -discSize * 0.4,
+                  right: -discSize * 0.2,
+                  backgroundColor: colors.dark,
+                  opacity: 0.4,
+                }}
+              />
+            </>
+          )}
           {uri ? (
             <Image
               source={{ uri }}

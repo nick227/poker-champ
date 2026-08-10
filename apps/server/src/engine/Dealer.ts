@@ -131,6 +131,9 @@ type DealerConstructorOptions = {
   onTournamentWaitingAfterHand?: () => Promise<void> | void;
   isNextHandBlocked?: () => boolean;
   getTournamentTableOverlay?: () => import("../tournaments/tournament-overlay.js").TournamentTableOverlay | null;
+  /** MTT proposal Phase 3: set transiently after a table-balance move relocates this user; surfaced
+   *  once in their next snapshot as hero.tournamentViewer.movedToTableNumber. */
+  getMovedToTableNumber?: (userId: string) => number | undefined;
   onSoakTimingEvent?: (args: {
     kind:
       | "LIFECYCLE_PLAN_EMIT_SNAPSHOT_MS"
@@ -442,6 +445,7 @@ export class Dealer {
   private readonly onTournamentWaitingAfterHand?: DealerConstructorOptions["onTournamentWaitingAfterHand"];
   private readonly isNextHandBlocked?: DealerConstructorOptions["isNextHandBlocked"];
   private readonly getTournamentTableOverlay?: DealerConstructorOptions["getTournamentTableOverlay"];
+  private readonly getMovedToTableNumber?: DealerConstructorOptions["getMovedToTableNumber"];
   private readonly onSoakTimingEvent?: DealerConstructorOptions["onSoakTimingEvent"];
 
   private static parseSampleRate(raw: string | undefined, defaultValue: number): number {
@@ -484,6 +488,7 @@ export class Dealer {
     this.onTournamentWaitingAfterHand = options?.onTournamentWaitingAfterHand;
     this.isNextHandBlocked = options?.isNextHandBlocked;
     this.getTournamentTableOverlay = options?.getTournamentTableOverlay;
+    this.getMovedToTableNumber = options?.getMovedToTableNumber;
     this.onSoakTimingEvent = options?.onSoakTimingEvent;
     this.persistence =
       persistence ??
@@ -711,6 +716,7 @@ export class Dealer {
       getAvatarByUserId: options?.getAvatarByUserId,
       getTurnTimeoutTotalMs: () => TURN_TIMEOUT_TOTAL_MS,
       getTournamentTableOverlay: () => this.getTournamentTableOverlay?.() ?? null,
+      getMovedToTableNumber: (userId) => this.getMovedToTableNumber?.(userId),
     });
     this.actionService = new ActionService({
       state: this.state,
@@ -932,6 +938,19 @@ export class Dealer {
     });
   }
 
+  /** Cash-free removal for an intra-tournament table-balance move (MTT proposal). Returns the
+   *  player's stack so the caller can re-seat them elsewhere with it; null if not seated here. */
+  async removePlayerForTableTransfer(userId: string): Promise<number | null> {
+    let stackCents: number | null = null;
+    await this.enqueueSerializedStateMutation(async () => {
+      const result = await this.playerLifecycleService.removePlayerForTableTransfer(userId);
+      if (!result) return;
+      stackCents = result.stackCents;
+      await this.applyExternalPlayerLifecyclePlans(result.plans, "REMOVE_PLAYER_FOR_TABLE_TRANSFER");
+    });
+    return stackCents;
+  }
+
   /** Add chips to seated player (rebuy). Ledger must already be updated via economy buy-in. */
   async applyRebuy(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
     await this.enqueueSerializedStateMutation(async () => {
@@ -957,6 +976,16 @@ export class Dealer {
             rebuyRef,
           );
       await this.applyExternalPlayerLifecyclePlans(plans, "APPLY_TOURNAMENT_REBUY");
+    });
+  }
+
+  /** Destination side of an intra-tournament table-balance move (MTT proposal): seat a player at
+   *  their existing stack, reusing reseatTournamentRebuyPlayer's no-new-money seat-add (same
+   *  primitive the rebuy flow uses when a busted player re-seats), just from a different caller. */
+  async seatPlayerAtStackForTableTransfer(userId: string, displayName: string, stackCents: number): Promise<void> {
+    await this.enqueueSerializedStateMutation(async () => {
+      const plans = await this.playerLifecycleService.reseatTournamentRebuyPlayer(userId, displayName, stackCents);
+      await this.applyExternalPlayerLifecyclePlans(plans, "SEAT_PLAYER_FOR_TABLE_TRANSFER");
     });
   }
 
@@ -3198,6 +3227,26 @@ export class Dealer {
           message: err instanceof Error ? err.message : String(err),
         },
         "BETWEEN_HANDS_REDRIVE_FAILED",
+      );
+    });
+  }
+
+  /**
+   * Re-drive the game loop after external state cleared an isNextHandBlocked verdict (MTT
+   * proposal Phase 4: hand-for-hand release). Without this, a table that was held idle at WAITING
+   * has nothing else to re-enter the drive loop and notice the block is gone.
+   */
+  redriveAfterExternalUnblock(reason: string): void {
+    void this.enqueueSerializedStateMutation(() => this.driveGame(reason)).catch((err: unknown) => {
+      logger.error(
+        {
+          err,
+          tableId: this.state.tableId,
+          handId: this.state.handId,
+          street: this.state.street,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        "EXTERNAL_UNBLOCK_REDRIVE_FAILED",
       );
     });
   }

@@ -143,12 +143,17 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         },
       };
     }),
+  // Reconnects call this so the next snapshot's sequence number is always accepted (its stream
+  // cursor may have restarted) -- setSnapshot's isStreamRestart check already handles accepting a
+  // lower/reset seq gracefully, so this only needs to clear the cursor and any stale error, not
+  // the snapshot itself. Keeping the last-known snapshot in place means the table view keeps
+  // showing real data through the reconnect gap instead of dropping back to a loading placeholder
+  // that may never clear if the server doesn't repush a full snapshot on resume.
   resetSnapshotStream: (tableId) =>
     set((s) => {
-      const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
       const { [tableId]: _lastSeq, ...lastSeqByTableId } = s.lastSeqByTableId;
       const { [tableId]: _error, ...errorByTableId } = s.errorByTableId;
-      return { snapshotsByTableId, lastSeqByTableId, errorByTableId };
+      return { lastSeqByTableId, errorByTableId };
     }),
   setStatus: (tableId, status) =>
     set((s) => ({

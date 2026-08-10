@@ -7,6 +7,21 @@ const mocks = vi.hoisted(() => ({
       findUniqueOrThrow: vi.fn(),
       update: vi.fn(),
     },
+    // No TournamentTable rows exist for these mocked scenarios (a single-table, N=1 tournament
+    // is the only case exercised here), so routing always falls back to the primary
+    // Tournament.tableId/roomId path -- see TournamentDirector.resolveActiveTournamentTableForUser.
+    tournamentTable: {
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn(async ({ data }: any) => ({ id: `ttable_${data.tableNumber}`, ...data })),
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+    },
+    tournamentRegistration: {
+      update: vi.fn(),
+      groupBy: vi.fn().mockResolvedValue([]),
+    },
   },
   matchMaker: {
     query: vi.fn(),

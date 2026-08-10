@@ -5,7 +5,7 @@ export const PROCEDURAL_CARD_BACK_PATTERNS = [
   { id: "classic", name: "Classic", icon: "♦", background: "217 50% 22%", pattern: "217 50% 35%" },
   { id: "geometric", name: "Geometric", icon: "▲", background: "340 55% 28%", pattern: "340 45% 45%" },
   { id: "ornate", name: "Ornate", icon: "✦", background: "260 35% 20%", pattern: "260 30% 38%" },
-  { id: "minimal", name: "Minimal", icon: "■", background: "0 0% 18%", pattern: "0 0% 28%" },
+  { id: "minimal", name: "Minimal", icon: "■", background: "222 14% 16%", pattern: "42 28% 40%" },
   { id: "gradient", name: "Gradient", icon: "▬", background: "220 40% 18%", pattern: "220 35% 32%" },
 ] as const;
 

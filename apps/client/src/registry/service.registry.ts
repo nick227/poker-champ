@@ -122,6 +122,8 @@ const serviceByKey = {
       withApiError(() => tournaments.create(input)),
     tournamentCancel: (tournamentId: string) =>
       withApiError(() => tournaments.cancel({ id: tournamentId })),
+    tournamentRebalance: (tournamentId: string) =>
+      withApiError(() => tournaments.rebalance({ id: tournamentId })),
   },
 } as const;
 
@@ -150,6 +152,7 @@ const serviceOrdered = [
   { key: "post.tournamentUnregister", call: serviceByKey.post.tournamentUnregister },
   { key: "post.tournamentCreate", call: serviceByKey.post.tournamentCreate },
   { key: "post.tournamentCancel", call: serviceByKey.post.tournamentCancel },
+  { key: "post.tournamentRebalance", call: serviceByKey.post.tournamentRebalance },
 ] as const;
 
 export const serviceRegistry = {

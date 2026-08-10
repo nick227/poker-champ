@@ -104,10 +104,14 @@ async function bustPlayerAndReconcile(params: {
     removeBustedPlayer: async (userId) => {
       await params.room.removeTournamentBustedPlayer(userId);
     },
+    removePlayerForTableTransfer: async (userId) => params.room.removeTournamentPlayerForTableTransfer(userId),
     onOverlayUpdated: (overlay) => setRoomOverlay(params.room, overlay),
     onPlayEnded: () => {
       playEnded = true;
     },
+    onTableBreaking: () => {},
+    onHandForHandHold: () => {},
+    onHandForHandRelease: () => {},
   });
   return { playEnded };
 }
@@ -223,10 +227,14 @@ describe.skipIf(!hasDatabase)("Tournament M20 — rebuy sweep when window closed
         removeBustedPlayer: async (userId) => {
           await room.removeTournamentBustedPlayer(userId);
         },
+        removePlayerForTableTransfer: async (userId) => room.removeTournamentPlayerForTableTransfer(userId),
         onOverlayUpdated: (overlay) => setRoomOverlay(room, overlay),
         onPlayEnded: () => {
           playEnded = true;
         },
+        onTableBreaking: () => {},
+        onHandForHandHold: () => {},
+        onHandForHandRelease: () => {},
       });
 
       const regBSwept = await prisma.tournamentRegistration.findUniqueOrThrow({

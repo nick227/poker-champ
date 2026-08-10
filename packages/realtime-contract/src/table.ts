@@ -208,6 +208,8 @@ export const TableSnapshotPayloadSchema = z.object({
         anteCents: z.number().int().nonnegative(),
         nextLevelAtTs: z.number().int().nonnegative().optional(),
         playFormat: z.enum(["FREEZEOUT", "REBUY"]).optional(),
+        /** Which table of the tournament's current table count this room is (multi-table tournaments). */
+        tableNumber: z.number().int().positive().optional(),
       })
       .optional(),
   }),
@@ -252,6 +254,9 @@ export const TableSnapshotPayloadSchema = z.object({
         rebuyPending: z.boolean().optional(),
         rebuysRemaining: z.number().int().nonnegative().optional(),
         rebuyWindowClosesAtTs: z.number().int().nonnegative().nullable().optional(),
+        /** Set transiently by the table-balance reconciler when this player was just moved to a
+         *  different table; client shows a "moved to Table N" transition then reconnects there. */
+        movedToTableNumber: z.number().int().positive().optional(),
       })
       .optional(),
   }),

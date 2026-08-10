@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tournaments/{id}/rebalance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tournamentsRebalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tables/{tableId}/resume": {
         parameters: {
             query?: never;
@@ -922,6 +938,8 @@ export interface components {
             registeredCount: number;
             isRegistered?: boolean;
             tableLive?: boolean;
+            tableCount?: number;
+            openTableCount?: number;
             fillBotsAtStart: boolean;
             fillBotCount?: number | null;
             createdByUserId?: string | null;
@@ -2304,6 +2322,50 @@ export interface operations {
             };
             /** @description Admin required */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    tournamentsRebalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rebalance attempted (may be a no-op if already balanced) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        moved: boolean;
+                        /** @enum {string} */
+                        reason?: "not_enough_tables" | "already_balanced" | "no_movable_player" | "move_failed";
+                    };
+                };
+            };
+            /** @description Admin required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Tournament not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

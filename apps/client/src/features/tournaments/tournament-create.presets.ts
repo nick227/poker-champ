@@ -46,7 +46,12 @@ export const TOURNAMENT_PACE_OPTIONS: ReadonlyArray<{
   },
 ];
 
-export const TOURNAMENT_MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9] as const;
+// 2-9 fit at a single table (MAX_SEATS_PER_TABLE on the server). Larger sizes span multiple
+// tables (see docs/proposals/MULTI_TABLE_TOURNAMENT_PROPOSAL.md) and are offered in table-sized
+// steps of 9 so the field always divides evenly into full tables.
+export const TOURNAMENT_MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 18, 27, 45, 90, 180] as const;
+
+export const MAX_SINGLE_TABLE_PLAYERS = 9;
 
 export const TOURNAMENT_MAX_REBUYS_OPTIONS = [
   { label: "1", value: 1 },

@@ -114,6 +114,8 @@ export const openApiSpec = {
           registeredCount: { type: "integer" },
           isRegistered: { type: "boolean" },
           tableLive: { type: "boolean" },
+          tableCount: { type: "integer" },
+          openTableCount: { type: "integer" },
           fillBotsAtStart: { type: "boolean" },
           fillBotCount: { type: "integer", nullable: true },
           createdByUserId: { type: "string", nullable: true },
@@ -1385,7 +1387,7 @@ export const openApiSpec = {
                   name: { type: "string" },
                   entryFeeCents: { type: "integer" },
                   startTime: { type: "string", format: "date-time" },
-                  maxPlayers: { type: "integer", minimum: 2, maximum: 9 },
+                  maxPlayers: { type: "integer", minimum: 2, maximum: 180 },
                   startingStackCents: { type: "integer", minimum: 1 },
                   blindStructureId: {
                     type: "string",
@@ -1588,6 +1590,42 @@ export const openApiSpec = {
           },
           "403": {
             description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/tournaments/{id}/rebalance": {
+      post: {
+        tags: ["tournaments"],
+        operationId: "tournamentsRebalance",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Rebalance attempted (may be a no-op if already balanced)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    moved: { type: "boolean" },
+                    reason: {
+                      type: "string",
+                      enum: ["not_enough_tables", "already_balanced", "no_movable_player", "move_failed"],
+                    },
+                  },
+                  required: ["moved"],
+                },
+              },
+            },
+          },
+          "403": {
+            description: "Admin required",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Tournament not found",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

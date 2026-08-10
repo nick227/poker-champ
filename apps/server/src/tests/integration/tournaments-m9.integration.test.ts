@@ -234,8 +234,12 @@ describe("Tournament M9 eliminated spectator", () => {
       state: room.state,
       tableName: room.state.tableName,
       removeBustedPlayer: (userId) => room.removeTournamentBustedPlayer(userId),
+      removePlayerForTableTransfer: (userId) => room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {},
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
 
     expect(room.state.playersById.has(testUsers.playerB)).toBe(false);

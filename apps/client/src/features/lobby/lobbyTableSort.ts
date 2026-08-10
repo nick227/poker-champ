@@ -20,3 +20,12 @@ export const LOBBY_SORT_CYCLE: Record<LobbySortKey, LobbySortKey> = {
   buyIn: "status",
   status: "name",
 };
+
+/** Human-readable display names for sort keys shown in the UI. */
+export const LOBBY_SORT_LABELS: Record<LobbySortKey, string> = {
+  name: "Table Name",
+  players: "Players",
+  blinds: "Stakes",
+  buyIn: "Buy-in",
+  status: "Activity",
+};

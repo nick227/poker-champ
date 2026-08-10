@@ -185,10 +185,14 @@ async function bustPlayerAndReconcile(params: {
     removeBustedPlayer:
       params.removeBustedPlayer ??
       ((userId) => params.room.removeTournamentBustedPlayer(userId)),
+    removePlayerForTableTransfer: (userId) => params.room.removeTournamentPlayerForTableTransfer(userId),
     onOverlayUpdated: (overlay) => setRoomOverlay(params.room, overlay),
     onPlayEnded: () => {
       playEnded = true;
     },
+    onTableBreaking: () => {},
+    onHandForHandHold: () => {},
+    onHandForHandRelease: () => {},
   });
   return { playEnded };
 }

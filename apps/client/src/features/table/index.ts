@@ -19,6 +19,8 @@ export type { Opponent, UiCard } from "./components/table/table.adapter";
 
 export { TableSceneShell } from "./components/table/table-layout";
 export type { TableSceneShellProps } from "./components/table/table-layout";
+export { TableStage } from "./components/table/table-stage";
+export type { TableStageProps, SeatPlateProps } from "./components/table/table-stage";
 export { ActiveTableView } from "./components/table/views/ActiveTableView";
 export { getLoadingSlots, getPlaceholderSlots } from "./components/table/views/tableSceneSlots";
 export { useIdleTableSlots } from "./components/table/views/useIdleTableSlots";
@@ -36,6 +38,7 @@ export {
   type WagerBounds,
   type NormalizedCapabilities,
 } from "./components/table/action-bar/actionBar.logic";
+export { ActionBar } from "./components/table/action-bar/ActionBar";
 export type { ActionBarProps, ActionBarOnAction, TableAction } from "./components/table/action-bar/ActionBar";
 export { ACTION_BAR_HEIGHT } from "./components/table/action-bar/ActionBar";
 export { AllInBanner, type AllInBannerProps } from "./components/table/action-bar/AllInBanner";

@@ -205,8 +205,12 @@ describe("Tournament M10 awards and stats", () => {
       state: room.state,
       tableName: room.state.tableName,
       removeBustedPlayer: (userId) => room.removeTournamentBustedPlayer(userId),
+      removePlayerForTableTransfer: (userId) => room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {},
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
 
     const prisma = getPrisma();

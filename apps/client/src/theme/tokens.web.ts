@@ -226,13 +226,13 @@ html, body {
 
 .bottom-sheet {
   max-width: 100% !important;
-  width: 640px !important;
+  width: calc(100vw - 48px) !important;
   margin: 0 auto;
 }
 
 @media (min-width: 1024px) {
   .bottom-sheet {
-    width: min(480px, calc(100vw - 48px)) !important;
+    width: calc(100vw - 48px) !important;
   }
 }
 

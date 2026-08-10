@@ -102,6 +102,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private tournamentStartingStackCents?: number;
   private tournamentOverlay: TournamentTableOverlay | null = null;
   private tournamentPlayEnded = false;
+  /** Set by the table-balance reconciler when this table has been chosen to break (MTT proposal).
+   *  Blocks new hands the same way tournamentPlayEnded does; the table has 0 players left once its
+   *  redistribution completes in the same reconcile pass, so no further gating is needed. */
+  private tournamentTableBreaking = false;
+  /** Set while this table is holding for hand-for-hand (MTT proposal Phase 4): it finished its
+   *  current hand and is waiting for every other live table to also report ready. Cleared by
+   *  releaseHandForHandHold() once the whole tournament is released together. */
+  private tournamentHandForHandWaiting = false;
+  /** MTT proposal Phase 3: userId -> the table number a balance move just relocated them to.
+   *  Surfaced once (via hero.tournamentViewer.movedToTableNumber) to whichever client is still
+   *  connected to this room after removeTournamentPlayerForTableTransfer, then cleared. */
+  private readonly movedToTableNumberByUserId: Map<string, number> = new Map();
   // Back-compat bridge for tests and legacy paths; SessionManager is the owner of mutations.
   readonly userIdBySessionId: Map<string, string> = new Map();
   readonly bindingEpochByUserId: Map<string, number> = new Map();
@@ -367,19 +379,34 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           removeBustedPlayer: async (userId) => {
             await this.removeTournamentBustedPlayer(userId);
           },
+          removePlayerForTableTransfer: async (userId, destinationTableNumber) => {
+            return this.removeTournamentPlayerForTableTransfer(userId, destinationTableNumber);
+          },
           onOverlayUpdated: (overlay) => {
             this.tournamentOverlay = overlay;
           },
           onPlayEnded: () => {
             this.tournamentPlayEnded = true;
           },
+          onTableBreaking: () => {
+            this.tournamentTableBreaking = true;
+          },
+          onHandForHandHold: () => {
+            this.tournamentHandForHandWaiting = true;
+          },
+          onHandForHandRelease: () => {
+            this.tournamentHandForHandWaiting = false;
+            this.dealer.redriveAfterExternalUnblock("HAND_FOR_HAND_RELEASED");
+          },
           emitSnapshot: async () => {
             await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
           },
         });
       },
-      isNextHandBlocked: () => this.tournamentPlayEnded,
+      isNextHandBlocked: () =>
+        this.tournamentPlayEnded || this.tournamentTableBreaking || this.tournamentHandForHandWaiting,
       getTournamentTableOverlay: () => this.tournamentOverlay,
+      getMovedToTableNumber: (userId) => this.movedToTableNumberByUserId.get(userId),
     });
 
     if (this.tournamentId) {
@@ -483,6 +510,50 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     await this.dealer.removePlayer(userId, { cashOutAfterRemoval: false });
   }
 
+  /**
+   * Source side of an intra-tournament table-balance move (MTT proposal). Cash-free removal --
+   * the returned stack is carried to the destination room via seatTournamentPlayerForTableTransfer,
+   * never cashed out. Null if this user isn't seated here (already moved / stale caller).
+   *
+   * When `destinationTableNumber` is given, marks this user's `movedToTableNumber` (Phase 3:
+   * realtime "you've been moved" transition) so their next snapshot from this room -- they may
+   * still be connected here even though they're no longer seated -- carries it, then broadcasts
+   * and clears the marker so it's surfaced exactly once.
+   */
+  async removeTournamentPlayerForTableTransfer(
+    userId: string,
+    destinationTableNumber?: number,
+  ): Promise<number | null> {
+    if (destinationTableNumber == null) {
+      return this.dealer.removePlayerForTableTransfer(userId);
+    }
+    this.movedToTableNumberByUserId.set(userId, destinationTableNumber);
+    try {
+      const stackCents = await this.dealer.removePlayerForTableTransfer(userId);
+      await this.emitSnapshotsToAllSafe("SEAT_CHANGE");
+      return stackCents;
+    } finally {
+      this.movedToTableNumberByUserId.delete(userId);
+    }
+  }
+
+  /** Destination side of an intra-tournament table-balance move. Seats the player at their exact
+   *  carried-over stack; not a rebuy, no economy movement. */
+  async seatTournamentPlayerForTableTransfer(userId: string, displayName: string, stackCents: number): Promise<void> {
+    await this.dealer.seatPlayerAtStackForTableTransfer(userId, displayName, stackCents);
+  }
+
+  /**
+   * Hand-for-hand release (MTT proposal Phase 4). Called via matchMaker.remoteRoomCall by whichever
+   * table's post-hand pass detects every live table is ready; clears this table's own hold and
+   * kicks the drive loop so it deals its next hand immediately rather than waiting for some other
+   * event to notice isNextHandBlocked flipped.
+   */
+  async releaseHandForHandHold(): Promise<void> {
+    this.tournamentHandForHandWaiting = false;
+    this.dealer.redriveAfterExternalUnblock("HAND_FOR_HAND_RELEASED");
+  }
+
   private async refreshTournamentOverlayFromDb(): Promise<void> {
     if (!this.tournamentId) return;
     const tournament = await getPrisma().tournament.findUnique({
@@ -490,6 +561,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     });
     if (!tournament) return;
     const level = getBlindLevel(tournament.blindStructureId, tournament.currentLevel);
+    // Best-effort: right after onCreate, the TournamentTable row's roomId may not be persisted
+    // yet (the caller finalizes that link after room creation returns) -- tableNumber is cosmetic
+    // UI-only, so a brief undefined window here is fine; the reconciler's own overlay update
+    // (every post-hand pass) fills it in once the link exists.
+    const tableNumber = await this.resolveTournamentTableNumber();
     this.tournamentOverlay = {
       tournamentId: tournament.id,
       status: tournament.status,
@@ -499,7 +575,17 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       anteCents: level.anteCents,
       nextLevelAtTs: tournament.nextLevelAt?.getTime() ?? null,
       playFormat: tournament.playFormat as "FREEZEOUT" | "REBUY",
+      ...(tableNumber != null ? { tableNumber } : {}),
     };
+  }
+
+  private async resolveTournamentTableNumber(): Promise<number | undefined> {
+    if (!this.tournamentId) return undefined;
+    const table = await getPrisma().tournamentTable.findFirst({
+      where: { tournamentId: this.tournamentId, roomId: this.roomId },
+      select: { tableNumber: true },
+    });
+    return table?.tableNumber;
   }
 
   async applyTournamentBlinds(payload: {
@@ -560,6 +646,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           betweenHandsReady.length >= 2 &&
           nextHandStartDue &&
           !this.tournamentPlayEnded &&
+          !this.tournamentTableBreaking &&
+          !this.tournamentHandForHandWaiting &&
           snapshotSilenceMs >= STALL_THRESHOLD_MS
         ) {
           if (this.lastStallRedriveLogAtMs + STALL_LOG_MIN_INTERVAL_MS < now) {

@@ -133,10 +133,14 @@ describe.skipIf(!hasDatabase)("Tournament M21 — four-player freezeout finish o
       removeBustedPlayer: async (userId) => {
         params.room.state.playersById.delete(userId);
       },
+      removePlayerForTableTransfer: async (userId) => params.room.removeTournamentPlayerForTableTransfer(userId),
       onOverlayUpdated: () => {},
       onPlayEnded: () => {
         playEnded = true;
       },
+      onTableBreaking: () => {},
+      onHandForHandHold: () => {},
+      onHandForHandRelease: () => {},
     });
     return playEnded;
   }

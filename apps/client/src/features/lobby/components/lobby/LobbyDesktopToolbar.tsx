@@ -1,6 +1,7 @@
-import { Pressable, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
+import { ChipButton } from "@/components/base/ChipButton";
 import type { LobbyTableFilters } from "../../lobbyTableFilters";
 
 const STAKE_CAPS: Array<{ label: string; maxBb: number | null }> = [
@@ -20,7 +21,7 @@ type Props = {
 
 /**
  * Cash-games toolbar: list filters on the left, create actions on the right.
- * Replaces the old right-rail that mixed “Filters” with create + orphaned More links.
+ * Replaces the old right-rail that mixed "Filters" with create + orphaned More links.
  */
 export function LobbyDesktopToolbar({
   filters,
@@ -41,33 +42,21 @@ export function LobbyDesktopToolbar({
           // @ts-expect-error web data attribute for / focus
           dataSet={{ lobbySearch: true }}
         />
-        <Pressable
+        <ChipButton
+          title="Hide full"
+          selected={filters.hideFull}
           onPress={() => onFiltersChange({ ...filters, hideFull: !filters.hideFull })}
-          className={`rounded-md border px-3 py-2 ${
-            filters.hideFull ? "border-primary bg-brand-soft" : "border-border bg-panel"
-          }`}
-        >
-          <Text variant="body" className="text-[13px]">
-            Hide full
-          </Text>
-        </Pressable>
+        />
         <View className="ui-row flex-wrap gap-1.5">
           {STAKE_CAPS.map((cap) => {
             const active = filters.maxBigBlindCents === cap.maxBb;
             return (
-              <Pressable
+              <ChipButton
                 key={cap.label}
-                onPress={() =>
-                  onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })
-                }
-                className={`rounded-md border px-2.5 py-1.5 ${
-                  active ? "border-primary bg-brand-soft" : "border-border bg-panel"
-                }`}
-              >
-                <Text variant={active ? "body" : "muted"} className="text-[12px]">
-                  {cap.label}
-                </Text>
-              </Pressable>
+                title={cap.label}
+                selected={active}
+                onPress={() => onFiltersChange({ ...filters, maxBigBlindCents: cap.maxBb })}
+              />
             );
           })}
         </View>
@@ -94,3 +83,4 @@ export function LobbyDesktopToolbar({
     </View>
   );
 }
+

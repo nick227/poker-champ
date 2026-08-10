@@ -1,0 +1,10 @@
+import { chromium } from "playwright-core";
+const browser = await chromium.launch({ args: ["--no-sandbox"], headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto("http://localhost:8081/dev/table-redesign?maxSeats=6&occupied=5&heroSeat=0", { waitUntil: "networkidle" });
+await page.waitForTimeout(600);
+const n = await page.evaluate(() => document.querySelectorAll('[data-avatar-hue]').length);
+console.log("count", n);
+const n2 = await page.evaluate(() => document.querySelectorAll('[data-testid]').length);
+console.log("testid count", n2);
+await browser.close();

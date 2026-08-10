@@ -34,6 +34,7 @@ import {
 } from "../tournaments/tournament-player-status.js";
 import { countTournamentRebuysForUser } from "../tournaments/tournament-rebuy.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
+import { tournamentTableBalancer } from "../tournaments/tournament-table-balancer.js";
 
 const router = express.Router();
 
@@ -41,7 +42,9 @@ const CreateTournamentSchema = z.object({
   name: z.string().min(1).max(120),
   entryFeeCents: z.number().int().positive(),
   startTime: z.string().datetime(),
-  maxPlayers: z.number().int().min(2).max(9),
+  // Tournament-wide field cap, decoupled from per-table seat cap (MAX_SEATS_PER_TABLE = 9).
+  // A field over 9 spans multiple TournamentTable rows; see docs/proposals/MULTI_TABLE_TOURNAMENT_PROPOSAL.md.
+  maxPlayers: z.number().int().min(2).max(180),
   startingStackCents: z.number().int().positive().default(DEFAULT_STARTING_STACK_CENTS),
   blindStructureId: z.string().refine(isTournamentBlindStructureId, {
     message: "Invalid blindStructureId",
@@ -58,6 +61,11 @@ const CreateTournamentSchema = z.object({
 const tournamentInclude = {
   _count: {
     select: { registrations: true },
+  },
+  // MTT proposal Phase 5: multi-table indicator. Cheap (a handful of rows per tournament at most)
+  // and omitted from the response entirely by toTournamentResponse for the common N<=1 case.
+  tables: {
+    select: { status: true },
   },
 } as const;
 
@@ -405,7 +413,7 @@ router.post("/:id/register", requireAuth, async (req, res) => {
       externalRef: tournamentEntryExternalRef(tournament.id, req.user!.id),
     });
     await tournamentDirector.tryStartTournamentTable(tournament.id);
-    await tournamentDirector.seatLateRegistrant(tournament.id, req.user!.id);
+    await tournamentDirector.seatRegistrantOnAssignedTable(tournament.id, req.user!.id);
     const refreshed = await prisma.tournament.findUnique({
       where: { id: tournament.id },
       include: tournamentInclude,
@@ -515,6 +523,33 @@ router.post("/:id/cancel", requireAuth, async (req, res) => {
     const message = err instanceof Error ? err.message : "Tournament cancel failed";
     res.status(tournamentErrorStatus(message)).json({ error: message });
   }
+});
+
+/**
+ * Manual balance override (MTT proposal Phase 5): admin-only, force one rebalance move now
+ * instead of waiting for the automatic post-hand trigger. Reuses the exact same fullest/emptiest
+ * election and >1-gap threshold the automatic path uses -- this can't force a move the automatic
+ * balancer wouldn't also eventually make on its own, it just doesn't wait for the next hand.
+ */
+router.post("/:id/rebalance", requireAuth, async (req, res) => {
+  if (req.user!.role !== "ADMIN") {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const tournament = await getPrisma().tournament.findUnique({ where: { id }, select: { id: true } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  const result = await tournamentTableBalancer.forceRebalance(id);
+  res.json(result);
 });
 
 export const tournamentsRouter = router;
