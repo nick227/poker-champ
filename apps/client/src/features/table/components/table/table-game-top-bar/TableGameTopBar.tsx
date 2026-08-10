@@ -7,6 +7,8 @@ import { formatCents } from "@/lib/format";
 import { Surface } from "@/components/containers/Surface";
 import { tableGameTopBarStyles } from "./styles";
 import { APP_NAME } from "@/constants/copy";
+import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
+import { useNavRailStore } from "@/stores/navRail.store";
 import { HUD_TOPBAR_BG } from "../tokens/hud.tokens";
 
 const SUIT_ACCENT = "♠";
@@ -44,6 +46,9 @@ export function TableGameTopBar({
   right,
 }: TableGameTopBarProps) {
   const subtitle = formatBlindsLine(smallBlindCents, bigBlindCents, minBuyInCents);
+  const isDesktopWorkspace = useIsDesktopWorkspace();
+  const railExpanded = useNavRailStore((s) => s.expanded);
+  const hideBrand = isDesktopWorkspace && railExpanded;
 
   return (
     // Thin overlay on the dark stage — no panel elevation / rounded app chrome.
@@ -54,21 +59,25 @@ export function TableGameTopBar({
           style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: HUD_TOPBAR_BG }}
         />
         <View className="ui-row items-center ui-inline-2 flex-1 items-start">
-          <View className="flex-col items-center align-start">
-            <IconButton
-              intent="neutral"
-              size="sm"
-              icon={<Icon name="logo" size={18} />}
-              onPress={onLogoPress}
-            />
-          </View>
-          <Text
-            variant="caption"
-            className="text-muted font-semibold"
-            allowFontScaling={false}
-          >
-            {APP_NAME}
-          </Text>
+          {hideBrand ? null : (
+            <>
+              <View className="flex-col items-center align-start">
+                <IconButton
+                  intent="neutral"
+                  size="sm"
+                  icon={<Icon name="logo" size={18} />}
+                  onPress={onLogoPress}
+                />
+              </View>
+              <Text
+                variant="caption"
+                className="text-muted font-semibold"
+                allowFontScaling={false}
+              >
+                {APP_NAME}
+              </Text>
+            </>
+          )}
           <View className="flex-1 items-end justify-center">
             <View className="ui-row items-center ui-inline-1">
               <Text allowFontScaling={false} className="text-gold text-xs">
