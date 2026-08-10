@@ -44,7 +44,9 @@ export function LobbyActionRow({
       <View className="flex-1" />
       <Button
         title="New"
-        onPress={onNew}
+        onPress={() => {
+          onNew();
+        }}
         intent="secondary"
         size="sm"
         shape="hud"

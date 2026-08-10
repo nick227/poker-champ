@@ -119,6 +119,9 @@ export function Button({
   const handlePress = () => {
     if (isDisabled) return;
     emitSoundEvent("ui.tap");
+    if (typeof onPress !== "function") {
+      throw new Error(`Button "${title}" received a non-function onPress`);
+    }
     onPress();
   };
 

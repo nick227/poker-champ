@@ -148,13 +148,47 @@ export function useLobbyScreenModel() {
     [tournamentList],
   );
 
+  const {
+    openCreateTable,
+    handleCreateGame,
+    handleStartInstantGame,
+    openJoinModal,
+    handleJoinApply,
+    isJoining,
+    createModalVisible,
+    setCreateModalVisible,
+    chooseTableModal,
+    setChooseTableModal,
+    instantStartInFlightPreset,
+  } = cash;
+
+  const {
+    handleCreateTournament,
+    handleDeleteTournament,
+    handleOpenTournamentDetail,
+    handleTournamentAction,
+    handleConfirmTournamentJoin,
+    handleConfirmTournamentRegister,
+    registerModalTournament,
+    setRegisterModalTournament,
+    joinModalTournament,
+    setJoinModalTournament,
+    registerBusy,
+    standingsModal,
+    setStandingsModal,
+    tournamentActionBusy,
+    tournamentCreateModalVisible,
+    setTournamentCreateModalVisible,
+    tournamentDeleteId,
+  } = tournament;
+
   const handleNew = useCallback(() => {
     if (contentMode === "tournaments") {
-      tournament.handleCreateTournament();
+      handleCreateTournament();
       return;
     }
-    cash.openCreateTable();
-  }, [cash.openCreateTable, contentMode, tournament.handleCreateTournament]);
+    openCreateTable();
+  }, [contentMode, handleCreateTournament, openCreateTable]);
 
   const resultLabel = useMemo(() => {
     const tablesLabel = `${sortedTables.length} ${sortedTables.length === 1 ? "table" : "tables"}`;
@@ -185,9 +219,26 @@ export function useLobbyScreenModel() {
     setContentMode,
     joinedTournamentsCount,
     handleNew,
-    openCreateTable: cash.openCreateTable,
-    instantStartInFlightPreset: cash.instantStartInFlightPreset,
-    handleStartInstantGame: cash.handleStartInstantGame,
+    openCreateTable,
+    handleCreateTournament,
+    handleDeleteTournament,
+    handleOpenTournamentDetail,
+    handleTournamentAction,
+    handleConfirmTournamentJoin,
+    handleConfirmTournamentRegister,
+    registerModalTournament,
+    setRegisterModalTournament,
+    joinModalTournament,
+    setJoinModalTournament,
+    registerBusy,
+    standingsModal,
+    setStandingsModal,
+    tournamentActionBusy,
+    tournamentCreateModalVisible,
+    setTournamentCreateModalVisible,
+    tournamentDeleteId,
+    instantStartInFlightPreset,
+    handleStartInstantGame,
     filters,
     updateFilters,
     clearFilters,
@@ -201,8 +252,8 @@ export function useLobbyScreenModel() {
     sortKey,
     sortDir,
     handleSort,
-    isJoining: cash.isJoining,
-    openJoinModal: cash.openJoinModal,
+    isJoining,
+    openJoinModal,
     refresh,
     tournamentList,
     tournamentsBusy,
@@ -210,15 +261,14 @@ export function useLobbyScreenModel() {
     refreshTournaments,
     openOnlineSheet,
     requestOnlinePlayers,
-    createModalVisible: cash.createModalVisible,
-    setCreateModalVisible: cash.setCreateModalVisible,
-    handleCreateGame: cash.handleCreateGame,
-    chooseTableModal: cash.chooseTableModal,
-    setChooseTableModal: cash.setChooseTableModal,
-    handleJoinApply: cash.handleJoinApply,
+    createModalVisible,
+    setCreateModalVisible,
+    handleCreateGame,
+    chooseTableModal,
+    setChooseTableModal,
+    handleJoinApply,
     onlineSheetVisible,
     setOnlineSheetVisible,
     router,
-    ...tournament,
   };
 }

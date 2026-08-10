@@ -43,7 +43,9 @@ export function EmptyState({
           {primary ? (
             <Button
               title={primary.title}
-              onPress={primary.onPress}
+              onPress={() => {
+                primary.onPress();
+              }}
               intent={primary.intent ?? "accent"}
               size="sm"
               shape="hud"
@@ -53,7 +55,9 @@ export function EmptyState({
           {secondary ? (
             <Button
               title={secondary.title}
-              onPress={secondary.onPress}
+              onPress={() => {
+                secondary.onPress();
+              }}
               intent={secondary.intent ?? "secondary"}
               size="sm"
               shape="hud"
