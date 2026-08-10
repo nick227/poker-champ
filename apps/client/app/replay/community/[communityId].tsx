@@ -2,8 +2,6 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";
 import { getCommunityHandById } from "@/features/replay/community/communityHands";
 import { Text as BaseText } from "@/components/base/Text";
@@ -11,12 +9,7 @@ import { Text as BaseText } from "@/components/base/Text";
 function wrapWithShell(content: ReactNode) {
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-      </HeaderStack>
-      <View className="flex-1 ui-stack-3">
-        {content}
-      </View>
+      <View className="flex-1 ui-stack-3">{content}</View>
     </Screen>
   );
 }

@@ -1,10 +1,6 @@
 import { View, ScrollView } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayQuickLinks } from "@/features/lobby";
-import { LobbyDesktopLayout } from "@/features/lobby";
 import { LobbyDesktopToolbar } from "@/features/lobby";
 import { LobbyActionRow } from "@/features/lobby/components/lobby/LobbyActionRow";
 import { LobbyCashListStage } from "@/features/lobby/components/lobby/LobbyCashListStage";
@@ -118,38 +114,22 @@ export default function LobbyScreen() {
       chooseTable={m.chooseTableModal}
       onCloseChoose={() => m.setChooseTableModal(null)}
       onApplyJoin={m.handleJoinApply}
-      onlineSheetVisible={m.onlineSheetVisible}
-      onCloseOnline={() => m.setOnlineSheetVisible(false)}
-      onlinePlayers={m.onlinePlayers}
-      onlineBusy={m.onlineBusy}
-      onlineError={m.onlineError}
-      onRefreshOnline={m.requestOnlinePlayers}
     />
   );
 
   if (m.isDesktopWorkspace) {
     return (
       <Screen>
-        <LobbyDesktopLayout
-          username={m.profile.username ?? "Player"}
-          amountCents={m.bankroll}
-          onlineLabel={m.onlineLabel}
-          onPressOnline={m.openOnlineSheet}
-          avatarUrl={m.profile.avatarUrl}
-          authenticated={m.authenticated}
-          primary={
-            <View className="flex-1 min-h-0">
-              {lessonNudge}
-              {actionRow}
-              {toolbar}
-              {m.contentMode === "all" ? (
-                <ScrollView className="flex-1 min-h-0">{listStage}</ScrollView>
-              ) : (
-                <View className="flex-1 min-h-0">{listStage}</View>
-              )}
-            </View>
-          }
-        />
+        <View className="flex-1 min-h-0">
+          {lessonNudge}
+          {actionRow}
+          {toolbar}
+          {m.contentMode === "all" ? (
+            <ScrollView className="flex-1 min-h-0">{listStage}</ScrollView>
+          ) : (
+            <View className="flex-1 min-h-0">{listStage}</View>
+          )}
+        </View>
         {modals}
       </Screen>
     );
@@ -157,16 +137,6 @@ export default function LobbyScreen() {
 
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-        <AppTopNav
-          username={m.profile.username ?? "Player"}
-          onlineLabel={m.onlineLabel}
-          onPressOnline={m.openOnlineSheet}
-          amountCents={m.bankroll}
-          avatarUrl={m.profile.avatarUrl}
-        />
-      </HeaderStack>
       {lessonNudge ? <View className="mx-4 mt-2">{lessonNudge}</View> : null}
       <ScrollView className="flex-1">
         <LobbyActionRow

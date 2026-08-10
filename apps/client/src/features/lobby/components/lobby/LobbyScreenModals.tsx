@@ -1,9 +1,7 @@
-import type { OnlinePlayerSummary } from "@poker-champ/realtime-contract";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import type { CreateGameConfig } from "./CreateGameModal";
 import { CreateGameModal } from "./CreateGameModal";
 import { ChooseTableModal } from "./ChooseTableModal";
-import { OnlinePlayersSheet } from "./OnlinePlayersSheet";
 import { TournamentCreateModal } from "./TournamentCreateModal";
 import { TournamentJoinModal } from "./TournamentJoinModal";
 import { TournamentRegisterModal } from "./TournamentRegisterModal";
@@ -40,12 +38,6 @@ type Props = {
   chooseTable: ChooseTable | null;
   onCloseChoose: () => void;
   onApplyJoin: (opts: { buyInCents: number }) => void;
-  onlineSheetVisible: boolean;
-  onCloseOnline: () => void;
-  onlinePlayers: OnlinePlayerSummary[];
-  onlineBusy: boolean;
-  onlineError: string | null;
-  onRefreshOnline: () => void;
 };
 
 /** All lobby overlay modals / sheets. */
@@ -70,12 +62,6 @@ export function LobbyScreenModals({
   chooseTable,
   onCloseChoose,
   onApplyJoin,
-  onlineSheetVisible,
-  onCloseOnline,
-  onlinePlayers,
-  onlineBusy,
-  onlineError,
-  onRefreshOnline,
 }: Props) {
   return (
     <>
@@ -121,14 +107,6 @@ export function LobbyScreenModals({
           onApply={onApplyJoin}
         />
       ) : null}
-      <OnlinePlayersSheet
-        visible={onlineSheetVisible}
-        onClose={onCloseOnline}
-        players={onlinePlayers}
-        loading={onlineBusy}
-        error={onlineError}
-        onRefresh={onRefreshOnline}
-      />
     </>
   );
 }

@@ -1,18 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { View, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
-import { OnlinePlayersSheet } from "@/features/lobby";
 import { Text } from "@/components/base/Text";
 import { getAllArticles } from "@/content/blog/blogManifest";
-import { useProfile } from "@/hooks/useProfile";
-import { useBankroll } from "@/hooks/useBankroll";
-import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -22,38 +14,16 @@ function formatDate(iso: string): string {
 export default function BlogListScreen() {
   const router = useRouter();
   const articles = getAllArticles();
-  const profile = useProfile();
-  const { cents } = useBankroll();
-  const { onlineTotal, onlinePlayers, onlineBusy, onlineError } = storeRegistry.use.lobby();
-  const { requestOnlinePlayers } = useLobbyRealtimeBridge();
-  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
   const openArticle = useCallback(
     (slug: string) => {
       router.push(`/blog/${slug}`);
     },
-    [router]
+    [router],
   );
-
-  const openOnlineSheet = useCallback(() => {
-    setOnlineSheetVisible(true);
-    requestOnlinePlayers();
-  }, [requestOnlinePlayers]);
-
-  const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
 
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-        <AppTopNav
-          username={profile.username ?? "Player"}
-          onlineLabel={onlineLabel}
-          onPressOnline={openOnlineSheet}
-          amountCents={cents}
-          avatarUrl={profile.avatarUrl}
-        />
-      </HeaderStack>
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
@@ -81,15 +51,6 @@ export default function BlogListScreen() {
           ))}
         </View>
       </ScrollView>
-      <OnlinePlayersSheet
-        visible={onlineSheetVisible}
-        onClose={() => setOnlineSheetVisible(false)}
-        players={onlinePlayers}
-        loading={onlineBusy}
-        error={onlineError}
-        onRefresh={requestOnlinePlayers}
-      />
     </Screen>
   );
 }
-

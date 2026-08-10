@@ -10,7 +10,6 @@ import {
   buildPinnedCashLobbyRows,
   excludePinnedLobbyTables,
 } from "@/features/lobby/lobbySessionTables";
-import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import {
   LOBBY_SORT_COMPARATORS,
   type LobbySortKey,
@@ -48,10 +47,6 @@ export function useLobbyScreenModel() {
     refresh,
     busy,
     error,
-    onlineTotal,
-    onlinePlayers,
-    onlineBusy,
-    onlineError,
   } = storeRegistry.use.lobby();
   const {
     tournaments: tournamentList,
@@ -67,7 +62,6 @@ export function useLobbyScreenModel() {
   const lastBuyInCentsByTableId = storeRegistry.use.tables((s) => s.lastBuyInCentsByTableId);
   const roomIdByTableId = storeRegistry.use.tables((s) => s.roomIdByTableId);
   const tableJoinById = storeRegistry.use.tables((s) => s.tableJoinById);
-  const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
   const showToast = useToastStore((s) => s.show);
@@ -77,7 +71,6 @@ export function useLobbyScreenModel() {
   const [sortDir, setSortDir] = useState<LobbySortDir>("asc");
   const [filters, setFilters] = useState<LobbyTableFilters>(() => loadLobbyFilters());
   const [contentMode, setContentMode] = useState<LobbyContentMode>("all");
-  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
 
   const cash = useLobbyCashActions({
     authToken,
@@ -198,11 +191,6 @@ export function useLobbyScreenModel() {
 
   const clearFilters = useCallback(() => updateFilters(DEFAULT_LOBBY_FILTERS), [updateFilters]);
 
-  const openOnlineSheet = useCallback(() => {
-    setOnlineSheetVisible(true);
-    requestOnlinePlayers();
-  }, [requestOnlinePlayers]);
-
   const joinedTournamentsCount = useMemo(
     () => selectJoinedTournaments(tournamentList).length,
     [tournamentList],
@@ -266,10 +254,6 @@ export function useLobbyScreenModel() {
     profile,
     bankroll,
     isDesktopWorkspace,
-    onlineLabel: onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`,
-    onlinePlayers,
-    onlineBusy,
-    onlineError,
     showFromLessonNudge,
     playFromLesson: () => {
       setFromLessonDismissed(true);
@@ -322,16 +306,12 @@ export function useLobbyScreenModel() {
     tournamentsBusy,
     tournamentsError,
     refreshTournaments,
-    openOnlineSheet,
-    requestOnlinePlayers,
     createModalVisible,
     setCreateModalVisible,
     handleCreateGame,
     chooseTableModal,
     setChooseTableModal,
     handleJoinApply,
-    onlineSheetVisible,
-    setOnlineSheetVisible,
     router,
   };
 }

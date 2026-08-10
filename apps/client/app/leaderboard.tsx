@@ -2,24 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { ScrollView, View, TouchableOpacity, Text } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { Surface } from "@/components/containers/Surface";
 import { Button } from "@/components/base/Button";
 import { Avatar } from "@/components/base/Avatar";
-import { OnlinePlayersSheet } from "@/features/lobby";
-import { useProfile } from "@/hooks/useProfile";
 import { useAuthStore } from "@/stores/auth.store";
-import { storeRegistry } from "@/registry/store.registry";
-import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import {
   leaderboardService,
   type LeaderboardCategory,
   type LeaderboardEntry,
 } from "@/services/leaderboard.service";
-
-import { useBankroll } from "@/hooks/useBankroll";
 import { loginPathWithNext } from "@/lib/nav";
 
 const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
@@ -32,13 +23,6 @@ const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
   //{ key: "tight_rock", label: "Tightest" },
   //{ key: "action_junkie", label: "Loosest" },
 ];
-
-function formatComputedAt(input: string | null): string {
-  if (!input) return "Pending first snapshot";
-  const date = new Date(input);
-  if (Number.isNaN(date.getTime())) return "Pending first snapshot";
-  return date.toLocaleString();
-}
 
 function LeaderboardLoadingSkeleton() {
   return (
@@ -66,7 +50,6 @@ function LeaderboardLoadingSkeleton() {
 
 export default function LeaderboardScreen() {
   const router = useRouter();
-  const profile = useProfile();
   const token = useAuthStore((state) => state.token);
   const [category, setCategory] = useState<LeaderboardCategory>("biggest_winner");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -75,20 +58,11 @@ export default function LeaderboardScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
   const hasEntriesRef = useRef(false);
   const authError = useMemo(
     () => Boolean(error) && /authorization|unauthorized|sign in|session/i.test(error ?? ""),
     [error],
   );
-
-  const {
-    onlineTotal,
-    onlinePlayers,
-    onlineBusy,
-    onlineError,
-  } = storeRegistry.use.lobby();
-  const { requestOnlinePlayers } = useLobbyRealtimeBridge();
 
   const loadLeaderboard = useCallback(async () => {
     if (!token) {
@@ -132,35 +106,8 @@ export default function LeaderboardScreen() {
     void loadLeaderboard();
   }, [loadLeaderboard, refreshNonce]);
 
-  const openOnlineSheet = useCallback(() => {
-    setOnlineSheetVisible(true);
-    requestOnlinePlayers();
-  }, [requestOnlinePlayers]);
-
-  const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
-
-  const { cents: bankroll } = useBankroll();
-  const [slotBankroll, setSlotBankroll] = useState(bankroll);
-
-  useEffect(() => {
-    setSlotBankroll(bankroll);
-  }, [bankroll]);
-
-  const currentBankroll = slotBankroll ?? 0;
-
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-        <AppTopNav
-          username={profile.username ?? "Player"}
-          onlineLabel={onlineLabel}
-          onPressOnline={openOnlineSheet}
-          amountCents={currentBankroll}
-          avatarUrl={profile.avatarUrl}
-        />
-      </HeaderStack>
-
       <View className="flex-1 p-4">
         <View className="flex-row items-start gap-2 py-2 h-14">
           {CATEGORY_OPTIONS.map((option) => {
@@ -250,15 +197,6 @@ export default function LeaderboardScreen() {
           )}
         </ScrollView>
       </View>
-
-      <OnlinePlayersSheet
-        visible={onlineSheetVisible}
-        onClose={() => setOnlineSheetVisible(false)}
-        players={onlinePlayers}
-        loading={onlineBusy}
-        error={onlineError}
-        onRefresh={requestOnlinePlayers}
-      />
     </Screen>
   );
 }

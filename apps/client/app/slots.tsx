@@ -1,75 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ImageBackground, ScrollView } from "react-native";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
-import { OnlinePlayersSheet } from "@/features/lobby";
-import { storeRegistry } from "@/registry/store.registry";
 import { useBankroll } from "@/hooks/useBankroll";
-import { useProfile } from "@/hooks/useProfile";
-import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
+
+const SLOT_BG = require("@/components/domain/slot-machine/assets/ui/background.png");
 
 export default function SlotsScreen() {
-  const profile = useProfile();
   const { cents: bankroll } = useBankroll();
   const [slotBankroll, setSlotBankroll] = useState(bankroll);
-  const [onlineSheetVisible, setOnlineSheetVisible] = useState(false);
-
-  const {
-    onlineTotal,
-    onlinePlayers,
-    onlineBusy,
-    onlineError,
-  } = storeRegistry.use.lobby();
-  const { requestOnlinePlayers } = useLobbyRealtimeBridge();
 
   useEffect(() => {
     setSlotBankroll(bankroll);
   }, [bankroll]);
 
-  const openOnlineSheet = useCallback(() => {
-    setOnlineSheetVisible(true);
-    requestOnlinePlayers();
-  }, [requestOnlinePlayers]);
-
-  const onlineLabel = onlineTotal === 1 ? "1 Online" : `${onlineTotal} Online`;
-
-  const currentBankroll = slotBankroll ?? 0;
-
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-        <AppTopNav
-          username={profile.username ?? "Player"}
-          onlineLabel={onlineLabel}
-          onPressOnline={openOnlineSheet}
-          amountCents={currentBankroll}
-          avatarUrl={profile.avatarUrl}
-        />
-      </HeaderStack>
-
-      <View className="flex-1 slot-container">
-        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-          <View className="slot-machine-container justify-start" style={{ flex: 1, minHeight: 900 }}>
-            <ThemeProvider initialThemeId="poker-champ-dark">
-              <SlotMachine bankrollCents={currentBankroll} onBankrollChange={setSlotBankroll} />
-            </ThemeProvider>
-          </View>
+      <ImageBackground source={SLOT_BG} style={{ flex: 1 }} resizeMode="cover">
+        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
+          <ThemeProvider initialThemeId="poker-champ-dark">
+            <SlotMachine bankrollCents={slotBankroll} onBankrollChange={setSlotBankroll} />
+          </ThemeProvider>
         </ScrollView>
-      </View>
-
-      <OnlinePlayersSheet
-        visible={onlineSheetVisible}
-        onClose={() => setOnlineSheetVisible(false)}
-        players={onlinePlayers}
-        loading={onlineBusy}
-        error={onlineError}
-        onRefresh={requestOnlinePlayers}
-      />
+      </ImageBackground>
     </Screen>
   );
 }
-

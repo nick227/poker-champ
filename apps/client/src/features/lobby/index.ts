@@ -1,11 +1,8 @@
-export { Masthead } from "./components/lobby/Masthead";
 export { type LobbyTabKey, type LobbyContentMode } from "./lobbyContentMode";
 export { LobbyActionRow } from "./components/lobby/LobbyActionRow";
 export { OnlinePlayersSheet } from "./components/lobby/OnlinePlayersSheet";
 export { ReplayQuickLinks } from "./components/lobby/ReplayQuickLinks";
 export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleton";
-export { LobbyDesktopLayout } from "./components/lobby/LobbyDesktopLayout";
-export { LobbyDesktopTopBar } from "./components/lobby/LobbyDesktopTopBar";
 export { LobbyDesktopToolbar } from "./components/lobby/LobbyDesktopToolbar";
 export { LobbyTableList } from "./components/lobby/LobbyTableList";
 export { EmptyState } from "./components/lobby/EmptyState";

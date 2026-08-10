@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { useAuthStore } from "@/stores/auth.store";
@@ -16,8 +16,8 @@ type Props = {
   authenticated: boolean;
 };
 
-/** Desktop lobby HUD status strip: presence + account (brand lives in NavRail). */
-export function LobbyDesktopTopBar({
+/** Persistent HUD status strip: presence + account (brand lives in NavRail / BottomBar). */
+export function WorkspaceStatusBar({
   username,
   amountCents,
   onlineLabel,
@@ -26,12 +26,13 @@ export function LobbyDesktopTopBar({
   authenticated,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname() ?? "/lobby";
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
   const settingsPath = getSettingsTargetPath({ hydrated, token });
 
   return (
-    <View className="ui-row items-center justify-end border-b border-border pb-4 mb-4 gap-3">
+    <View className="ui-row items-center justify-end border-b border-border pb-4 mb-4 gap-3 shrink-0">
       <Pressable
         onPress={onPressOnline}
         disabled={!onPressOnline}
@@ -62,7 +63,7 @@ export function LobbyDesktopTopBar({
           size="sm"
           shape="hud"
           minWidth={0}
-          onPress={() => router.push(loginPathWithNext("/lobby"))}
+          onPress={() => router.push(loginPathWithNext(pathname))}
         />
       )}
     </View>

@@ -5,9 +5,6 @@ import { Screen } from "@/components/containers/Screen";
 import { Loader } from "@/components/base/Loader";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
-import { Masthead } from "@/features/lobby";
-import { AppTopNav } from "@/components/domain/navigation/AppTopNav";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { TournamentJoinModal, TournamentRegisterModal } from "@/features/lobby";
 import { TournamentDetailBody } from "@/features/tournaments";
 import {
@@ -22,7 +19,6 @@ import type { TournamentStandingRow, TournamentSummary } from "@/services/tourna
 import { useAuthStore } from "@/stores/auth.store";
 import { useToastStore } from "@/stores/toast.store";
 import { useBankroll } from "@/hooks/useBankroll";
-import { useProfile } from "@/hooks/useProfile";
 import { storeRegistry } from "@/registry/store.registry";
 
 export default function TournamentDetailScreen() {
@@ -31,7 +27,6 @@ export default function TournamentDetailScreen() {
   const tournamentId = typeof id === "string" ? id : "";
   const authToken = useAuthStore((s) => s.token);
   const showToast = useToastStore((s) => s.show);
-  const profile = useProfile();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
@@ -190,17 +185,6 @@ export default function TournamentDetailScreen() {
 
   return (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-        <AppTopNav
-          username={profile.username ?? "Player"}
-          onlineLabel="Lobby"
-          onPressOnline={() => router.push("/lobby")}
-          amountCents={bankroll}
-          avatarUrl={profile.avatarUrl}
-        />
-      </HeaderStack>
-
       {loadBusy ? (
         <View className="flex-1 ui-center p-6">
           <Loader />

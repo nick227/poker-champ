@@ -1,8 +1,6 @@
 import { View } from "react-native";
 import type { ReactNode } from "react";
 import { Screen } from "@/components/containers/Screen";
-import { Masthead } from "@/features/lobby";
-import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayContent } from "@/components/replay/ReplayContent";
 import { useLocalSearchParams } from "expo-router";
 import { Text as BaseText } from "@/components/base/Text";
@@ -13,12 +11,7 @@ export default function ReplayScreen() {
 
   const wrapWithShell = (content: ReactNode) => (
     <Screen>
-      <HeaderStack>
-        <Masthead />
-      </HeaderStack>
-      <View className="flex-1 ui-stack-3">
-        {content}
-      </View>
+      <View className="flex-1 ui-stack-3">{content}</View>
     </Screen>
   );
 
@@ -28,13 +21,13 @@ export default function ReplayScreen() {
         <BaseText variant="muted" className="text-center">
           Error: No hand ID provided
         </BaseText>
-      </View>
+      </View>,
     );
   }
 
   return wrapWithShell(
     <View className="flex-1">
       <ReplayContent source={{ type: "handId", handId: handIdStr }} />
-    </View>
+    </View>,
   );
 }
