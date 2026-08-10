@@ -11,7 +11,7 @@ type Props = {
   dense?: boolean;
 };
 
-/** Mode segmented control + quieter mode-owned create (Play now owns accent). */
+/** Mode fills the line; create anchors the trailing edge. */
 export function LobbyModeRow({
   active,
   onChange,
@@ -21,13 +21,16 @@ export function LobbyModeRow({
   dense = false,
 }: Props) {
   return (
-    <View className={`ui-row items-center flex-wrap gap-2 pb-3 ${dense ? "" : "px-4"}`}>
-      <View className="shrink min-w-0">
+    <View
+      className={`ui-row items-center gap-3 pb-3 w-full ${dense ? "" : "px-4"}`}
+    >
+      <View className="flex-1 min-w-0" style={{ flex: 1 }}>
         <LobbyTabs
           active={active}
           onChange={onChange}
           tournamentsBadgeCount={tournamentsBadgeCount}
           dense
+          stretch
         />
       </View>
       <Button
