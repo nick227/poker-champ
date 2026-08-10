@@ -48,7 +48,7 @@ type MultiTableState = {
   tableJoinById: Record<string, TableJoinState>;
   roomIdByTableId: Record<string, string>;
   lastBuyInCentsByTableId: Record<string, number>;
-  /** Human-readable table name keyed by tableId, for display in lobby (e.g. LobbyContinuePlaying). */
+  /** Human-readable table name keyed by tableId, for lobby session rows. */
   tableNameByTableId: Record<string, string>;
   tableMetaUpdatedAt: Record<string, number>;
   openTable: (id: string, joinState?: TableJoinState) => void;
@@ -353,8 +353,17 @@ export const useMultiTableStore = create<MultiTableState>()(
       disconnectOtherTables: (exceptTableId) => {
         for (const [id, fn] of tableDisconnectByTableId.entries()) {
           if (id !== exceptTableId) {
+            // Mark sitting out before dropping the connection so the seat/stack are preserved
+            // (an unconsented disconnect on a table with no pending sit-out would otherwise still
+            // recover gracefully via the reconnect window, but this makes the "why" visible to
+            // other players immediately instead of showing merely "disconnected").
             try {
-              fn(true);
+              get().dispatchSetSittingOut({ tableId: id, sittingOut: true });
+            } catch {
+              /* no-op */
+            }
+            try {
+              fn(false);
             } catch {
               /* no-op */
             }

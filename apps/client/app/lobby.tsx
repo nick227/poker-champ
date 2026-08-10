@@ -6,7 +6,6 @@ import { HeaderStack } from "@/components/containers/HeaderStack";
 import { ReplayQuickLinks } from "@/features/lobby";
 import { LobbyDesktopLayout } from "@/features/lobby";
 import { LobbyDesktopToolbar } from "@/features/lobby";
-import { LobbyContinuePlaying } from "@/features/lobby";
 import { LobbyActionRow } from "@/features/lobby/components/lobby/LobbyActionRow";
 import { LobbyCashListStage } from "@/features/lobby/components/lobby/LobbyCashListStage";
 import { LobbyLessonNudge } from "@/features/lobby/components/lobby/LobbyLessonNudge";
@@ -49,12 +48,14 @@ export default function LobbyScreen() {
       busy={m.busy}
       error={m.error}
       tables={m.sortedTables}
+      pinnedTables={m.pinnedCashTables}
       filters={m.filters}
       sortKey={m.sortKey}
       sortDir={m.sortDir}
       onSort={m.handleSort}
       isJoining={m.isJoining}
       onJoin={m.openJoinModal}
+      onResume={m.resumeCashTable}
       onRetry={() => {
         void m.refresh();
       }}
@@ -139,7 +140,6 @@ export default function LobbyScreen() {
           primary={
             <View className="flex-1 min-h-0">
               {lessonNudge}
-              <LobbyContinuePlaying variant="row" />
               {actionRow}
               {toolbar}
               {m.contentMode === "all" ? (
@@ -169,7 +169,6 @@ export default function LobbyScreen() {
       </HeaderStack>
       {lessonNudge ? <View className="mx-4 mt-2">{lessonNudge}</View> : null}
       <ScrollView className="flex-1">
-        <LobbyContinuePlaying />
         <LobbyActionRow
           padded
           inFlightPreset={m.instantStartInFlightPreset}

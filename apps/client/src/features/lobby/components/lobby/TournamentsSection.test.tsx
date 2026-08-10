@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { TournamentSummary } from "@/services/tournaments.types";
-import { JoinedTournamentsSection } from "./JoinedTournamentsSection";
+import { TournamentsSection } from "./TournamentsSection";
 
 vi.mock("@/hooks/useNowMs", () => ({
   useNowMs: () => Date.now(),
@@ -33,11 +33,13 @@ function baseTournament(overrides: Partial<TournamentSummary>): TournamentSummar
 
 const noop = () => {};
 
-describe("JoinedTournamentsSection", () => {
-  it("renders only joined active tournaments, not FINISHED or ABANDONED", () => {
+describe("TournamentsSection pinned joined", () => {
+  it("pins joined active tournaments with Joined status, not FINISHED or ABANDONED", () => {
     render(
-      <JoinedTournamentsSection
+      <TournamentsSection
         authenticated
+        busy={false}
+        error={null}
         tournaments={[
           baseTournament({ id: "live", name: "Live Event", isRegistered: true, status: "RUNNING" }),
           baseTournament({
@@ -59,21 +61,23 @@ describe("JoinedTournamentsSection", () => {
       />,
     );
 
-    expect(screen.getByText("Your tournaments")).toBeTruthy();
     expect(screen.getByText("Live Event")).toBeTruthy();
+    expect(screen.getByText("Joined")).toBeTruthy();
     expect(screen.queryByText("Finished Event")).toBeNull();
     expect(screen.queryByText("Abandoned Event")).toBeNull();
   });
 
-  it("renders nothing when unauthenticated", () => {
-    const { container } = render(
-      <JoinedTournamentsSection
+  it("does not pin joined rows when unauthenticated", () => {
+    render(
+      <TournamentsSection
         authenticated={false}
-        tournaments={[baseTournament({ id: "live", isRegistered: true, status: "RUNNING" })]}
+        busy={false}
+        error={null}
+        tournaments={[baseTournament({ id: "live", name: "Live Event", isRegistered: true, status: "RUNNING" })]}
         onTournamentAction={noop}
         onOpenTournamentDetail={noop}
       />,
     );
-    expect(container.textContent).toBe("");
+    expect(screen.queryByText("Joined")).toBeNull();
   });
 });

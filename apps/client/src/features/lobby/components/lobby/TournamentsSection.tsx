@@ -25,8 +25,13 @@ type TournamentsSectionProps = {
   dense?: boolean;
 };
 
+function isRunningPhase(status: string): boolean {
+  return status === "STARTING" || status === "LATE_REG" || status === "RUNNING";
+}
+
 function SectionBlock({
   title,
+  pinned,
   items,
   nowMs,
   authenticated,
@@ -37,6 +42,7 @@ function SectionBlock({
   deleteInFlightId,
 }: {
   title: string;
+  pinned: TournamentSummary[];
   items: TournamentSummary[];
   nowMs: number;
   authenticated: boolean;
@@ -46,13 +52,14 @@ function SectionBlock({
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
 }) {
-  if (items.length === 0) return null;
+  if (pinned.length === 0 && items.length === 0) return null;
   return (
     <View className="ui-stack-2">
       <Text variant="muted" className="text-[11px] tracking-widest uppercase">
         {title}
       </Text>
       <TournamentLobbyList
+        pinnedTournaments={pinned}
         tournaments={items}
         nowMs={nowMs}
         authenticated={authenticated}
@@ -80,9 +87,28 @@ export function TournamentsSection({
   deleteInFlightId,
   dense = false,
 }: TournamentsSectionProps) {
+  const joined = authenticated ? selectJoinedTournaments(tournaments) : [];
   const groups = groupTournamentsForLobby(filterTournamentsForBrowseLobby(tournaments));
-  const hasBrowse = groups.upcoming.length > 0 || groups.running.length > 0;
-  const hasJoined = selectJoinedTournaments(tournaments).length > 0;
+
+  const pinnedUpcomingBase = joined.filter((t) => t.status === "REGISTERING");
+  const pinnedRunningBase = joined.filter((t) => isRunningPhase(t.status));
+  const leftover = joined.filter(
+    (t) => t.status !== "REGISTERING" && !isRunningPhase(t.status),
+  );
+  const preferRunning =
+    groups.running.length > 0 || pinnedRunningBase.length > 0 || leftover.length > 0;
+  const pinnedUpcoming = preferRunning
+    ? pinnedUpcomingBase
+    : [...leftover, ...pinnedUpcomingBase];
+  const pinnedRunning = preferRunning
+    ? [...leftover, ...pinnedRunningBase]
+    : pinnedRunningBase;
+
+  const hasRows =
+    pinnedUpcoming.length > 0 ||
+    pinnedRunning.length > 0 ||
+    groups.upcoming.length > 0 ||
+    groups.running.length > 0;
   const nowMs = useNowMs();
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Create one or check back soon."
@@ -93,7 +119,7 @@ export function TournamentsSection({
       <TournamentListFeedback
         busy={busy}
         error={error}
-        isEmpty={!hasBrowse && !hasJoined}
+        isEmpty={!hasRows}
         emptyMessage={emptyMessage}
         onRetry={onRetry}
         onCreate={authenticated ? onCreate : undefined}
@@ -102,6 +128,7 @@ export function TournamentsSection({
         <>
           <SectionBlock
             title="Upcoming"
+            pinned={pinnedUpcoming}
             items={groups.upcoming}
             nowMs={nowMs}
             authenticated={authenticated}
@@ -113,6 +140,7 @@ export function TournamentsSection({
           />
           <SectionBlock
             title="Running"
+            pinned={pinnedRunning}
             items={groups.running}
             nowMs={nowMs}
             authenticated={authenticated}

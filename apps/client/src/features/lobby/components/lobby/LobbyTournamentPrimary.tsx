@@ -1,5 +1,4 @@
 import { ScrollView, View } from "react-native";
-import { JoinedTournamentsSection } from "./JoinedTournamentsSection";
 import { TournamentsSection } from "./TournamentsSection";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -19,7 +18,7 @@ type Props = {
   scrollable?: boolean;
 };
 
-/** Joined + browse tournament lists for lobby primary pane. */
+/** Browse tournament lists for lobby primary pane (joined pinned as first rows). */
 export function LobbyTournamentPrimary({
   tournaments,
   busy,
@@ -36,32 +35,20 @@ export function LobbyTournamentPrimary({
   scrollable = true,
 }: Props) {
   const body = (
-    <>
-      <JoinedTournamentsSection
-        tournaments={tournaments}
-        authenticated={authenticated}
-        actionInFlight={actionInFlight}
-        onTournamentAction={onTournamentAction}
-        onOpenTournamentDetail={onOpenTournamentDetail}
-        onDeleteTournament={onDeleteTournament}
-        deleteInFlightId={deleteInFlightId}
-        dense={dense}
-      />
-      <TournamentsSection
-        tournaments={tournaments}
-        busy={busy}
-        error={error}
-        authenticated={authenticated}
-        actionInFlight={actionInFlight}
-        onTournamentAction={onTournamentAction}
-        onOpenTournamentDetail={onOpenTournamentDetail}
-        onRetry={onRetry}
-        onCreate={onCreate}
-        onDeleteTournament={onDeleteTournament}
-        deleteInFlightId={deleteInFlightId}
-        dense={dense}
-      />
-    </>
+    <TournamentsSection
+      tournaments={tournaments}
+      busy={busy}
+      error={error}
+      authenticated={authenticated}
+      actionInFlight={actionInFlight}
+      onTournamentAction={onTournamentAction}
+      onOpenTournamentDetail={onOpenTournamentDetail}
+      onRetry={onRetry}
+      onCreate={onCreate}
+      onDeleteTournament={onDeleteTournament}
+      deleteInFlightId={deleteInFlightId}
+      dense={dense}
+    />
   );
 
   if (!scrollable) {

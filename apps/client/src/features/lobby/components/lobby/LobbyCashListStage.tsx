@@ -11,12 +11,14 @@ type Props = {
   busy: boolean;
   error: string | null;
   tables: LobbyTableRow[];
+  pinnedTables?: LobbyTableRow[];
   filters: LobbyTableFilters;
   sortKey: LobbySortKey;
   sortDir: LobbySortDir;
   onSort: (key: LobbySortKey) => void;
   isJoining: (tableId: string) => boolean;
   onJoin: (table: LobbyTableRow) => void;
+  onResume?: (table: LobbyTableRow) => void;
   onRetry: () => void;
   onCreate: () => void;
   onClearFilters: () => void;
@@ -29,23 +31,25 @@ export function LobbyCashListStage({
   busy,
   error,
   tables,
+  pinnedTables = [],
   filters,
   sortKey,
   sortDir,
   onSort,
   isJoining,
   onJoin,
+  onResume,
   onRetry,
   onCreate,
   onClearFilters,
   scrollable = true,
   compact = false,
 }: Props) {
-  if (busy) {
+  if (busy && pinnedTables.length === 0) {
     return <EmptyState message="Loading tables…" />;
   }
 
-  if (error) {
+  if (error && pinnedTables.length === 0) {
     return (
       <EmptyState
         message={error}
@@ -57,7 +61,7 @@ export function LobbyCashListStage({
     );
   }
 
-  if (tables.length === 0) {
+  if (tables.length === 0 && pinnedTables.length === 0) {
     const filtered = hasActiveLobbyFilters(filters);
     return (
       <EmptyState
@@ -82,11 +86,13 @@ export function LobbyCashListStage({
   return (
     <LobbyTableList
       tables={tables}
+      pinnedTables={pinnedTables}
       sortKey={sortKey}
       sortDir={sortDir}
       onSort={onSort}
       isJoining={isJoining}
       onJoin={onJoin}
+      onResume={onResume}
       scrollable={scrollable}
       compact={compact}
     />

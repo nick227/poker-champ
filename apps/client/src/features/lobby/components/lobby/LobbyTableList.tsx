@@ -3,16 +3,20 @@ import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { LobbySortKey } from "../../lobbyTableSort";
+import { LobbyTableListCompact } from "./LobbyTableListCompact";
 
 export type LobbySortDir = "asc" | "desc";
 
 type Props = {
   tables: LobbyTableRow[];
+  /** Frozen session rows rendered above browse rows (status Joined). */
+  pinnedTables?: LobbyTableRow[];
   sortKey: LobbySortKey;
   sortDir: LobbySortDir;
   onSort: (key: LobbySortKey) => void;
   isJoining: (tableId: string) => boolean;
   onJoin: (table: LobbyTableRow) => void;
+  onResume?: (table: LobbyTableRow) => void;
   scrollable?: boolean;
   compact?: boolean;
 };
@@ -39,117 +43,123 @@ function cellTextClass(align: "left" | "right", extra = ""): string {
   return `${align === "right" ? "text-right" : "text-left"} ${extra}`.trim();
 }
 
+function formatBlinds(table: LobbyTableRow): string {
+  if (table.smallBlindCents <= 0 && table.bigBlindCents <= 0) return "—";
+  return `${formatCents(table.smallBlindCents)}/${formatCents(table.bigBlindCents)}`;
+}
+
+function formatSeats(table: LobbyTableRow): string {
+  if (table.seats <= 0) return "—";
+  return `${table.players}/${table.seats}`;
+}
+
+function DesktopRow({
+  table,
+  pinned,
+  joining,
+  onPress,
+}: {
+  table: LobbyTableRow;
+  pinned: boolean;
+  joining: boolean;
+  onPress: () => void;
+}) {
+  const live = (table.connectedHumanCount ?? 0) > 0;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={joining}
+      className={`btn ui-row items-center border-b border-border/40 px-3 h-11 rounded-none ${
+        pinned ? "bg-brand-soft border-brand/25" : "active:bg-panel-elevated"
+      }`}
+      style={{ borderRadius: 0, opacity: joining ? 0.7 : 1 }}
+    >
+      {DESKTOP_COLS.map((col) => {
+        let content: string;
+        if (col.key === "name") content = joining ? "Joining…" : table.name;
+        else if (col.key === "blinds") content = formatBlinds(table);
+        else if (col.key === "players") content = formatSeats(table);
+        else if (col.key === "buyIn")
+          content = table.minBuyInCents > 0 ? formatCents(table.minBuyInCents) : "—";
+        else content = pinned ? "Joined" : live ? "Live" : "Waiting";
+
+        return (
+          <View
+            key={col.key}
+            style={{ flex: col.flex }}
+            className={`pr-2 min-w-0 ${col.align === "right" ? "items-end" : "items-start"}`}
+          >
+            {col.key === "status" ? (
+              <View className="ui-row items-center gap-1.5">
+                <View
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    pinned || live ? "bg-brand" : "bg-border"
+                  }`}
+                />
+                <Text
+                  variant="body"
+                  className={`text-[12px] ${
+                    pinned || live ? "text-brand font-semibold" : "text-muted"
+                  }`}
+                  numberOfLines={1}
+                >
+                  {content}
+                </Text>
+              </View>
+            ) : (
+              <Text
+                variant="body"
+                className={cellTextClass(
+                  col.align,
+                  col.key === "name"
+                    ? "font-semibold text-[13px] w-full"
+                    : "font-mono text-[12px] tabular-nums w-full",
+                )}
+                numberOfLines={1}
+              >
+                {content}
+              </Text>
+            )}
+          </View>
+        );
+      })}
+    </Pressable>
+  );
+}
+
 /** Dense inset list stage — game-client table browser. */
 export function LobbyTableList({
   tables,
+  pinnedTables = [],
   sortKey,
   sortDir,
   onSort,
   isJoining,
   onJoin,
+  onResume,
   scrollable = true,
   compact = false,
 }: Props) {
+  const handleRowPress = (table: LobbyTableRow, pinned: boolean) => {
+    if (isJoining(table.id)) return;
+    if (pinned) {
+      onResume?.(table);
+      return;
+    }
+    onJoin(table);
+  };
+
   if (compact) {
     return (
-      <View className="lobby-stage border rounded-2 overflow-hidden">
-        <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
-          <Pressable
-            onPress={() => onSort("name")}
-            className="btn h-9 justify-center rounded-none px-1 flex-1"
-            style={{ flex: 1, backgroundColor: "transparent", borderRadius: 0 }}
-          >
-            <Text
-              variant={sortKey === "name" ? "body" : "muted"}
-              className={`text-[11px] tracking-wide uppercase font-semibold ${
-                sortKey === "name" ? "text-gold" : ""
-              }`}
-              numberOfLines={1}
-            >
-              Table{caret(sortKey === "name", sortDir)}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => onSort("players")}
-            className="btn h-9 justify-center items-end rounded-none px-1"
-            style={{ width: 56, backgroundColor: "transparent", borderRadius: 0 }}
-          >
-            <Text
-              variant={sortKey === "players" ? "body" : "muted"}
-              className={`text-[11px] tracking-wide uppercase font-semibold text-right ${
-                sortKey === "players" ? "text-gold" : ""
-              }`}
-              numberOfLines={1}
-            >
-              Seats{caret(sortKey === "players", sortDir)}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => onSort("status")}
-            className="btn h-9 justify-center items-end rounded-none px-1"
-            style={{ width: 72, backgroundColor: "transparent", borderRadius: 0 }}
-          >
-            <Text
-              variant={sortKey === "status" ? "body" : "muted"}
-              className={`text-[11px] tracking-wide uppercase font-semibold text-right ${
-                sortKey === "status" ? "text-gold" : ""
-              }`}
-              numberOfLines={1}
-            >
-              Status{caret(sortKey === "status", sortDir)}
-            </Text>
-          </Pressable>
-        </View>
-        <View>
-          {tables.map((table) => {
-            const joining = isJoining(table.id);
-            const live = (table.connectedHumanCount ?? 0) > 0;
-            return (
-              <Pressable
-                key={table.id}
-                onPress={() => {
-                  if (!joining) onJoin(table);
-                }}
-                disabled={joining}
-                className="btn ui-row items-center border-b border-border/40 px-3 h-12 rounded-none active:bg-panel-elevated"
-                style={{ borderRadius: 0, backgroundColor: "transparent" }}
-              >
-                <View className="flex-1 pr-2 min-w-0">
-                  <Text variant="body" className="font-semibold text-[13px]" numberOfLines={1}>
-                    {joining ? "Joining…" : table.name}
-                  </Text>
-                  <Text variant="muted" className="font-mono text-[11px] tabular-nums" numberOfLines={1}>
-                    {formatCents(table.smallBlindCents)}/{formatCents(table.bigBlindCents)}
-                    {" · "}
-                    {formatCents(table.minBuyInCents)} buy-in
-                  </Text>
-                </View>
-                <View style={{ width: 56 }} className="items-end">
-                  <Text
-                    variant="body"
-                    className="font-mono text-[12px] tabular-nums text-right"
-                    numberOfLines={1}
-                  >
-                    {table.players}/{table.seats}
-                  </Text>
-                </View>
-                <View style={{ width: 72 }} className="items-end">
-                  <View className="ui-row items-center gap-1.5">
-                    <View className={`h-1.5 w-1.5 rounded-full ${live ? "bg-brand" : "bg-border"}`} />
-                    <Text
-                      variant={live ? "body" : "muted"}
-                      className={`text-[12px] ${live ? "text-brand font-semibold" : ""}`}
-                      numberOfLines={1}
-                    >
-                      {live ? "Live" : "Wait"}
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <LobbyTableListCompact
+        tables={tables}
+        pinnedTables={pinnedTables}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={onSort}
+        isJoining={isJoining}
+        onRowPress={handleRowPress}
+      />
     );
   }
 
@@ -182,65 +192,28 @@ export function LobbyTableList({
     </View>
   );
 
-  const rows = tables.map((table) => {
-    const joining = isJoining(table.id);
-    const live = (table.connectedHumanCount ?? 0) > 0;
-    return (
-      <Pressable
-        key={table.id}
-        onPress={() => {
-          if (!joining) onJoin(table);
-        }}
-        disabled={joining}
-        className="btn ui-row items-center border-b border-border/40 px-3 h-11 rounded-none active:bg-panel-elevated"
-        style={{ borderRadius: 0, backgroundColor: "transparent", opacity: joining ? 0.7 : 1 }}
-      >
-        {DESKTOP_COLS.map((col) => {
-          let content: string;
-          if (col.key === "name") content = joining ? "Joining…" : table.name;
-          else if (col.key === "blinds")
-            content = `${formatCents(table.smallBlindCents)}/${formatCents(table.bigBlindCents)}`;
-          else if (col.key === "players") content = `${table.players}/${table.seats}`;
-          else if (col.key === "buyIn") content = formatCents(table.minBuyInCents);
-          else content = live ? "Live" : "Waiting";
-
-          return (
-            <View
-              key={col.key}
-              style={{ flex: col.flex }}
-              className={`pr-2 min-w-0 ${col.align === "right" ? "items-end" : "items-start"}`}
-            >
-              {col.key === "status" ? (
-                <View className="ui-row items-center gap-1.5">
-                  <View className={`h-1.5 w-1.5 rounded-full ${live ? "bg-brand" : "bg-border"}`} />
-                  <Text
-                    variant={live ? "body" : "muted"}
-                    className={`text-[12px] ${live ? "text-brand font-semibold" : ""}`}
-                    numberOfLines={1}
-                  >
-                    {content}
-                  </Text>
-                </View>
-              ) : (
-                <Text
-                  variant="body"
-                  className={cellTextClass(
-                    col.align,
-                    col.key === "name"
-                      ? "font-semibold text-[13px] w-full"
-                      : "font-mono text-[12px] tabular-nums w-full",
-                  )}
-                  numberOfLines={1}
-                >
-                  {content}
-                </Text>
-              )}
-            </View>
-          );
-        })}
-      </Pressable>
-    );
-  });
+  const body = (
+    <>
+      {pinnedTables.map((table) => (
+        <DesktopRow
+          key={`pin-${table.id}`}
+          table={table}
+          pinned
+          joining={isJoining(table.id)}
+          onPress={() => handleRowPress(table, true)}
+        />
+      ))}
+      {tables.map((table) => (
+        <DesktopRow
+          key={table.id}
+          table={table}
+          pinned={false}
+          joining={isJoining(table.id)}
+          onPress={() => handleRowPress(table, false)}
+        />
+      ))}
+    </>
+  );
 
   return (
     <View
@@ -251,10 +224,10 @@ export function LobbyTableList({
       {header}
       {scrollable ? (
         <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-          {rows}
+          {body}
         </ScrollView>
       ) : (
-        <View>{rows}</View>
+        <View>{body}</View>
       )}
     </View>
   );

@@ -6,6 +6,10 @@ import { filterTournamentsByQuery } from "@/features/lobby/components/lobby/Lobb
 import { useLobbyCashActions } from "@/features/lobby/hooks/useLobbyCashActions";
 import { useLobbyScreenEffects } from "@/features/lobby/hooks/useLobbyScreenEffects";
 import { useLobbyTournamentActions } from "@/features/lobby/hooks/useLobbyTournamentActions";
+import {
+  buildPinnedCashLobbyRows,
+  excludePinnedLobbyTables,
+} from "@/features/lobby/lobbySessionTables";
 import { useLobbyRealtimeBridge } from "@/features/lobby/realtime/lobbyRealtimeBridge";
 import {
   LOBBY_SORT_COMPARATORS,
@@ -21,7 +25,8 @@ import {
 import { useBankroll } from "@/hooks/useBankroll";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { useProfile } from "@/hooks/useProfile";
-import { normalizeTable } from "@/lib/lobbyTables";
+import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
+import { tablePath } from "@/lib/nav";
 import { selectJoinedTournaments } from "@/lib/tournament.utils";
 import { storeRegistry } from "@/registry/store.registry";
 import type { TournamentSummary } from "@/services/tournaments.types";
@@ -57,6 +62,11 @@ export function useLobbyScreenModel() {
   const openTable = storeRegistry.use.tables((s) => s.openTable);
   const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
   const setTableName = storeRegistry.use.tables((s) => s.setTableName);
+  const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
+  const tableNameByTableId = storeRegistry.use.tables((s) => s.tableNameByTableId);
+  const lastBuyInCentsByTableId = storeRegistry.use.tables((s) => s.lastBuyInCentsByTableId);
+  const roomIdByTableId = storeRegistry.use.tables((s) => s.roomIdByTableId);
+  const tableJoinById = storeRegistry.use.tables((s) => s.tableJoinById);
   const { requestOnlinePlayers } = useLobbyRealtimeBridge();
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
@@ -107,17 +117,67 @@ export function useLobbyScreenModel() {
     onTournamentCancelled,
   });
 
+  const lobbyTableRows = useMemo(
+    () => tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>)),
+    [tables],
+  );
+
+  const tournamentTableIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of tournamentList) {
+      if (t.tableId) ids.add(t.tableId);
+    }
+    for (const [id, join] of Object.entries(tableJoinById)) {
+      if (join?.tournamentId) ids.add(id);
+    }
+    return ids;
+  }, [tableJoinById, tournamentList]);
+
+  const pinnedCashTables = useMemo(
+    () =>
+      buildPinnedCashLobbyRows({
+        openTableIds,
+        lobbyTables: lobbyTableRows,
+        tournamentTableIds,
+        tableNameByTableId,
+        lastBuyInCentsByTableId,
+        roomIdByTableId,
+      }),
+    [
+      openTableIds,
+      lobbyTableRows,
+      tournamentTableIds,
+      tableNameByTableId,
+      lastBuyInCentsByTableId,
+      roomIdByTableId,
+    ],
+  );
+
+  const pinnedCashIds = useMemo(
+    () => new Set(pinnedCashTables.map((row) => row.id)),
+    [pinnedCashTables],
+  );
+
   const sortedTables = useMemo(() => {
-    const rows = tables.map((t: unknown) => normalizeTable(t as Record<string, unknown>));
-    const filtered = applyLobbyFilters(rows, filters);
+    const filtered = applyLobbyFilters(
+      excludePinnedLobbyTables(lobbyTableRows, pinnedCashIds),
+      filters,
+    );
     const cmp = LOBBY_SORT_COMPARATORS[sortKey];
     const sorted = [...filtered].sort(cmp);
     return sortDir === "asc" ? sorted : sorted.reverse();
-  }, [tables, sortKey, sortDir, filters]);
+  }, [lobbyTableRows, pinnedCashIds, sortKey, sortDir, filters]);
 
   const filteredTournaments = useMemo(
     () => filterTournamentsByQuery(tournamentList, filters.query),
     [tournamentList, filters.query],
+  );
+
+  const resumeCashTable = useCallback(
+    (table: LobbyTableRow) => {
+      router.push(tablePath(table.id, { buyInCents: lastBuyInCentsByTableId[table.id] }));
+    },
+    [lastBuyInCentsByTableId, router],
   );
 
   const handleSort = useCallback((key: LobbySortKey) => {
@@ -191,14 +251,15 @@ export function useLobbyScreenModel() {
   }, [contentMode, handleCreateTournament, openCreateTable]);
 
   const resultLabel = useMemo(() => {
-    const tablesLabel = `${sortedTables.length} ${sortedTables.length === 1 ? "table" : "tables"}`;
+    const cashCount = sortedTables.length + pinnedCashTables.length;
+    const tablesLabel = `${cashCount} ${cashCount === 1 ? "table" : "tables"}`;
     const eventsLabel = `${filteredTournaments.length} ${
       filteredTournaments.length === 1 ? "event" : "events"
     }`;
     if (contentMode === "cash") return tablesLabel;
     if (contentMode === "tournaments") return eventsLabel;
     return `${tablesLabel} · ${eventsLabel}`;
-  }, [contentMode, filteredTournaments.length, sortedTables.length]);
+  }, [contentMode, filteredTournaments.length, pinnedCashTables.length, sortedTables.length]);
 
   return {
     authenticated,
@@ -243,6 +304,8 @@ export function useLobbyScreenModel() {
     updateFilters,
     clearFilters,
     sortedTables,
+    pinnedCashTables,
+    resumeCashTable,
     filteredTournaments,
     resultLabel,
     showCash: contentMode === "all" || contentMode === "cash",
