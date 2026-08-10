@@ -245,12 +245,28 @@ export function ActiveTableView({
     } else if (canRebuy && onPressRebuy) {
       bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
     } else if (
+      !forceDisableActions &&
+      !forceActionBarInteractive &&
+      isPendingHeroAction &&
+      !waitingBetweenHands &&
+      hasActionOptions
+    ) {
+      // Keep buttons visible (disabled) while the action is in flight — avoids HUD collapse.
+      bottom = (
+        <ActionBar
+          actionContext={actionContext}
+          heroStatus={heroStatus}
+          actionOptions={heroActionOptions}
+          potCents={potCents}
+          onAction={handleAction}
+          forceDisabled
+          forceInteractive={false}
+        />
+      );
+    } else if (
       forceDisableActions ||
       (!forceActionBarInteractive &&
-        (waitingBetweenHands ||
-          !hasActionOptions ||
-          !actionContext.showActions ||
-          isPendingHeroAction))
+        (waitingBetweenHands || !hasActionOptions || !actionContext.showActions))
     ) {
       const textVariantClass = {
         default: "text-center text-muted",

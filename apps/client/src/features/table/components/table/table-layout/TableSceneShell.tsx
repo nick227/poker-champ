@@ -181,6 +181,8 @@ export function TableSceneShell({
                 style={[
                   layoutStyles.actionHudSection,
                   {
+                    height: hudMax,
+                    minHeight: hudMax,
                     maxHeight: hudMax,
                     paddingBottom: hudBottomPadding,
                   },

@@ -269,10 +269,8 @@ export function useActiveTableSlots(
         isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
       />
     );
-  } else if (optimisticAction) {
-    // Keep optimistic pending state, but do not show a felt announce bubble.
-    bottom = null;
-  } else if (!waitingBetweenHands && showHeroActionBar) {
+  } else if (!waitingBetweenHands && (showHeroActionBar || optimisticAction)) {
+    // Keep the bar mounted while the action is in flight so the HUD/table don't jump.
     bottom = (
       <ActionBar
         actionContext={actionContext}
@@ -281,6 +279,7 @@ export function useActiveTableSlots(
         potCents={potCents}
         hideReconnectingOverlay
         onAction={handleAction}
+        forceDisabled={Boolean(optimisticAction)}
         forceInteractive={false}
       />
     );

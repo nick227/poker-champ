@@ -40,10 +40,11 @@ export const layoutStyles = StyleSheet.create({
     // Let south nameplates paint above the host edge; HUD sits below in layout.
     overflow: "visible",
   },
-  /** Compact HUD: floats on the stage void — no panel sheet. */
+  /** Compact HUD: fixed band so stage/table never jump when actions mount/unmount. */
   actionHudSection: {
     width: "100%",
-    minHeight: 56,
+    height: ACTION_BAR_HEIGHT,
+    minHeight: ACTION_BAR_HEIGHT,
     maxHeight: ACTION_BAR_HEIGHT + 24,
     flexGrow: 0,
     flexShrink: 0,
@@ -51,5 +52,6 @@ export const layoutStyles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingTop: 4,
     backgroundColor: "transparent",
+    justifyContent: "center",
   },
 });
