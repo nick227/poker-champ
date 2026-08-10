@@ -153,6 +153,7 @@ html, body {
 
 /* Desktop workspace: NavRail + fluid main (AppChrome) */
 .app-shell-desktop {
+  position: relative;
   flex: 1;
   width: 100%;
   min-height: 0;
@@ -199,6 +200,18 @@ html, body {
   background-color: hsl(var(--c-panel) / 0.85);
 }
 
+.app-nav-rail-reopen {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 30;
+  transform: translateY(-50%);
+  border-radius: 0 8px 8px 0;
+  background-color: hsl(var(--c-panel) / 0.9);
+  border: 1px solid hsl(var(--c-border));
+  border-left: none;
+}
+
 #root, #root div, #root span {
   box-sizing: border-box;
 }
@@ -225,13 +238,13 @@ html, body {
 
 .bottom-sheet {
   max-width: 100% !important;
-  width: calc(100vw - 48px) !important;
+  width: 640px !important;
   margin: 0 auto;
 }
 
 @media (min-width: 1024px) {
   .bottom-sheet {
-    width: calc(100vw - 48px) !important;
+    width: min(480px, calc(100vw - 48px)) !important;
   }
 }
 
