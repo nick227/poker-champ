@@ -17,8 +17,8 @@ import { LobbyTabs, type LobbyTabKey } from "@/features/lobby";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { CreateGameModal } from "@/features/lobby";
 import { ChooseTableModal } from "@/features/lobby";
-import { LobbyDesktopSidebar } from "@/features/lobby";
 import { LobbyDesktopLayout } from "@/features/lobby";
+import { LobbyDesktopToolbar } from "@/features/lobby";
 import { LobbyTableList } from "@/features/lobby";
 import { LobbyContinuePlaying } from "@/features/lobby";
 import { Button } from "@/components/base/Button";
@@ -492,6 +492,13 @@ export default function LobbyScreen() {
         inFlightPreset={instantStartInFlightPreset}
         onStart={handleStartInstantGame}
       />
+      <LobbyDesktopToolbar
+        filters={filters}
+        onFiltersChange={updateFilters}
+        onCreateTable={openCreateTable}
+        onCreateTournament={handleCreateTournament}
+        createTableLabel={createTableLabel}
+      />
       {busy ? (
         <Text variant="muted">Loading tables…</Text>
       ) : error ? (
@@ -509,16 +516,6 @@ export default function LobbyScreen() {
         />
       )}
     </View>
-  );
-
-  const desktopRail = (
-    <LobbyDesktopSidebar
-      filters={filters}
-      onFiltersChange={updateFilters}
-      onCreateTable={openCreateTable}
-      onCreateTournament={handleCreateTournament}
-      createTableLabel={createTableLabel}
-    />
   );
 
   const modals = (
@@ -593,7 +590,6 @@ export default function LobbyScreen() {
               cashDesktopPrimary
             )
           }
-          rail={desktopRail}
         />
         {modals}
       </Screen>

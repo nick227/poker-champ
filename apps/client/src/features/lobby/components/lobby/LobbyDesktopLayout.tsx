@@ -9,13 +9,9 @@ type Props = {
   onPressOnline?: () => void;
   avatarUrl?: string | null;
   primary: ReactNode;
-  rail: ReactNode;
 };
 
-/**
- * Desktop lobby workspace grid:
- * TopBar spans both columns; primary flex-1 + fixed rail share one horizontal band.
- */
+/** Desktop lobby: top bar + single primary column (no right rail). */
 export function LobbyDesktopLayout({
   username,
   amountCents,
@@ -23,7 +19,6 @@ export function LobbyDesktopLayout({
   onPressOnline,
   avatarUrl,
   primary,
-  rail,
 }: Props) {
   return (
     <View className="flex-1 min-h-0">
@@ -34,12 +29,7 @@ export function LobbyDesktopLayout({
         onPressOnline={onPressOnline}
         avatarUrl={avatarUrl}
       />
-      <View className="flex-1 flex-row min-h-0">
-        <View className="flex-1 min-w-0 min-h-0 pr-4">{primary}</View>
-        <View className="w-[300px] shrink-0 min-h-0 border-l border-border pl-4">
-          {rail}
-        </View>
-      </View>
+      <View className="flex-1 min-h-0 min-w-0">{primary}</View>
     </View>
   );
 }

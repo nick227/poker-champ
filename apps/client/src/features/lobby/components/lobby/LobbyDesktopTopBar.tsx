@@ -17,7 +17,7 @@ type Props = {
   avatarUrl?: string | null;
 };
 
-/** Desktop lobby top bar: brand left, utilities right — shared workspace left edge. */
+/** Desktop lobby top bar: brand, secondary nav, online + account. */
 export function LobbyDesktopTopBar({
   username,
   amountCents,
@@ -33,16 +33,30 @@ export function LobbyDesktopTopBar({
 
   return (
     <View className="ui-row items-center justify-between border-b border-border pb-3 mb-3">
-      <Pressable
-        onPress={() => router.push("/lobby")}
-        className="ui-row items-center gap-2"
-        accessibilityRole="link"
-      >
-        <Text className="text-xl text-text">♠</Text>
-        <Text variant="h1" className="text-lg">
-          {APP_NAME}
-        </Text>
-      </Pressable>
+      <View className="ui-row items-center gap-5">
+        <Pressable
+          onPress={() => router.push("/lobby")}
+          className="ui-row items-center gap-2"
+          accessibilityRole="link"
+        >
+          <Text className="text-xl text-text">♠</Text>
+          <Text variant="h1" className="text-lg">
+            {APP_NAME}
+          </Text>
+        </Pressable>
+        <View className="ui-row items-center gap-3">
+          <Pressable onPress={() => router.push("/lessons")} className="py-1">
+            <Text variant="muted" className="text-[13px]">
+              Poker School
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => router.push("/leaderboard")} className="py-1">
+            <Text variant="muted" className="text-[13px]">
+              Leaderboard
+            </Text>
+          </Pressable>
+        </View>
+      </View>
 
       <View className="ui-row items-center gap-4">
         <Pressable
