@@ -43,8 +43,6 @@ const sessionMock = {
   canGoNext: true,
   canGoPrev: false,
   selectedOptionKey: null,
-  lastAwardsGranted: undefined,
-  clearLastAwardsGranted: vi.fn(),
   refresh: vi.fn(),
   goNext: goNextMock,
   goPrev: goPrevMock,

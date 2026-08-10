@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ActionBarOnAction } from "@/features/table";
 import { resolveStepRuntimeConfig } from "@/features/lessons-v2/runtime";
 import { lessonService } from "./lesson.service";
-import type { AwardGrant } from "@/types/awards";
+import { useAwardsToastStore } from "@/stores/awardsToast.store";
 import type {
   LessonActionPayload,
   LessonAttempt,
@@ -110,7 +110,6 @@ export function useLessonSession(lessonId: string | null, enabled: boolean) {
   const [feedbackByStepId, setFeedbackByStepId] = useState<StepFeedbackById>({});
   const [submitting, setSubmitting] = useState(false);
   const [selectedOptionByStepId, setSelectedOptionByStepId] = useState<Record<string, string>>({});
-  const [lastAwardsGranted, setLastAwardsGranted] = useState<AwardGrant[]>([]);
   const [communityByStepId, setCommunityByStepId] = useState<Record<string, LessonCommunityComparison | null>>({});
   const [communityStatusByStepId, setCommunityStatusByStepId] = useState<Record<string, CommunityStatus>>({});
 
@@ -226,7 +225,7 @@ export function useLessonSession(lessonId: string | null, enabled: boolean) {
             : prev,
         );
         if (result.awardsGranted?.length) {
-          setLastAwardsGranted(result.awardsGranted);
+          useAwardsToastStore.getState().show(result.awardsGranted);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to submit step");
@@ -287,8 +286,6 @@ export function useLessonSession(lessonId: string | null, enabled: boolean) {
     }
   }, [currentStep]);
 
-  const clearLastAwardsGranted = useCallback(() => setLastAwardsGranted([]), []);
-
   useEffect(() => {
     if (!enabled || !lessonId || !currentStep || !currentFeedback) return;
     const status = communityStatusByStepId[currentStep.id] ?? "idle";
@@ -344,8 +341,6 @@ export function useLessonSession(lessonId: string | null, enabled: boolean) {
     canGoNext,
     canGoPrev: lesson != null && findPreviousVisibleStepIndex(lesson.steps, resolvedStepIndex) != null,
     selectedOptionKey: currentStep ? selectedOptionByStepId[currentStep.id] ?? null : null,
-    lastAwardsGranted,
-    clearLastAwardsGranted,
     refresh,
     goNext,
     goPrev,

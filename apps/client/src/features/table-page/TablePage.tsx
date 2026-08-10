@@ -1,7 +1,6 @@
 import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
-import { AwardToaster } from "@/components/domain/awards/AwardToaster";
 import { useTablePageController } from "./useTablePageController";
 import { TableSceneRouter } from "./TableSceneRouter";
 import { TablePageOverlays } from "./TablePageOverlays";
@@ -20,7 +19,7 @@ export function TablePage() {
 
   const { scene, renderModel, uiState, actions } = controller;
   const isAtTable = scene.mode === "active" || scene.mode === "idle";
-  const { newAwards, dismissAwards } = useTableAwardsToast(isAtTable);
+  useTableAwardsToast(isAtTable);
 
   return (
     <Screen>
@@ -29,9 +28,6 @@ export function TablePage() {
           <TableSceneRouter scene={scene} renderModel={renderModel} actions={actions} />
         </Surface>
       </View>
-      {newAwards.length > 0 ? (
-        <AwardToaster awards={newAwards} onDismiss={dismissAwards} />
-      ) : null}
       <TablePageOverlays renderModel={renderModel} uiState={uiState} actions={actions} />
     </Screen>
   );

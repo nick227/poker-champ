@@ -15,8 +15,6 @@ import { LessonQuestionPanel } from "./LessonQuestionPanel";
 import { useLessonSession } from "./useLessonSession";
 import type { LessonDefinition } from "./lesson.types";
 import { useLessonContentViewModel } from "./useLessonContentViewModel";
-import type { AwardGrant } from "@/types/awards";
-import { AwardToaster } from "@/components/domain/awards/AwardToaster";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   LESSON_CONTENT_BUTTON_KEYS,
@@ -50,8 +48,6 @@ function LessonCompletionView({
   bootCampComplete,
   onApplyAtTable,
   onBackToBootCamp,
-  awardsGranted,
-  onDismissAwards,
 }: {
   lesson: LessonDefinition;
   scorePct: number | null;
@@ -59,8 +55,6 @@ function LessonCompletionView({
   bootCampComplete?: boolean;
   onApplyAtTable?: () => void;
   onBackToBootCamp: () => void;
-  awardsGranted?: AwardGrant[];
-  onDismissAwards?: () => void;
 }) {
   const router = useRouter();
   const disciplines = useMemo(() => {
@@ -155,12 +149,6 @@ function LessonCompletionView({
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 32 }} showsVerticalScrollIndicator>
-      {awardsGranted && awardsGranted.length > 0 && onDismissAwards ? (
-        <View className="mb-3">
-          <AwardToaster awards={awardsGranted} onDismiss={onDismissAwards} />
-        </View>
-      ) : null}
-
       <View className="rounded-2xl border-2 border-border bg-panel p-5">
         <Text variant="label" className="text-brand font-semibold uppercase tracking-wide">
           {LESSON_CONTENT_COPY.completion.badge}
@@ -472,8 +460,6 @@ export function LessonContent({
         bootCampComplete={bootCampComplete}
         onApplyAtTable={onApplyAtTable}
         onBackToBootCamp={() => onClose?.()}
-        awardsGranted={session.lastAwardsGranted}
-        onDismissAwards={session.clearLastAwardsGranted}
       />
     );
   }

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { getMyAwards } from "@/services/awards.service";
 import type { UserAwardItem } from "@/services/awards.service";
 import type { AwardGrant } from "@/types/awards";
+import { useAwardsToastStore } from "@/stores/awardsToast.store";
 
 const POLL_MS = 45_000;
 
@@ -20,7 +21,6 @@ function toGrant(item: UserAwardItem): AwardGrant {
 }
 
 export function useTableAwardsToast(isAtTable: boolean) {
-  const [newAwards, setNewAwards] = useState<AwardGrant[]>([]);
   const lastSeenTs = useRef<number>(0);
   const firstFetchDone = useRef(false);
   const intervalId = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -40,7 +40,9 @@ export function useTableAwardsToast(isAtTable: boolean) {
     }
     const newItems = items.filter((i) => new Date(i.lastEarnedAt).getTime() > lastSeenTs.current);
     if (maxTs > lastSeenTs.current) lastSeenTs.current = maxTs;
-    if (newItems.length > 0 && !cancelledRef.current) setNewAwards(newItems.map(toGrant));
+    if (newItems.length > 0 && !cancelledRef.current) {
+      useAwardsToastStore.getState().show(newItems.map(toGrant));
+    }
   }, []);
 
   useEffect(() => {
@@ -57,8 +59,4 @@ export function useTableAwardsToast(isAtTable: boolean) {
       void fetchAndShowNew();
     };
   }, [isAtTable, fetchAndShowNew]);
-
-  const dismissAwards = useCallback(() => setNewAwards([]), []);
-
-  return { newAwards, dismissAwards };
 }

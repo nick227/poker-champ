@@ -1,8 +1,10 @@
-import { View, Pressable } from "react-native";
+import { useEffect, useRef } from "react";
+import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { Button } from "@/components/base/Button";
 import type { AwardGrant } from "@/types/awards";
 import { parseGraphic } from "@/services/awards.service";
+
+const AUTO_DISMISS_MS = 3000;
 
 export function AwardToaster({
   awards,
@@ -11,7 +13,17 @@ export function AwardToaster({
   awards: AwardGrant[];
   onDismiss: () => void;
 }) {
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    if (awards.length === 0) return;
+    const id = setTimeout(() => onDismissRef.current(), AUTO_DISMISS_MS);
+    return () => clearTimeout(id);
+  }, [awards]);
+
   if (awards.length === 0) return null;
+
   const sorted = [...awards].sort((a, b) => {
     if (a.tierWeight !== b.tierWeight) return b.tierWeight - a.tierWeight;
     if (a.priorityWeight !== b.priorityWeight) return b.priorityWeight - a.priorityWeight;
@@ -19,45 +31,27 @@ export function AwardToaster({
   });
   const first = sorted[0];
   const restCount = sorted.length - 1;
-  setTimeout(() => {
-    onDismiss();
-  }, 3000)
 
   return (
     <Pressable
-  onPress={onDismiss}
-  className="mx-4 mt-2 mb-4 flex-row items-start gap-3 rounded-xl border-2 border-brand/50 bg-brand/10 p-3"
->
-  {/* Icon */}
-  <View className="rounded-lg bg-panel p-2 min-w-[44px] items-center justify-center">
-    <Text variant="h1" className="text-2xl">
-      {parseGraphic(first.graphic)}
-    </Text>
-  </View>
-
-  {/* Info block (expands) */}
-  <View className="flex-1 min-w-0">
-    <Text variant="label" className="text-brand font-semibold">
-      {first.name}
-    </Text>
-    <Text variant="body" className="text-sm mt-0.5">
-      {first.reason}
-    </Text>
-    {restCount > 0 && (
-      <Text variant="muted" className="text-xs mt-1">
-        +{restCount} more award{restCount === 1 ? "" : "s"} earned
-      </Text>
-    )}
-  </View>
-
-  {/* Button */}
-  <View className="justify-start">
-    <Button
-      title="Got it"
-      variant="ghost"
       onPress={onDismiss}
-    />
-  </View>
-</Pressable>
+      accessibilityRole="button"
+      accessibilityLabel={`Award earned: ${first.name}`}
+      className="absolute bottom-24 left-4 z-50 max-w-[220px] flex-row items-center gap-2 rounded-md border border-brand/40 bg-panel/95 px-2.5 py-1.5"
+    >
+      <Text variant="body" className="text-base leading-none">
+        {parseGraphic(first.graphic)}
+      </Text>
+      <View className="min-w-0 flex-1">
+        <Text variant="label" className="text-brand text-xs font-semibold" numberOfLines={1}>
+          {first.name}
+        </Text>
+        {restCount > 0 ? (
+          <Text variant="muted" className="text-[10px]" numberOfLines={1}>
+            +{restCount} more
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
