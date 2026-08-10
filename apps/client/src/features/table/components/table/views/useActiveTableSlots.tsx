@@ -53,7 +53,6 @@ export function useActiveTableSlots(
     null,
   );
   const actionFrameRef = useRef<number | null>(null);
-  const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const pendingAction = useMultiTableStore(
     (s) => s.pendingActionByTableId[renderModel.tableId],
@@ -205,20 +204,6 @@ export function useActiveTableSlots(
     snapshot?.hand?.street,
     snapshot?.snapshotSeq,
   ]);
-
-  useEffect(() => {
-    const handId = snapshot?.hand?.handId ?? null;
-    const prev = prevHandIdRef.current;
-    if (prev === null) {
-      prevHandIdRef.current = handId;
-      return;
-    }
-    if (handId != null && handId !== prev) {
-      emitSoundEvent("table.handStart");
-      emitHapticEvent("table.cardDeal");
-    }
-    prevHandIdRef.current = handId;
-  }, [snapshot?.hand?.handId]);
 
   useEffect(() => {
     const revealedCount = communityCards.reduce((count, card) => (card ? count + 1 : count), 0);

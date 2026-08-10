@@ -20,9 +20,8 @@ const PRESET_BY_TIER: Record<PotWinTier, "POT_TIER_0" | "POT_TIER_1" | "POT_TIER
   4: "POT_TIER_4",
 };
 
-/** Anchored accents: board glow then seat ring (cascade 160ms → 200ms). */
+/** Anchored accent: seat ring for the winner (no filled-disc board glow). */
 const POT_WIN_ANCHORED_LAYERS = [
-  { type: "RADIAL_GLOW" as const, anchor: "BOARD" as const, durationMs: 700, delayMs: 160 },
   { type: "RING" as const, anchor: "SEAT" as const, seatIndexFromPayload: "winnerSeat" as const, durationMs: 700, delayMs: 200 },
 ];
 

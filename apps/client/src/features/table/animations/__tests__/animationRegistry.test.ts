@@ -40,6 +40,29 @@ describe("animationRegistry", () => {
     expect(Object.prototype.hasOwnProperty.call(out, "seat")).toBe(true);
   });
 
+  describe("HAND_START", () => {
+    it("resolves tier 0 as a soft FLASH+RING felt wake-up", () => {
+      expect(TABLE_ANIMATIONS.HAND_START.length).toBe(1);
+      const def = resolveAnimation("HAND_START", 0);
+      expect(def?.event).toBe("HAND_START");
+      expect(def?.tier).toBe(0);
+      expect(def?.durationMs).toBe(1100);
+      expect(def?.layers.map((l) => l.type)).toEqual(["FLASH", "RING"]);
+      expect(def?.layers.some((l) => l.type === "RADIAL_GLOW")).toBe(false);
+      expect(def?.layers.some((l) => l.type === "TEXT" || l.type === "PARTICLES")).toBe(false);
+    });
+  });
+
+  describe("POT_WIN", () => {
+    it("contains no RADIAL_GLOW on any pot tier", () => {
+      for (let tier = 0; tier <= 4; tier++) {
+        const def = resolveAnimation("POT_WIN", tier);
+        expect(def).toBeDefined();
+        expect(def!.layers.some((l) => l.type === "RADIAL_GLOW")).toBe(false);
+      }
+    });
+  });
+
   describe("SHOWDOWN", () => {
     it("is wired into the registry with a full tier 0-4 ladder", () => {
       expect(TABLE_ANIMATIONS.SHOWDOWN.length).toBe(5);

@@ -132,7 +132,8 @@ function renderRing(layer: ProceduralLayerDefinition, ctx: RenderCtx): ReactNode
       durationMs={durationMs}
       delayMs={delayMs}
       color={palette.ring}
-      scaleRange={timing.ringScale}
+      strokeWidth={layer.strokeWidth}
+      scaleRange={layer.scale ?? timing.ringScale}
     />
   );
 }

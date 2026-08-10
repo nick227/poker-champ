@@ -35,6 +35,7 @@ import { buildDefinitionId, DEFAULT_LAYER_PARAMS, type PreloadSource } from "./s
 import { POT_WIN_TIERS } from "./potWin";
 import { ALL_IN_TIERS } from "./allIn";
 import { SHOWDOWN_TIERS } from "./showdown";
+import { HAND_START_TIERS } from "./handStart";
 import { getHeroAuraDefinition, HERO_AURA_ALL_IN } from "./heroAura";
 import { getSeatGlowDefinition, SEAT_GLOW_SHOWDOWN } from "./seatGlow";
 
@@ -44,6 +45,7 @@ export const TABLE_ANIMATIONS: Record<TableAnimationEvent, TableAnimationDefinit
   POT_WIN: POT_WIN_TIERS,
   ALL_IN: ALL_IN_TIERS,
   SHOWDOWN: SHOWDOWN_TIERS,
+  HAND_START: HAND_START_TIERS,
 };
 
 export { DEFAULT_LAYER_PARAMS, type PreloadSource };

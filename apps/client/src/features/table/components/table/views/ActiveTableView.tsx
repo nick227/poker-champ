@@ -104,7 +104,6 @@ export function ActiveTableView({
 }: ActiveTableViewProps) {
   const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
-  const prevHandIdRef = useRef<string | null>(null);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot,
@@ -150,23 +149,6 @@ export function ActiveTableView({
     turnTimeoutTotalMs,
   );
   const activeTurnProgress = useTurnProgress(seatToAct, tableMode === "live", turnTimeoutTotalMs);
-
-  useEffect(() => {
-    const handId = snapshot.hand?.handId ?? null;
-    const prevHandId = prevHandIdRef.current;
-
-    if (prevHandId === null) {
-      prevHandIdRef.current = handId;
-      return;
-    }
-
-    if (handId != null && handId !== prevHandId) {
-      emitSoundEvent("table.handStart");
-      emitHapticEvent("table.cardDeal");
-    }
-
-    prevHandIdRef.current = handId;
-  }, [snapshot.hand?.handId]);
 
   useEffect(() => {
     const revealedCount = communityCards.reduce((count, card) => (card ? count + 1 : count), 0);

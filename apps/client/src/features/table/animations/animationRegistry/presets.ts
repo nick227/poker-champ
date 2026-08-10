@@ -15,7 +15,6 @@ import {
   IMPACT_CHOREO_FLASH_MS,
   IMPACT_CHOREO_HEADLINE_MS,
   IMPACT_CHOREO_PARTICLES_MS,
-  IMPACT_CHOREO_RADIAL_GLOW_MS,
   IMPACT_CHOREO_RING_MS,
 } from "../animationConstants";
 
@@ -35,8 +34,7 @@ export type PresetName =
   | "POT_TIER_2"
   | "POT_TIER_3"
   | "POT_TIER_4"
-  | "ATMOSPHERE_SOFT_GLOW"
-  | "ATMOSPHERE_WARM_GLOW";
+  | "HAND_START";
 
 /** Preset name → layer stack. Do not mutate; tier builders spread or append. */
 const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
@@ -120,8 +118,6 @@ const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "TEXT", textRole: "amount", textSize: "medium", durationMs: 800, delayMs: CHOREO_AMOUNT_MS },
   ],
   POT_TIER_3: [
-    // Atmosphere (BACKGROUND plane): soft glow behind table. Overlay routes by plane when two-plane stack exists.
-    { type: "RADIAL_GLOW", plane: "BACKGROUND", durationMs: 1800, opacity: [0.06, 0.14], delayMs: 0 },
     { type: "FLASH", plane: "BACKGROUND", durationMs: 400, delayMs: CHOREO_FLASH_MS },
     { type: "BURST", durationMs: 500, rays: 12, delayMs: CHOREO_BURST_MS },
     { type: "PARTICLES", durationMs: 600, particleCount: 14, particleSpread: 55, particleShape: "square", delayMs: CHOREO_PARTICLES_MS },
@@ -130,24 +126,26 @@ const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "TEXT", textRole: "amount", textSize: "large", durationMs: 900, delayMs: CHOREO_AMOUNT_MS },
   ],
   POT_TIER_4: [
-    // Background video celebration (casino.webm) plus gold atmosphere.
     { type: "ASSET", assetType: "VIDEO", source: "casino", plane: "BACKGROUND", preload: true, durationMs: 2200, delayMs: 0 },
-    { type: "RADIAL_GLOW", preset: "ambientGold", plane: "BACKGROUND" },
     { type: "FLASH", plane: "BACKGROUND", durationMs: 500, delayMs: IMPACT_CHOREO_FLASH_MS },
     { type: "BURST", preset: "winBurst" },
-    { type: "RADIAL_GLOW", durationMs: 550, delayMs: IMPACT_CHOREO_RADIAL_GLOW_MS },
     { type: "PARTICLES", durationMs: 800, particleCount: 20, particleSpread: 70, particleShape: "square", delayMs: IMPACT_CHOREO_PARTICLES_MS },
     { type: "RING", durationMs: 800, delayMs: IMPACT_CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", preset: "headlineWin" },
     { type: "TEXT", textRole: "amount", textSize: "large", durationMs: 1000, delayMs: IMPACT_CHOREO_AMOUNT_MS },
     { type: "PARTICLES", durationMs: 500, particleCount: 10, particleSpread: 32, delayMs: IMPACT_CHOREO_AMOUNT_MS + 20, originOffsetY: 72 },
   ],
-  // Standalone atmosphere examples (BACKGROUND plane). Use for reactive atmosphere or prepend to event presets.
-  ATMOSPHERE_SOFT_GLOW: [
-    { type: "RADIAL_GLOW", plane: "BACKGROUND", durationMs: 2000, opacity: [0.05, 0.12], delayMs: 0 },
-  ],
-  ATMOSPHERE_WARM_GLOW: [
-    { type: "RADIAL_GLOW", plane: "BACKGROUND", durationMs: 2500, opacity: [0.07, 0.16], delayMs: 0 },
+  /** Quiet felt wake-up: soft board flash + hairline ring pulse. No filled-disc glow. */
+  HAND_START: [
+    { type: "FLASH", plane: "BACKGROUND", anchor: "BOARD", durationMs: 450, delayMs: 0 },
+    {
+      type: "RING",
+      anchor: "BOARD",
+      durationMs: 900,
+      delayMs: 80,
+      strokeWidth: 2,
+      scale: [0.92, 1.06],
+    },
   ],
 };
 

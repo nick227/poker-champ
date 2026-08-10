@@ -15,6 +15,7 @@ export const DEFAULT_HEADLINES: Record<TableAnimationEvent, string> = {
   POT_WIN: "YOU WIN",
   ALL_IN: "ALL IN",
   SHOWDOWN: "SHOWDOWN",
+  HAND_START: "",
 };
 
 /** Fallback layer duration (ms) when definition omits durationMs. */

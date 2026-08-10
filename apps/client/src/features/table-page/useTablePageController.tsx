@@ -62,6 +62,7 @@ import {
   resolveShowdownAnimationDecision,
   scheduleSurvivingTimeout,
 } from "@/features/table/animations/animationTriggers";
+import { resolveHandStartAnimationDecision } from "@/features/table/animations/handStartTrigger";
 import { getOccupiedHumanCount, resolveDisplayEventsForRender } from "./displayEventsPolicy";
 
 function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
@@ -239,6 +240,8 @@ export function useTablePageController({
   const lastChipTravelPotWinHandIdRef = useRef<string | null>(null);
   const lastAllInKeyRef = useRef<string | null>(null);
   const lastShowdownHandIdRef = useRef<string | null>(null);
+  /** undefined = not seeded; null = observed no active hand. */
+  const lastHandStartHandIdRef = useRef<string | null | undefined>(undefined);
   // Pending POT_WIN dispatches delayed to sequence after a SHOWDOWN reveal (see effect below).
   // Tracked outside any single effect's cleanup so a *new* hand's snapshot update (which changes
   // this effect's deps) can't cancel a still-pending celebration for the *previous* hand — only
@@ -363,6 +366,23 @@ export function useTablePageController({
     lastShowdownHandIdRef.current = decision.handId;
     setAnimationRequest(decision.request);
   }, [snapshot]);
+
+  // HAND_START: soft felt wake-up on every newly dealt handId (after seed).
+  // Clears any still-pending pot celebration so win FX cannot paint into the next hand.
+  useEffect(() => {
+    const handId = snapshot?.hand?.handId ?? null;
+    if (lastHandStartHandIdRef.current === undefined) {
+      lastHandStartHandIdRef.current = handId;
+      return;
+    }
+    const decision = resolveHandStartAnimationDecision(handId, lastHandStartHandIdRef.current);
+    lastHandStartHandIdRef.current = handId;
+    if (!decision) return;
+    clearAllPendingTimeouts(pendingPotWinTimeoutsRef.current);
+    emitSoundEvent("table.handStart");
+    emitHapticEvent("table.cardDeal");
+    setAnimationRequest(decision.request);
+  }, [snapshot?.hand?.handId]);
 
   useEffect(() => {
     if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;

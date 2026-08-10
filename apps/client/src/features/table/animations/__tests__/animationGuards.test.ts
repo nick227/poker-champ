@@ -39,7 +39,7 @@ describe("animationGuards", () => {
       ).toBe(false);
     });
 
-    it("allows ALL_IN and SHOWDOWN regardless of payload", () => {
+    it("allows ALL_IN, SHOWDOWN, and HAND_START regardless of payload", () => {
       expect(
         shouldRunTableAnimationRequest({
           event: "ALL_IN",
@@ -51,6 +51,12 @@ describe("animationGuards", () => {
         shouldRunTableAnimationRequest({
           event: "SHOWDOWN",
           tier: 2,
+        })
+      ).toBe(true);
+      expect(
+        shouldRunTableAnimationRequest({
+          event: "HAND_START",
+          tier: 0,
         })
       ).toBe(true);
     });

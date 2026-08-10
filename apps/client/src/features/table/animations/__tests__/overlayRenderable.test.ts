@@ -33,14 +33,14 @@ describe("overlayRenderable", () => {
       anchor: "TABLE_CENTER",
       durationMs: 1000,
       layers: [
-        { type: "RADIAL_GLOW", preset: "ambientGold", durationMs: 1234 },
+        { type: "BURST", preset: "winBurst", durationMs: 1234 },
       ],
     };
     const settings: AnimationSettings = { enabled: true, reducedMotion: false };
     const [layer] = resolveRenderableLayers(def, settings);
-    expect(layer.type).toBe("RADIAL_GLOW");
-    // preset provides opacity; layer overrides durationMs
-    if (layer.type === "RADIAL_GLOW") expect(layer.opacity).toBeDefined();
+    expect(layer.type).toBe("BURST");
+    // preset provides rays; layer overrides durationMs
+    if (layer.type === "BURST") expect(layer.rays).toBeDefined();
     expect(layer.durationMs).toBe(1234);
   });
 });

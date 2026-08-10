@@ -23,7 +23,6 @@ const LAYER_PRESETS: Record<string, LayerPresetDefaults> = {
   goldBurst: { durationMs: 800, particleCount: 20, particleSpread: 70, delayMs: IMPACT_CHOREO_PARTICLES_MS },
   headlineWin: { durationMs: 1400, textSize: "hero", textGlow: true, delayMs: IMPACT_CHOREO_HEADLINE_MS },
   seatHalo: { durationMs: 800, delayMs: IMPACT_CHOREO_RING_MS },
-  ambientGold: { durationMs: 2200, opacity: [0.08, 0.18], delayMs: 0 },
   burst: { durationMs: 400, rays: 8 },
   ambientDrift: { durationMs: 1200, particleCount: 8, particleSpread: 40, opacity: [0.2, 0.25] },
 };

@@ -106,6 +106,18 @@ const EVENT_PALETTE_OVERRIDES: Partial<Record<TableAnimationEvent, Partial<Anima
     streakColor: "rgba(140, 120, 220, 0.58)",
     haloColor: "rgba(160, 140, 255, 0.52)",
   },
+  HAND_START: {
+    flash: "rgba(255, 220, 150, 0.22)",
+    ring: "rgba(255, 210, 140, 0.55)",
+    burst: "rgba(255, 200, 120, 0.3)",
+    particle: "rgba(255, 200, 120, 0.4)",
+    headline: "#fff",
+    headlineGlow: "rgba(255, 200, 120, 0.4)",
+    amountBg: "rgba(40, 35, 25, 0.8)",
+    amountText: "#fff",
+    streakColor: "rgba(255, 210, 140, 0.35)",
+    haloColor: "rgba(255, 220, 150, 0.35)",
+  },
 };
 
 const DEFAULT_TIMING: AnimationThemeTiming = {

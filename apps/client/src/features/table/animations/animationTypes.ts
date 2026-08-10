@@ -1,10 +1,11 @@
 /** Single canonical enum. No synonyms elsewhere. Use FX_EVENT.* in code. */
-export type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN";
+export type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN" | "HAND_START";
 
 export const FX_EVENT: Record<TableAnimationEvent, TableAnimationEvent> = {
   POT_WIN: "POT_WIN",
   ALL_IN: "ALL_IN",
   SHOWDOWN: "SHOWDOWN",
+  HAND_START: "HAND_START",
 };
 
 /** Request contract version; protects against breaking UI changes. */
@@ -84,6 +85,8 @@ export type ProceduralLayerDefinition = {
   rays?: number;
   particleCount?: number;
   particleSpread?: number;
+  /** RING only: border thickness. */
+  strokeWidth?: number;
   /** PARTICLES: shape for confetti/sparks. */
   particleShape?: ParticleShape;
   /** PARTICLES only: offset of origin from center (e.g. from headline or amount). */
