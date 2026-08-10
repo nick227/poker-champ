@@ -49,7 +49,6 @@ export default function LobbyScreen() {
       busy={m.busy}
       error={m.error}
       tables={m.sortedTables}
-      balanceCents={m.bankroll}
       filters={m.filters}
       sortKey={m.sortKey}
       sortDir={m.sortDir}

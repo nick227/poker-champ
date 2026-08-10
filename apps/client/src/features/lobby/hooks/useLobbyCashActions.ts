@@ -8,9 +8,14 @@ import {
 import type { CreateGameConfig } from "@/features/lobby/components/lobby/CreateGameModal";
 import { useJoiningTableState } from "@/hooks/useJoiningTableState";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
+import {
+  formatCashLobbyJoinHint,
+  resolveCashLobbyJoin,
+} from "@/lib/lobbyTables";
 import { loginPathWithNext, tablePath } from "@/lib/nav";
 import { postCreateInstantGame, postCreateTable } from "@/services/post/lobby.post";
 import { useToastStore } from "@/stores/toast.store";
+
 
 type OpenTable = (
   tableId: string,
@@ -60,7 +65,16 @@ export function useLobbyCashActions({
     (t: LobbyTableRow) => {
       if (isJoining(t.id)) return;
       if (!authToken) {
+        useToastStore.getState().show("Please log in to join a table", "danger");
         router.push(loginPathWithNext(tablePath(t.id, { buyInCents: t.minBuyInCents })));
+        return;
+      }
+      const { canJoin, joinBlockReason } = resolveCashLobbyJoin(t, bankroll);
+      if (!canJoin) {
+        const hint = formatCashLobbyJoinHint(joinBlockReason);
+        useToastStore
+          .getState()
+          .show(hint ?? "Unable to join this table", "danger");
         return;
       }
       setChooseTableModal({
@@ -71,7 +85,7 @@ export function useLobbyCashActions({
         maxBuyInCents: t.maxBuyInCents,
       });
     },
-    [authToken, isJoining, router],
+    [authToken, bankroll, isJoining, router],
   );
 
   const handleCreateGame = useCallback(

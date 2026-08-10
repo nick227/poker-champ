@@ -11,7 +11,6 @@ type Props = {
   busy: boolean;
   error: string | null;
   tables: LobbyTableRow[];
-  balanceCents: number;
   filters: LobbyTableFilters;
   sortKey: LobbySortKey;
   sortDir: LobbySortDir;
@@ -30,7 +29,6 @@ export function LobbyCashListStage({
   busy,
   error,
   tables,
-  balanceCents,
   filters,
   sortKey,
   sortDir,
@@ -84,7 +82,6 @@ export function LobbyCashListStage({
   return (
     <LobbyTableList
       tables={tables}
-      balanceCents={balanceCents}
       sortKey={sortKey}
       sortDir={sortDir}
       onSort={onSort}
