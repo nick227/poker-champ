@@ -44,7 +44,7 @@ const styles = {
   },
   btnIdle: {
     borderColor: casino.goldLo,
-    backgroundColor: casino.crimsonLo,
+    backgroundColor: casino.bg,
   },
   text: {
     fontSize: 13,

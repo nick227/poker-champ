@@ -83,7 +83,7 @@ const styles = {
     fontSize: 14,
     fontWeight: "800" as const,
     letterSpacing: 1,
-    color: casino.crimsonLo,
+    color: casino.bg,
   },
   sub: {
     marginTop: 1,

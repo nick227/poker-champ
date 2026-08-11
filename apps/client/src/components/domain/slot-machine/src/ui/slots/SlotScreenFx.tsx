@@ -150,7 +150,7 @@ const styles = {
     bottom: 0,
     left: 0,
     width: 18,
-    backgroundColor: casino.crimsonHi,
+    backgroundColor: casino.flash,
   },
   rimRight: {
     position: "absolute" as const,
@@ -158,6 +158,6 @@ const styles = {
     bottom: 0,
     right: 0,
     width: 18,
-    backgroundColor: casino.crimsonHi,
+    backgroundColor: casino.flash,
   },
 };

@@ -36,7 +36,7 @@ const styles = {
     width: "100%" as const,
     minHeight: 0,
     overflow: "hidden" as const,
-    backgroundColor: casino.crimsonLo,
+    backgroundColor: casino.bg,
     borderWidth: 2,
     borderColor: casino.goldMid,
     position: "relative" as const,
@@ -55,7 +55,7 @@ const styles = {
   },
   divider: {
     width: 4,
-    backgroundColor: casino.crimsonHi,
+    backgroundColor: casino.border,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: casino.goldLo,

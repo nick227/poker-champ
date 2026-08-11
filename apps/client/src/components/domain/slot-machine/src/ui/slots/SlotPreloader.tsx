@@ -83,9 +83,8 @@ const styles = {
     zIndex: 40,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    backgroundColor: casino.crimsonLo,
-    borderWidth: 3,
-    borderColor: casino.goldMid,
+    backgroundColor: casino.bg,
+    borderWidth: 0,
     gap: 6,
   },
   mark: {

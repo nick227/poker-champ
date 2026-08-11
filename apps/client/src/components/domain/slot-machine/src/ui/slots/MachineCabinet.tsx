@@ -37,9 +37,9 @@ const styles = {
   screen: {
     flex: 1,
     minHeight: 0,
-    backgroundColor: casino.crimson,
+    backgroundColor: casino.panel,
     borderWidth: 2,
-    borderColor: casino.crimsonLo,
+    borderColor: casino.bg,
     paddingHorizontal: 8,
     paddingTop: 6,
     paddingBottom: 8,

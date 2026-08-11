@@ -30,6 +30,6 @@ const styles = {
     letterSpacing: 4,
     color: casino.goldHi,
     textTransform: "uppercase" as const,
-    ...textShadowStyle({ color: casino.crimsonHi, offset: { width: 2, height: 2 }, radius: 8 }),
+    ...textShadowStyle({ color: casino.flash, offset: { width: 2, height: 2 }, radius: 8 }),
   },
 };
