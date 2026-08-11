@@ -16,6 +16,9 @@ export type TableTopNavMenuProps = {
   onShareInviteLink: () => void;
   onLeaveTable: () => void;
   addBotDisabled?: boolean;
+  /** Tournament tables only: current stack/pot display mode + toggle. */
+  moneyDisplayMode?: "chips" | "bb";
+  onToggleMoneyDisplayMode?: () => void;
 };
 
 export function TableTopNavMenu({
@@ -29,6 +32,8 @@ export function TableTopNavMenu({
   onShareInviteLink,
   onLeaveTable,
   addBotDisabled = false,
+  moneyDisplayMode,
+  onToggleMoneyDisplayMode,
 }: TableTopNavMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -114,6 +119,17 @@ export function TableTopNavMenu({
                   size="md"
                 />
               </View>
+              {onToggleMoneyDisplayMode ? (
+                <View className="mb-1">
+                  <Button
+                    title={moneyDisplayMode === "bb" ? "Show as amount" : "Show as BB"}
+                    onPress={() => runAndClose(onToggleMoneyDisplayMode)}
+                    intent="neutral"
+                    shape="row"
+                    size="md"
+                  />
+                </View>
+              ) : null}
               <View className="mb-1">
                 <Button
                   title={`Table chat${chatBadge ? ` (${chatBadge})` : ""}`}

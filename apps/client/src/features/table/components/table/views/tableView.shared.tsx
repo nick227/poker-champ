@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { TournamentTableBanner } from "../TournamentTableBanner";
 import { TournamentResultBanner } from "../TournamentResultBanner";
 import { BoardArea } from "../board-area";
 import type { Opponent } from "../table.adapter";
@@ -109,19 +108,15 @@ export function useTableViewShellFrame({
     onSeatBounds,
     maxSeats: table?.maxSeats ?? 6,
     heroSeat: effectiveSnapshot.hero.seat ?? 0,
-    tournamentBanner: table?.tournament ? (
-      <>
-        <TournamentTableBanner tournament={table.tournament} />
-        {onViewTournamentStandings && onBackToLobby ? (
-          <TournamentResultBanner
-            tournament={table.tournament}
-            tournamentViewer={effectiveSnapshot.hero.tournamentViewer}
-            onViewStandings={onViewTournamentStandings}
-            onBackToLobby={onBackToLobby}
-          />
-        ) : null}
-      </>
-    ) : undefined,
+    tournamentBanner:
+      table?.tournament && onViewTournamentStandings && onBackToLobby ? (
+        <TournamentResultBanner
+          tournament={table.tournament}
+          tournamentViewer={effectiveSnapshot.hero.tournamentViewer}
+          onViewStandings={onViewTournamentStandings}
+          onBackToLobby={onBackToLobby}
+        />
+      ) : undefined,
   };
   const boardContent = (
     <BoardArea

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
@@ -7,11 +7,42 @@ import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
 import { useAuthStore } from "@/stores/auth.store";
 import { useTableChromeMenuStore } from "@/stores/tableChromeMenu.store";
+import { useMobileNavStore } from "@/stores/mobileNav.store";
+import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { getSettingsTargetPath } from "@/lib/authNavigation";
 import { loginPathWithNext } from "@/lib/nav";
 import { ProfilePill } from "@/components/domain/navigation/ProfilePill";
-import { useActiveTableStatus } from "@/hooks/useActiveTableStatus";
+import { useActiveTableStatus, type ActiveTableStatus } from "@/hooks/useActiveTableStatus";
 import { TournamentInfoModal } from "@/features/table/components/table/TournamentInfoModal";
+import { formatChipCount } from "@/lib/money/table-money";
+import { chips } from "@/lib/money/types";
+import { formatCountdownTo, formatTournamentStatus } from "@/lib/tournament.utils";
+import { APP_NAME } from "@/constants/copy";
+
+/** Live "status · level · blinds · next level in" line, ticking once a second while a level clock is running. */
+function useTournamentSummaryLine(tournament: ActiveTableStatus["tournament"]): string | null {
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    if (!tournament?.nextLevelAtTs) return;
+    const id = setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [tournament?.nextLevelAtTs]);
+
+  if (!tournament) return null;
+
+  const blindsLine = `${formatChipCount(chips(tournament.smallBlindCents))} / ${formatChipCount(chips(tournament.bigBlindCents))}`;
+  const anteSuffix = tournament.anteCents > 0 ? ` (ante ${formatChipCount(chips(tournament.anteCents))})` : "";
+  const countdown = formatCountdownTo(tournament.nextLevelAtTs);
+
+  const parts = [
+    formatTournamentStatus(tournament.status),
+    `Level ${tournament.currentLevel}`,
+    `Blinds ${blindsLine}${anteSuffix}`,
+  ];
+  if (countdown) parts.push(`Next level in ${countdown}`);
+  return parts.join("  ·  ");
+}
 
 type Props = {
   username: string;
@@ -22,7 +53,7 @@ type Props = {
   authenticated: boolean;
 };
 
-/** Persistent HUD status strip: presence + account (brand lives in NavRail / BottomBar). */
+/** Persistent HUD status strip: presence + account. On mobile also carries brand + primary nav trigger. */
 export function WorkspaceStatusBar({
   username,
   amountCents,
@@ -38,32 +69,66 @@ export function WorkspaceStatusBar({
   const settingsPath = getSettingsTargetPath({ hydrated, token });
   const tableStatus = useActiveTableStatus();
   const tableMenu = useTableChromeMenuStore((s) => s.menu);
+  const isDesktopWorkspace = useIsDesktopWorkspace();
+  const openMobileNav = useMobileNavStore((s) => s.toggle);
   const [tournamentInfoVisible, setTournamentInfoVisible] = useState(false);
 
   const leadingLabel = tableStatus
-    ? [tableStatus.tableName, tableStatus.stakesLine].filter(Boolean).join("  ·  ")
+    ? tableStatus.tournament
+      ? tableStatus.tableName
+      : [tableStatus.tableName, tableStatus.stakesLine].filter(Boolean).join("  ·  ")
     : null;
   const tournamentId = tableStatus?.tournament?.tournamentId;
+  const tournamentSummary = useTournamentSummaryLine(tableStatus?.tournament ?? null);
 
   return (
-    <View className="ui-row items-center justify-between border-b border-border pb-4 gap-3 shrink-0">
-      <View className="flex-1 min-w-0 flex-row items-center justify-start gap-2">
-        {leadingLabel ? (
+    <View
+      className={`ui-row items-center justify-between border-b border-border gap-3 shrink-0 ${
+        isDesktopWorkspace ? "pb-4" : "px-4 pt-3 pb-3"
+      }`}
+    >
+      {!isDesktopWorkspace ? (
+        <IconButton icon={<Icon name="menu" size={20} />} size="sm" onPress={openMobileNav} />
+      ) : null}
+      <View className="flex-1 min-w-0 flex-col justify-center">
+        <View className="flex-row items-center gap-2">
+          {leadingLabel ? (
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              allowFontScaling={false}
+              className="text-text font-semibold text-[13px] tracking-wide"
+            >
+              {leadingLabel}
+            </Text>
+          ) : !isDesktopWorkspace ? (
+            <Pressable
+              onPress={() => router.push("/lobby")}
+              className="ui-touch"
+              accessibilityRole="link"
+              accessibilityLabel={APP_NAME}
+            >
+              <Text className="text-lg text-gold">♠</Text>
+            </Pressable>
+          ) : null}
+          {tournamentId ? (
+            <IconButton
+              icon={<Icon name="info" size={16} />}
+              size="sm"
+              onPress={() => setTournamentInfoVisible(true)}
+            />
+          ) : null}
+        </View>
+        {tournamentSummary ? (
           <Text
             numberOfLines={1}
             ellipsizeMode="tail"
             allowFontScaling={false}
-            className="text-text font-semibold text-[13px] tracking-wide"
+            variant="muted"
+            className="text-[11px] tracking-wide"
           >
-            {leadingLabel}
+            {tournamentSummary}
           </Text>
-        ) : null}
-        {tournamentId ? (
-          <IconButton
-            icon={<Icon name="info" size={16} />}
-            size="sm"
-            onPress={() => setTournamentInfoVisible(true)}
-          />
         ) : null}
       </View>
       {tournamentId ? (
@@ -77,16 +142,18 @@ export function WorkspaceStatusBar({
         <Pressable
           onPress={onPressOnline}
           disabled={!onPressOnline}
-          className="btn h-9 px-3 items-center justify-center rounded-2"
+          className={`btn h-9 items-center justify-center rounded-2 ${isDesktopWorkspace ? "px-3" : "px-2"}`}
           style={{ backgroundColor: "transparent" }}
           accessibilityRole="button"
           accessibilityLabel={onlineLabel}
         >
           <View className="ui-row items-center gap-2">
             <View className="h-1.5 w-1.5 rounded-full bg-brand" />
-            <Text variant="muted" className="text-[13px] tracking-wide">
-              {onlineLabel}
-            </Text>
+            {isDesktopWorkspace ? (
+              <Text variant="muted" className="text-[13px] tracking-wide">
+                {onlineLabel}
+              </Text>
+            ) : null}
           </View>
         </Pressable>
         {authenticated ? (

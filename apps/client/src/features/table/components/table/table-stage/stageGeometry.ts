@@ -171,15 +171,16 @@ export function resolveStageLayout(maxSeats: number, stage: StageSize): Resolved
   // desktop; coupling width to that height recreates the narrow-table bug.
   const feltW = stage.width * 0.86;
   // Portrait mobile has much more spare stage height than a wide-oblong table can use at the
-  // desktop aspect ratio -- loosen the aspect cap so the felt reads closer to round and reclaims
-  // that dead void, instead of leaving a big empty gap above/below a flat table on a tall screen.
+  // desktop aspect ratio. Lean into that instead of capping near-round: stretch the felt taller
+  // than it is wide so it fills the vertical void and the rail has more room to carry extra
+  // seats top-to-bottom, instead of leaving a big empty gap above/below a flat table.
   // Desktop: a real client's felt fills nearly the whole stage, leaving only a
   // thin void at the ends. 0.69 left a ~230px symmetric dead band above/below
   // the felt on 1440x900 and 1920x1080 stages; the width-aspect clause below
   // is the real ceiling once height stops starving it, so raise the height
   // budget and let /2.15 keep the oblong proportions in check.
   const feltH = compact
-    ? Math.min(stage.height * 0.66, feltW / 1.08)
+    ? Math.min(stage.height * 0.86, feltW * 1.35)
     : Math.min(stage.height * 0.82, feltW / 2.15);
   const felt: PixelRect = {
     x: (stage.width - feltW) / 2,

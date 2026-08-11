@@ -19,9 +19,6 @@ test.describe("tournament bust UX (E1)", () => {
       "YOU WERE ELIMINATED",
       { timeout: 15_000 },
     );
-    await expect(
-      page.getByText("You were eliminated. This is a freezeout — you cannot re-enter."),
-    ).toBeVisible();
     await expect(page.getByText(DEALING_NEXT_HAND)).toHaveCount(0);
     await expect(page.getByTestId("table-status-strip-spinner")).toHaveCount(0);
   });

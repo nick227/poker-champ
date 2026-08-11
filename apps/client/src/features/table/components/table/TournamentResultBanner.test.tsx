@@ -43,8 +43,8 @@ describe("TournamentResultBanner", () => {
     expect(screen.getByText(/\$100/)).toBeTruthy();
   });
 
-  it("shows freezeout elimination copy for busted player", () => {
-    render(
+  it("renders nothing for a freezeout bust without cashing", () => {
+    const { container } = render(
       <TournamentResultBanner
         tournament={{ ...tournament, playFormat: "FREEZEOUT" }}
         tournamentViewer={{ isEliminated: true, finishPlace: 2, payoutCents: 0 }}
@@ -52,12 +52,10 @@ describe("TournamentResultBanner", () => {
         onBackToLobby={() => {}}
       />,
     );
-    expect(
-      screen.getByText("You were eliminated. This is a freezeout — you cannot re-enter."),
-    ).toBeTruthy();
+    expect(container.firstChild).toBeNull();
   });
 
-  it("collapses reveal to compact banner after dismiss", () => {
+  it("renders nothing once the in-the-money reveal is dismissed", () => {
     render(
       <TournamentResultBanner
         tournament={tournament}
@@ -68,10 +66,6 @@ describe("TournamentResultBanner", () => {
     );
     fireEvent.click(screen.getByText("Keep watching"));
     expect(screen.queryByText("IN THE MONEY")).toBeNull();
-    expect(screen.getByText("In the money")).toBeTruthy();
-    expect(
-      screen.getByText("You were eliminated. This is a freezeout — you cannot re-enter."),
-    ).toBeTruthy();
   });
 
   it("stays hidden for active seated players while tournament runs", () => {
@@ -85,8 +79,8 @@ describe("TournamentResultBanner", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows plain banner when eliminated out of the money", () => {
-    render(
+  it("renders nothing when eliminated out of the money", () => {
+    const { container } = render(
       <TournamentResultBanner
         tournament={tournament}
         tournamentViewer={{ isEliminated: true, finishPlace: 8, payoutCents: 0 }}
@@ -94,10 +88,6 @@ describe("TournamentResultBanner", () => {
         onBackToLobby={() => {}}
       />,
     );
-    expect(screen.queryByText("IN THE MONEY")).toBeNull();
-    expect(
-      screen.getByText("You were eliminated. This is a freezeout — you cannot re-enter."),
-    ).toBeTruthy();
-    expect(screen.getByText(/Spectating/i)).toBeTruthy();
+    expect(container.firstChild).toBeNull();
   });
 });

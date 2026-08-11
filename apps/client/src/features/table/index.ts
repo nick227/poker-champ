@@ -1,5 +1,4 @@
 export { TableTopNavMenu } from "./components/table/TableTopNavMenu";
-export { TournamentTableBanner } from "./components/table/TournamentTableBanner";
 export { TournamentResultBanner } from "./components/table/TournamentResultBanner";
 export { TournamentInTheMoneyReveal } from "./components/table/TournamentInTheMoneyReveal";
 export { PlayerHistoryPopup } from "./components/table/PlayerHistoryPopup";

@@ -2,13 +2,14 @@ import type { ReactNode } from "react";
 import { View } from "react-native";
 import { usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BottomBar } from "@/components/containers/BottomBar";
 import { ChromeInsetsProvider } from "@/components/containers/ChromeInsets";
 import { NavRail } from "@/components/containers/NavRail";
 import { WorkspaceStatusBar } from "@/components/domain/navigation/WorkspaceStatusBar";
+import { MobileNavSheet } from "@/components/domain/navigation/MobileNavSheet";
 import { OnlinePlayersSheet } from "@/features/lobby";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { useWorkspaceStatusChrome } from "@/hooks/useWorkspaceStatusChrome";
+import { useMobileNavStore } from "@/stores/mobileNav.store";
 import { resolvePrimaryNavActive, shouldShowPrimaryNav } from "@/lib/primaryNav";
 
 function shouldShowWorkspaceStatusBar(pathname: string): boolean {
@@ -16,9 +17,9 @@ function shouldShowWorkspaceStatusBar(pathname: string): boolean {
 }
 
 /**
- * Owns primary chrome: BottomBar / NavRail + one persistent status bar
- * (online / account; on `/table` also table name · stakes + table menu).
- * Pages must not mount Masthead or their own top nav.
+ * Owns primary chrome: NavRail (desktop) / WorkspaceStatusBar's mobile hamburger + sheet
+ * (mobile) + one persistent status bar (online / account; on `/table` also table name ·
+ * stakes + table menu). Pages must not mount Masthead or their own top nav.
  */
 export function AppChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -28,6 +29,8 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const showStatusBar = shouldShowWorkspaceStatusBar(pathname);
   const active = resolvePrimaryNavActive(pathname);
   const status = useWorkspaceStatusChrome();
+  const mobileNavOpen = useMobileNavStore((s) => s.open);
+  const closeMobileNav = useMobileNavStore((s) => s.setOpen);
 
   const statusChrome = showStatusBar ? (
     <>
@@ -47,6 +50,13 @@ export function AppChrome({ children }: { children: ReactNode }) {
         error={status.onlineError}
         onRefresh={status.requestOnlinePlayers}
       />
+      {!isDesktopWorkspace ? (
+        <MobileNavSheet
+          visible={mobileNavOpen}
+          onClose={() => closeMobileNav(false)}
+          active={active}
+        />
+      ) : null}
     </>
   ) : null;
 
@@ -86,7 +96,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
           {statusChrome}
           {children}
         </View>
-        <BottomBar active={active} />
       </View>
     </ChromeInsetsProvider>
   );

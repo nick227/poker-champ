@@ -134,7 +134,7 @@ describe("2-player freezeout end state", () => {
     expect(result.current.showSpinner).toBe(false);
   });
 
-  it("shows correct result overlays for winner and loser after HU freezeout", () => {
+  it("shows champion reveal for the winner and nothing for the busted-out loser after HU freezeout", () => {
     render(
       <TournamentResultBanner
         tournament={tournamentOverlay}
@@ -150,7 +150,7 @@ describe("2-player freezeout end state", () => {
     );
     expect(screen.getByText("CHAMPION")).toBeTruthy();
 
-    render(
+    const { container } = render(
       <TournamentResultBanner
         tournament={tournamentOverlay}
         tournamentViewer={{
@@ -162,8 +162,6 @@ describe("2-player freezeout end state", () => {
         onBackToLobby={() => {}}
       />,
     );
-    expect(
-      screen.getByText("You were eliminated. This is a freezeout — you cannot re-enter."),
-    ).toBeTruthy();
+    expect(container.firstChild).toBeNull();
   });
 });

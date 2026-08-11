@@ -34,6 +34,7 @@ import { showVoiceErrorToast } from "@/voice/errors";
 import { useOpenTableSync } from "@/features/table";
 import { useTableConnection } from "@/features/table";
 import { useTableLoadPhase } from "@/features/table/components/table/hooks/useTableLoadPhase";
+import { useTournamentDisplayStore } from "@/features/table/stores/tournament-display.store";
 import { isRecoverableTableJoinFailure } from "@/lib/tableJoinFailure";
 import {
   loadPhaseStatusMessage,
@@ -1034,6 +1035,13 @@ export function useTablePageController({
     void shareTable(shareTableUrl);
   }, [shareTableUrl]);
 
+  const moneyDisplayMode = useTournamentDisplayStore((s) => s.tableAmountMode);
+  const setMoneyDisplayMode = useTournamentDisplayStore((s) => s.setTableAmountMode);
+  const isTournamentTable = Boolean(snapshot?.table?.tournament);
+  const toggleMoneyDisplayMode = useCallback(() => {
+    setMoneyDisplayMode(moneyDisplayMode === "bb" ? "chips" : "bb");
+  }, [moneyDisplayMode, setMoneyDisplayMode]);
+
   const tableTopBarRight = useMemo(
     () => (
       <TableTopNavMenu
@@ -1047,6 +1055,8 @@ export function useTablePageController({
         onShareInviteLink={handleShareInviteLink}
         onLeaveTable={closeTableAndReturn}
         addBotDisabled={!tableTopBarFlags.showAddBot || addBotPending}
+        moneyDisplayMode={isTournamentTable ? moneyDisplayMode : undefined}
+        onToggleMoneyDisplayMode={isTournamentTable ? toggleMoneyDisplayMode : undefined}
       />
     ),
     [
@@ -1060,6 +1070,9 @@ export function useTablePageController({
       closeTableAndReturn,
       tableTopBarFlags.showAddBot,
       addBotPending,
+      isTournamentTable,
+      moneyDisplayMode,
+      toggleMoneyDisplayMode,
     ],
   );
 

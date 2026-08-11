@@ -2,7 +2,7 @@ import type { ScreenKey } from "@/registry/screen.registry";
 
 export type PrimaryNavKey = Extract<ScreenKey, "lobby" | "slots" | "lessons" | "leaderboard" | "settings">;
 
-/** Routes that use the phone/desktop primary chrome (BottomBar / NavRail). */
+/** Routes that use the phone/desktop primary chrome (mobile nav sheet / NavRail). */
 export function shouldShowPrimaryNav(pathname: string): boolean {
   if (pathname === "/" || pathname.startsWith("/login")) return false;
   if (pathname.startsWith("/admin") || pathname.startsWith("/dev")) return false;
