@@ -40,7 +40,7 @@ export function WorkspaceStatusBar({
     : null;
 
   return (
-    <View className="ui-row items-center justify-between border-b border-border pb-4 mb-4 gap-3 shrink-0">
+    <View className="ui-row items-center justify-between border-b border-border pb-4 gap-3 shrink-0">
       <View className="flex-1 min-w-0 items-start justify-center">
         {leadingLabel ? (
           <Text

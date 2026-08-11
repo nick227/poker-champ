@@ -232,6 +232,8 @@ export function ActiveTableView({
           </View>
         </View>
       );
+    } else if (canRebuy && onPressRebuy) {
+      bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
     } else if (heroIsSittingOut) {
       bottom = (
         <RejoinCTA
@@ -242,8 +244,6 @@ export function ActiveTableView({
           isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
         />
       );
-    } else if (canRebuy && onPressRebuy) {
-      bottom = <Button title="Rebuy" onPress={onPressRebuy} />;
     } else if (
       !forceDisableActions &&
       !forceActionBarInteractive &&

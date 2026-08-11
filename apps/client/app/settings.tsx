@@ -91,13 +91,13 @@ export default function SettingsScreen() {
 
   return (
     <Screen ready={ready}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24, maxWidth: 1400, alignSelf: "center" }}>
         <ProfileAvatarSection
           avatarUrl={profile.avatarUrl}
           username={profile.username}
           onUpdate={refetch}
         />
-        <View className="ui-surface-card ui-p-4 ui-stack-2">
+        <View className="ui-surface-card mt-4 ui-p-4 ui-stack-2">
           <Text variant="label">Profile</Text>
           <View className="ui-row ui-inline-2 bg-panel-elevated rounded-sm p-2">
             {profile.email ? (
@@ -119,19 +119,19 @@ export default function SettingsScreen() {
             />
           </View>
         </View>
-        <View className="ui-row justify-between ui-surface-card ui-p-4">
+        <View className="ui-row justify-between ui-surface-card mt-4 ui-p-4">
           <Text variant="body">Sound</Text>
           <Toggle value={soundEnabled} onValueChange={setSoundEnabled} />
         </View>
-        <View className="ui-row justify-between ui-surface-card ui-p-4">
+        <View className="ui-row justify-between ui-surface-card mt-4 ui-p-4">
           <Text variant="body">Haptics</Text>
           <Toggle value={hapticsEnabled} onValueChange={setHapticsEnabled} />
         </View>
-        <View className="ui-row justify-between ui-surface-card ui-p-4">
+        <View className="ui-row justify-between ui-surface-card mt-4 ui-p-4">
           <Text variant="body">Notifications</Text>
           <Toggle value={notificationsEnabled} onValueChange={setNotificationsEnabled} />
         </View>
-        <View className="ui-row justify-between items-center ui-surface-card ui-p-4">
+        <View className="ui-row justify-between items-center ui-surface-card mt-4 ui-p-4">
           <Text variant="body">Deposit</Text>
           <Button title="Add $1,000" variant="ghost" onPress={handleDeposit} />
         </View>
