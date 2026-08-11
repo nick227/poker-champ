@@ -131,7 +131,7 @@ export function Button({
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
-      className={resolvedClassName}
+      className={`${resolvedClassName} min-w-0 overflow-hidden`}
       style={({ pressed }) => [
         {
           opacity: isDisabled ? PRESS_OPACITY.disabled : pressed ? PRESS_OPACITY.pressed : 1,
@@ -140,10 +140,15 @@ export function Button({
         { minWidth, marginRight, marginLeft },
       ]}
     >
-      <View className="flex-row items-center justify-center gap-2">
+      <View className="flex-row items-center justify-center gap-2 min-w-0 flex-1">
         {leftIcon}
         {loading ? <ActivityIndicator size="small" color={SPINNER_COLOR} /> : null}
-        <Text numberOfLines={1} variant="body" allowFontScaling={false} className={resolvedTextClassName}>
+        <Text
+          numberOfLines={1}
+          variant="body"
+          allowFontScaling={false}
+          className={`${resolvedTextClassName} min-w-0 flex-shrink`}
+        >
           {title}
         </Text>
         {rightIcon}
