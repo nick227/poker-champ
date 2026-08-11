@@ -77,16 +77,13 @@ export function TableLoadingLanding({
             ) : null}
           </View>
 
-          <View
-            key={tableId ?? "session"}
-            className="overflow-hidden rounded-2xl border border-border-subtle bg-panel-elevated"
-            style={{ minHeight: SLOT_LANDING_MIN_HEIGHT }}
-          >
+          <View key={tableId ?? "session"} style={{ minHeight: SLOT_LANDING_MIN_HEIGHT }}>
             <ThemeProvider initialThemeId="poker-champ-dark">
               <SlotMachine
                 bankrollCents={effectiveBankroll}
                 onBankrollChange={setSlotBankroll}
                 onSpinStart={handleSlotSpinStart}
+                reducedMotion={reducedMotion}
               />
             </ThemeProvider>
           </View>

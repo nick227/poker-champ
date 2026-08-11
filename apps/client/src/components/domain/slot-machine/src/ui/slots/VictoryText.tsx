@@ -1,35 +1,35 @@
 import React from "react";
 import { Text, type StyleProp, type ViewStyle } from "react-native";
 import Animated from "react-native-reanimated";
-import { useTheme } from "../../theme/ThemeProvider";
-import { makeStyles } from "../../theme/styleEngine";
 import { textShadowStyle } from "@/theme/textShadow";
+import { casino } from "../../theme/casinoCabinet";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export function VictoryText({ animatedStyle }: { animatedStyle?: StyleProp<ViewStyle> }) {
-  const { theme } = useTheme();
-  const s = makeStyles(theme, (t) => ({
-    text: {
-      textAlign: "center",
-      fontSize: 32,
-      fontWeight: t.type.weightHeavy,
-      letterSpacing: 4,
-      color: "#FFD700",
-      textTransform: "uppercase",
-      ...textShadowStyle({ color: "#FF6B35", offset: { width: 2, height: 2 }, radius: 8 }),
-      position: "absolute",
-      top: "50%",
-      left: 0,
-      right: 0,
-      marginTop: -20,
-      pointerEvents: "none",
-    },
-  }));
-
   return (
-    <Animated.View style={animatedStyle}>
-      <AnimatedText style={s.text}>JACKPOT!</AnimatedText>
+    <Animated.View style={[styles.wrap, animatedStyle]} pointerEvents="none">
+      <AnimatedText style={styles.text}>JACKPOT!</AnimatedText>
     </Animated.View>
   );
 }
+
+const styles = {
+  wrap: {
+    position: "absolute" as const,
+    top: "42%" as const,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    alignItems: "center" as const,
+  },
+  text: {
+    textAlign: "center" as const,
+    fontSize: 36,
+    fontWeight: "900" as const,
+    letterSpacing: 4,
+    color: casino.goldHi,
+    textTransform: "uppercase" as const,
+    ...textShadowStyle({ color: casino.crimsonHi, offset: { width: 2, height: 2 }, radius: 8 }),
+  },
+};

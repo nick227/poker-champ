@@ -1,11 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { Easing, runOnJS, withSequence, withTiming } from "react-native-reanimated";
+import { Easing, withSequence, withTiming } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
 import { formatCents } from "../engine/format";
-import { tierForProbability } from "../engine/tuning";
 import { toOddsText, outcomeLabel } from "../engine/display";
-import { normalizeReelPositions } from "../engine/reelMath";
 import type { SlotOutcomeKind, SymbolKey } from "../games/types";
 
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
@@ -20,59 +18,21 @@ interface SpinResult {
   probability: number;
 }
 
+type SharedNum = { value: number };
+
 interface UseSlotSpinProps {
   bank: number;
   betCents: number;
-  engine: {
-    spin: () => SpinResult;
-  };
-  lock: {
-    locked: boolean;
-    lock: () => void;
-    unlock: () => void;
-  };
+  engine: { spin: () => SpinResult };
+  lock: { locked: boolean; lock: () => void; unlock: () => void };
   onSpinComplete?: (winCents: number) => void;
   onSpinStart?: () => void;
-  payoutTiers: any;
   setBank: (updater: (current: number) => number) => void;
   spinTo: (stops: readonly [number, number, number]) => Promise<void>;
   normalizeReelPositions: () => void;
-  pressScale: {
-    value: number;
-  };
-  winPulse: {
-    value: number;
-  };
-  jackpotPulse: {
-    value: number;
-  };
-  buttonFlash?: {
-    value: number;
-  };
-  bannerFlash?: {
-    value: number;
-  };
-  jackpotCelebration?: {
-    value: number;
-  };
-  celebrationStage?: {
-    value: number;
-  };
-  screenShake?: {
-    value: number;
-  };
-  victoryGlow?: {
-    value: number;
-  };
-  sparkleIntensity?: {
-    value: number;
-  };
-  victoryTextScale?: {
-    value: number;
-  };
-  victoryTextOpacity?: {
-    value: number;
-  };
+  pressScale: SharedNum;
+  playWinFx: (isJackpot: boolean, winMultiplier: number, winCents: number, reducedMotion?: boolean) => void;
+  reducedMotion?: boolean;
 }
 
 export function useSlotSpin({
@@ -82,22 +42,12 @@ export function useSlotSpin({
   lock,
   onSpinComplete,
   onSpinStart,
-  payoutTiers,
   setBank,
   spinTo,
   normalizeReelPositions,
   pressScale,
-  winPulse,
-  jackpotPulse,
-  buttonFlash,
-  bannerFlash,
-  jackpotCelebration,
-  celebrationStage,
-  screenShake,
-  victoryGlow,
-  sparkleIntensity,
-  victoryTextScale,
-  victoryTextOpacity,
+  playWinFx,
+  reducedMotion = false,
 }: UseSlotSpinProps) {
   const [machineOutput, setMachineOutput] = useState("No Match");
   const mountedRef = React.useRef(true);
@@ -108,136 +58,12 @@ export function useSlotSpin({
     };
   }, []);
 
-  const cueSmallWin = useCallback((winMultiplier: number = 1) => {
-    const intensity = Math.min(winMultiplier, 5);
-    const flashDuration = Math.max(300, 800 / intensity);
-    
-    winPulse.value = 0;
-    winPulse.value = withSequence(withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 220 }));
-    
-    if (buttonFlash) {
-      buttonFlash.value = 0;
-      buttonFlash.value = withSequence(
-        withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 150 }),
-        withTiming(1, { duration: 100 }),
-        withTiming(0, { duration: flashDuration })
-      );
-    }
-    
-    try {
-      if (winMultiplier >= 3) {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-    } catch {}
-  }, [winPulse, buttonFlash]);
-
-  const cueJackpot = useCallback(() => {
-    jackpotPulse.value = 0;
-    winPulse.value = 0;
-    if (bannerFlash) {
-      bannerFlash.value = 0;
-      bannerFlash.value = withSequence(
-        withTiming(1, { duration: 150, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 200 }),
-        withTiming(1, { duration: 150 }),
-        withTiming(0, { duration: 200 }),
-        withTiming(1, { duration: 150 }),
-        withTiming(0, { duration: 600 })
-      );
-    }
-    
-    if (buttonFlash) {
-      buttonFlash.value = 0;
-      buttonFlash.value = withSequence(
-        withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 180 }),
-        withTiming(1, { duration: 120 }),
-        withTiming(0, { duration: 180 }),
-        withTiming(1, { duration: 120 }),
-        withTiming(0, { duration: 800 })
-      );
-    }
-    
-    if (jackpotCelebration && celebrationStage) {
-      celebrationStage.value = 0;
-      jackpotCelebration.value = withSequence(
-        withTiming(1, { duration: 300, easing: Easing.out(Easing.quad) }),
-        withTiming(0.8, { duration: 200 }),
-        withTiming(1, { duration: 150 }),
-        withTiming(0.6, { duration: 150 }),
-        withTiming(1, { duration: 100 }),
-        withTiming(0, { duration: 2000 })
-      );
-      
-      celebrationStage.value = withSequence(
-        withTiming(1, { duration: 100 }),
-        withTiming(2, { duration: 200 }),
-        withTiming(3, { duration: 300 }),
-        withTiming(0, { duration: 2400 })
-      );
-      
-      if (screenShake) {
-        screenShake.value = withSequence(
-          withTiming(1, { duration: 50, easing: Easing.out(Easing.quad) }),
-          withTiming(-1, { duration: 50 }),
-          withTiming(0.5, { duration: 30 }),
-          withTiming(-0.5, { duration: 30 }),
-          withTiming(0, { duration: 40 })
-        );
-      }
-      
-      if (victoryGlow) {
-        victoryGlow.value = withSequence(
-          withTiming(1, { duration: 400, easing: Easing.out(Easing.quad) }),
-          withTiming(0.7, { duration: 300 }),
-          withTiming(1, { duration: 200 }),
-          withTiming(0, { duration: 1500 })
-        );
-      }
-      
-      if (sparkleIntensity) {
-        sparkleIntensity.value = withSequence(
-          withTiming(1, { duration: 200 }),
-          withTiming(0.3, { duration: 100 }),
-          withTiming(1, { duration: 150 }),
-          withTiming(0.5, { duration: 100 }),
-          withTiming(1, { duration: 100 }),
-          withTiming(0, { duration: 2000 })
-        );
-      }
-      
-      if (victoryTextScale && victoryTextOpacity) {
-        victoryTextOpacity.value = withSequence(
-          withTiming(0, { duration: 200 }),
-          withTiming(1, { duration: 300, easing: Easing.out(Easing.quad) }),
-          withTiming(1, { duration: 200 }),
-          withTiming(0, { duration: 300 })
-        );
-      }
-      
-      setTimeout(() => emitSoundEvent("slot.jackpot"), 100);
-      setTimeout(() => emitSoundEvent("slot.jackpotFanfare"), 600);
-    }
-    
-    try {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
-  }, [jackpotPulse, winPulse, bannerFlash, buttonFlash, jackpotCelebration, celebrationStage, screenShake, victoryGlow, sparkleIntensity, victoryTextScale, victoryTextOpacity]);
-
   const handleSpin = useCallback(async () => {
-    // MVP Rule: Lock must be synchronous and checked first
     if (lock.locked || bank < betCents) return;
 
-    // Lock immediately to prevent double-spin race
     lock.lock();
     onSpinStart?.();
-
-    // MVP Rule: Deduct bet first, credit win later
     setBank((b: number) => Math.max(0, b - betCents));
-    
     setMachineOutput("Spinning...");
     normalizeReelPositions();
 
@@ -246,52 +72,67 @@ export function useSlotSpin({
 
     try {
       void Haptics.selectionAsync();
-    } catch {}
-    pressScale.value = withSequence(withTiming(0.97, { duration: 50, easing: Easing.out(Easing.quad) }), withTiming(1.0, { duration: 90, easing: Easing.out(Easing.quad) }));
+    } catch {
+      /* native only */
+    }
+    pressScale.value = withSequence(
+      withTiming(0.97, { duration: 50, easing: Easing.out(Easing.quad) }),
+      withTiming(1.0, { duration: 90, easing: Easing.out(Easing.quad) }),
+    );
 
     try {
       const { stops, result, winUnits, isJackpot, outcomeKind, matchedSymbol, probability } = engine.spin();
       await spinTo(stops);
-      
+
       if (!mountedRef.current) {
         lock.unlock();
         return;
       }
-      
+
       emitSoundEvent("slot.reelStop");
 
-      // MVP Rule: Credit win separately after successful spin
       const win = winUnits * betCents;
       if (win > 0) {
         setBank((b: number) => b + win);
       }
-      
+
       const combo = result.join("-");
       if (win > 0) {
         emitSoundEvent("slot.win");
-        const tierLabel = tierForProbability(probability, isJackpot, payoutTiers).label;
         const odds = toOddsText(probability);
         const outcome = outcomeLabel(outcomeKind, combo, matchedSymbol);
         const winMultiplier = win / betCents;
         setMachineOutput(`${outcome} pays ${formatCents(win)} (${odds})`);
-        isJackpot ? cueJackpot() : cueSmallWin(winMultiplier);
+        playWinFx(isJackpot, winMultiplier, win, reducedMotion);
       } else {
-        setMachineOutput(`No Match`);
+        setMachineOutput("No Match");
       }
 
-      if (onSpinComplete) onSpinComplete(win);
+      onSpinComplete?.(win);
     } catch (error) {
       if (mountedRef.current) {
         console.warn("[slot] spin aborted", error);
         setMachineOutput("Spin Failed");
       }
     } finally {
-      // Always unlock, even on error or unmount
       if (mountedRef.current) {
         lock.unlock();
       }
     }
-  }, [lock, bank, betCents, normalizeReelPositions, pressScale, engine, spinTo, setBank, payoutTiers, cueJackpot, cueSmallWin, onSpinComplete, onSpinStart]);
+  }, [
+    lock,
+    bank,
+    betCents,
+    normalizeReelPositions,
+    pressScale,
+    engine,
+    spinTo,
+    setBank,
+    playWinFx,
+    reducedMotion,
+    onSpinComplete,
+    onSpinStart,
+  ]);
 
   return {
     machineOutput,

@@ -1,8 +1,7 @@
 import React, { useMemo } from "react";
-import { View, Text, Image, ImageSourcePropType } from "react-native";
+import { View, Text, Image, ImageSourcePropType, type StyleProp, type ViewStyle } from "react-native";
 import Animated from "react-native-reanimated";
-import { useTheme } from "../../theme/ThemeProvider";
-import { makeStyles } from "../../theme/styleEngine";
+import { casino } from "../../theme/casinoCabinet";
 import type { SymbolKey } from "../../games/types";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
@@ -17,61 +16,24 @@ export function ReelWindow({
   strip: SymbolKey[];
   symbols: Partial<Record<SymbolKey, ImageSourcePropType>>;
   symbolHeight: number;
-  animatedStyle: any;
+  animatedStyle: StyleProp<ViewStyle>;
   repeatCount?: number;
 }) {
-  const { theme } = useTheme();
   const repeated = useMemo(() => Array.from({ length: repeatCount }, () => strip).flat(), [repeatCount, strip]);
   const pad = symbolHeight * 2;
 
-  const s = makeStyles(theme, (t) => ({
-    clip: {
-      width: "100%",
-      height: symbolHeight * 3,
-      overflow: "hidden",
-      backgroundColor: t.colors.bg0,
-      borderWidth: 1,
-      borderColor: t.colors.border,
-    },
-    cell: {
-      width: "100%",
-      height: symbolHeight,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    image: {
-      width: "92%",
-      height: "92%",
-    },
-    fallbackTile: {
-      width: "100%",
-      height: "100%",
-      backgroundColor: t.colors.panel,
-      borderWidth: 1,
-      borderColor: t.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    fallbackText: {
-      fontSize: Math.round(symbolHeight * 0.38),
-      fontWeight: t.type.weightHeavy,
-      color: t.colors.text,
-      letterSpacing: 1,
-    },
-  }));
-
   return (
-    <View style={s.clip}>
+    <View style={[styles.clip, { height: symbolHeight * 3 }]}>
       <Animated.View style={[{ paddingTop: pad, paddingBottom: pad }, animatedStyle]}>
         {repeated.map((k, i) => {
           const src = symbols[k];
           return (
-            <View key={`${k}-${i}`} style={s.cell}>
+            <View key={`${k}-${i}`} style={[styles.cell, { height: symbolHeight }]}>
               {src ? (
-                <Image source={src} style={s.image} resizeMode="contain" />
+                <Image source={src} style={styles.image} resizeMode="contain" />
               ) : (
-                <View style={s.fallbackTile}>
-                  <AnimatedText style={s.fallbackText}>{k}</AnimatedText>
+                <View style={styles.fallbackTile}>
+                  <AnimatedText style={[styles.fallbackText, { fontSize: Math.round(symbolHeight * 0.38) }]}>{k}</AnimatedText>
                 </View>
               )}
             </View>
@@ -81,3 +43,39 @@ export function ReelWindow({
     </View>
   );
 }
+
+const styles = {
+  clip: {
+    width: "100%" as const,
+    overflow: "hidden" as const,
+    backgroundColor: casino.reelFace,
+    borderWidth: 0,
+  },
+  cell: {
+    width: "100%" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(230,180,34,0.12)",
+  },
+  image: {
+    width: "86%" as const,
+    height: "86%" as const,
+    borderRadius: 10,
+  },
+  fallbackTile: {
+    width: "86%" as const,
+    height: "86%" as const,
+    backgroundColor: casino.reelFaceShade,
+    borderWidth: 1,
+    borderColor: casino.goldLo,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderRadius: 10,
+  },
+  fallbackText: {
+    fontWeight: "900" as const,
+    color: casino.goldHi,
+    letterSpacing: 1,
+  },
+};

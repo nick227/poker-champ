@@ -246,34 +246,32 @@ export const THEMES: Theme[] = [
   name: "Poker Champ Dark",
 
   colors: {
-    // Base
-    bg0: "#000000",
-    bg1: "#0c0c0f",
+    bg0: "#12070a",
+    bg1: "#1a0a0e",
 
-    panel: "rgba(255,255,255,0.04)",
-    panel2: "rgba(255,255,255,0.06)",
+    panel: "rgba(142,16,32,0.35)",
+    panel2: "rgba(0,0,0,0.45)",
 
-    border: "rgba(255,255,255,0.08)",
+    border: "rgba(230,180,34,0.35)",
 
-    text: "rgba(255,255,255,0.92)",
-    textMuted: "rgba(255,255,255,0.55)",
+    text: "rgba(255,248,231,0.95)",
+    textMuted: "rgba(255,224,138,0.65)",
 
-    // Existing gold reused
-    accent0: "#d4af37",   // gold border tone (reused style)
-    accent1: "#a8892a",
+    accent0: "#e6b422",
+    accent1: "#8e1020",
 
     shadow: "rgba(0,0,0,0.9)",
   },
 
   gradients: {
-    page: ["#000000", "#0c0c0f"],
+    page: ["#12070a", "#1a0a0e"],
 
     frameWash: [
-      "rgba(212,175,55,0.08)",
-      "rgba(0,0,0,0.00)"
+      "rgba(230,180,34,0.16)",
+      "rgba(142,16,32,0.10)"
     ],
 
-    button: ["#4caf8a", "#3f9f7d"],
+    button: ["#ffe08a", "#e6b422"],
 
     buttonDisabled: [
       "rgba(255,255,255,0.08)",
@@ -281,13 +279,13 @@ export const THEMES: Theme[] = [
     ],
 
     chip: [
-      "rgba(255,255,255,0.08)",
-      "rgba(255,255,255,0.03)"
+      "rgba(230,180,34,0.22)",
+      "rgba(142,16,32,0.35)"
     ],
 
     banner: [
-      "rgba(212,175,55,0.10)",
-      "rgba(255,255,255,0.02)"
+      "rgba(230,180,34,0.16)",
+      "rgba(0,0,0,0.35)"
     ],
   },
 
