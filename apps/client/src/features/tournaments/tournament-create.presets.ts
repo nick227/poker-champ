@@ -60,6 +60,15 @@ export const TOURNAMENT_MAX_REBUYS_OPTIONS = [
   { label: "Unlimited", value: 10 },
 ] as const;
 
+// Buy-in window = late registration: how long after the scheduled start new players can still
+// pay the entry fee and join. Short by default so the field locks quickly once play begins.
+export const TOURNAMENT_LATE_REG_OPTIONS = [
+  { label: "5 min", value: 5 },
+  { label: "10 min", value: 10 },
+  { label: "15 min", value: 15 },
+  { label: "20 min", value: 20 },
+] as const;
+
 export function blindStructureIdForPace(pace: TournamentPacePreset): TournamentBlindStructureId {
   const row = TOURNAMENT_PACE_OPTIONS.find((opt) => opt.id === pace);
   return row?.blindStructureId ?? "standard_8min";
@@ -75,4 +84,8 @@ export function defaultEntryFeeCents(): number {
 
 export function defaultStartingStackChips(): number {
   return TOURNAMENT_STARTING_STACK_OPTIONS[3].chips;
+}
+
+export function defaultLateRegMinutes(): number {
+  return TOURNAMENT_LATE_REG_OPTIONS[0].value;
 }

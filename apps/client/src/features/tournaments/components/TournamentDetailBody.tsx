@@ -12,6 +12,7 @@ import {
 import { formatTournamentBotFillSummary } from "@/lib/tournament-bot-fill";
 import {
   estimateTournamentHumanEntrants,
+  formatBuyInWindowLabel,
   formatTournamentStartLocal,
   formatTournamentStatus,
   isTournamentStartLocked,
@@ -89,6 +90,7 @@ export function TournamentDetailBody({
           />
           <InfoRow label="Starting stack" value={formatTournamentStackChips(tournament.startingStackCents)} />
           <InfoRow label="Blind preset" value={tournament.blindStructureId} />
+          <InfoRow label="Buy-in window" value={formatBuyInWindowLabel(tournament)} />
           <InfoRow label="Prize pool" value={formatCents(tournament.prizePoolCents)} />
           {botFillSummary ? <InfoRow label="Bot fill" value={botFillSummary} /> : null}
           {tournament.tableId ? <InfoRow label="Table" value={tournament.tableId} /> : null}

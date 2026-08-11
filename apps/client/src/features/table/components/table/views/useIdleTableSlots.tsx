@@ -11,6 +11,7 @@ import type { Opponent } from "../table.adapter";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
+import { RebuyCountdown } from "../RebuyCountdown";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
@@ -74,7 +75,36 @@ export function useIdleTableSlots(
 
   let bottom: ReactNode = null;
   if (renderModel.canRebuy && actions.openRebuySheet) {
-    bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
+    bottom = (
+      <View className="ui-stack-2 items-center">
+        <RebuyCountdown
+          rebuyWindowClosesAtTs={snapshot.hero.tournamentViewer?.rebuyWindowClosesAtTs}
+          rebuysRemaining={snapshot.hero.tournamentViewer?.rebuysRemaining}
+        />
+        <View className="ui-row gap-x-2 justify-center">
+          <Button title="Rebuy" onPress={actions.openRebuySheet} />
+          <Button
+            title={renderModel.leaveTournamentBusy ? "Leaving..." : "Leave tournament"}
+            variant="ghost"
+            disabled={renderModel.leaveTournamentBusy}
+            onPress={actions.leaveTournament}
+          />
+        </View>
+      </View>
+    );
+  } else if (tournamentSpectator) {
+    // Busted tournament players still occupy their seat (status OUT) until the server removes
+    // them, so this must be checked ahead of heroIsSittingOut/RejoinCTA below — otherwise an
+    // eliminated freezeout player (no rebuy available) sees a Rejoin button that can never work.
+    bottom = (
+      <View className="ui-p-inline-4 gap-y-2">
+        <Text className="text-center">Spectating this tournament table.</Text>
+        <View className="ui-row gap-x-2 justify-center">
+          <Button title="View standings" onPress={actions.openTournamentStandings} />
+          <Button title="Back to lobby" variant="ghost" onPress={actions.closeTableAndReturn} />
+        </View>
+      </View>
+    );
   } else if (heroIsSittingOut) {
     bottom = (
       <RejoinCTA
@@ -84,16 +114,6 @@ export function useIdleTableSlots(
         onBackToLobby={actions.closeTableAndReturn}
         isFatalTableGone={Boolean(rejoinErrorMessage && /table no longer exists|table_gone/i.test(rejoinErrorMessage))}
       />
-    );
-  } else if (tournamentSpectator) {
-    bottom = (
-      <View className="ui-p-inline-4 gap-y-2">
-        <Text className="text-center">Spectating this tournament table.</Text>
-        <View className="ui-row gap-x-2 justify-center">
-          <Button title="View standings" onPress={actions.openTournamentStandings} />
-          <Button title="Back to lobby" variant="ghost" onPress={actions.closeTableAndReturn} />
-        </View>
-      </View>
     );
   } else if (isSpectator) {
     bottom = (

@@ -59,6 +59,7 @@ export type TablePageController = {
     displayEvents: TableDisplayEvents;
     pendingAction?: PendingAction;
     canRebuy: boolean;
+    leaveTournamentBusy: boolean;
     tableTopBarRight: ReactNode;
     activeTableRows: ActiveTableRow[];
     chatMessages: ChatMessageForOverlay[];
@@ -101,6 +102,7 @@ export type TablePageController = {
     openRebuySheet: () => void;
     closeRebuySheet: () => void;
     applyRebuy: (buyInCents: number) => void;
+    leaveTournament: () => void;
     closePlayerPopup: () => void;
     onPlayerPress: (opponent: Opponent) => void;
     openAddBotPicker: () => void;

@@ -452,6 +452,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tournaments/{id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tournamentsLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tournaments/{id}/ensure-table": {
         parameters: {
             query?: never;
@@ -928,6 +944,10 @@ export interface components {
             startingStackCents: number;
             blindStructureId: string;
             lateRegMinutes: number;
+            /** @enum {string} */
+            playFormat?: "FREEZEOUT" | "REBUY";
+            maxRebuysPerPlayer?: number;
+            rebuyPeriodMinutes?: number;
             currentLevel: number;
             /** Format: date-time */
             nextLevelAt?: string | null;
@@ -2238,6 +2258,39 @@ export interface operations {
                 };
             };
             /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    tournamentsLeave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined rebuy and finalized elimination */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                    };
+                };
+            };
+            /** @description Not eligible to leave (not rebuy-pending) */
             400: {
                 headers: {
                     [name: string]: unknown;

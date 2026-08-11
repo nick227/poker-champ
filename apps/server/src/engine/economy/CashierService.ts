@@ -186,6 +186,21 @@ export class CashierService {
         throw new Error(TOURNAMENT_REBUY_NOT_ALLOWED);
       }
 
+      // Re-verify and claim the registration row atomically, immediately before moving any
+      // money. The plain read above can go stale: a concurrent explicit "leave tournament" call
+      // (or the timeout sweep) can finalize this player as eliminated between that read and here.
+      // updateMany's WHERE re-evaluates against the latest committed row under InnoDB's
+      // semi-consistent read for UPDATE, so this and finalizeEliminatedRegistration's own guarded
+      // updateMany race safely against each other: whichever write reaches the row lock first
+      // wins, and the loser sees the winner's committed state and no-ops/throws here.
+      const claimed = await tx.tournamentRegistration.updateMany({
+        where: { tournamentId, userId, finishPlace: null, rebuyPendingAt: { not: null } },
+        data: { rebuyPendingAt: new Date() },
+      });
+      if (claimed.count === 0) {
+        throw new Error(TOURNAMENT_REBUY_NOT_ALLOWED);
+      }
+
       const debitResult = await tx.user.updateMany({
         where: { id: userId, bankrollCents: { gte: amountCents } },
         data: { bankrollCents: { decrement: amountCents } },

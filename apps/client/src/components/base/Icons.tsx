@@ -16,6 +16,7 @@ const ICONS = {
   theme: "🎨",
   logo: "♠",
   share: "🔗",
+  info: "ⓘ",
 } as const;
 
 const SUITS = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;

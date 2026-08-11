@@ -106,6 +106,9 @@ export const openApiSpec = {
           startingStackCents: { type: "integer" },
           blindStructureId: { type: "string" },
           lateRegMinutes: { type: "integer" },
+          playFormat: { type: "string", enum: ["FREEZEOUT", "REBUY"] },
+          maxRebuysPerPlayer: { type: "integer" },
+          rebuyPeriodMinutes: { type: "integer" },
           currentLevel: { type: "integer" },
           nextLevelAt: { type: "string", format: "date-time", nullable: true },
           tableId: { type: "string", nullable: true },
@@ -1531,6 +1534,32 @@ export const openApiSpec = {
           },
           "400": {
             description: "Invalid request",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/tournaments/{id}/leave": {
+      post: {
+        tags: ["tournaments"],
+        operationId: "tournamentsLeave",
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": {
+            description: "Declined rebuy and finalized elimination",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: { success: { type: "boolean" } },
+                  required: ["success"],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Not eligible to leave (not rebuy-pending)",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },

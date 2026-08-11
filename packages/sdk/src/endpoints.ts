@@ -103,6 +103,11 @@ export const tournaments = {
       "POST",
       pathWithParams("/api/tournaments/{id}/unregister", path as Record<string, string | number>),
     ),
+  leave: (path: PathParams<Operation<"/api/tournaments/{id}/leave", "post">>) =>
+    request<SuccessPayload<Operation<"/api/tournaments/{id}/leave", "post">>>(
+      "POST",
+      pathWithParams("/api/tournaments/{id}/leave", path as Record<string, string | number>),
+    ),
   ensureTable: (path: PathParams<Operation<"/api/tournaments/{id}/ensure-table", "post">>) =>
     request<SuccessPayload<Operation<"/api/tournaments/{id}/ensure-table", "post">>>(
       "POST",

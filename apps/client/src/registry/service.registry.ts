@@ -118,6 +118,8 @@ const serviceByKey = {
       withApiError(() => tournaments.register({ id: tournamentId })),
     tournamentUnregister: (tournamentId: string) =>
       withApiError(() => tournaments.unregister({ id: tournamentId })),
+    tournamentLeave: (tournamentId: string) =>
+      withApiError(() => tournaments.leave({ id: tournamentId })),
     tournamentCreate: (input: CreateTournamentInput) =>
       withApiError(() => tournaments.create(input)),
     tournamentCancel: (tournamentId: string) =>
@@ -150,6 +152,7 @@ const serviceOrdered = [
   { key: "post.adminDeleteUser", call: serviceByKey.post.adminDeleteUser },
   { key: "post.tournamentRegister", call: serviceByKey.post.tournamentRegister },
   { key: "post.tournamentUnregister", call: serviceByKey.post.tournamentUnregister },
+  { key: "post.tournamentLeave", call: serviceByKey.post.tournamentLeave },
   { key: "post.tournamentCreate", call: serviceByKey.post.tournamentCreate },
   { key: "post.tournamentCancel", call: serviceByKey.post.tournamentCancel },
   { key: "post.tournamentRebalance", call: serviceByKey.post.tournamentRebalance },

@@ -15,6 +15,7 @@ import { FeltActionAnnounce } from "../FeltActionAnnounce";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA } from "../RejoinCTA";
+import { RebuyCountdown } from "../RebuyCountdown";
 import { useTableViewShellFrame } from "./tableView.shared";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
@@ -236,8 +237,11 @@ export function useActiveTableSlots(
   const rejoinErrorMessage = renderModel.rejoinErrorMessage ?? null;
 
   let bottom: ReactNode = null;
+  // Busted tournament players still occupy their seat (status OUT) until the server removes
+  // them, so this must be checked ahead of heroIsSittingOut/RejoinCTA below — otherwise an
+  // eliminated freezeout player (no rebuy available) sees a Rejoin button that can never work.
   const tournamentSpectator = snapshot ? isTournamentEliminatedSpectator(snapshot) : false;
-  if (!heroIsSeated && tournamentSpectator) {
+  if (tournamentSpectator) {
     bottom = (
       <View className="ui-p-inline-4 gap-y-2">
         <Text className="text-center">Spectating this tournament table.</Text>
@@ -248,7 +252,23 @@ export function useActiveTableSlots(
       </View>
     );
   } else if (renderModel.canRebuy && actions.openRebuySheet) {
-    bottom = <Button title="Rebuy" onPress={actions.openRebuySheet} />;
+    bottom = (
+      <View className="ui-stack-2 items-center">
+        <RebuyCountdown
+          rebuyWindowClosesAtTs={snapshot.hero.tournamentViewer?.rebuyWindowClosesAtTs}
+          rebuysRemaining={snapshot.hero.tournamentViewer?.rebuysRemaining}
+        />
+        <View className="ui-row gap-x-2 justify-center">
+          <Button title="Rebuy" onPress={actions.openRebuySheet} />
+          <Button
+            title={renderModel.leaveTournamentBusy ? "Leaving..." : "Leave tournament"}
+            variant="ghost"
+            disabled={renderModel.leaveTournamentBusy}
+            onPress={actions.leaveTournament}
+          />
+        </View>
+      </View>
+    );
   } else if (!heroIsSeated) {
     bottom = (
       <View className="ui-p-inline-4 gap-y-2">

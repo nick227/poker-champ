@@ -7,22 +7,21 @@ import { Text } from "@/components/base/Text";
 import {
   MAX_SINGLE_TABLE_PLAYERS,
   TOURNAMENT_ENTRY_FEE_OPTIONS,
+  TOURNAMENT_LATE_REG_OPTIONS,
   TOURNAMENT_MAX_PLAYERS_OPTIONS,
   TOURNAMENT_MAX_REBUYS_OPTIONS,
   TOURNAMENT_PACE_OPTIONS,
   TOURNAMENT_STARTING_STACK_OPTIONS,
   blindStructureIdForPace,
   defaultEntryFeeCents,
+  defaultLateRegMinutes,
   defaultPacePreset,
   defaultStartingStackChips,
   type TournamentPacePreset,
   type TournamentPlayFormatChoice,
 } from "@/features/tournaments/tournament-create.presets";
 import { parseDollarsToCents, parsePositiveInt } from "@/lib/admin-tournament-form";
-import {
-  defaultLateRegMinutesForStructure,
-  defaultRebuyPeriodMinutesForStructure,
-} from "@/lib/tournament-schedule";
+import { defaultRebuyPeriodMinutesForStructure } from "@/lib/tournament-schedule";
 import {
   buildTournamentStartIsoFromSchedule,
   defaultTournamentStartSchedule,
@@ -67,6 +66,7 @@ function resetFormState() {
     instantStart: false,
     playFormat: "FREEZEOUT" as TournamentPlayFormatChoice,
     maxRebuys: 2,
+    lateRegMinutes: defaultLateRegMinutes(),
     startSchedule: defaultTournamentStartSchedule(),
     fillBotsAtStart: false,
     fillBotCount: "",
@@ -86,6 +86,7 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
   const [instantStart, setInstantStart] = useState(initial.instantStart);
   const [playFormat, setPlayFormat] = useState<TournamentPlayFormatChoice>(initial.playFormat);
   const [maxRebuys, setMaxRebuys] = useState(initial.maxRebuys);
+  const [lateRegMinutes, setLateRegMinutes] = useState(initial.lateRegMinutes);
   const [startSchedule, setStartSchedule] = useState<TournamentStartSchedule>(initial.startSchedule);
   const [fillBotsAtStart, setFillBotsAtStart] = useState(initial.fillBotsAtStart);
   const [fillBotCount, setFillBotCount] = useState(initial.fillBotCount);
@@ -104,6 +105,7 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
     setInstantStart(next.instantStart);
     setPlayFormat(next.playFormat);
     setMaxRebuys(next.maxRebuys);
+    setLateRegMinutes(next.lateRegMinutes);
     setStartSchedule(next.startSchedule);
     setFillBotsAtStart(next.fillBotsAtStart);
     setFillBotCount(next.fillBotCount);
@@ -119,6 +121,7 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
     setFillBotCount(BOT_DEMO_PRESET.fillBotCount);
     setInstantStart(false);
     setPlayFormat("FREEZEOUT");
+    setLateRegMinutes(defaultLateRegMinutes());
   }, []);
 
   const handleCreate = useCallback(async () => {
@@ -157,7 +160,7 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
       maxPlayers,
       startingStackCents: startingStackChips,
       blindStructureId,
-      lateRegMinutes: defaultLateRegMinutesForStructure(blindStructureId),
+      lateRegMinutes,
       playFormat,
       maxRebuysPerPlayer: playFormat === "REBUY" ? maxRebuys : 0,
       rebuyPeriodMinutes,
@@ -179,6 +182,7 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
     fillBotCount,
     fillBotsAtStart,
     instantStart,
+    lateRegMinutes,
     maxPlayers,
     maxRebuys,
     name,
@@ -275,6 +279,21 @@ export function TournamentCreateForm({ visible = true, showBotPreset = true, onC
           ))}
         </ChipSection>
       ) : null}
+
+      <ChipSection label="Buy-in window">
+        {TOURNAMENT_LATE_REG_OPTIONS.map((opt) => (
+          <ChipButton
+            key={opt.value}
+            title={opt.label}
+            selected={lateRegMinutes === opt.value}
+            onPress={() => setLateRegMinutes(opt.value)}
+          />
+        ))}
+      </ChipSection>
+      <Text variant="muted">
+        Players can join and pay the entry fee for {lateRegMinutes} min after start. Once it
+        closes, the field is locked — no new entries, no unregistering.
+      </Text>
 
       <ChipSection label="Start">
         <ChipButton title="Schedule" selected={!instantStart} onPress={() => setInstantStart(false)} />

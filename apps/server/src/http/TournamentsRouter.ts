@@ -14,6 +14,7 @@ import {
 import {
   TOURNAMENT_CANCEL_FORBIDDEN,
   TOURNAMENT_CLIENT_ERRORS,
+  TOURNAMENT_NOT_REBUY_PENDING,
   TOURNAMENT_REBUY_CONFIG_INVALID,
   TOURNAMENT_START_IN_PAST,
 } from "../tournaments/tournament.errors.js";
@@ -32,7 +33,10 @@ import { toTournamentResponse } from "../tournaments/tournament.serialize.js";
 import {
   resolveRegisteredTournamentPlayerStatus,
 } from "../tournaments/tournament-player-status.js";
-import { countTournamentRebuysForUser } from "../tournaments/tournament-rebuy.js";
+import {
+  countTournamentRebuysForUser,
+  finalizeEliminatedRegistration,
+} from "../tournaments/tournament-rebuy.js";
 import { loadTournamentStandings } from "../tournaments/tournament-standings.js";
 import { tournamentTableBalancer } from "../tournaments/tournament-table-balancer.js";
 
@@ -475,6 +479,38 @@ router.post("/:id/unregister", requireAuth, async (req, res) => {
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Tournament unregister failed";
+    res.status(tournamentErrorStatus(message)).json({ error: message });
+  }
+});
+
+router.post("/:id/leave", requireAuth, async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!id) {
+    res.status(400).json({ error: "Tournament id is required" });
+    return;
+  }
+
+  const prisma = getPrisma();
+  const tournament = await prisma.tournament.findUnique({ where: { id } });
+  if (!tournament) {
+    res.status(404).json({ error: "Tournament not found" });
+    return;
+  }
+
+  const registration = await prisma.tournamentRegistration.findUnique({
+    where: { tournamentId_userId: { tournamentId: id, userId: req.user!.id } },
+    select: { rebuyPendingAt: true, finishPlace: true },
+  });
+  if (!registration || registration.rebuyPendingAt == null || registration.finishPlace != null) {
+    res.status(400).json({ error: TOURNAMENT_NOT_REBUY_PENDING });
+    return;
+  }
+
+  try {
+    await finalizeEliminatedRegistration(id, req.user!.id);
+    res.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Tournament leave failed";
     res.status(tournamentErrorStatus(message)).json({ error: message });
   }
 });

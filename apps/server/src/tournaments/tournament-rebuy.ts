@@ -31,6 +31,35 @@ export async function countTournamentRebuysForUser(
   });
 }
 
+/**
+ * Finalizes a rebuy-pending registration as eliminated. Shared by the timeout sweep below and by
+ * the player-initiated "leave tournament" action. `updateMany` (not `update`) lets the where clause
+ * re-check `rebuyPendingAt`/`finishPlace` at write time, so a lost race against a concurrent call
+ * (sweep vs. explicit leave for the same user) is a no-op (count 0) instead of a double-elimination
+ * or a duplicate `finishPlace` ordinal.
+ */
+export async function finalizeEliminatedRegistration(
+  tournamentId: string,
+  userId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    const pendingCount = await tx.tournamentRegistration.count({
+      where: { tournamentId, finishPlace: null },
+    });
+    const result = await tx.tournamentRegistration.updateMany({
+      where: { tournamentId, userId, rebuyPendingAt: { not: null }, finishPlace: null },
+      data: {
+        finishPlace: pendingCount,
+        eliminatedAt: now,
+        rebuyPendingAt: null,
+      },
+    });
+    return result.count > 0;
+  });
+}
+
 export async function sweepExpiredRebuyPendingPlayers(
   tournamentId: string,
   tournament: TournamentRebuyContext,
@@ -49,18 +78,8 @@ export async function sweepExpiredRebuyPendingPlayers(
     const rebuyCount = await countTournamentRebuysForUser(tournamentId, reg.userId);
     if (canRebuyTournament(tournament, { rebuyCount }, now)) continue;
 
-    const pendingCount = await prisma.tournamentRegistration.count({
-      where: { tournamentId, finishPlace: null },
-    });
-    await prisma.tournamentRegistration.update({
-      where: { tournamentId_userId: { tournamentId, userId: reg.userId } },
-      data: {
-        finishPlace: pendingCount,
-        eliminatedAt: now,
-        rebuyPendingAt: null,
-      },
-    });
-    eliminated += 1;
+    const finalized = await finalizeEliminatedRegistration(tournamentId, reg.userId, now);
+    if (finalized) eliminated += 1;
   }
   return eliminated;
 }

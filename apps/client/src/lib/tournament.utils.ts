@@ -41,6 +41,31 @@ export function tournamentStartMs(tournament: TournamentSummary): number {
   return new Date(tournament.startTime).getTime();
 }
 
+/** Buy-in = late registration window: how long after start new players can still pay in. */
+export function formatBuyInWindowLabel(tournament: TournamentSummary): string {
+  if (!tournament.lateRegMinutes || tournament.lateRegMinutes <= 0) {
+    return "Buy-in closes at start time — no late entries.";
+  }
+  const closeLabel = new Date(lateRegCloseMs(tournament)).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `Buy-in closes ${tournament.lateRegMinutes} min after start (${closeLabel})`;
+}
+
+/** REBUY tournaments only: how long after start players can still rebuy after busting. */
+export function formatRebuyWindowLabel(tournament: TournamentSummary): string | null {
+  if (tournament.playFormat !== "REBUY") return null;
+  const rebuyPeriodMinutes = tournament.rebuyPeriodMinutes ?? 0;
+  if (rebuyPeriodMinutes <= 0) return "Rebuys are not available once busted.";
+  const closeMs = tournamentStartMs(tournament) + rebuyPeriodMinutes * 60 * 1000;
+  const closeLabel = new Date(closeMs).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `Rebuys close ${rebuyPeriodMinutes} min after start (${closeLabel})`;
+}
+
 export function isTournamentStartDue(
   tournament: TournamentSummary,
   nowMs: number = Date.now(),

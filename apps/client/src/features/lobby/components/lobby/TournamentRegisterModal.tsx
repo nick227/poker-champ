@@ -4,7 +4,11 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { isLateRegistrationOpen } from "@/lib/tournament-schedule";
-import { formatTournamentStartLocal, isTournamentStartLocked } from "@/lib/tournament.utils";
+import {
+  formatBuyInWindowLabel,
+  formatTournamentStartLocal,
+  isTournamentStartLocked,
+} from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 type TournamentRegisterModalProps = {
@@ -54,6 +58,9 @@ export function TournamentRegisterModal({
         </View>
         <Text variant="body" className="text-muted">
           {refundCopy}
+        </Text>
+        <Text variant="body" className="text-muted">
+          {formatBuyInWindowLabel(tournament)}
         </Text>
         {!canAfford ? (
           <Text variant="body" className="text-danger">

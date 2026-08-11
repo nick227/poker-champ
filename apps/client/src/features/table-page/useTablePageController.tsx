@@ -24,6 +24,9 @@ import { useTableScene } from "@/features/table";
 import { useTableDisplayEvents } from "@/features/table";
 import { useChatOverlay } from "@/components/domain/chat/useChatOverlay";
 import { useRebuySheet } from "@/features/table";
+import { useLeaveTournament } from "@/features/table";
+import { useTournamentWindowNotifications } from "@/features/table";
+import { useTournamentItmWatcher } from "@/features/table";
 import { useAddBot } from "@/features/table";
 import { useVoiceControllerLifecycle } from "@/features/table";
 import { useVoiceJoinPolicy } from "@/features/table";
@@ -500,6 +503,18 @@ export function useTablePageController({
     canRebuy,
     handleRebuyApply,
   } = useRebuySheet(tableId, snapshot, refreshBankroll);
+
+  const { leaveTournament, leaveTournamentBusy } = useLeaveTournament(
+    snapshot?.table?.tournament?.tournamentId,
+  );
+
+  useTournamentWindowNotifications(snapshot?.table?.tournament?.tournamentId);
+
+  useTournamentItmWatcher(
+    snapshot?.table?.tournament?.tournamentId,
+    snapshot?.table?.tournament?.status === "RUNNING" &&
+      snapshot?.hero?.tournamentViewer?.isEliminated !== true,
+  );
 
   const { addBotPending, botPickerVisible, botPickerLoading, handleAddBotPress, handleBotPick, closeBotPicker } = useAddBot({
     tableId,
@@ -1129,6 +1144,7 @@ export function useTablePageController({
       displayEvents,
       pendingAction: pendingActionForTable,
       canRebuy,
+      leaveTournamentBusy,
       tableTopBarRight,
       activeTableRows,
       chatMessages: chatOverlay.messages,
@@ -1167,6 +1183,9 @@ export function useTablePageController({
       applyRebuy: (rebuyBuyInCents: number) => {
         void handleRebuyApply(rebuyBuyInCents);
         setRebuySheetVisible(false);
+      },
+      leaveTournament: () => {
+        void leaveTournament();
       },
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
