@@ -13,6 +13,7 @@ import { useSpinLock } from "../../hooks/useSpinLock";
 import { useSlotSpin } from "../../hooks/useSlotSpin";
 import { useSlotReelMotion } from "../../hooks/useSlotReelMotion";
 import { useSlotCelebration } from "../../hooks/useSlotCelebration";
+import { useSlotAssetsReady } from "../../hooks/useSlotAssetsReady";
 
 import { Chip } from "../components/Chip";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -24,6 +25,7 @@ import { JackpotBanner } from "./JackpotBanner";
 import { VictoryText } from "./VictoryText";
 import { SlotScreenFx } from "./SlotScreenFx";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
+import { SLOT_FADE_IN_MS, SlotPreloader } from "./SlotPreloader";
 
 const DEFAULT_SYMBOL_HEIGHT = 120;
 const MIN_SYMBOL_HEIGHT = 48;
@@ -56,6 +58,7 @@ export function SlotMachine({
   initialBankrollCents = 25_00,
   jackpotBannerCents,
   reducedMotion: reducedMotionProp,
+  fadeInMs = SLOT_FADE_IN_MS,
 }: {
   onSpinComplete?: (winCents: number) => void;
   onSpinStart?: () => void;
@@ -67,9 +70,12 @@ export function SlotMachine({
   initialBankrollCents?: number;
   jackpotBannerCents?: number;
   reducedMotion?: boolean;
+  /** Crossfade duration once assets + reel layout are ready. */
+  fadeInMs?: number;
 }) {
   const [reducedMotionSystem, setReducedMotionSystem] = useState(false);
   const [symbolHeight, setSymbolHeight] = useState(DEFAULT_SYMBOL_HEIGHT);
+  const [layoutReady, setLayoutReady] = useState(false);
 
   useEffect(() => {
     if (reducedMotionProp != null) return;
@@ -100,13 +106,16 @@ export function SlotMachine({
   }, [game.reels]);
 
   const symbols = useMemo(() => ({ ...ASSETS.symbols, ...(symbolMap ?? {}) }), [symbolMap]);
+  const assetsReady = useSlotAssetsReady(symbols);
   const motion = useSlotReelMotion(reelLens, symbolHeight);
   const celebration = useSlotCelebration();
+  const bootReady = assetsReady && layoutReady;
 
   const onReelLayout = useCallback((height: number) => {
     if (height <= 0) return;
     const next = clampSymbolHeight(height);
     setSymbolHeight((prev) => (prev === next ? prev : next));
+    setLayoutReady(true);
   }, []);
 
   const { machineOutput, handleSpin } = useSlotSpin({
@@ -138,72 +147,74 @@ export function SlotMachine({
 
   return (
     <View style={styles.root}>
-      <SlotScreenFx
-        intensity={celebration.bgIntensity}
-        scale={celebration.fxScale}
-        burstKey={celebration.fxBurstKey}
-        reducedMotion={reducedMotion}
-      />
-
-      <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
-        <MachineCabinet spinning={lock.locked}>
-          <JackpotBanner
-            title="777 Jackpot"
-            value={formatCents(jackpotValueCents)}
-            animatedStyle={fx.jackpotBannerStyle}
-            flashStyle={fx.jackpotBannerFlashStyle}
-          />
-
-          <ReelStage onReelLayout={onReelLayout}>
-            <ReelWindow
-              strip={game.reels[0]}
-              symbols={symbols}
-              symbolHeight={symbolHeight}
-              animatedStyle={motion.reelStyle0}
-              repeatCount={REEL_REPEAT_COUNT}
-            />
-            <ReelWindow
-              strip={game.reels[1]}
-              symbols={symbols}
-              symbolHeight={symbolHeight}
-              animatedStyle={motion.reelStyle1}
-              repeatCount={REEL_REPEAT_COUNT}
-            />
-            <ReelWindow
-              strip={game.reels[2]}
-              symbols={symbols}
-              symbolHeight={symbolHeight}
-              animatedStyle={motion.reelStyle2}
-              repeatCount={REEL_REPEAT_COUNT}
-            />
-          </ReelStage>
-
-          <View style={styles.dock}>
-            <WinBanner text={machineOutput} animatedStyle={fx.winBannerStyle} />
-            <PrimaryButton
-              betCents={betCents}
-              title="SPIN"
-              subtitle={canSpin ? "PUSH" : "WAIT"}
-              disabled={!canSpin}
-              onPress={handleSpin}
-              animatedStyle={fx.spinBtnStyle}
-              flashStyle={fx.spinBtnFlashStyle}
-            />
-            <View style={styles.betRow}>
-              <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
-              <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
-              <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
-            </View>
-          </View>
-        </MachineCabinet>
-
-        <VictoryText animatedStyle={fx.victoryTextStyle} />
-        <WinPresentationOverlay
-          presentation={celebration.presentation}
+      <SlotPreloader ready={bootReady} reducedMotion={reducedMotion} fadeInMs={fadeInMs}>
+        <SlotScreenFx
+          intensity={celebration.bgIntensity}
+          scale={celebration.fxScale}
+          burstKey={celebration.fxBurstKey}
           reducedMotion={reducedMotion}
-          onDone={celebration.clearPresentation}
         />
-      </Animated.View>
+
+        <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
+          <MachineCabinet spinning={lock.locked}>
+            <JackpotBanner
+              title="777 Jackpot"
+              value={formatCents(jackpotValueCents)}
+              animatedStyle={fx.jackpotBannerStyle}
+              flashStyle={fx.jackpotBannerFlashStyle}
+            />
+
+            <ReelStage onReelLayout={onReelLayout}>
+              <ReelWindow
+                strip={game.reels[0]}
+                symbols={symbols}
+                symbolHeight={symbolHeight}
+                animatedStyle={motion.reelStyle0}
+                repeatCount={REEL_REPEAT_COUNT}
+              />
+              <ReelWindow
+                strip={game.reels[1]}
+                symbols={symbols}
+                symbolHeight={symbolHeight}
+                animatedStyle={motion.reelStyle1}
+                repeatCount={REEL_REPEAT_COUNT}
+              />
+              <ReelWindow
+                strip={game.reels[2]}
+                symbols={symbols}
+                symbolHeight={symbolHeight}
+                animatedStyle={motion.reelStyle2}
+                repeatCount={REEL_REPEAT_COUNT}
+              />
+            </ReelStage>
+
+            <View style={styles.dock}>
+              <WinBanner text={machineOutput} animatedStyle={fx.winBannerStyle} />
+              <PrimaryButton
+                betCents={betCents}
+                title="SPIN"
+                subtitle={canSpin ? "PUSH" : "WAIT"}
+                disabled={!canSpin}
+                onPress={handleSpin}
+                animatedStyle={fx.spinBtnStyle}
+                flashStyle={fx.spinBtnFlashStyle}
+              />
+              <View style={styles.betRow}>
+                <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
+                <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
+                <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
+              </View>
+            </View>
+          </MachineCabinet>
+
+          <VictoryText animatedStyle={fx.victoryTextStyle} />
+          <WinPresentationOverlay
+            presentation={celebration.presentation}
+            reducedMotion={reducedMotion}
+            onDone={celebration.clearPresentation}
+          />
+        </Animated.View>
+      </SlotPreloader>
     </View>
   );
 }
