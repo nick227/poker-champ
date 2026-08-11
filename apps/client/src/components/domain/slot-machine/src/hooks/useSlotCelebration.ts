@@ -2,10 +2,16 @@ import { useCallback, useState } from "react";
 import { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
-import { resolveWinFxTier, winFxHasPresentation, type WinFxTier } from "../engine/winFxTier";
+import {
+  resolveWinFxTier,
+  scaleWinFx,
+  winFxHasPresentation,
+  type WinFxScale,
+  type WinFxTier,
+} from "../engine/winFxTier";
 import type { WinPresentation } from "../ui/slots/WinPresentationOverlay";
 
-/** Celebration shared values, chrome styles, and tiered win presentation trigger. */
+/** Celebration shared values, chrome styles, and win-scaled background FX. */
 export function useSlotCelebration() {
   const pressScale = useSharedValue(1);
   const winPulse = useSharedValue(0);
@@ -19,21 +25,25 @@ export function useSlotCelebration() {
   const coinIntensity = useSharedValue(0);
 
   const [fxTier, setFxTier] = useState<WinFxTier | null>(null);
+  const [fxScale, setFxScale] = useState<WinFxScale | null>(null);
+  const [fxBurstKey, setFxBurstKey] = useState(0);
   const [presentation, setPresentation] = useState<WinPresentation | null>(null);
 
   const clearPresentation = useCallback(() => {
     setPresentation(null);
-    setTimeout(() => setFxTier(null), 350);
   }, []);
 
   const playWinFx = useCallback(
     (isJackpot: boolean, winMultiplier: number, winCents: number, reducedMotion = false) => {
       const tier = resolveWinFxTier(isJackpot, winMultiplier);
+      const scale = scaleWinFx(winMultiplier, isJackpot);
       setFxTier(tier);
+      setFxScale(scale);
+      setFxBurstKey((k) => k + 1);
 
       winPulse.value = withSequence(
         withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 280 }),
+        withTiming(0, { duration: Math.min(500, scale.holdMs * 0.25) }),
       );
       buttonFlash.value = withSequence(
         withTiming(1, { duration: 90 }),
@@ -42,30 +52,36 @@ export function useSlotCelebration() {
         withTiming(0, { duration: 280 }),
       );
 
-      const bgPeak = tier === "small" ? 0.55 : 1;
-      const bgHold = tier === "jackpot" ? 2000 : tier === "mega" ? 1400 : tier === "big" ? 1000 : 450;
       bgIntensity.value = withSequence(
-        withTiming(bgPeak, { duration: 160, easing: Easing.out(Easing.quad) }),
-        withTiming(bgPeak * 0.7, { duration: bgHold }),
-        withTiming(0, { duration: 320 }),
+        withTiming(scale.peak, { duration: 140, easing: Easing.out(Easing.quad) }),
+        withTiming(scale.peak * 0.75, { duration: scale.holdMs }),
+        withTiming(0, { duration: 360 }),
       );
 
-      if (winFxHasPresentation(tier)) {
-        setPresentation({ tier: tier as Exclude<WinFxTier, "small">, winCents });
-        if (!reducedMotion) {
-          coinIntensity.value = withSequence(
-            withTiming(1, { duration: 120 }),
-            withTiming(1, { duration: bgHold }),
-            withTiming(0, { duration: 200 }),
-          );
-        }
+      if (!reducedMotion) {
+        coinIntensity.value = withSequence(
+          withTiming(1, { duration: 100 }),
+          withTiming(1, { duration: scale.holdMs }),
+          withTiming(0, { duration: 220 }),
+        );
       } else {
-        setPresentation(null);
         coinIntensity.value = 0;
       }
 
+      if (winFxHasPresentation(tier)) {
+        setPresentation({ tier: tier as Exclude<WinFxTier, "small">, winCents });
+      } else {
+        setPresentation(null);
+      }
+
+      // Clear active FX flag after hold so idle stays cheap
+      setTimeout(() => {
+        setFxTier(null);
+        setFxScale(null);
+      }, scale.holdMs + 500);
+
       if (tier === "jackpot") {
-        jackpotPulse.value = withSequence(withTiming(1, { duration: 200 }), withTiming(0, { duration: 1800 }));
+        jackpotPulse.value = withSequence(withTiming(1, { duration: 200 }), withTiming(0, { duration: scale.holdMs }));
         bannerFlash.value = withSequence(
           withTiming(1, { duration: 120 }),
           withTiming(0, { duration: 160 }),
@@ -82,7 +98,7 @@ export function useSlotCelebration() {
         }
         victoryTextOpacity.value = withSequence(
           withTiming(1, { duration: 220 }),
-          withTiming(1, { duration: 900 }),
+          withTiming(1, { duration: Math.min(1400, scale.holdMs * 0.4) }),
           withTiming(0, { duration: 280 }),
         );
         victoryTextScale.value = withSequence(withTiming(1.15, { duration: 220 }), withTiming(1, { duration: 160 }));
@@ -149,6 +165,8 @@ export function useSlotCelebration() {
     values: { pressScale },
     playWinFx,
     fxTier,
+    fxScale,
+    fxBurstKey,
     presentation,
     clearPresentation,
     bgIntensity,

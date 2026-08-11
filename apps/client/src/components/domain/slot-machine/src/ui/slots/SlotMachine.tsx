@@ -127,7 +127,12 @@ export function SlotMachine({
   return (
     <View style={styles.root}>
       <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
-        <WinBackgroundFX intensity={celebration.bgIntensity} tier={celebration.fxTier} reducedMotion={reducedMotion} />
+        <WinBackgroundFX
+          intensity={celebration.bgIntensity}
+          active={celebration.fxScale != null}
+          scale={celebration.fxScale}
+          reducedMotion={reducedMotion}
+        />
 
         <MachineCabinet spinning={lock.locked}>
           <JackpotBanner
@@ -180,7 +185,13 @@ export function SlotMachine({
           </View>
         </MachineCabinet>
 
-        <CoinRain intensity={celebration.coinIntensity} tier={celebration.fxTier} reducedMotion={reducedMotion} />
+        <CoinRain
+          intensity={celebration.coinIntensity}
+          coinCount={celebration.fxScale?.coinCount ?? 0}
+          burstKey={celebration.fxBurstKey}
+          fallMs={celebration.fxScale?.holdMs ?? 800}
+          reducedMotion={reducedMotion}
+        />
         <VictoryText animatedStyle={fx.victoryTextStyle} />
         <WinPresentationOverlay
           presentation={celebration.presentation}

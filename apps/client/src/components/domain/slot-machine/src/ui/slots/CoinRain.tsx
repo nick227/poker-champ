@@ -10,56 +10,66 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { casino } from "../../theme/casinoCabinet";
-import type { WinFxTier } from "../../engine/winFxTier";
 
 type Props = {
   intensity: SharedValue<number>;
-  tier: WinFxTier | null;
+  coinCount: number;
+  burstKey: number;
+  fallMs: number;
   reducedMotion?: boolean;
 };
 
-const POOL = 24;
+const POOL = 48;
 
-/** Falling gold discs for Big / Mega / Jackpot presentations. */
-export function CoinRain({ intensity, tier, reducedMotion }: Props) {
+/** Falling gold discs — count and fall time scale with win value. */
+export function CoinRain({ intensity, coinCount, burstKey, fallMs, reducedMotion }: Props) {
   const coins = useMemo(() => Array.from({ length: POOL }, (_, i) => i), []);
-  if (reducedMotion || !tier || tier === "small") return null;
+  if (reducedMotion || coinCount <= 0 || burstKey <= 0) return null;
 
-  const activeCount = tier === "jackpot" ? POOL : tier === "mega" ? 18 : 12;
+  const activeCount = Math.min(POOL, coinCount);
 
   return (
     <View style={styles.root} pointerEvents="none">
       {coins.slice(0, activeCount).map((i) => (
-        <Coin key={`${tier}-${i}`} index={i} intensity={intensity} />
+        <Coin key={`${burstKey}-${i}`} index={i} intensity={intensity} fallMs={fallMs} />
       ))}
     </View>
   );
 }
 
-function Coin({ index, intensity }: { index: number; intensity: SharedValue<number> }) {
+function Coin({
+  index,
+  intensity,
+  fallMs,
+}: {
+  index: number;
+  intensity: SharedValue<number>;
+  fallMs: number;
+}) {
   const progress = useSharedValue(0);
-  const left = 6 + ((index * 37) % 88);
-  const size = 10 + (index % 5) * 2;
-  const drift = ((index % 7) - 3) * 12;
-  const delay = (index % 8) * 70;
+  const left = 4 + ((index * 37) % 92);
+  const size = 8 + (index % 6) * 2;
+  const drift = ((index % 7) - 3) * 14;
+  const delay = (index % 10) * Math.max(35, Math.round(fallMs / 28));
+  const duration = Math.max(500, fallMs - delay * 0.35 + (index % 5) * 80);
 
   React.useEffect(() => {
     progress.value = 0;
     progress.value = withDelay(
       delay,
       withSequence(
-        withTiming(1, { duration: 1400 + (index % 5) * 120, easing: Easing.in(Easing.quad) }),
+        withTiming(1, { duration, easing: Easing.in(Easing.quad) }),
         withTiming(0, { duration: 1 }),
       ),
     );
-  }, [delay, index, progress]);
+  }, [delay, duration, progress]);
 
   const style = useAnimatedStyle(() => {
     const t = progress.value;
     return {
       opacity: intensity.value * (1 - t) * 0.95,
       transform: [
-        { translateY: -40 + t * 420 },
+        { translateY: -40 + t * 480 },
         { translateX: drift * t },
         { rotate: `${t * 360}deg` },
       ],

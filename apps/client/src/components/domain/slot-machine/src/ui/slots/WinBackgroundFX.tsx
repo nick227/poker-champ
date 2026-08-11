@@ -9,40 +9,43 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { casino } from "../../theme/casinoCabinet";
-import type { WinFxTier } from "../../engine/winFxTier";
+import type { WinFxScale } from "../../engine/winFxTier";
 
 type Props = {
   intensity: SharedValue<number>;
-  tier: WinFxTier | null;
+  active: boolean;
+  scale: WinFxScale | null;
   reducedMotion?: boolean;
 };
 
-/** Soft wash + light rays behind the cabinet. Rays only for big+. */
-export function WinBackgroundFX({ intensity, tier, reducedMotion }: Props) {
+/** Soft wash + light rays behind the cabinet; rays scale with win value. */
+export function WinBackgroundFX({ intensity, active, scale, reducedMotion }: Props) {
   const spin = useSharedValue(0);
+  const showRays = !reducedMotion && active && !!scale?.showRays;
+  const rayCount = scale?.rayCount ?? 0;
 
   React.useEffect(() => {
-    if (reducedMotion || !tier || tier === "small") {
+    if (!showRays) {
       spin.value = 0;
       return;
     }
     spin.value = withRepeat(withTiming(1, { duration: 4200, easing: Easing.linear }), -1, false);
-  }, [tier, reducedMotion, spin]);
+  }, [showRays, spin]);
 
-  const washMul = tier === "small" ? 0.35 : 0.7;
   const washStyle = useAnimatedStyle(() => ({
-    opacity: intensity.value * washMul,
+    opacity: intensity.value * 0.75,
   }));
 
-  const rays = useMemo(() => Array.from({ length: 8 }, (_, i) => i), []);
-  const showRays = !reducedMotion && tier != null && tier !== "small";
+  const rays = useMemo(() => Array.from({ length: Math.max(rayCount, 0) }, (_, i) => i), [rayCount]);
+
+  if (!active) return null;
 
   return (
     <View style={styles.root} pointerEvents="none">
       <Animated.View style={[styles.wash, washStyle]} />
       <Animated.View style={[styles.washCrimson, washStyle]} />
       {showRays
-        ? rays.map((i) => <Ray key={i} index={i} spin={spin} intensity={intensity} />)
+        ? rays.map((i) => <Ray key={i} index={i} total={rays.length} spin={spin} intensity={intensity} />)
         : null}
     </View>
   );
@@ -50,17 +53,20 @@ export function WinBackgroundFX({ intensity, tier, reducedMotion }: Props) {
 
 function Ray({
   index,
+  total,
   spin,
   intensity,
 }: {
   index: number;
+  total: number;
   spin: SharedValue<number>;
   intensity: SharedValue<number>;
 }) {
   const style = useAnimatedStyle(() => {
-    const deg = index * 22.5 + spin.value * 360;
+    const step = 180 / Math.max(total, 1);
+    const deg = index * step + spin.value * 360;
     return {
-      opacity: intensity.value * 0.45,
+      opacity: intensity.value * 0.4,
       transform: [{ rotate: `${deg}deg` }, { translateY: -140 }],
     };
   });
