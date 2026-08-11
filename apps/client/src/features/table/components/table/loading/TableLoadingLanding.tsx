@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { View, useWindowDimensions, ScrollView } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { useBankroll } from "@/hooks/useBankroll";
+import { useAuthStore } from "@/stores/auth.store";
 
 export type TableLoadingMode = "auth_loading" | "auth_required" | "connecting";
 
@@ -45,13 +46,9 @@ export function TableLoadingLanding({
   const actionHandler = mode === "auth_required" ? (onGoToLogin ?? onReturnToLobby) : onReturnToLobby;
   const shouldShowAction = mode !== "auth_loading";
 
-  const { cents: bankroll } = useBankroll();
-  const [slotBankroll, setSlotBankroll] = useState(bankroll);
-
-  const currentBankroll = slotBankroll ?? bankroll;
-  const minBetCents = 100;
-  const effectiveBankroll =
-    currentBankroll != null && currentBankroll >= minBetCents ? currentBankroll : undefined;
+  const { cents: bankroll, setCents } = useBankroll();
+  const token = useAuthStore((s) => s.token);
+  const linked = Boolean(token);
   const handleSlotSpinStart = () => onSlotSpinStart?.(ONE_SPIN_MS);
 
   return (
@@ -63,8 +60,8 @@ export function TableLoadingLanding({
         justifyContent: "flex-start",
       }}
     >
-      <View style={{ width: "100%" }}>
-        <ScrollView className="flex-1">
+      <View style={{ width: "100%", flex: 1 }}>
+        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
           <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
             <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
             <Text variant="h2" className="mt-3 text-text">
@@ -77,11 +74,11 @@ export function TableLoadingLanding({
             ) : null}
           </View>
 
-          <View key={tableId ?? "session"} style={{ minHeight: SLOT_LANDING_MIN_HEIGHT }}>
+          <View key={tableId ?? "session"} style={{ minHeight: SLOT_LANDING_MIN_HEIGHT, flex: 1 }}>
             <ThemeProvider initialThemeId="poker-champ-dark">
               <SlotMachine
-                bankrollCents={effectiveBankroll}
-                onBankrollChange={setSlotBankroll}
+                bankrollCents={linked ? bankroll : undefined}
+                onBankrollChange={linked ? setCents : undefined}
                 onSpinStart={handleSlotSpinStart}
                 reducedMotion={reducedMotion}
               />

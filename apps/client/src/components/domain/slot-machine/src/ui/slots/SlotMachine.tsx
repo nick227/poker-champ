@@ -22,8 +22,7 @@ import { ReelWindow } from "./ReelWindow";
 import { WinBanner } from "./WinBanner";
 import { JackpotBanner } from "./JackpotBanner";
 import { VictoryText } from "./VictoryText";
-import { WinBackgroundFX } from "./WinBackgroundFX";
-import { CoinRain } from "./CoinRain";
+import { SlotScreenFx } from "./SlotScreenFx";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
 
 const SYMBOL_HEIGHT = 152;
@@ -126,14 +125,14 @@ export function SlotMachine({
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
-        <WinBackgroundFX
-          intensity={celebration.bgIntensity}
-          active={celebration.fxScale != null}
-          scale={celebration.fxScale}
-          reducedMotion={reducedMotion}
-        />
+      <SlotScreenFx
+        intensity={celebration.bgIntensity}
+        scale={celebration.fxScale}
+        burstKey={celebration.fxBurstKey}
+        reducedMotion={reducedMotion}
+      />
 
+      <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
         <MachineCabinet spinning={lock.locked}>
           <JackpotBanner
             title="777 Jackpot"
@@ -185,13 +184,6 @@ export function SlotMachine({
           </View>
         </MachineCabinet>
 
-        <CoinRain
-          intensity={celebration.coinIntensity}
-          coinCount={celebration.fxScale?.coinCount ?? 0}
-          burstKey={celebration.fxBurstKey}
-          fallMs={celebration.fxScale?.holdMs ?? 800}
-          reducedMotion={reducedMotion}
-        />
         <VictoryText animatedStyle={fx.victoryTextStyle} />
         <WinPresentationOverlay
           presentation={celebration.presentation}
@@ -207,15 +199,18 @@ const styles = {
   root: {
     flex: 1,
     width: "100%" as const,
+    position: "relative" as const,
     paddingHorizontal: 6,
     paddingVertical: 8,
     alignItems: "center" as const,
     justifyContent: "center" as const,
+    overflow: "hidden" as const,
   },
   stage: {
     width: "100%" as const,
     maxWidth: 720,
     position: "relative" as const,
+    zIndex: 2,
   },
   betRow: {
     flexDirection: "row" as const,

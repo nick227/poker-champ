@@ -11,7 +11,7 @@ import {
 } from "../engine/winFxTier";
 import type { WinPresentation } from "../ui/slots/WinPresentationOverlay";
 
-/** Celebration shared values, chrome styles, and win-scaled background FX. */
+/** Celebration shared values, chrome styles, and screen-scaled win FX. */
 export function useSlotCelebration() {
   const pressScale = useSharedValue(1);
   const winPulse = useSharedValue(0);
@@ -22,9 +22,7 @@ export function useSlotCelebration() {
   const victoryTextOpacity = useSharedValue(0);
   const victoryTextScale = useSharedValue(0);
   const bgIntensity = useSharedValue(0);
-  const coinIntensity = useSharedValue(0);
 
-  const [fxTier, setFxTier] = useState<WinFxTier | null>(null);
   const [fxScale, setFxScale] = useState<WinFxScale | null>(null);
   const [fxBurstKey, setFxBurstKey] = useState(0);
   const [presentation, setPresentation] = useState<WinPresentation | null>(null);
@@ -37,13 +35,12 @@ export function useSlotCelebration() {
     (isJackpot: boolean, winMultiplier: number, winCents: number, reducedMotion = false) => {
       const tier = resolveWinFxTier(isJackpot, winMultiplier);
       const scale = scaleWinFx(winMultiplier, isJackpot);
-      setFxTier(tier);
       setFxScale(scale);
       setFxBurstKey((k) => k + 1);
 
       winPulse.value = withSequence(
         withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: Math.min(500, scale.holdMs * 0.25) }),
+        withTiming(0, { duration: Math.min(500, scale.holdMs * 0.2) }),
       );
       buttonFlash.value = withSequence(
         withTiming(1, { duration: 90 }),
@@ -52,21 +49,12 @@ export function useSlotCelebration() {
         withTiming(0, { duration: 280 }),
       );
 
+      const peak = reducedMotion ? Math.min(scale.peak, 0.55) : scale.peak;
       bgIntensity.value = withSequence(
-        withTiming(scale.peak, { duration: 140, easing: Easing.out(Easing.quad) }),
-        withTiming(scale.peak * 0.75, { duration: scale.holdMs }),
-        withTiming(0, { duration: 360 }),
+        withTiming(peak, { duration: 140, easing: Easing.out(Easing.quad) }),
+        withTiming(peak * 0.8, { duration: scale.holdMs }),
+        withTiming(0, { duration: 420 }),
       );
-
-      if (!reducedMotion) {
-        coinIntensity.value = withSequence(
-          withTiming(1, { duration: 100 }),
-          withTiming(1, { duration: scale.holdMs }),
-          withTiming(0, { duration: 220 }),
-        );
-      } else {
-        coinIntensity.value = 0;
-      }
 
       if (winFxHasPresentation(tier)) {
         setPresentation({ tier: tier as Exclude<WinFxTier, "small">, winCents });
@@ -74,11 +62,9 @@ export function useSlotCelebration() {
         setPresentation(null);
       }
 
-      // Clear active FX flag after hold so idle stays cheap
       setTimeout(() => {
-        setFxTier(null);
         setFxScale(null);
-      }, scale.holdMs + 500);
+      }, scale.holdMs + 600);
 
       if (tier === "jackpot") {
         jackpotPulse.value = withSequence(withTiming(1, { duration: 200 }), withTiming(0, { duration: scale.holdMs }));
@@ -90,18 +76,20 @@ export function useSlotCelebration() {
         );
         if (!reducedMotion) {
           screenShake.value = withSequence(
-            withTiming(1, { duration: 40 }),
-            withTiming(-1, { duration: 40 }),
+            withTiming(1.4, { duration: 40 }),
+            withTiming(-1.4, { duration: 40 }),
+            withTiming(1, { duration: 35 }),
+            withTiming(-0.8, { duration: 35 }),
             withTiming(0.5, { duration: 30 }),
             withTiming(0, { duration: 40 }),
           );
         }
         victoryTextOpacity.value = withSequence(
           withTiming(1, { duration: 220 }),
-          withTiming(1, { duration: Math.min(1400, scale.holdMs * 0.4) }),
+          withTiming(1, { duration: Math.min(1800, scale.holdMs * 0.35) }),
           withTiming(0, { duration: 280 }),
         );
-        victoryTextScale.value = withSequence(withTiming(1.15, { duration: 220 }), withTiming(1, { duration: 160 }));
+        victoryTextScale.value = withSequence(withTiming(1.2, { duration: 220 }), withTiming(1, { duration: 160 }));
         setTimeout(() => emitSoundEvent("slot.jackpot"), 80);
         setTimeout(() => emitSoundEvent("slot.jackpotFanfare"), 500);
       }
@@ -120,7 +108,6 @@ export function useSlotCelebration() {
       winPulse,
       buttonFlash,
       bgIntensity,
-      coinIntensity,
       jackpotPulse,
       bannerFlash,
       screenShake,
@@ -164,13 +151,11 @@ export function useSlotCelebration() {
   return {
     values: { pressScale },
     playWinFx,
-    fxTier,
     fxScale,
     fxBurstKey,
     presentation,
     clearPresentation,
     bgIntensity,
-    coinIntensity,
     styles: {
       spinBtnStyle,
       winBannerStyle,

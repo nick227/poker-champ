@@ -18,19 +18,24 @@ describe("resolveWinFxTier", () => {
 });
 
 describe("scaleWinFx", () => {
-  it("gives every win visible coins and duration", () => {
+  it("keeps small wins as glow-only", () => {
     const small = scaleWinFx(2);
-    expect(small.coinCount).toBeGreaterThanOrEqual(5);
-    expect(small.holdMs).toBeGreaterThanOrEqual(600);
-    expect(small.peak).toBeGreaterThan(0.4);
+    expect(small.mode).toBe("glow");
+    expect(small.coinCount).toBe(0);
+    expect(small.holdMs).toBeGreaterThanOrEqual(700);
   });
 
-  it("scales length and amount heavily with multiplier", () => {
-    const low = scaleWinFx(2);
-    const mid = scaleWinFx(20);
-    const high = scaleWinFx(120);
-    expect(mid.holdMs).toBeGreaterThan(low.holdMs * 2);
-    expect(high.coinCount).toBeGreaterThan(mid.coinCount);
-    expect(high.holdMs).toBeGreaterThan(mid.holdMs);
+  it("uses multi-second screen showers for real wins", () => {
+    const big = scaleWinFx(12);
+    expect(big.mode).toBe("shower");
+    expect(big.coinCount).toBeGreaterThan(20);
+    expect(big.holdMs).toBeGreaterThanOrEqual(2800);
+  });
+
+  it("goes pandemonium on jackpot", () => {
+    const jp = scaleWinFx(300, true);
+    expect(jp.mode).toBe("pandemonium");
+    expect(jp.coinCount).toBeGreaterThanOrEqual(100);
+    expect(jp.holdMs).toBeGreaterThanOrEqual(7000);
   });
 });

@@ -1,6 +1,10 @@
 export type WinFxTier = "small" | "big" | "mega" | "jackpot";
 
+/** Full-screen background FX mode behind the cabinet. */
+export type ScreenFxMode = "glow" | "shower" | "pandemonium";
+
 export type WinFxScale = {
+  mode: ScreenFxMode;
   holdMs: number;
   peak: number;
   coinCount: number;
@@ -28,15 +32,43 @@ export function winFxHasPresentation(tier: WinFxTier): boolean {
 }
 
 /**
- * Background FX scale from win multiplier.
- * Length and particle count grow aggressively with value so even 1–2x hits feel visible.
+ * Screen FX scale from win multiplier.
+ * Small = glow only; real wins = full-screen shower for seconds; jackpot = pandemonium.
  */
 export function scaleWinFx(winMultiplier: number, isJackpot = false): WinFxScale {
   const m = Math.max(1, winMultiplier);
-  const holdMs = Math.min(10_000, Math.round(500 + m * 90 + Math.pow(m, 1.2) * 14));
-  const peak = Math.min(1, 0.42 + Math.log10(m + 1) * 0.5);
-  const coinCount = Math.min(48, Math.max(5, Math.round(4 + m * 1.1)));
-  const showRays = isJackpot || m >= 2;
-  const rayCount = Math.min(14, Math.max(4, Math.round(4 + m / 6)));
-  return { holdMs, peak, coinCount, showRays, rayCount };
+
+  if (isJackpot) {
+    return {
+      mode: "pandemonium",
+      holdMs: Math.min(14_000, Math.round(7000 + m * 18)),
+      peak: 1,
+      coinCount: 110,
+      showRays: true,
+      rayCount: 18,
+    };
+  }
+
+  if (m >= 10) {
+    // Big / mega shower — fills the screen for several seconds
+    const mega = m >= 25;
+    return {
+      mode: "shower",
+      holdMs: Math.min(10_000, Math.round((mega ? 4200 : 2800) + m * 85)),
+      peak: Math.min(1, mega ? 0.95 : 0.75),
+      coinCount: Math.min(96, Math.round((mega ? 36 : 22) + m * 1.6)),
+      showRays: true,
+      rayCount: Math.min(16, Math.round(mega ? 12 : 8) + Math.floor(m / 20)),
+    };
+  }
+
+  // Small wins — soft full-screen glow only
+  return {
+    mode: "glow",
+    holdMs: Math.min(2200, Math.round(700 + m * 180)),
+    peak: Math.min(0.7, 0.35 + m * 0.06),
+    coinCount: 0,
+    showRays: false,
+    rayCount: 0,
+  };
 }

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { setAuthToken } from "@poker-champ/sdk";
 import { clearAuthToken, loadAuthToken, saveAuthToken } from "@/lib/authTokenStorage";
 import { useProfileStore } from "@/stores/profile.store";
+import { useBankrollStore } from "@/stores/bankroll.store";
 
 type AuthState = {
   token: string | null;
@@ -29,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     setAuthToken(null);
     void clearAuthToken();
     useProfileStore.getState().setProfile({});
+    useBankrollStore.getState().clear();
   },
   hydrateToken: async () => {
     const token = await loadAuthToken();
