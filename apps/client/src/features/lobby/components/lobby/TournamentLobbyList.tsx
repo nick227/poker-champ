@@ -25,6 +25,15 @@ type Props = {
   deleteInFlightId?: string | null;
 };
 
+/** Column widths as flex ratios (grow + shrink together) so long CTA labels never overflow the row. */
+const COL_FLEX = {
+  event: 2.4,
+  entry: 0.8,
+  field: 0.7,
+  status: 1,
+  action: 1.4,
+};
+
 function TournamentRow({
   tournament,
   pinned,
@@ -57,41 +66,51 @@ function TournamentRow({
 
   return (
     <View
-      className={`ui-row items-center border-b border-border/40 px-3 min-h-[52px] py-2 gap-2 ${
+      className={`ui-row items-center border-b border-border/40 px-3 h-[52px] gap-2 overflow-hidden ${
         pinned ? "bg-brand-soft border-brand/25" : ""
       }`}
     >
       <Pressable
         onPress={() => onOpenDetail(tournament)}
-        className="btn flex-1 min-w-0 rounded-none"
-        style={{ backgroundColor: "transparent", borderRadius: 0 }}
+        className="flex-col items-start justify-center min-w-0 rounded-none gap-0.5"
+        style={{ flex: COL_FLEX.event, backgroundColor: "transparent", borderRadius: 0 }}
       >
-        <Text variant="body" className="font-semibold text-[13px]" numberOfLines={1}>
+        <Text variant="body" className="font-semibold text-[13px] w-full" numberOfLines={1}>
           {tournament.name}
         </Text>
-        {hint ? (
-          <Text variant="muted" className="text-[11px]" numberOfLines={1}>
+        {showTimer ? (
+          <TournamentLobbyTimer tournament={tournament} nowMs={nowMs} hint={hint} />
+        ) : hint ? (
+          <Text variant="muted" className="text-[11px] w-full" numberOfLines={1}>
             {hint}
           </Text>
         ) : null}
-        {showTimer ? <TournamentLobbyTimer tournament={tournament} nowMs={nowMs} /> : null}
       </Pressable>
-      <Text variant="body" className="font-mono text-[12px] tabular-nums w-[88px] text-right">
+      <Text
+        variant="body"
+        className="font-mono text-[12px] tabular-nums text-left"
+        numberOfLines={1}
+        style={{ flex: COL_FLEX.entry }}
+      >
         {formatCents(tournament.entryFeeCents)}
       </Text>
-      <Text variant="body" className="font-mono text-[12px] tabular-nums w-[72px] text-right">
+      <Text
+        variant="body"
+        className="font-mono text-[12px] tabular-nums text-left"
+        numberOfLines={1}
+        style={{ flex: COL_FLEX.field }}
+      >
         {tournament.registeredCount}/{tournament.maxPlayers}
       </Text>
       <Text
         variant="body"
-        className={`text-[12px] w-[88px] text-right ${
-          pinned ? "text-brand font-semibold" : "text-gold"
-        }`}
+        className={`text-[12px] text-left ${pinned ? "text-brand font-semibold" : "text-gold"}`}
         numberOfLines={1}
+        style={{ flex: COL_FLEX.status }}
       >
         {pinned ? "Joined" : formatTournamentStatus(tournament.status)}
       </Text>
-      <View className="w-[100px] items-end gap-1">
+      <View className="items-start gap-1 min-w-0" style={{ flex: COL_FLEX.action }}>
         <Button
           title={actionInFlight ? "…" : cta.label}
           intent={cta.action === "unregister" ? "neutral" : "accent"}
@@ -100,7 +119,7 @@ function TournamentRow({
           minWidth={0}
           disabled={disabled}
           onPress={() => onAction(tournament)}
-          className="min-h-[32px] px-2"
+          className="min-h-[32px] px-2 w-full"
         />
         {showDelete ? (
           <Pressable
@@ -109,7 +128,7 @@ function TournamentRow({
             className="btn px-1 rounded-none"
             style={{ backgroundColor: "transparent" }}
           >
-            <Text variant="muted" className="text-[10px] text-danger">
+            <Text variant="muted" className="text-[10px] text-danger" numberOfLines={1}>
               {deleteInFlightId === tournament.id ? "…" : "Delete"}
             </Text>
           </Pressable>
@@ -133,20 +152,40 @@ export function TournamentLobbyList({
 }: Props) {
   return (
     <View className="lobby-stage border rounded-2 overflow-hidden">
-      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
-        <Text variant="muted" className="text-[11px] tracking-wide uppercase font-semibold flex-1">
+      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9 gap-2">
+        <Text
+          variant="muted"
+          className="text-[11px] tracking-wide uppercase font-semibold text-left"
+          numberOfLines={1}
+          style={{ flex: COL_FLEX.event }}
+        >
           Event
         </Text>
-        <Text variant="muted" className="text-[11px] tracking-wide uppercase font-semibold w-[88px] text-right">
+        <Text
+          variant="muted"
+          className="text-[11px] tracking-wide uppercase font-semibold text-left"
+          numberOfLines={1}
+          style={{ flex: COL_FLEX.entry }}
+        >
           Entry
         </Text>
-        <Text variant="muted" className="text-[11px] tracking-wide uppercase font-semibold w-[72px] text-right">
+        <Text
+          variant="muted"
+          className="text-[11px] tracking-wide uppercase font-semibold text-left"
+          numberOfLines={1}
+          style={{ flex: COL_FLEX.field }}
+        >
           Field
         </Text>
-        <Text variant="muted" className="text-[11px] tracking-wide uppercase font-semibold w-[88px] text-right">
+        <Text
+          variant="muted"
+          className="text-[11px] tracking-wide uppercase font-semibold text-left"
+          numberOfLines={1}
+          style={{ flex: COL_FLEX.status }}
+        >
           Status
         </Text>
-        <View className="w-[100px]" />
+        <View style={{ flex: COL_FLEX.action }} />
       </View>
       {pinnedTournaments.map((tournament) => (
         <TournamentRow
