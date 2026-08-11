@@ -31,8 +31,8 @@ export function BootPreloader({
   fadeInMs = BOOT_FADE_IN_MS,
   children,
 }: Props) {
-  const veil = useSharedValue(1);
-  const stage = useSharedValue(0);
+  const veil = useSharedValue(ready ? 0 : 1);
+  const stage = useSharedValue(ready ? 1 : 0);
   const duration = reducedMotion ? 0 : fadeInMs;
 
   useEffect(() => {

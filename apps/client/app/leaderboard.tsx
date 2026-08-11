@@ -12,6 +12,7 @@ import {
   type LeaderboardEntry,
 } from "@/services/leaderboard.service";
 import { loginPathWithNext } from "@/lib/nav";
+import { usePageBoot } from "@/hooks/usePageBoot";
 
 const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
   { key: "biggest_winner", label: "Winners" },
@@ -24,30 +25,6 @@ const CATEGORY_OPTIONS: Array<{ key: LeaderboardCategory; label: string }> = [
   //{ key: "action_junkie", label: "Loosest" },
 ];
 
-function LeaderboardLoadingSkeleton() {
-  return (
-    <View className="flex-1">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <Surface key={index} styleId="surface.list.row" className="mb-2">
-          <View className="flex-row items-center h-16 px-4">
-            <View className="w-8 items-end pr-1">
-              <View className="w-4 h-4 bg-gray-600 rounded" />
-            </View>
-            <View className="w-8 h-8 ml-2 bg-gray-600 rounded-full" />
-            <View className="flex-1 ml-4">
-              <View className="h-4 w-32 bg-gray-600 rounded mb-2" />
-              <View className="h-3 w-20 bg-gray-700 rounded" />
-            </View>
-            <View className="min-w-[88px] items-end">
-              <View className="h-4 w-16 bg-gray-600 rounded" />
-            </View>
-          </View>
-        </Surface>
-      ))}
-    </View>
-  );
-}
-
 export default function LeaderboardScreen() {
   const router = useRouter();
   const token = useAuthStore((state) => state.token);
@@ -59,6 +36,7 @@ export default function LeaderboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const hasEntriesRef = useRef(false);
+  const ready = usePageBoot(!loading, { busy: loading });
   const authError = useMemo(
     () => Boolean(error) && /authorization|unauthorized|sign in|session/i.test(error ?? ""),
     [error],
@@ -107,7 +85,7 @@ export default function LeaderboardScreen() {
   }, [loadLeaderboard, refreshNonce]);
 
   return (
-    <Screen>
+    <Screen ready={ready}>
       <View className="flex-1 p-4">
         <View className="flex-row items-start gap-2 py-2 h-14">
           {CATEGORY_OPTIONS.map((option) => {
@@ -128,9 +106,7 @@ export default function LeaderboardScreen() {
         </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {loading ? (
-            <LeaderboardLoadingSkeleton />
-          ) : error ? (
+          {error ? (
             <Surface styleId="surface.list.panel" className="p-4">
               <Text className="text-red-400 mb-3">{error}</Text>
               {authError ? (

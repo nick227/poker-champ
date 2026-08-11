@@ -16,10 +16,10 @@ import { storeRegistry } from "@/registry/store.registry";
 import { postEconomyDeposit } from "@/services/post/economy.post";
 import { ProfileAvatarSection } from "@/components/domain/settings/ProfileAvatarSection";
 import { AwardsSection } from "@/components/domain/settings/AwardsSection";
-import { LoadingScreen } from "@/components/domain/loading/LoadingScreen";
 import { getProtectedRouteRedirect } from "@/lib/authNavigation";
 import { Input } from "@/components/base/Input";
 import { postProfileDisplayName } from "@/services/profile.post";
+import { usePageBoot } from "@/hooks/usePageBoot";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -37,7 +37,10 @@ export default function SettingsScreen() {
   const [profileName, setProfileName] = useState(profile.username ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
   const redirectPath = getProtectedRouteRedirect({ hydrated, token }, "/settings");
-
+  const profileReady = Boolean(profile.userId) || !token;
+  const ready = usePageBoot(hydrated && !redirectPath && profileReady, {
+    busy: !hydrated || Boolean(redirectPath) || !profileReady,
+  });
   const handleLogout = async () => {
     if (token) await postAuthLogout().catch(() => {});
     logout();
@@ -84,11 +87,10 @@ export default function SettingsScreen() {
     setProfileName(profile.username ?? "");
   }, [profile.username]);
 
-  if (!hydrated) return <LoadingScreen />;
-  if (redirectPath) return <Redirect href={redirectPath} />;
+  if (hydrated && redirectPath) return <Redirect href={redirectPath} />;
 
   return (
-    <Screen>
+    <Screen ready={ready}>
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <ProfileAvatarSection
           avatarUrl={profile.avatarUrl}
