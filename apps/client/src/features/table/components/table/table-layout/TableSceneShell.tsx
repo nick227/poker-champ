@@ -1,6 +1,7 @@
 /**
  * Single table chrome. Stage is TableStage (felt + rail seats + center board).
  * Hero sits on the south seat slot — no separate HeroZone band.
+ * Table name/stakes live in WorkspaceStatusBar; table menu publishes into that bar.
  */
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
@@ -8,14 +9,14 @@ import { Animated, View } from "react-native";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
-import { TableGameTopBar } from "../table-game-top-bar";
 import type { Opponent } from "../table.adapter";
 import { Surface } from "@/components/containers/Surface";
+import { useChromeInsets } from "@/components/containers/ChromeInsets";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useTableChromeMenuStore } from "@/stores/tableChromeMenu.store";
 import { useTableLayoutDimensions } from "../hooks/useTableLayoutDimensions";
 import { layoutStyles } from "./styles";
 import { ACTION_BAR_HEIGHT, TABLE_REVEAL_MS } from "../constants/table-layout.constants";
-import { useRouter } from "expo-router";
 import { TableStage } from "../table-stage";
 import type { SeatPlateProps } from "../table-stage";
 
@@ -61,12 +62,12 @@ function cx(...tokens: Array<string | undefined>) {
 }
 
 export function TableSceneShell({
-  tableName,
+  tableName: _tableName,
   balanceCents: _balanceCents,
   playerStackCents: _playerStackCents,
-  smallBlindCents,
-  bigBlindCents,
-  minBuyInCents,
+  smallBlindCents: _smallBlindCents,
+  bigBlindCents: _bigBlindCents,
+  minBuyInCents: _minBuyInCents,
   topBarRight,
   opponents,
   winnerName,
@@ -93,8 +94,14 @@ export function TableSceneShell({
   const { feltColor, cardFaceColor, cardBackColor, accentColor, backgroundColor, tableRadius } =
     usePreferencesStore();
   const { insets, boardAreaHeight, heroZoneHeight, layoutScale } = useTableLayoutDimensions();
-  const router = useRouter();
+  const { topConsumed } = useChromeInsets();
+  const setChromeMenu = useTableChromeMenuStore((s) => s.setMenu);
   const revealOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    setChromeMenu(topBarRight ?? null);
+    return () => setChromeMenu(null);
+  }, [setChromeMenu, topBarRight]);
 
   useEffect(() => {
     if (showStatusView) {
@@ -131,7 +138,7 @@ export function TableSceneShell({
           "--table-hero-zone-height": `${heroZoneHeight}px`,
         }),
         layoutStyles.root,
-        { paddingTop: insets.top },
+        { paddingTop: topConsumed ? 0 : insets.top },
       ]}
       className={cx("table-wrapper", rootClassName)}
     >
@@ -140,16 +147,6 @@ export function TableSceneShell({
         boardAreaHeight={boardAreaHeight}
         layoutScale={layoutScale}
       >
-        <View collapsable={false} style={layoutStyles.titleSection}>
-          <TableGameTopBar
-            tableName={tableName}
-            smallBlindCents={smallBlindCents}
-            bigBlindCents={bigBlindCents}
-            minBuyInCents={minBuyInCents}
-            onLogoPress={() => router.replace("/")}
-            right={topBarRight}
-          />
-        </View>
         {tournamentBanner}
 
         {immersiveBoard ? (

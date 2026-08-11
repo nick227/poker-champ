@@ -1,12 +1,10 @@
 /**
- * Vertical contract: thin top overlay + dark stage + compact HUD.
+ * Vertical contract: dark stage + compact HUD.
  * Seats live inside TableStage; no hero band; no ScrollView arena.
+ * Table name/stakes live in WorkspaceStatusBar (site chrome).
  */
 import { StyleSheet } from "react-native";
-import {
-  LAYOUT_GAME_TOP_BAR_HEIGHT,
-  ACTION_BAR_HEIGHT,
-} from "../constants/table-layout.constants";
+import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
 import { STAGE_VOID_BG } from "../tokens/stage.tokens";
 
 export const layoutStyles = StyleSheet.create({
@@ -15,15 +13,6 @@ export const layoutStyles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "stretch",
     backgroundColor: STAGE_VOID_BG,
-  },
-  titleSection: {
-    width: "100%",
-    height: LAYOUT_GAME_TOP_BAR_HEIGHT,
-    minHeight: LAYOUT_GAME_TOP_BAR_HEIGHT,
-    flexGrow: 0,
-    flexShrink: 0,
-    backgroundColor: "transparent",
-    zIndex: 4,
   },
   body: {
     flex: 1,

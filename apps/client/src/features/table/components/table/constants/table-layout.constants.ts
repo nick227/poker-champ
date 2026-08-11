@@ -3,7 +3,8 @@
  * Component-internal values live in each component's layout.ts.
  */
 
-export const LAYOUT_GAME_TOP_BAR_HEIGHT = 52;
+/** @deprecated Table identity lives in WorkspaceStatusBar; kept at 0 for export compat. */
+export const LAYOUT_GAME_TOP_BAR_HEIGHT = 0;
 export const DEALER_BAR_HEIGHT = 50;
 
 export const BOARD_AREA_HEIGHT = 160;
@@ -23,5 +24,5 @@ export const HERO_ZONE_HEIGHT = 124;
 /** Fixed height for opponent strip area when loading (placeholder). Prevents layout reflow on reveal. */
 export const OPPONENT_STRIP_HEIGHT = 110;
 
-/** Duration (ms) for table body fade-in when reveal latch fires. Table body only; top bar and dealer bar stay outside. */
+/** Duration (ms) for table body fade-in when reveal latch fires. */
 export const TABLE_REVEAL_MS = 180;

@@ -33,6 +33,3 @@ export const HUD_STATUS = Object.freeze({
   text: "#E5E7EB",
   turnBorder: "#D4A017",
 } as const);
-
-/** Thin translucent top-bar wash — overlays stage, not a solid app panel. */
-export const HUD_TOPBAR_BG = "hsla(220, 22%, 6%, 0.55)";

@@ -12,13 +12,12 @@ import { useWorkspaceStatusChrome } from "@/hooks/useWorkspaceStatusChrome";
 import { resolvePrimaryNavActive, shouldShowPrimaryNav } from "@/lib/primaryNav";
 
 function shouldShowWorkspaceStatusBar(pathname: string): boolean {
-  if (!shouldShowPrimaryNav(pathname)) return false;
-  if (pathname.startsWith("/table")) return false;
-  return true;
+  return shouldShowPrimaryNav(pathname);
 }
 
 /**
- * Owns primary chrome: BottomBar / NavRail + one persistent status bar.
+ * Owns primary chrome: BottomBar / NavRail + one persistent status bar
+ * (online / account; on `/table` also table name · stakes + table menu).
  * Pages must not mount Masthead or their own top nav.
  */
 export function AppChrome({ children }: { children: ReactNode }) {
