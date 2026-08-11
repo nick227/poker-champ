@@ -9,56 +9,40 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Gold outer bezel + crimson housing with continuous marquee. */
+/** Full-bleed video-slot screen bezel — thin gold frame, not a floating card. */
 export function MachineCabinet({ spinning, children, style }: Props) {
   return (
-    <View style={[styles.goldBezel, style]}>
-      <View style={styles.goldInset}>
-        <MarqueeLights active={spinning} style={styles.marquee}>
-          <View style={styles.crimson}>
-            <View style={styles.inner}>{children}</View>
-          </View>
-        </MarqueeLights>
-      </View>
+    <View style={[styles.bezel, style]}>
+      <MarqueeLights active={spinning} style={styles.marquee}>
+        <View style={styles.screen}>{children}</View>
+      </MarqueeLights>
     </View>
   );
 }
 
 const styles = {
-  goldBezel: {
+  bezel: {
+    flex: 1,
     width: "100%" as const,
-    borderRadius: 22,
-    padding: 5,
-    backgroundColor: casino.goldMid,
-    borderWidth: 2,
+    minHeight: 0,
+    borderWidth: 3,
     borderColor: casino.goldHi,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.55,
-    shadowRadius: 18,
-    elevation: 14,
-  },
-  goldInset: {
-    borderRadius: 18,
-    padding: 3,
     backgroundColor: casino.goldLo,
-    borderWidth: 1,
-    borderColor: casino.gold,
   },
   marquee: {
+    flex: 1,
+    minHeight: 0,
     backgroundColor: casino.goldMid,
-    borderRadius: 16,
   },
-  crimson: {
-    borderRadius: 12,
-    overflow: "hidden" as const,
+  screen: {
+    flex: 1,
+    minHeight: 0,
     backgroundColor: casino.crimson,
     borderWidth: 2,
     borderColor: casino.crimsonLo,
-    position: "relative" as const,
-  },
-  inner: {
-    padding: 12,
-    gap: 10,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
+    gap: 8,
   },
 };

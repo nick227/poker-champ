@@ -42,7 +42,7 @@ export function MarqueeLights({ active, children, style }: Props) {
   const total = TOP * 2 + SIDE * 2;
 
   return (
-    <View style={[{ position: "relative", padding: 14 }, style]}>
+    <View style={[{ position: "relative", padding: 12, minHeight: 0 }, style]}>
       <View style={styles.topRow}>
         {top.map((i) => (
           <Bulb key={i} index={i} total={total} phase={phase} chasing={chasing} />

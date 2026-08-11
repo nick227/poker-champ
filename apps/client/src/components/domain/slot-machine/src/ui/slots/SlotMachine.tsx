@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, View, ImageSourcePropType } from "react-native";
 import Animated from "react-native-reanimated";
 
@@ -25,7 +25,8 @@ import { VictoryText } from "./VictoryText";
 import { SlotScreenFx } from "./SlotScreenFx";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
 
-const SYMBOL_HEIGHT = 152;
+const DEFAULT_SYMBOL_HEIGHT = 120;
+const MIN_SYMBOL_HEIGHT = 48;
 const REEL_REPEAT_COUNT = 7;
 
 const ASSETS = {
@@ -39,6 +40,10 @@ const ASSETS = {
     "7": require("../../../assets/symbols/7.png"),
   } satisfies Record<SymbolKey, ImageSourcePropType>,
 };
+
+function clampSymbolHeight(reelHeight: number): number {
+  return Math.max(MIN_SYMBOL_HEIGHT, Math.floor(reelHeight / 3));
+}
 
 export function SlotMachine({
   onSpinComplete,
@@ -64,6 +69,8 @@ export function SlotMachine({
   reducedMotion?: boolean;
 }) {
   const [reducedMotionSystem, setReducedMotionSystem] = useState(false);
+  const [symbolHeight, setSymbolHeight] = useState(DEFAULT_SYMBOL_HEIGHT);
+
   useEffect(() => {
     if (reducedMotionProp != null) return;
     let mounted = true;
@@ -93,8 +100,14 @@ export function SlotMachine({
   }, [game.reels]);
 
   const symbols = useMemo(() => ({ ...ASSETS.symbols, ...(symbolMap ?? {}) }), [symbolMap]);
-  const motion = useSlotReelMotion(reelLens);
+  const motion = useSlotReelMotion(reelLens, symbolHeight);
   const celebration = useSlotCelebration();
+
+  const onReelLayout = useCallback((height: number) => {
+    if (height <= 0) return;
+    const next = clampSymbolHeight(height);
+    setSymbolHeight((prev) => (prev === next ? prev : next));
+  }, []);
 
   const { machineOutput, handleSpin } = useSlotSpin({
     bank,
@@ -141,46 +154,46 @@ export function SlotMachine({
             flashStyle={fx.jackpotBannerFlashStyle}
           />
 
-          <ReelStage>
+          <ReelStage onReelLayout={onReelLayout}>
             <ReelWindow
               strip={game.reels[0]}
               symbols={symbols}
-              symbolHeight={SYMBOL_HEIGHT}
+              symbolHeight={symbolHeight}
               animatedStyle={motion.reelStyle0}
               repeatCount={REEL_REPEAT_COUNT}
             />
             <ReelWindow
               strip={game.reels[1]}
               symbols={symbols}
-              symbolHeight={SYMBOL_HEIGHT}
+              symbolHeight={symbolHeight}
               animatedStyle={motion.reelStyle1}
               repeatCount={REEL_REPEAT_COUNT}
             />
             <ReelWindow
               strip={game.reels[2]}
               symbols={symbols}
-              symbolHeight={SYMBOL_HEIGHT}
+              symbolHeight={symbolHeight}
               animatedStyle={motion.reelStyle2}
               repeatCount={REEL_REPEAT_COUNT}
             />
           </ReelStage>
 
-          <WinBanner text={machineOutput} animatedStyle={fx.winBannerStyle} />
-
-          <PrimaryButton
-            betCents={betCents}
-            title="SPIN"
-            subtitle={canSpin ? "PUSH" : "WAIT"}
-            disabled={!canSpin}
-            onPress={handleSpin}
-            animatedStyle={fx.spinBtnStyle}
-            flashStyle={fx.spinBtnFlashStyle}
-          />
-
-          <View style={styles.betRow}>
-            <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
-            <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
-            <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
+          <View style={styles.dock}>
+            <WinBanner text={machineOutput} animatedStyle={fx.winBannerStyle} />
+            <PrimaryButton
+              betCents={betCents}
+              title="SPIN"
+              subtitle={canSpin ? "PUSH" : "WAIT"}
+              disabled={!canSpin}
+              onPress={handleSpin}
+              animatedStyle={fx.spinBtnStyle}
+              flashStyle={fx.spinBtnFlashStyle}
+            />
+            <View style={styles.betRow}>
+              <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
+              <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
+              <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
+            </View>
           </View>
         </MachineCabinet>
 
@@ -199,18 +212,22 @@ const styles = {
   root: {
     flex: 1,
     width: "100%" as const,
+    height: "100%" as const,
+    minHeight: 0,
     position: "relative" as const,
-    paddingHorizontal: 6,
-    paddingVertical: 8,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
     overflow: "hidden" as const,
   },
   stage: {
+    flex: 1,
     width: "100%" as const,
-    maxWidth: 720,
+    minHeight: 0,
     position: "relative" as const,
     zIndex: 2,
+  },
+  dock: {
+    width: "100%" as const,
+    gap: 8,
+    flexShrink: 0,
   },
   betRow: {
     flexDirection: "row" as const,

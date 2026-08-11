@@ -1,18 +1,23 @@
 import React from "react";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import { casino } from "../../theme/casinoCabinet";
 
 type Props = {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  onReelLayout?: (height: number) => void;
 };
 
-/** Three-reel stage with crimson dividers. */
-export function ReelStage({ children, style }: Props) {
+/** Flex-fill three-reel stage; reports height so symbol cells can size to the window. */
+export function ReelStage({ children, style, onReelLayout }: Props) {
   const cols = React.Children.toArray(children);
 
+  const handleLayout = (e: LayoutChangeEvent) => {
+    onReelLayout?.(e.nativeEvent.layout.height);
+  };
+
   return (
-    <View style={[styles.shell, style]}>
+    <View style={[styles.shell, style]} onLayout={handleLayout}>
       <View style={styles.reelsRow}>
         {cols.map((child, i) => (
           <React.Fragment key={i}>
@@ -27,23 +32,26 @@ export function ReelStage({ children, style }: Props) {
 
 const styles = {
   shell: {
+    flex: 1,
     width: "100%" as const,
-    borderRadius: 10,
+    minHeight: 0,
     overflow: "hidden" as const,
     backgroundColor: casino.crimsonLo,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: casino.goldMid,
     position: "relative" as const,
   },
   reelsRow: {
+    flex: 1,
     width: "100%" as const,
-    height: 456,
+    minHeight: 0,
     flexDirection: "row" as const,
     alignItems: "stretch" as const,
   },
   col: {
     flex: 1,
     minWidth: 0,
+    minHeight: 0,
   },
   divider: {
     width: 4,

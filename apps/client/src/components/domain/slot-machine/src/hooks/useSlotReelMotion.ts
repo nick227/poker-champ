@@ -8,29 +8,34 @@ import {
 } from "react-native-reanimated";
 import { normalizeReelPositions } from "../engine/reelMath";
 
-const SYMBOL_HEIGHT = 152;
 const PAD_ROWS = 2;
 const BASE_COPY_INDEX = 2;
 const EXTRA_LOOPS: readonly [number, number, number] = [1, 2, 2];
 export const SPIN_DURATIONS = [900, 1150, 1400] as const;
 
-function getReelOffsetForPosition(stripLen: number, reelPosition: number): number {
-  return -((PAD_ROWS + BASE_COPY_INDEX * stripLen + reelPosition - 1) * SYMBOL_HEIGHT);
+function getReelOffsetForPosition(symbolHeight: number, stripLen: number, reelPosition: number): number {
+  return -((PAD_ROWS + BASE_COPY_INDEX * stripLen + reelPosition - 1) * symbolHeight);
 }
 
-export function useSlotReelMotion(reelLens: readonly [number, number, number]) {
+export function useSlotReelMotion(
+  reelLens: readonly [number, number, number],
+  symbolHeight: number,
+) {
   const y0 = useSharedValue(0);
   const y1 = useSharedValue(0);
   const y2 = useSharedValue(0);
   const reelPosRef = useRef<[number, number, number]>([0, 0, 0]);
+  const heightRef = useRef(symbolHeight);
+  heightRef.current = symbolHeight;
 
   useEffect(() => {
     const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
     reelPosRef.current = nextPos;
-    y0.value = getReelOffsetForPosition(reelLens[0], nextPos[0]);
-    y1.value = getReelOffsetForPosition(reelLens[1], nextPos[1]);
-    y2.value = getReelOffsetForPosition(reelLens[2], nextPos[2]);
-  }, [reelLens, y0, y1, y2]);
+    const h = heightRef.current;
+    y0.value = getReelOffsetForPosition(h, reelLens[0], nextPos[0]);
+    y1.value = getReelOffsetForPosition(h, reelLens[1], nextPos[1]);
+    y2.value = getReelOffsetForPosition(h, reelLens[2], nextPos[2]);
+  }, [reelLens, symbolHeight, y0, y1, y2]);
 
   const reelStyle0 = useAnimatedStyle(() => ({ transform: [{ translateY: y0.value }] }));
   const reelStyle1 = useAnimatedStyle(() => ({ transform: [{ translateY: y1.value }] }));
@@ -39,13 +44,15 @@ export function useSlotReelMotion(reelLens: readonly [number, number, number]) {
   const normalize = useCallback(() => {
     const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
     reelPosRef.current = nextPos;
-    y0.value = getReelOffsetForPosition(reelLens[0], nextPos[0]);
-    y1.value = getReelOffsetForPosition(reelLens[1], nextPos[1]);
-    y2.value = getReelOffsetForPosition(reelLens[2], nextPos[2]);
+    const h = heightRef.current;
+    y0.value = getReelOffsetForPosition(h, reelLens[0], nextPos[0]);
+    y1.value = getReelOffsetForPosition(h, reelLens[1], nextPos[1]);
+    y2.value = getReelOffsetForPosition(h, reelLens[2], nextPos[2]);
   }, [reelLens, y0, y1, y2]);
 
   const spinTo = useCallback(
     async (stops: readonly [number, number, number]) => {
+      const h = heightRef.current;
       const startPos = [...reelPosRef.current] as [number, number, number];
       const deltas = [
         (stops[0] - (startPos[0] % reelLens[0]) + reelLens[0]) % reelLens[0],
@@ -58,9 +65,9 @@ export function useSlotReelMotion(reelLens: readonly [number, number, number]) {
         deltas[2] + EXTRA_LOOPS[2] * reelLens[2],
       ] as const;
       const targets = [
-        getReelOffsetForPosition(reelLens[0], startPos[0] + steps[0]),
-        getReelOffsetForPosition(reelLens[1], startPos[1] + steps[1]),
-        getReelOffsetForPosition(reelLens[2], startPos[2] + steps[2]),
+        getReelOffsetForPosition(h, reelLens[0], startPos[0] + steps[0]),
+        getReelOffsetForPosition(h, reelLens[1], startPos[1] + steps[1]),
+        getReelOffsetForPosition(h, reelLens[2], startPos[2] + steps[2]),
       ] as const;
 
       const timeoutPromise = new Promise<void>((_, reject) => {

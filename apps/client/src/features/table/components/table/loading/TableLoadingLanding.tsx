@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View, useWindowDimensions, ScrollView } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
@@ -21,7 +21,6 @@ export type TableLoadingLandingProps = {
 
 /** Match slot machine longest reel spin (SlotMachine SPIN_DURATIONS max 1400ms). */
 const ONE_SPIN_MS = 1500;
-const SLOT_LANDING_MIN_HEIGHT = 380;
 
 export function TableLoadingLanding({
   mode,
@@ -55,41 +54,38 @@ export function TableLoadingLanding({
     <View
       className="flex-1"
       style={{
-        paddingHorizontal: compact ? 12 : 16,
-        paddingVertical: compact ? 14 : 22,
-        justifyContent: "flex-start",
+        paddingHorizontal: compact ? 8 : 12,
+        paddingVertical: compact ? 10 : 14,
+        gap: 10,
+        minHeight: 0,
       }}
     >
-      <View style={{ width: "100%", flex: 1 }}>
-        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-          <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding }}>
-            <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
-            <Text variant="h2" className="mt-3 text-text">
-              {loadingTitle} {statusMessage}
-            </Text>
-            {shouldShowAction ? (
-              <View className="mt-4">
-                <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
-              </View>
-            ) : null}
-          </View>
-
-          <View key={tableId ?? "session"} style={{ minHeight: SLOT_LANDING_MIN_HEIGHT, flex: 1 }}>
-            <ThemeProvider initialThemeId="poker-champ-dark">
-              <SlotMachine
-                bankrollCents={linked ? bankroll : undefined}
-                onBankrollChange={linked ? setCents : undefined}
-                onSpinStart={handleSlotSpinStart}
-                reducedMotion={reducedMotion}
-              />
-            </ThemeProvider>
-          </View>
-        </ScrollView>
-
-        <Text variant="caption" className="text-center text-text-subtle">
-          Staying on this screen while the table initializes.
+      <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding, flexShrink: 0 }}>
+        <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
+        <Text variant="h2" className="mt-3 text-text">
+          {loadingTitle} {statusMessage}
         </Text>
+        {shouldShowAction ? (
+          <View className="mt-4">
+            <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
+          </View>
+        ) : null}
       </View>
+
+      <View key={tableId ?? "session"} style={{ flex: 1, minHeight: 0 }}>
+        <ThemeProvider initialThemeId="poker-champ-dark">
+          <SlotMachine
+            bankrollCents={linked ? bankroll : undefined}
+            onBankrollChange={linked ? setCents : undefined}
+            onSpinStart={handleSlotSpinStart}
+            reducedMotion={reducedMotion}
+          />
+        </ThemeProvider>
+      </View>
+
+      <Text variant="caption" className="text-center text-text-subtle" style={{ flexShrink: 0 }}>
+        Staying on this screen while the table initializes.
+      </Text>
     </View>
   );
 }

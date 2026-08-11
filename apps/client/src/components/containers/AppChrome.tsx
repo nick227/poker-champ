@@ -60,7 +60,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
   }
 
   if (isDesktopWorkspace) {
-    const mainBleed = pathname.startsWith("/table");
+    const mainBleed = pathname.startsWith("/table") || pathname.startsWith("/slots");
     return (
       <ChromeInsetsProvider topConsumed={showStatusBar}>
         <View className="app-shell-desktop bg-bg/70">
