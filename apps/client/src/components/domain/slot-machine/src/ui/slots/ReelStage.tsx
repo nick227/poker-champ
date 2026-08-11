@@ -37,7 +37,7 @@ const styles = {
   },
   reelsRow: {
     width: "100%" as const,
-    height: 360,
+    height: 456,
     flexDirection: "row" as const,
     alignItems: "stretch" as const,
   },

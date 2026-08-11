@@ -26,7 +26,7 @@ import { WinBackgroundFX } from "./WinBackgroundFX";
 import { CoinRain } from "./CoinRain";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
 
-const SYMBOL_HEIGHT = 120;
+const SYMBOL_HEIGHT = 152;
 const REEL_REPEAT_COUNT = 7;
 
 const ASSETS = {

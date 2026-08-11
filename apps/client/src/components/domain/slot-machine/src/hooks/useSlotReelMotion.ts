@@ -8,7 +8,7 @@ import {
 } from "react-native-reanimated";
 import { normalizeReelPositions } from "../engine/reelMath";
 
-const SYMBOL_HEIGHT = 120;
+const SYMBOL_HEIGHT = 152;
 const PAD_ROWS = 2;
 const BASE_COPY_INDEX = 2;
 const EXTRA_LOOPS: readonly [number, number, number] = [1, 2, 2];
