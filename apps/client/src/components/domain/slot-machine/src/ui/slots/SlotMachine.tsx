@@ -26,7 +26,7 @@ import { WinBackgroundFX } from "./WinBackgroundFX";
 import { CoinRain } from "./CoinRain";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
 
-const SYMBOL_HEIGHT = 96;
+const SYMBOL_HEIGHT = 120;
 const REEL_REPEAT_COUNT = 7;
 
 const ASSETS = {
@@ -137,7 +137,7 @@ export function SlotMachine({
             flashStyle={fx.jackpotBannerFlashStyle}
           />
 
-          <ReelStage paylineStyle={fx.paylineStyle}>
+          <ReelStage>
             <ReelWindow
               strip={game.reels[0]}
               symbols={symbols}
@@ -196,14 +196,14 @@ const styles = {
   root: {
     flex: 1,
     width: "100%" as const,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     alignItems: "center" as const,
     justifyContent: "center" as const,
   },
   stage: {
     width: "100%" as const,
-    maxWidth: 480,
+    maxWidth: 720,
     position: "relative" as const,
   },
   betRow: {

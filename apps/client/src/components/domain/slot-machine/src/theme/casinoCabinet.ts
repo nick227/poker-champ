@@ -9,9 +9,7 @@ export const casino = {
   crimsonLo: "#4a0810",
   reelFace: "#1a0c10",
   reelFaceShade: "#2a1418",
-  payline: "#ffd54a",
   bulbOn: "#fff8e7",
   bulbOff: "#c9a227",
   ink: "#1a0a0c",
-  glass: "rgba(255,255,255,0.14)",
 } as const;

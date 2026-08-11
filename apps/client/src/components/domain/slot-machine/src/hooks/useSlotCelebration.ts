@@ -16,7 +16,6 @@ export function useSlotCelebration() {
   const victoryTextOpacity = useSharedValue(0);
   const victoryTextScale = useSharedValue(0);
   const bgIntensity = useSharedValue(0);
-  const paylinePulse = useSharedValue(0);
   const coinIntensity = useSharedValue(0);
 
   const [fxTier, setFxTier] = useState<WinFxTier | null>(null);
@@ -35,12 +34,6 @@ export function useSlotCelebration() {
       winPulse.value = withSequence(
         withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }),
         withTiming(0, { duration: 280 }),
-      );
-      paylinePulse.value = withSequence(
-        withTiming(1, { duration: 100 }),
-        withTiming(0.4, { duration: 120 }),
-        withTiming(1, { duration: 100 }),
-        withTiming(0, { duration: 400 }),
       );
       buttonFlash.value = withSequence(
         withTiming(1, { duration: 90 }),
@@ -109,7 +102,6 @@ export function useSlotCelebration() {
     },
     [
       winPulse,
-      paylinePulse,
       buttonFlash,
       bgIntensity,
       coinIntensity,
@@ -152,11 +144,6 @@ export function useSlotCelebration() {
   const jackpotBannerFlashStyle = useAnimatedStyle(() => ({
     opacity: bannerFlash.value > 0.5 ? 1 : 0.85,
   }));
-  const paylineStyle = useAnimatedStyle(() => ({
-    opacity: 0.55 + paylinePulse.value * 0.45,
-    transform: [{ scaleY: 1 + paylinePulse.value * 1.4 }],
-    shadowOpacity: paylinePulse.value * 0.9,
-  }));
 
   return {
     values: { pressScale },
@@ -174,7 +161,6 @@ export function useSlotCelebration() {
       screenShakeStyle,
       victoryTextStyle,
       jackpotBannerFlashStyle,
-      paylineStyle,
     },
   };
 }

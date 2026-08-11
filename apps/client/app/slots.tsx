@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { ImageBackground, ScrollView } from "react-native";
+import { ScrollView, View } from "react-native";
 import { Screen } from "@/components/containers/Screen";
 import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { useBankroll } from "@/hooks/useBankroll";
-
-const SLOT_BG = require("@/components/domain/slot-machine/assets/ui/background.png");
 
 export default function SlotsScreen() {
   const { cents: bankroll } = useBankroll();
@@ -16,13 +14,19 @@ export default function SlotsScreen() {
 
   return (
     <Screen>
-      <ImageBackground source={SLOT_BG} style={{ flex: 1 }} resizeMode="cover">
-        <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
+      <View className="flex-1 bg-bg">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingBottom: 24 }}
+        >
           <ThemeProvider initialThemeId="poker-champ-dark">
-            <SlotMachine bankrollCents={slotBankroll} onBankrollChange={setSlotBankroll} />
+            <SlotMachine
+              bankrollCents={slotBankroll != null && slotBankroll > 0 ? slotBankroll : undefined}
+              onBankrollChange={setSlotBankroll}
+            />
           </ThemeProvider>
         </ScrollView>
-      </ImageBackground>
+      </View>
     </Screen>
   );
 }

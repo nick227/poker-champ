@@ -16,7 +16,6 @@ export function MachineCabinet({ spinning, children, style }: Props) {
       <View style={styles.goldInset}>
         <MarqueeLights active={spinning} style={styles.marquee}>
           <View style={styles.crimson}>
-            <View style={styles.crimsonSheen} />
             <View style={styles.inner}>{children}</View>
           </View>
         </MarqueeLights>
@@ -57,15 +56,6 @@ const styles = {
     borderWidth: 2,
     borderColor: casino.crimsonLo,
     position: "relative" as const,
-  },
-  crimsonSheen: {
-    position: "absolute" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "42%" as const,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    pointerEvents: "none" as const,
   },
   inner: {
     padding: 12,
