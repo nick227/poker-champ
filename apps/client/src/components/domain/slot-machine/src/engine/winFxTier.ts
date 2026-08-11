@@ -8,6 +8,7 @@ export type WinFxScale = {
   holdMs: number;
   peak: number;
   coinCount: number;
+  sparkCount: number;
   showRays: boolean;
   rayCount: number;
 };
@@ -32,8 +33,8 @@ export function winFxHasPresentation(tier: WinFxTier): boolean {
 }
 
 /**
- * Screen FX scale from win multiplier.
- * Small = glow only; real wins = full-screen shower for seconds; jackpot = pandemonium.
+ * Screen FX scale — arcade-loud, not subtle web washes.
+ * Small = hard glow blast; real wins = screen-filling shower; jackpot = pandemonium.
  */
 export function scaleWinFx(winMultiplier: number, isJackpot = false): WinFxScale {
   const m = Math.max(1, winMultiplier);
@@ -41,34 +42,35 @@ export function scaleWinFx(winMultiplier: number, isJackpot = false): WinFxScale
   if (isJackpot) {
     return {
       mode: "pandemonium",
-      holdMs: Math.min(14_000, Math.round(7000 + m * 18)),
+      holdMs: Math.min(16_000, Math.round(8000 + m * 22)),
       peak: 1,
-      coinCount: 110,
+      coinCount: 140,
+      sparkCount: 48,
       showRays: true,
-      rayCount: 18,
+      rayCount: 24,
     };
   }
 
   if (m >= 10) {
-    // Big / mega shower — fills the screen for several seconds
     const mega = m >= 25;
     return {
       mode: "shower",
-      holdMs: Math.min(10_000, Math.round((mega ? 4200 : 2800) + m * 85)),
-      peak: Math.min(1, mega ? 0.95 : 0.75),
-      coinCount: Math.min(96, Math.round((mega ? 36 : 22) + m * 1.6)),
+      holdMs: Math.min(12_000, Math.round((mega ? 5000 : 3400) + m * 110)),
+      peak: 1,
+      coinCount: Math.min(120, Math.round((mega ? 48 : 32) + m * 2.2)),
+      sparkCount: Math.min(40, Math.round((mega ? 22 : 14) + m * 0.6)),
       showRays: true,
-      rayCount: Math.min(16, Math.round(mega ? 12 : 8) + Math.floor(m / 20)),
+      rayCount: Math.min(20, Math.round((mega ? 14 : 10) + m / 12)),
     };
   }
 
-  // Small wins — soft full-screen glow only
   return {
     mode: "glow",
-    holdMs: Math.min(2200, Math.round(700 + m * 180)),
-    peak: Math.min(0.7, 0.35 + m * 0.06),
-    coinCount: 0,
-    showRays: false,
-    rayCount: 0,
+    holdMs: Math.min(2800, Math.round(900 + m * 220)),
+    peak: Math.min(1, 0.65 + m * 0.08),
+    coinCount: Math.min(18, Math.round(6 + m * 2)),
+    sparkCount: Math.min(16, Math.round(4 + m * 2)),
+    showRays: m >= 3,
+    rayCount: m >= 3 ? 8 : 0,
   };
 }

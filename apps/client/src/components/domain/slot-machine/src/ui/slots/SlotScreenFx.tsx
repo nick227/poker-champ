@@ -4,7 +4,6 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withRepeat,
   withSequence,
   withTiming,
@@ -12,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { casino } from "../../theme/casinoCabinet";
 import type { WinFxScale } from "../../engine/winFxTier";
+import { Coin, Ray, Spark } from "./SlotScreenFxParticles";
 
 type Props = {
   intensity: SharedValue<number>;
@@ -20,130 +20,77 @@ type Props = {
   reducedMotion?: boolean;
 };
 
-const POOL = 110;
+const COIN_POOL = 140;
+const SPARK_POOL = 48;
 
-/**
- * Full-bleed screen FX behind the cabinet.
- * glow = soft wash; shower/pandemonium = dense coin field + rays.
- */
+/** Arcade-loud full-bleed FX: hard blasts, fat rays, chunky coins — not soft web washes. */
 export function SlotScreenFx({ intensity, scale, burstKey, reducedMotion }: Props) {
   const spin = useSharedValue(0);
+  const flicker = useSharedValue(0);
   const active = scale != null && burstKey > 0;
   const mode = scale?.mode ?? "glow";
+  const wild = mode === "pandemonium";
   const showRays = !reducedMotion && active && !!scale?.showRays;
   const coinCount = reducedMotion || !active ? 0 : scale?.coinCount ?? 0;
+  const sparkCount = reducedMotion || !active ? 0 : scale?.sparkCount ?? 0;
   const rayCount = scale?.rayCount ?? 0;
-  const fallMs = scale?.holdMs ?? 800;
+  const fallMs = scale?.holdMs ?? 900;
 
   React.useEffect(() => {
-    if (!showRays) {
+    if (!active) {
       spin.value = 0;
+      flicker.value = 0;
       return;
     }
-    const speed = mode === "pandemonium" ? 2200 : 3800;
-    spin.value = withRepeat(withTiming(1, { duration: speed, easing: Easing.linear }), -1, false);
-  }, [showRays, mode, spin]);
+    flicker.value = withRepeat(
+      withSequence(withTiming(1, { duration: wild ? 70 : 120 }), withTiming(0.35, { duration: wild ? 90 : 160 })),
+      -1,
+      false,
+    );
+    if (!showRays) return;
+    spin.value = withRepeat(withTiming(1, { duration: wild ? 1600 : 2800, easing: Easing.linear }), -1, false);
+  }, [active, showRays, wild, spin, flicker]);
 
-  const washStyle = useAnimatedStyle(() => ({
-    opacity: intensity.value * (mode === "glow" ? 0.9 : 0.7),
+  const blastStyle = useAnimatedStyle(() => ({
+    opacity: intensity.value * (0.55 + flicker.value * 0.45),
   }));
-  const flashStyle = useAnimatedStyle(() => ({
-    opacity: mode === "pandemonium" ? intensity.value * 0.35 : 0,
+  const rimStyle = useAnimatedStyle(() => ({
+    opacity: intensity.value * (0.7 + flicker.value * 0.3),
+  }));
+  const strobeStyle = useAnimatedStyle(() => ({
+    opacity: wild ? intensity.value * flicker.value * 0.85 : intensity.value * flicker.value * 0.25,
   }));
 
   const rays = useMemo(() => Array.from({ length: Math.max(rayCount, 0) }, (_, i) => i), [rayCount]);
-  const coins = useMemo(() => Array.from({ length: POOL }, (_, i) => i), []);
+  const coins = useMemo(() => Array.from({ length: COIN_POOL }, (_, i) => i), []);
+  const sparks = useMemo(() => Array.from({ length: SPARK_POOL }, (_, i) => i), []);
 
   if (!active) return null;
 
   return (
     <View style={styles.root} pointerEvents="none">
-      <Animated.View style={[styles.wash, washStyle]} />
-      <Animated.View style={[styles.washCrimson, washStyle]} />
-      {mode === "pandemonium" ? <Animated.View style={[styles.strobe, flashStyle]} /> : null}
+      <Animated.View style={[styles.blastGold, blastStyle]} />
+      <Animated.View style={[styles.blastRed, blastStyle]} />
+      <Animated.View style={[styles.strobe, strobeStyle]} />
+      <Animated.View style={[styles.rimTop, rimStyle]} />
+      <Animated.View style={[styles.rimBottom, rimStyle]} />
+      <Animated.View style={[styles.rimLeft, rimStyle]} />
+      <Animated.View style={[styles.rimRight, rimStyle]} />
+
       {showRays
-        ? rays.map((i) => <Ray key={i} index={i} total={rays.length} spin={spin} intensity={intensity} wild={mode === "pandemonium"} />)
+        ? rays.map((i) => (
+            <Ray key={i} index={i} total={rays.length} spin={spin} intensity={intensity} wild={wild} />
+          ))
         : null}
-      {coins.slice(0, Math.min(POOL, coinCount)).map((i) => (
-        <Coin key={`${burstKey}-${i}`} index={i} intensity={intensity} fallMs={fallMs} wild={mode === "pandemonium"} />
+
+      {sparks.slice(0, Math.min(SPARK_POOL, sparkCount)).map((i) => (
+        <Spark key={`s-${burstKey}-${i}`} index={i} intensity={intensity} fallMs={fallMs} wild={wild} pool={SPARK_POOL} />
+      ))}
+
+      {coins.slice(0, Math.min(COIN_POOL, coinCount)).map((i) => (
+        <Coin key={`c-${burstKey}-${i}`} index={i} intensity={intensity} fallMs={fallMs} wild={wild} />
       ))}
     </View>
-  );
-}
-
-function Ray({
-  index,
-  total,
-  spin,
-  intensity,
-  wild,
-}: {
-  index: number;
-  total: number;
-  spin: SharedValue<number>;
-  intensity: SharedValue<number>;
-  wild: boolean;
-}) {
-  const style = useAnimatedStyle(() => {
-    const step = 180 / Math.max(total, 1);
-    const deg = index * step + spin.value * 360;
-    return {
-      opacity: intensity.value * (wild ? 0.55 : 0.35),
-      transform: [{ rotate: `${deg}deg` }, { translateY: -220 }],
-    };
-  });
-  return <Animated.View style={[styles.ray, wild && styles.rayWild, style]} />;
-}
-
-function Coin({
-  index,
-  intensity,
-  fallMs,
-  wild,
-}: {
-  index: number;
-  intensity: SharedValue<number>;
-  fallMs: number;
-  wild: boolean;
-}) {
-  const progress = useSharedValue(0);
-  const left = 1 + ((index * 41) % 98);
-  const size = (wild ? 10 : 8) + (index % 7) * 2;
-  const drift = ((index % 9) - 4) * (wild ? 28 : 16);
-  const delay = (index % 14) * Math.max(28, Math.round(fallMs / 40));
-  const duration = Math.max(600, fallMs * 0.85 - delay * 0.2 + (index % 6) * 90);
-
-  React.useEffect(() => {
-    progress.value = 0;
-    progress.value = withDelay(
-      delay,
-      withSequence(
-        withTiming(1, { duration, easing: Easing.in(Easing.quad) }),
-        withTiming(0, { duration: 1 }),
-      ),
-    );
-  }, [delay, duration, progress]);
-
-  const style = useAnimatedStyle(() => {
-    const t = progress.value;
-    return {
-      opacity: intensity.value * (1 - t) * 0.95,
-      transform: [
-        { translateY: -80 + t * (wild ? 720 : 560) },
-        { translateX: drift * t },
-        { rotate: `${t * (wild ? 540 : 360)}deg` },
-      ],
-    };
-  });
-
-  return (
-    <Animated.View
-      style={[
-        styles.coin,
-        { left: `${left}%` as `${number}%`, width: size, height: size, borderRadius: size / 2 },
-        style,
-      ]}
-    />
   );
 }
 
@@ -157,23 +104,21 @@ const styles = {
     zIndex: 0,
     overflow: "hidden" as const,
   },
-  wash: {
+  blastGold: {
     position: "absolute" as const,
-    top: "-10%" as const,
-    left: "-10%" as const,
-    right: "-10%" as const,
-    bottom: "-10%" as const,
-    borderRadius: 999,
-    backgroundColor: "rgba(255, 208, 80, 0.22)",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 190, 40, 0.55)",
   },
-  washCrimson: {
+  blastRed: {
     position: "absolute" as const,
-    top: "15%" as const,
-    left: "10%" as const,
-    right: "10%" as const,
-    bottom: "15%" as const,
-    borderRadius: 999,
-    backgroundColor: "rgba(196, 40, 58, 0.18)",
+    top: "8%" as const,
+    left: "6%" as const,
+    right: "6%" as const,
+    bottom: "8%" as const,
+    backgroundColor: "rgba(220, 20, 40, 0.42)",
   },
   strobe: {
     position: "absolute" as const,
@@ -181,29 +126,38 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(255, 244, 180, 0.25)",
+    backgroundColor: "#fff8c8",
   },
-  ray: {
-    position: "absolute" as const,
-    top: "50%" as const,
-    left: "50%" as const,
-    width: 18,
-    height: 460,
-    marginLeft: -9,
-    marginTop: -230,
-    backgroundColor: casino.goldHi,
-    opacity: 0.3,
-    borderRadius: 10,
-  },
-  rayWild: {
-    width: 22,
-    backgroundColor: "#fff3b0",
-  },
-  coin: {
+  rimTop: {
     position: "absolute" as const,
     top: 0,
+    left: 0,
+    right: 0,
+    height: 28,
+    backgroundColor: casino.goldHi,
+  },
+  rimBottom: {
+    position: "absolute" as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 28,
     backgroundColor: casino.gold,
-    borderWidth: 1.5,
-    borderColor: casino.goldHi,
+  },
+  rimLeft: {
+    position: "absolute" as const,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 18,
+    backgroundColor: casino.crimsonHi,
+  },
+  rimRight: {
+    position: "absolute" as const,
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 18,
+    backgroundColor: casino.crimsonHi,
   },
 };
