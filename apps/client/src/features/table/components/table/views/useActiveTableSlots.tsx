@@ -252,20 +252,27 @@ export function useActiveTableSlots(
       </View>
     );
   } else if (renderModel.canRebuy && actions.openRebuySheet) {
+    // Cash tables support rebuy too (canHeroRebuy covers both) — the countdown/"leave
+    // tournament" action only make sense when this table actually is a tournament.
+    const isTournamentTable = Boolean(snapshot.table?.tournament);
     bottom = (
       <View className="ui-stack-2 items-center">
-        <RebuyCountdown
-          rebuyWindowClosesAtTs={snapshot.hero.tournamentViewer?.rebuyWindowClosesAtTs}
-          rebuysRemaining={snapshot.hero.tournamentViewer?.rebuysRemaining}
-        />
+        {isTournamentTable ? (
+          <RebuyCountdown
+            rebuyWindowClosesAtTs={snapshot.hero.tournamentViewer?.rebuyWindowClosesAtTs}
+            rebuysRemaining={snapshot.hero.tournamentViewer?.rebuysRemaining}
+          />
+        ) : null}
         <View className="ui-row gap-x-2 justify-center">
           <Button title="Rebuy" onPress={actions.openRebuySheet} />
-          <Button
-            title={renderModel.leaveTournamentBusy ? "Leaving..." : "Leave tournament"}
-            variant="ghost"
-            disabled={renderModel.leaveTournamentBusy}
-            onPress={actions.leaveTournament}
-          />
+          {isTournamentTable ? (
+            <Button
+              title={renderModel.leaveTournamentBusy ? "Leaving..." : "Leave tournament"}
+              variant="ghost"
+              disabled={renderModel.leaveTournamentBusy}
+              onPress={actions.leaveTournament}
+            />
+          ) : null}
         </View>
       </View>
     );
