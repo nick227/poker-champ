@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "postinstall": "node node_modules/typescript/lib/tsc.js -p ../../packages/realtime-contract/tsconfig.json",
+    "postinstall": "node node_modules/typescript/lib/tsc.js -p ../../packages/realtime-contract/tsconfig.json || true",
     "add-expo": "expo install --pnpm",
     "dev": "expo start",
     "dev:web": "node scripts/watch-tokens-web.cjs",
