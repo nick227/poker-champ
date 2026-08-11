@@ -227,6 +227,8 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     overflow: "hidden" as const,
+    maxWidth: "900px" as const,
+    marginHorizontal: "auto" as const,
   },
   stage: {
     flex: 1,

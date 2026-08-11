@@ -89,4 +89,77 @@ describe("Dealer v2 smoke", () => {
 
     vi.useRealTimers();
   });
+
+  it("yields and stops a deterministic failure that requeues without progress", async () => {
+    vi.useFakeTimers();
+    const state = new PokerState();
+    state.tableId = "table_no_progress_guard";
+    state.street = "WAITING";
+    state.roundState = "HAND_COMPLETE";
+
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    const internal = dealer as any;
+    const driveOnce = vi.spyOn(internal, "driveGameOnce").mockImplementation(async () => {
+      try {
+        throw new Error("deterministic drive failure");
+      } catch {
+        internal.queueDrive("DETERMINISTIC_NO_PROGRESS");
+      }
+    });
+
+    await internal.requestDrive("TEST_NO_PROGRESS");
+    expect(driveOnce).toHaveBeenCalledTimes(1);
+
+    await vi.runOnlyPendingTimersAsync();
+    expect(driveOnce).toHaveBeenCalledTimes(2);
+
+    await vi.runOnlyPendingTimersAsync();
+    expect(driveOnce).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(internal.driveInProgress).toBe(false);
+    expect(internal.driveQueued).toBe(false);
+
+    dealer.dispose();
+    vi.useRealTimers();
+  });
+
+  it("continues synchronous redrives while each pass makes progress", async () => {
+    const state = new PokerState();
+    state.tableId = "table_progress_guard";
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    const internal = dealer as any;
+    const driveOnce = vi.spyOn(internal, "driveGameOnce").mockImplementation(async () => {
+      state.actionCount += 1;
+      if (state.actionCount < 4) internal.queueDrive("MATERIAL_PROGRESS");
+    });
+
+    await internal.requestDrive("TEST_PROGRESS");
+
+    expect(driveOnce).toHaveBeenCalledTimes(4);
+    expect(state.actionCount).toBe(4);
+    expect(internal.consecutiveNoProgressDrives).toBe(0);
+    dealer.dispose();
+  });
+
+  it("leaves a legitimately waiting table dormant without scheduling a redrive", async () => {
+    vi.useFakeTimers();
+    const state = new PokerState();
+    state.tableId = "table_legitimate_wait";
+    state.street = "WAITING";
+    state.roundState = "HAND_COMPLETE";
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    const internal = dealer as any;
+
+    await internal.requestDrive("TEST_LEGITIMATE_WAIT");
+
+    expect(internal.driveQueued).toBe(false);
+    expect(internal.noProgressRedriveScheduled).toBe(false);
+    expect(internal.consecutiveNoProgressDrives).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+    dealer.dispose();
+    vi.useRealTimers();
+  });
 });

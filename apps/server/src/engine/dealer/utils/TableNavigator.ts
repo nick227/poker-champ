@@ -142,6 +142,11 @@ export function resolvePlayersReadyForNextHand(state: PokerState): PlayerState[]
   );
 }
 
+/** A cash table must pause for rebuy instead of starting a bot-only hand. */
+export function hasHumanReadyForNextHand(players: readonly PlayerState[]): boolean {
+  return players.some((player) => player.kind === "HUMAN");
+}
+
 /** Reset between-hand statuses so eligibility checks match deal intent (FOLDED/ABANDONED → ACTIVE). */
 export function preparePlayersForNextHand(state: PokerState): void {
   for (const player of state.playersById.values()) {

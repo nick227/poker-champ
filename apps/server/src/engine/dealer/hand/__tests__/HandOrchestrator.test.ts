@@ -24,6 +24,13 @@ function addSeatedPlayer(state: PokerState, userId: string, seat: number): void 
   state.seats[seat] = userId;
 }
 
+function addSeatedBot(state: PokerState, botId: string, seat: number): void {
+  addSeatedPlayer(state, botId, seat);
+  const bot = state.playersById.get(botId)!;
+  bot.kind = "BOT";
+  bot.stackCents = 2_000;
+}
+
 describe("HandOrchestrator", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -240,6 +247,83 @@ describe("HandOrchestrator", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect(requestDrive).toHaveBeenCalledWith("NEXT_HAND_TOURNAMENT_RECONCILE");
+  });
+
+  it("does not request a bot-only next hand while the human waits to rebuy", async () => {
+    vi.useFakeTimers();
+    const state = createState();
+    addSeatedBot(state, "bot_1", 1);
+    addSeatedBot(state, "bot_2", 2);
+    const requestDrive = vi.fn(async () => {});
+    const sendTableSnapshotToAll = vi.fn(async () => {});
+    const orchestrator = new HandOrchestrator({
+      state,
+      handLifecycleService: {
+        startHand: async () => [],
+        advanceStreetOrShowdown: async () => [],
+        finishHandByLastStanding: async () => [],
+        finishHandShowdownWithSidePots: async () => [],
+      } as any,
+      clearPendingHumanTurnTimeout: () => {},
+      createHandContext: () => new HandContext(),
+      setCurrentHand: () => {},
+      getCurrentHand: () => null,
+      initPreflopFlagsForHand: () => {},
+      executeHandLifecyclePlans: async () => {},
+      requestDrive,
+      enqueueSerializedStateMutation: async (work) => work(),
+      sendTableSnapshotToAll,
+      isDisposed: () => false,
+      getLastHandResult: () => undefined,
+      getOnHandEndedAwards: () => undefined,
+      getDealtHumanUserIds: () => [],
+      recordSessionHandResult: () => {},
+      getSessionState: () => ({ sessionId: "s1", sessionHands: 0, consecutiveWins: 0 }),
+    });
+
+    orchestrator.scheduleNextHand("HAND_END", 25);
+    await vi.advanceTimersByTimeAsync(25);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(requestDrive).not.toHaveBeenCalled();
+    expect(sendTableSnapshotToAll).toHaveBeenCalled();
+  });
+
+  it("does not retry an aborted bot-only hand start", async () => {
+    const state = createState();
+    addSeatedBot(state, "bot_1", 1);
+    addSeatedBot(state, "bot_2", 2);
+    const requestDrive = vi.fn(async () => {});
+    const orchestrator = new HandOrchestrator({
+      state,
+      handLifecycleService: {
+        startHand: async () => [],
+        advanceStreetOrShowdown: async () => [],
+        finishHandByLastStanding: async () => [],
+        finishHandShowdownWithSidePots: async () => [],
+      } as any,
+      clearPendingHumanTurnTimeout: () => {},
+      createHandContext: () => new HandContext(),
+      setCurrentHand: () => {},
+      getCurrentHand: () => null,
+      initPreflopFlagsForHand: () => {},
+      executeHandLifecyclePlans: async () => {},
+      requestDrive,
+      enqueueSerializedStateMutation: async (work) => work(),
+      sendTableSnapshotToAll: async () => {},
+      isDisposed: () => false,
+      getLastHandResult: () => undefined,
+      getOnHandEndedAwards: () => undefined,
+      getDealtHumanUserIds: () => [],
+      recordSessionHandResult: () => {},
+      getSessionState: () => ({ sessionId: "s1", sessionHands: 0, consecutiveWins: 0 }),
+    });
+
+    await orchestrator.startHand();
+    await Promise.resolve();
+
+    expect(state.street).toBe("WAITING");
+    expect(requestDrive).not.toHaveBeenCalled();
   });
 
   it("transitionToWaiting resets roundState to HAND_COMPLETE", () => {

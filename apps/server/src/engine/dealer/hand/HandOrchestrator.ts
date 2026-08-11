@@ -6,7 +6,11 @@ import type { HandContext } from "../HandContext.js";
 import { NEXT_HAND_DELAY_MS } from "../timing.js";
 import type { HandLifecyclePlan, HandLifecycleService } from "./HandLifecycleService.js";
 import type { SnapshotReason } from "./SnapshotService.js";
-import { resolvePlayersReadyForNextHand, settlePlayerStatusesAfterHand } from "../utils/TableNavigator.js";
+import {
+  hasHumanReadyForNextHand,
+  resolvePlayersReadyForNextHand,
+  settlePlayerStatusesAfterHand,
+} from "../utils/TableNavigator.js";
 import type { NextStepOwner } from "../decision/types.js";
 
 type HandEndedAwardsCallback = (
@@ -148,7 +152,12 @@ export class HandOrchestrator {
         );
 
         this.deps.setCurrentHand(null);
-        void this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
+        // A busted human can leave several funded bots ready. Waiting is the
+        // correct state until that human rebuys; retrying here creates a hot
+        // requestDrive loop that starves the economy endpoint.
+        if (hasHumanReadyForNextHand(readyPlayers)) {
+          void this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
+        }
 
         return;
       }
@@ -242,7 +251,11 @@ export class HandOrchestrator {
 
       const activePlayers = resolvePlayersReadyForNextHand(this.deps.state);
       this.warnIfAllReadyPlayersDisconnected(activePlayers);
-      if (this.deps.state.street === "WAITING" && activePlayers.length >= 2) {
+      if (
+        this.deps.state.street === "WAITING" &&
+        activePlayers.length >= 2 &&
+        hasHumanReadyForNextHand(activePlayers)
+      ) {
         this.nextHandScheduled = false;
         await this.deps.requestDrive("NEXT_HAND_START_IMMEDIATE");
         const durationMs = Date.now() - startedAt;
@@ -386,7 +399,11 @@ export class HandOrchestrator {
           const activePlayers = resolvePlayersReadyForNextHand(this.deps.state);
           this.warnIfAllReadyPlayersDisconnected(activePlayers);
 
-          if (this.deps.state.street === "WAITING" && activePlayers.length >= 2) {
+          if (
+            this.deps.state.street === "WAITING" &&
+            activePlayers.length >= 2 &&
+            hasHumanReadyForNextHand(activePlayers)
+          ) {
             // Release the guard before startHand so an immediate terminal hand
             // (e.g. HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT) can schedule the
             // follow-up hand from inside lifecycle execution.

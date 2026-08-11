@@ -178,7 +178,9 @@ export function TableStage({
                     seat={{ x: anchor.x, y: anchor.y }}
                     feltCenter={feltCenter}
                     avatarSize={layout.avatarSize}
-                    nameplateH={layout.nameplateH}
+                    plateWidth={plateW}
+                    plateHeight={plateH}
+                    cardPeek={layout.cardPeek}
                     isDealer={heroPlate.isDealer}
                     betDisplay={heroPlate.betDisplay}
                   />
@@ -228,7 +230,9 @@ export function TableStage({
                   seat={{ x: anchor.x, y: anchor.y }}
                   feltCenter={feltCenter}
                   avatarSize={layout.avatarSize}
-                  nameplateH={layout.nameplateH}
+                  plateWidth={plateW}
+                  plateHeight={plateH}
+                  cardPeek={layout.cardPeek}
                   isDealer={opponent.isDealer}
                   betDisplay={props.betDisplay}
                 />

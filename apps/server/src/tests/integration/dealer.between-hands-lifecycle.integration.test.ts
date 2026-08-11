@@ -33,6 +33,11 @@ function seatPlayer(
   state.seats[seat] = id;
 }
 
+function seatBot(state: PokerState, seat: number, id: string): void {
+  seatPlayer(state, seat, id, "ACTIVE", true);
+  state.playersById.get(id)!.kind = "BOT";
+}
+
 async function flushAsyncWork(): Promise<void> {
   for (let i = 0; i < 8; i += 1) {
     await Promise.resolve();
@@ -194,6 +199,49 @@ describe("dealer between-hands lifecycle integration", () => {
 
       expect(state.street).toBe("PREFLOP");
       expect(state.handId).toMatch(/^hand_/);
+    } finally {
+      teardownDealer(dealer);
+    }
+  });
+
+  it("cash rebuy: pauses with funded bots after the human busts, then resumes after rebuy", async () => {
+    const state = new PokerState();
+    initSeatRows(state, 3);
+    state.tableId = "table_cash_rebuy_bot_pause";
+    state.smallBlindCents = 50;
+    state.bigBlindCents = 100;
+    state.minBuyInCents = 2_000;
+    state.maxBuyInCents = 20_000;
+    state.street = "WAITING";
+    state.roundState = "HAND_COMPLETE";
+    state.handId = "";
+    state.toActSeat = -1;
+    state.nextHandAtTs = 0;
+    seatPlayer(state, 0, "human_busted", "OUT", true);
+    state.playersById.get("human_busted")!.stackCents = 0;
+    seatBot(state, 1, "bot_1");
+    seatBot(state, 2, "bot_2");
+
+    const dealer = new Dealer(state);
+    dealer.stopDisconnectSweep();
+    const startSpy = vi.spyOn(
+      (dealer as unknown as { handOrchestrator: { startHand: () => Promise<void> } }).handOrchestrator,
+      "startHand",
+    );
+
+    try {
+      await (dealer as unknown as { requestDrive: (reason: string) => Promise<void> }).requestDrive(
+        "NEXT_HAND_AFTER_HUMAN_BUST",
+      );
+
+      expect(state.street).toBe("WAITING");
+      expect(startSpy).not.toHaveBeenCalled();
+
+      await dealer.applyRebuy("human_busted", 2_000, "cash_rebuy_after_bot_pause");
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(state.street).toBe("PREFLOP");
+      expect(state.playersById.get("human_busted")?.stackCents).toBeGreaterThan(0);
     } finally {
       teardownDealer(dealer);
     }

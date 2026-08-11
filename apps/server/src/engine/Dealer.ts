@@ -49,6 +49,7 @@ import { PokerState } from "../state/PokerState.js";
 import { PlayerState } from "../state/PlayerState.js";
 import {
   countNonOutPlayers,
+  hasHumanReadyForNextHand,
   countNotFoldedPlayers,
   findNextToActSeat,
   resolvePlayersReadyForNextHand,
@@ -97,6 +98,8 @@ export type {
 function isNextHandStartDue(state: PokerState, now: number): boolean {
   return state.nextHandAtTs === 0 || (state.nextHandAtTs > 0 && now >= state.nextHandAtTs);
 }
+
+const MAX_CONSECUTIVE_NO_PROGRESS_DRIVES = 3;
 
 type HandEndedAwardsCallback = (
   handSummary: {
@@ -424,6 +427,9 @@ export class Dealer {
   private driveQueued = false;
   private driveQueuedReason = "";
   private drivePromise: Promise<void> | null = null;
+  private consecutiveNoProgressDrives = 0;
+  private lastNoProgressDriveFingerprint: string | null = null;
+  private noProgressRedriveScheduled = false;
   private activeTerminalLifecycle:
     | { handId: string; path: "LAST_STANDING" | "SHOWDOWN"; caller: string }
     | null = null;
@@ -1943,8 +1949,64 @@ export class Dealer {
         do {
           this.driveQueued = false;
           this.driveQueuedReason = "";
+          const beforeFingerprint = this.getDriveProgressFingerprint();
           await this.driveGameOnce(currentTrigger);
-          currentTrigger = this.driveQueuedReason || currentTrigger;
+          const queuedReason = this.driveQueuedReason || currentTrigger;
+
+          if (!this.driveQueued) {
+            this.resetNoProgressDriveGuard();
+            break;
+          }
+
+          const afterFingerprint = this.getDriveProgressFingerprint();
+          if (beforeFingerprint !== afterFingerprint) {
+            this.resetNoProgressDriveGuard();
+            currentTrigger = queuedReason;
+            continue;
+          }
+
+          if (this.lastNoProgressDriveFingerprint === afterFingerprint) {
+            this.consecutiveNoProgressDrives += 1;
+          } else {
+            this.lastNoProgressDriveFingerprint = afterFingerprint;
+            this.consecutiveNoProgressDrives = 1;
+          }
+
+          this.driveQueued = false;
+          this.driveQueuedReason = "";
+
+          if (this.consecutiveNoProgressDrives >= MAX_CONSECUTIVE_NO_PROGRESS_DRIVES) {
+            logger.error(
+              {
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                street: this.state.street,
+                roundState: this.state.roundState,
+                trigger: currentTrigger,
+                queuedReason,
+                consecutiveNoProgressDrives: this.consecutiveNoProgressDrives,
+                lastMarker: this.lastDriveMarker,
+              },
+              "DRIVE_GAME_NO_PROGRESS_LIMIT_REACHED",
+            );
+            break;
+          }
+
+          logger.warn(
+            {
+              tableId: this.state.tableId,
+              handId: this.state.handId,
+              street: this.state.street,
+              roundState: this.state.roundState,
+              trigger: currentTrigger,
+              queuedReason,
+              consecutiveNoProgressDrives: this.consecutiveNoProgressDrives,
+              lastMarker: this.lastDriveMarker,
+            },
+            "DRIVE_GAME_NO_PROGRESS_YIELD",
+          );
+          this.scheduleNoProgressRedrive(queuedReason);
+          break;
         } while (!this.disposed && this.driveQueued);
       } finally {
         this.driveInProgress = false;
@@ -1954,6 +2016,86 @@ export class Dealer {
     })();
 
     await this.drivePromise;
+  }
+
+  /**
+   * Captures every in-memory field that can materially change the driver's next
+   * decision. This is deliberately more detailed than the public snapshot: the
+   * guard must also see lifecycle, connection, and action-eligibility changes.
+   */
+  private getDriveProgressFingerprint(): string {
+    const players = [...this.state.playersById.values()]
+      .sort((a, b) => a.seat - b.seat || a.id.localeCompare(b.id))
+      .map((player) => [
+        player.id,
+        player.kind,
+        player.seat,
+        player.status,
+        player.stackCents,
+        player.roundBetCents,
+        player.committedCents,
+        player.needsAction,
+        player.hasActedThisStreet,
+        player.connected,
+        player.disconnectDeadlineTs > 0,
+        player.sittingOutUntilNextHand,
+        player.pendingLeave,
+        player.pendingRemovalReason,
+      ]);
+
+    return JSON.stringify({
+      handId: this.state.handId,
+      handNumber: this.state.handNumber,
+      handActionSeq: this.state.handActionSeq,
+      actionCount: this.state.actionCount,
+      street: this.state.street,
+      roundState: this.state.roundState,
+      runoutMode: this.state.runoutMode,
+      dealerSeat: this.state.dealerSeat,
+      sbSeat: this.state.sbSeat,
+      bbSeat: this.state.bbSeat,
+      toActSeat: this.state.toActSeat,
+      potCents: this.state.potCents,
+      roundCurrentBetCents: this.state.roundCurrentBetCents,
+      minRaiseCents: this.state.minRaiseCents,
+      board: [...this.state.board],
+      seats: [...this.state.seats],
+      nextHandScheduled: this.state.nextHandAtTs > 0,
+      turnDeadlineArmed: this.state.turnDeadlineMs > 0,
+      players,
+      nextStepOwner: this.nextStepOwner,
+      activeTerminalLifecycle: this.activeTerminalLifecycle,
+      completedTerminalLifecycle: this.completedTerminalLifecycle,
+      pendingSeatReleaseUserIds: [...this.pendingSeatReleaseUserIds].sort(),
+      pendingExternalPlayerLifecycleBatches: this.pendingExternalPlayerLifecycleBatches.length,
+      gameplayTransitionSuppressionDepth: this.gameplayTransitionSuppressionDepth,
+      resolvedActionId: this.resolvedActionId,
+    });
+  }
+
+  private resetNoProgressDriveGuard(): void {
+    this.consecutiveNoProgressDrives = 0;
+    this.lastNoProgressDriveFingerprint = null;
+  }
+
+  private scheduleNoProgressRedrive(reason: string): void {
+    if (this.noProgressRedriveScheduled || this.disposed) return;
+    this.noProgressRedriveScheduled = true;
+    setImmediate(() => {
+      this.noProgressRedriveScheduled = false;
+      if (this.disposed) return;
+      void this.requestDrive(`NO_PROGRESS_YIELD:${reason}`).catch((err: unknown) => {
+        logger.error(
+          {
+            err,
+            tableId: this.state.tableId,
+            handId: this.state.handId,
+            reason,
+          },
+          "DRIVE_GAME_NO_PROGRESS_REDRIVE_FAILED",
+        );
+      });
+    });
   }
 
   private async driveGameOnce(trigger: string): Promise<void> {
@@ -2106,7 +2248,11 @@ export class Dealer {
 
           if (terminalLifecycleCompletedThisDrive) break;
 
-          if (isNextHandStartDue(this.state, driveNow) && readyPlayers.length >= 2) {
+          if (
+            isNextHandStartDue(this.state, driveNow) &&
+            readyPlayers.length >= 2 &&
+            hasHumanReadyForNextHand(readyPlayers)
+          ) {
             this.state.nextHandAtTs = 0;
             if (!this.state.handId) {
               this.completedTerminalLifecycle = null;
@@ -2695,7 +2841,7 @@ export class Dealer {
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
       const readyPlayers = resolvePlayersReadyForNextHand(this.state);
-      const hasHumanReady = readyPlayers.some((player) => player.kind === "HUMAN");
+      const hasHumanReady = hasHumanReadyForNextHand(readyPlayers);
       if (
         readyPlayers.length >= 2 &&
         hasHumanReady &&
@@ -3461,8 +3607,5 @@ export class Dealer {
   }
 
 }
-
-
-
 
 

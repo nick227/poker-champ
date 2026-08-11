@@ -189,6 +189,13 @@ app.use((err: any, _req: express.Request, res: express.Response, next: express.N
 const server = http.createServer();
 
 const gameServer = new Server({
+  // We register our own SIGINT/SIGTERM/uncaughtException handling below (see `shutdown()`).
+  // Colyseus's default `gracefullyShutdown: true` would otherwise install a second, competing
+  // set of process signal handlers that race this one — observed in practice as
+  // "error during shutdown: already_shutting_down" and, worse, Colyseus's own handler calling
+  // process.exit() out from under our own shutdown before it finishes closing the HTTP server
+  // and disconnecting Prisma.
+  gracefullyShutdown: false,
   transport: new WebSocketTransport({
     server,
     pingInterval: 15_000,
@@ -231,6 +238,13 @@ async function shutdown(reason: string, exitCode: number = 0) {
   shuttingDown = true;
   logger.info({ reason }, "Shutdown started");
 
+  // Safety net: if graceful shutdown ever hangs (e.g. a socket that never finishes
+  // closing), force-exit so the process — and the port — is never left stuck.
+  const forceExitTimer = setTimeout(() => {
+    logger.error({ reason }, "Shutdown watchdog fired — forcing exit to release the port");
+    process.exit(exitCode || 1);
+  }, 10_000);
+
   if (recoveryInterval) {
     clearInterval(recoveryInterval);
     recoveryInterval = null;
@@ -262,6 +276,11 @@ async function shutdown(reason: string, exitCode: number = 0) {
     logger.error({ err }, "Failed to gracefully shutdown Colyseus");
   }
 
+  // Colyseus's transport.shutdown() (called above) asks WebSocket clients to close
+  // but doesn't force-terminate ones that don't. Force-close any stragglers so
+  // server.close() below can't hang waiting on a connection that never ends.
+  server.closeAllConnections();
+
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
   });
@@ -272,6 +291,7 @@ async function shutdown(reason: string, exitCode: number = 0) {
     logger.error({ err }, "Failed to disconnect Prisma");
   }
 
+  clearTimeout(forceExitTimer);
   logger.info({ reason }, "Shutdown complete");
   process.exit(exitCode);
 }
