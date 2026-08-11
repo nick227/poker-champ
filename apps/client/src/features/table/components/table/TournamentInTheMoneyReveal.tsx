@@ -5,7 +5,7 @@ import { Text } from "@/components/base/Text";
 import { formatCents } from "@/lib/format";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 import { emitHapticEvent } from "@/haptics/emitHapticEvent";
-import { TournamentConfettiBurst } from "./TournamentConfettiBurst";
+import { TournamentConfettiRain } from "@/features/table/animations/TournamentConfettiRain";
 import {
   formatFinishPlace,
   type TournamentResultTier,
@@ -139,7 +139,7 @@ export function TournamentInTheMoneyReveal({
         className="flex-1 items-center justify-center px-4"
         style={{ backgroundColor: "rgba(0,0,0,0.88)", minHeight: height }}
       >
-        <TournamentConfettiBurst active={isChampion} />
+        <TournamentConfettiRain active={isChampion} />
         {isChampion ? (
           <Animated.View
             pointerEvents="none"

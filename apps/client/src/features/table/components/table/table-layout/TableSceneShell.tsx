@@ -9,7 +9,7 @@ import type { Rect } from "@/features/table/animations/animationTypes";
 import { vars } from "nativewind";
 import { TableLayoutHeightProvider } from "./TableLayoutHeightContext";
 import { TableGameTopBar } from "../table-game-top-bar";
-import type { Opponent } from "../opponent-strip";
+import type { Opponent } from "../table.adapter";
 import { Surface } from "@/components/containers/Surface";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableLayoutDimensions } from "../hooks/useTableLayoutDimensions";

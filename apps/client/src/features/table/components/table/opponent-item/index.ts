@@ -1,1 +1,0 @@
-export { OpponentStripItem } from "./OpponentStripItem";

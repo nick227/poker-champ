@@ -53,6 +53,7 @@ export function buildHeroPlate(params: {
       : undefined,
     cardFacePackId: params.cardFacePackId,
     betDisplay: params.betDisplay ?? null,
+    isWinner: params.isWinner ?? false,
     turnProgress: params.turnProgress ?? null,
     turnCountdownSeconds: params.turnCountdownSeconds ?? null,
   };

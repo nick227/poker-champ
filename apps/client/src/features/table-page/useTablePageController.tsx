@@ -51,15 +51,15 @@ import {
   resolveShareTableUrl,
   shareTable,
 } from "@/features/table-page/shareTableUrl";
-import { TABLE_ANIMATION_REQUEST_VERSION } from "@/features/table/animations/animationTypes";
-import type { TableAnimationRequest, AnchorBounds, Rect } from "@/features/table/animations/animationTypes";
-import { mapPotWinTier, mapAllInTier } from "@/features/table/animations/animationMapper";
+import type { AnchorBounds, Rect, TableAnimationRequest } from "@/features/table/animations/animationTypes";
 import { buildChipTravelPlan } from "@/features/table/animations/chipTravel";
 import type { ChipTravelPlan } from "@/features/table/animations/chipTravel";
 import {
   clearAllPendingTimeouts,
-  computePotWinDispatchDelayMs,
+  resolveAllInAnimationDecision,
+  resolvePotWinAnimationDecision,
   resolveShowdownAnimationDecision,
+  resolveWinnerRevealAnimationDecision,
   scheduleSurvivingTimeout,
 } from "@/features/table/animations/animationTriggers";
 import { resolveHandStartAnimationDecision } from "@/features/table/animations/handStartTrigger";
@@ -72,6 +72,7 @@ function rectEqual(a: Rect | undefined, b: Rect | undefined): boolean {
 }
 
 function anchorBoundsEqual(a: AnchorBounds, b: AnchorBounds): boolean {
+  if (a.heroSeat !== b.heroSeat) return false;
   if (!rectEqual(a.board, b.board)) return false;
   if (!rectEqual(a.hero, b.hero)) return false;
   const aSeat = a.seatByIndex ?? {};
@@ -98,9 +99,6 @@ const TABLE_ACTION_TO_KEY: Record<TableAction, "fold" | "check" | "call" | "bet"
   RAISE: "raise",
   ALL_IN: "allIn",
 };
-
-/** Actions that move chips from hero's stack to the pot; drive the BET_TO_POT chip-travel FX. */
-const MONEY_MOVING_ACTIONS: ReadonlySet<TableAction> = new Set(["BET", "RAISE", "CALL", "ALL_IN"]);
 
 const TABLE_ACTION_TO_SOUND_EVENT: Record<TableAction, SoundEvent> = {
   FOLD: "table.action.fold",
@@ -221,6 +219,7 @@ export function useTablePageController({
           });
           next.cardSlots = arr.length ? arr : prev.cardSlots;
         }
+        next.heroSeat = heroSeatRef.current;
         if (anchorBoundsEqual(prev, next)) return prev;
         return next;
       });
@@ -247,6 +246,12 @@ export function useTablePageController({
   // this effect's deps) can't cancel a still-pending celebration for the *previous* hand — only
   // true unmount clears these (separate effect further down).
   const pendingPotWinTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  // Winning-seat pulse reveal: own dedup ref + pending-timeout set, deliberately separate from
+  // lastPotWinHandIdRef/pendingPotWinTimeoutsRef above (POT_WIN is hero-only and dedupes on its
+  // own dispatch lifecycle; the seat pulse must reveal for opponent wins too, on its own timeline
+  // — see the effect below for why one shares POT_WIN's delay and the other doesn't).
+  const lastWinnerRevealHandIdRef = useRef<string | null>(null);
+  const pendingWinnerRevealTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const autoJoinAttemptedRef = useRef(false);
   const pendingRemoveBotIdRef = useRef<string | null>(null);
   const hasObservedActiveHandRef = useRef(false);
@@ -273,6 +278,10 @@ export function useTablePageController({
 
   const snapshot = snapshotsByTableId[tableId];
   const snapshotSeats = snapshot?.seats;
+  // Latest-value ref (not state): read inside reportHeroBounds below without making that
+  // callback's identity depend on the hero's seat, which changes with normal game state.
+  const heroSeatRef = useRef<number | undefined>(undefined);
+  heroSeatRef.current = snapshot?.hero?.seat;
   const tableStatus = connectionStatusForTable ?? "DISCONNECTED";
   const connectionStatus = tableStatus as ConnectionStatus;
   const tableError = errorForTable;
@@ -379,36 +388,25 @@ export function useTablePageController({
     lastHandStartHandIdRef.current = handId;
     if (!decision) return;
     clearAllPendingTimeouts(pendingPotWinTimeoutsRef.current);
+    clearAllPendingTimeouts(pendingWinnerRevealTimeoutsRef.current);
     emitSoundEvent("table.handStart");
     emitHapticEvent("table.cardDeal");
     setAnimationRequest(decision.request);
   }, [snapshot?.hand?.handId]);
 
   useEffect(() => {
-    if (!winnerBanner || !snapshot?.lastHandResult || !isHeroWinner) return;
-    const handId = snapshot.lastHandResult.handId;
-    if (lastPotWinHandIdRef.current === handId) return;
-    lastPotWinHandIdRef.current = handId;
-    const potCents = snapshot.lastHandResult.potCents ?? 0;
-    const winnerSeat = snapshot.hero?.seat;
-    const tier = mapPotWinTier({
-      potCents,
-      winningHandDescr: winnerBanner.winningHandDescr,
-    });
+    const decision = resolvePotWinAnimationDecision(
+      winnerBanner,
+      snapshot?.lastHandResult,
+      isHeroWinner,
+      snapshot?.hero?.seat,
+      lastPotWinHandIdRef.current,
+    );
+    if (!decision) return;
+    lastPotWinHandIdRef.current = decision.handId;
     const dispatch = () => {
       emitHapticEvent("table.potWin");
-      setAnimationRequest({
-        version: TABLE_ANIMATION_REQUEST_VERSION,
-        event: "POT_WIN",
-        tier,
-        payload: {
-          headline: "YOU WIN",
-          amountCents: winnerBanner.amountCents,
-          potCents,
-          isHero: true,
-          winnerSeat,
-        },
-      });
+      setAnimationRequest(decision.request);
     };
     // Hand went to showdown: the reveal fires on the same TABLE fx channel (see effect above).
     // Delay pot-win (and its haptic, so they stay in sync) so it lands after the showdown reveal
@@ -416,13 +414,8 @@ export function useTablePageController({
     // snapshot.lastHandResult change). scheduleSurvivingTimeout intentionally does not tie this
     // to the effect's own cleanup — see its doc comment for why that would silently drop the
     // celebration when the next hand starts.
-    const delayMs = computePotWinDispatchDelayMs(
-      snapshot.lastHandResult.reason,
-      potCents,
-      winnerBanner.winningHandDescr
-    );
-    if (delayMs > 0) {
-      scheduleSurvivingTimeout(pendingPotWinTimeoutsRef.current, delayMs, dispatch);
+    if (decision.delayMs > 0) {
+      scheduleSurvivingTimeout(pendingPotWinTimeoutsRef.current, decision.delayMs, dispatch);
       return;
     }
     dispatch();
@@ -431,6 +424,41 @@ export function useTablePageController({
   // True-unmount-only cleanup for any still-pending delayed POT_WIN dispatches (see above).
   useEffect(() => {
     const pending = pendingPotWinTimeoutsRef.current;
+    return () => clearAllPendingTimeouts(pending);
+  }, []);
+
+  /**
+   * WINNER_REVEAL fx request: the per-seat "you just won the pot" pulse, dispatched through the
+   * same TableAnimationRequest/channel pipeline as every other table fx (SEAT channel only — see
+   * SEAT_GLOW_WINNER_REVEAL in animationRegistry/seatGlow.ts). Always goes through
+   * scheduleSurvivingTimeout, even when resolveWinnerRevealAnimationDecision returns delayMs=0:
+   * setAnimationRequest is a single state slot, and SHOWDOWN's own dispatch (the effect above) can
+   * become eligible in the very same render commit for the same lastHandResult change — dispatching
+   * synchronously here risks silently overwriting (or being overwritten by) that request before
+   * TableAnimationOverlay ever observes it. A 0ms timeout still defers to the next tick, which is
+   * enough to avoid that collision without adding any perceptible delay.
+   */
+  useEffect(() => {
+    if (!winnerBanner || !snapshot?.lastHandResult) {
+      lastWinnerRevealHandIdRef.current = null;
+      return;
+    }
+    const decision = resolveWinnerRevealAnimationDecision(
+      snapshot,
+      winnerBanner,
+      isHeroWinner,
+      lastWinnerRevealHandIdRef.current,
+    );
+    if (!decision) return;
+    lastWinnerRevealHandIdRef.current = decision.handId;
+    scheduleSurvivingTimeout(pendingWinnerRevealTimeoutsRef.current, decision.delayMs, () =>
+      setAnimationRequest(decision.request),
+    );
+  }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, snapshot?.hero?.seat, snapshot?.seats]);
+
+  // True-unmount-only cleanup for any still-pending delayed winner-reveal timeouts (see above).
+  useEffect(() => {
+    const pending = pendingWinnerRevealTimeoutsRef.current;
     return () => clearAllPendingTimeouts(pending);
   }, []);
 
@@ -443,7 +471,6 @@ export function useTablePageController({
     if (lastChipTravelPotWinHandIdRef.current === handId) return;
     const plan = buildChipTravelPlan({
       id: `chip-travel-${++chipTravelIdRef.current}`,
-      kind: "POT_TO_WINNER",
       from: anchorBounds.board,
       to: anchorBounds.hero,
       amountCents: winnerBanner.amountCents ?? snapshot.lastHandResult.potCents ?? 0,
@@ -454,26 +481,17 @@ export function useTablePageController({
   }, [winnerBanner, snapshot?.lastHandResult, isHeroWinner, anchorBounds.board, anchorBounds.hero, enqueueChipTravel]);
 
   useEffect(() => {
-    const lastAction = snapshot?.lastAction;
-    if (lastAction?.action !== "ALL_IN") return;
-    if (lastAction.actorUserId !== snapshot?.hero?.userId) return;
-    const key = `${lastAction.handId}:${lastAction.seq}`;
-    if (lastAllInKeyRef.current === key) return;
-    lastAllInKeyRef.current = key;
     const potCents = snapshot?.hand?.potCents ?? snapshot?.lastHandResult?.potCents ?? 0;
-    const tier = mapAllInTier({ potCents, amountCents: lastAction.amountCents });
-    setAnimationRequest({
-      version: TABLE_ANIMATION_REQUEST_VERSION,
-      event: "ALL_IN",
-      tier,
-      payload: {
-        headline: "ALL IN",
-        amountCents: lastAction.amountCents,
-        potCents,
-        isHero: true,
-        anchorSeat: snapshot?.hero?.seat,
-      },
-    });
+    const decision = resolveAllInAnimationDecision(
+      snapshot?.lastAction,
+      snapshot?.hero?.userId,
+      snapshot?.hero?.seat,
+      potCents,
+      lastAllInKeyRef.current,
+    );
+    if (!decision) return;
+    lastAllInKeyRef.current = decision.key;
+    setAnimationRequest(decision.request);
   }, [snapshot?.lastAction, snapshot?.hero?.userId, snapshot?.hero?.seat, snapshot?.hand?.potCents, snapshot?.lastHandResult?.potCents]);
 
   const {
@@ -907,17 +925,6 @@ export function useTablePageController({
       if (ok) {
         emitSoundEvent(soundEvent);
         emitHapticEvent(hapticEvent);
-        if (MONEY_MOVING_ACTIONS.has(payload.type)) {
-          enqueueChipTravel(
-            buildChipTravelPlan({
-              id: `chip-travel-${++chipTravelIdRef.current}`,
-              kind: "BET_TO_POT",
-              from: anchorBounds.hero,
-              to: anchorBounds.board,
-              amountCents: payload.amount ?? 0,
-            }),
-          );
-        }
       } else {
         console.log("TABLE_ACTION_FALLBACK", { action, tableId, reason: "sender-not-registered-or-invalid-payload" });
         if (__DEV__) {
@@ -937,7 +944,7 @@ export function useTablePageController({
       }
       return ok;
     },
-    [tableId, dispatchTableAction, snapshot, connectionStatus, anchorBounds.hero, anchorBounds.board, enqueueChipTravel],
+    [tableId, dispatchTableAction, snapshot, connectionStatus],
   );
 
   const toggleHeroSittingOut = useCallback(() => {

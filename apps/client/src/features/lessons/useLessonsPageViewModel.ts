@@ -189,7 +189,7 @@ function toCatalogItem(remote: RemoteLessonSummary): LessonCatalogItem {
 }
 
 export function useLessonsPageViewModel() {
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [remoteLessons, setRemoteLessons] = useState<RemoteLessonSummary[]>([]);
   const [remoteDailyChallenges, setRemoteDailyChallenges] = useState<RemoteDailyChallenge[]>([]);

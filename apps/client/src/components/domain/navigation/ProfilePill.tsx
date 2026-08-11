@@ -51,9 +51,6 @@ export function ProfilePill({
         }}
       />
       <View>
-        <Text numberOfLines={1} variant="body" className="text-[13px]">
-          {username}
-        </Text>
         <Text numberOfLines={1} variant="body" className="font-semibold text-[14px] tabular-nums">
           {formatCents(amountCents)}
         </Text>

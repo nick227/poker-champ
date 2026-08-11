@@ -9,7 +9,7 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
-import type { Opponent } from "../opponent-strip";
+import type { Opponent } from "../table.adapter";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { FeltActionAnnounce } from "../FeltActionAnnounce";
 import { Button } from "@/components/base/Button";
@@ -67,7 +67,12 @@ export function useActiveTableSlots(
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
-    winnerBanner: renderModel.displayEvents.winnerBanner,
+    // No winnerName here: the live table's winning-seat pulse is dispatched through the
+    // TableAnimationRequest/channel system now (WINNER_REVEAL event, SEAT_GLOW_WINNER_REVEAL
+    // companion — see animationTriggers.ts's resolveWinnerRevealAnimationDecision), not this
+    // per-tile prop. winnerName stays supported here for ActiveTableView's lessons/replay path,
+    // which has no fx-request/timeout infrastructure and intentionally keeps the simpler local
+    // mechanism.
     connectionStatus: scene.connectionStatus,
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,
@@ -98,7 +103,6 @@ export function useActiveTableSlots(
     heroName,
     heroAvatarUrl: modelHeroAvatarUrl,
     isHeroToAct,
-    isHeroWinner,
     isHeroDealer,
     potCents,
   } = model;
@@ -307,7 +311,8 @@ export function useActiveTableSlots(
         heroStatus,
         isDealer: isHeroDealer,
         isActiveTurn: statusStrip?.showTurnCue ?? isHeroToAct,
-        isWinner: isHeroWinner,
+        // No isWinner here: the live table's winning-seat pulse now runs through the
+        // TableAnimationRequest/channel system (see the winnerName comment above).
         cardFacePackId,
         betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
         turnProgress: isHeroToAct ? activeTurnProgress : null,

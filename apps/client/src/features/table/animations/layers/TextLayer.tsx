@@ -21,7 +21,14 @@ const GLOW_TEXT_SHADOW_RADIUS_OUTER = 26;
 const GLOW_TEXT_SHADOW_RADIUS_BRIGHT = 8;
 const GLOW_TEXT_SHADOW_OFFSET = { width: 0, height: 1 };
 const TEXT_SHADOW_OFFSET_NONE = { width: 0, height: 0 };
-const AMOUNT_WRAP_PADDING_TOP = 56;
+// A flex-centered box shifts its centered content by paddingTop/2 (or paddingBottom/2 in the
+// opposite direction), independent of container height. Headline and amount render as two
+// independent full-bleed views, so this is how they're kept from stacking on top of each other
+// when both appear together (e.g. ALL_IN_TIER_1+, POT_TIER_0+): headline is nudged up, amount is
+// nudged down, by enough to clear the largest headline (xlarge, 56px) against the largest amount
+// pill (large text + vertical padding) with a visible gap between them.
+const HEADLINE_WRAP_PADDING_BOTTOM = 84;
+const AMOUNT_WRAP_PADDING_TOP = 84;
 const HEADLINE_SCALE_FROM = 0.82;
 const AMOUNT_SCALE_FROM = 0.75;
 const AMOUNT_BORDER_WIDTH = 2;
@@ -134,7 +141,7 @@ export function TextLayer({
       style={[
         StyleSheet.absoluteFill,
         styles.wrap,
-        isHeadline ? undefined : styles.amountWrap,
+        isHeadline ? styles.headlineWrap : styles.amountWrap,
         { opacity, transform: [{ scale }] },
       ]}
       pointerEvents="none"
@@ -227,6 +234,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  headlineWrap: {
+    paddingBottom: HEADLINE_WRAP_PADDING_BOTTOM,
+  },
   amountWrap: {
     paddingTop: AMOUNT_WRAP_PADDING_TOP,
   },
@@ -245,8 +255,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: "hidden",
   },
+  // Deliberately not StyleSheet.absoluteFillObject: an absolutely-positioned child ignores its
+  // parent's padding, which would silently cancel the headlineWrap shift above for the glow
+  // (multi-layer) headline path. Re-applying the same bottom inset here keeps both paths in sync.
   headlineStack: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: HEADLINE_WRAP_PADDING_BOTTOM,
     justifyContent: "center",
     alignItems: "center",
   },

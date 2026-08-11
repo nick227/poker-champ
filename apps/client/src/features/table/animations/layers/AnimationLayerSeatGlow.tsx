@@ -11,9 +11,11 @@ type Props = {
   durationMs: number;
   delayMs?: number;
   color?: string;
+  /** Match the wrapped container's own corner radius (e.g. a square hero zone uses 0). */
+  borderRadius?: number;
 };
 
-function AnimationLayerSeatGlowInner({ durationMs, delayMs = 0, color }: Props) {
+function AnimationLayerSeatGlowInner({ durationMs, delayMs = 0, color, borderRadius }: Props) {
   const opacity = useRef(new Animated.Value(0)).current;
   const glowColor = color ?? FALLBACK_GLOW_COLOR;
 
@@ -39,7 +41,11 @@ function AnimationLayerSeatGlowInner({ durationMs, delayMs = 0, color }: Props) 
 
   return (
     <Animated.View
-      style={[StyleSheet.absoluteFill, styles.glow, { borderColor: glowColor, opacity }]}
+      style={[
+        StyleSheet.absoluteFill,
+        styles.glow,
+        { borderColor: glowColor, opacity, ...(borderRadius != null ? { borderRadius } : null) },
+      ]}
       pointerEvents="none"
     />
   );

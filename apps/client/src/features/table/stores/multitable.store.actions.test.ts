@@ -78,6 +78,24 @@ describe("multi-table action idempotency payloads", () => {
     expect(sender).toHaveBeenCalledWith("JOIN_TABLE", { buyInCents: 5000 });
   });
 
+  it("disconnectOtherTables sits the other table out and disconnects it unconsented (not a hard leave)", () => {
+    const senderT1 = vi.fn(() => true);
+    const disconnectT1 = vi.fn();
+    const disconnectT2 = vi.fn();
+    useMultiTableStore.getState().registerTableSender("t1", senderT1);
+    useMultiTableStore.getState().registerTableDisconnect("t1", disconnectT1);
+    useMultiTableStore.getState().registerTableDisconnect("t2", disconnectT2);
+
+    useMultiTableStore.getState().disconnectOtherTables("t2");
+
+    // t1 (the table being switched away from) is told to sit out before its connection drops...
+    expect(senderT1).toHaveBeenCalledWith("SET_SITTING_OUT", { sittingOut: true });
+    // ...and disconnected as an unconsented drop (preserves seat/stack), not a consented hard leave.
+    expect(disconnectT1).toHaveBeenCalledWith(false);
+    // t2 (the table being switched to) is left alone.
+    expect(disconnectT2).not.toHaveBeenCalled();
+  });
+
   it("blocks duplicate table action dispatch while a pending action exists", () => {
     const sender = vi.fn(() => true);
     useMultiTableStore.getState().registerTableSender("t1", sender);

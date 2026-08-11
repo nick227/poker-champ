@@ -1,21 +1,22 @@
 /**
- * Chip-stack "travel" overlay: renders bet→pot and pot→winner chip animations.
+ * Chip-stack "travel" overlay: renders the pot → winner chip animation (the bet → pot leg was
+ * removed as an unwanted, overly-busy cue firing on every single action — see git history).
  *
  * Separate from TableAnimationOverlay because chip travel needs two endpoints (from/to)
  * rather than a single anchor rect, and has its own simple request-queue lifecycle
  * (mirrors the "measure → build plan → animate → auto-remove" flow used elsewhere in
  * this FX system, e.g. TableAnimationOverlay's channel lifecycle).
  *
- * Non-responsibilities: deciding *when* a bet/payout happened (host reports via
- * ChipTravelPlan built from measured AnchorBounds — see chipTravel.ts) and layout
- * measurement (host reports bounds, same as TableAnimationOverlay).
+ * Non-responsibilities: deciding *when* a payout happened (host reports via ChipTravelPlan
+ * built from measured AnchorBounds — see chipTravel.ts) and layout measurement (host reports
+ * bounds, same as TableAnimationOverlay).
  */
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { ChipToken } from "./layers/ChipToken";
 import { getAnimationTheme } from "./animationTheme";
 import { EASING_OPACITY_OUT, EASING_SCALE } from "./animationEasing";
-import { CHIP_TRAVEL_STAGGER_MS, computeChipTravelTotalMs, type ChipTravelKind, type ChipTravelPlan } from "./chipTravel";
+import { CHIP_TRAVEL_STAGGER_MS, computeChipTravelTotalMs, type ChipTravelPlan } from "./chipTravel";
 
 /** How far above the straight-line path a chip arcs at its midpoint (px). */
 const ARC_HEIGHT_PX = 34;
@@ -23,13 +24,6 @@ const ARC_HEIGHT_PX = 34;
 const LANDING_MS = 140;
 const LANDING_SCALE = 1.25;
 const CHIP_SCALE_FROM = 0.55;
-
-const BET_CHIP_COLOR = "rgba(120, 170, 255, 0.95)";
-
-function colorForKind(kind: ChipTravelKind): string {
-  if (kind === "POT_TO_WINNER") return getAnimationTheme("POT_WIN").palette.ring;
-  return BET_CHIP_COLOR;
-}
 
 const OVERLAY_STYLE = {
   position: "absolute" as const,
@@ -47,8 +41,8 @@ type ChipInstanceProps = {
 };
 
 function ChipTravelInstance({ plan, onComplete }: ChipInstanceProps) {
-  const { from, to, chipCount, durationMs, kind, id } = plan;
-  const color = colorForKind(kind);
+  const { from, to, chipCount, durationMs, id } = plan;
+  const color = getAnimationTheme("POT_WIN").palette.ring;
   const dx = to.x + to.width / 2 - (from.x + from.width / 2);
   const dy = to.y + to.height / 2 - (from.y + from.height / 2);
   const originX = from.x + from.width / 2;

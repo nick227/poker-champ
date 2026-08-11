@@ -1,16 +1,21 @@
 /**
- * Pure logic for chip-stack "travel" animations (bet → pot, pot → winner).
+ * Pure logic for the pot → winner chip-stack "travel" animation (the bet → pot leg was removed;
+ * see git history if a "your chips slide to the pot" cue is ever wanted back — this is now the
+ * only leg of the chip's journey, so there's no "kind" left to distinguish).
  * No React, no game logic: given measured rects (from AnchorBounds) and an amount,
  * computes a plan the visual layer can animate. Kept pure/testable — see chipTravel.test.ts.
  */
 import type { Rect } from "./animationTypes";
-
-/** Which leg of the chip's journey this plan represents. */
-export type ChipTravelKind = "BET_TO_POT" | "POT_TO_WINNER";
+import {
+  CHIP_TRAVEL_MIN_DURATION_MS,
+  CHIP_TRAVEL_MAX_DURATION_MS,
+  CHIP_TRAVEL_MIN_CHIPS,
+  CHIP_TRAVEL_MAX_CHIPS,
+  CHIP_TRAVEL_STAGGER_MS,
+} from "./animationConstants";
 
 export type ChipTravelPlan = {
   id: string;
-  kind: ChipTravelKind;
   from: Rect;
   to: Rect;
   amountCents: number;
@@ -20,18 +25,10 @@ export type ChipTravelPlan = {
   durationMs: number;
 };
 
-/** Duration floor/ceiling (ms) so travel never teleports or crawls regardless of distance. */
-export const CHIP_TRAVEL_MIN_DURATION_MS = 260;
-export const CHIP_TRAVEL_MAX_DURATION_MS = 620;
 /** ms of flight time added per pixel of on-screen distance between endpoints. */
 const MS_PER_PX = 0.55;
 
-/** Chip stack size floor/ceiling — visual weight only, not a literal chip denomination breakdown. */
-export const CHIP_TRAVEL_MIN_CHIPS = 2;
-export const CHIP_TRAVEL_MAX_CHIPS = 6;
-
-/** Stagger (ms) between successive chips departing in a traveling stack. */
-export const CHIP_TRAVEL_STAGGER_MS = 55;
+export { CHIP_TRAVEL_MIN_DURATION_MS, CHIP_TRAVEL_MAX_DURATION_MS, CHIP_TRAVEL_MIN_CHIPS, CHIP_TRAVEL_MAX_CHIPS, CHIP_TRAVEL_STAGGER_MS };
 
 function rectCenter(r: Rect): { x: number; y: number } {
   return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -67,7 +64,6 @@ function isMeasuredRect(r: Rect | undefined): r is Rect {
 
 export type BuildChipTravelPlanParams = {
   id: string;
-  kind: ChipTravelKind;
   from: Rect | undefined;
   to: Rect | undefined;
   amountCents: number;
@@ -79,7 +75,6 @@ export type BuildChipTravelPlanParams = {
  */
 export function buildChipTravelPlan({
   id,
-  kind,
   from,
   to,
   amountCents,
@@ -87,7 +82,6 @@ export function buildChipTravelPlan({
   if (!isMeasuredRect(from) || !isMeasuredRect(to)) return undefined;
   return {
     id,
-    kind,
     from,
     to,
     amountCents,

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { Opponent } from "../opponent-strip";
+import type { Opponent } from "../table.adapter";
 
 export interface EmptyTableNotificationAction {
   title: string;

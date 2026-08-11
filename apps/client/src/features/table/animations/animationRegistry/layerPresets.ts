@@ -21,7 +21,10 @@ const LAYER_PRESETS: Record<string, LayerPresetDefaults> = {
   impact: { durationMs: 500, delayMs: CHOREO_FLASH_MS },
   winBurst: { durationMs: 600, rays: 16, delayMs: IMPACT_CHOREO_BURST_MS },
   goldBurst: { durationMs: 800, particleCount: 20, particleSpread: 70, delayMs: IMPACT_CHOREO_PARTICLES_MS },
-  headlineWin: { durationMs: 1400, textSize: "hero", textGlow: true, delayMs: IMPACT_CHOREO_HEADLINE_MS },
+  // textSize was "hero" (72px) when this was full-viewport-centered; now that it's confined to the
+  // compact ABOVE_BOARD banner (see presets.ts POT_TIER_4), "xlarge" (56px, same ceiling as
+  // SHOWDOWN's biggest tiers) is the largest that reliably fits without clipping.
+  headlineWin: { durationMs: 1400, textSize: "xlarge", textGlow: true, delayMs: IMPACT_CHOREO_HEADLINE_MS },
   seatHalo: { durationMs: 800, delayMs: IMPACT_CHOREO_RING_MS },
   burst: { durationMs: 400, rays: 8 },
   ambientDrift: { durationMs: 1200, particleCount: 8, particleSpread: 40, opacity: [0.2, 0.25] },

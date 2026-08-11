@@ -3,7 +3,7 @@ import { getPreloadSources, resolveAnimation, resolveAnimationWithCompanions, TA
 
 describe("animationRegistry", () => {
   it("exports an event→tier registry and resolves tier with fallback to lower tiers", () => {
-    expect(TABLE_ANIMATIONS.POT_WIN.length).toBeGreaterThan(0);
+    expect(TABLE_ANIMATIONS.POT_WIN!.length).toBeGreaterThan(0);
     const exact = resolveAnimation("POT_WIN", 4);
     expect(exact?.event).toBe("POT_WIN");
     expect(exact?.tier).toBe(4);
@@ -41,15 +41,16 @@ describe("animationRegistry", () => {
   });
 
   describe("HAND_START", () => {
-    it("resolves tier 0 as a soft FLASH+RING felt wake-up", () => {
-      expect(TABLE_ANIMATIONS.HAND_START.length).toBe(1);
+    it("resolves tier 0 as a signal-only definition (deal sound/haptic carry the cue, no visual layers)", () => {
+      // A board-anchored FLASH+RING was tried here and read as an unwanted gold oval flash
+      // across the whole table on every deal; removed rather than reskinned. See
+      // presets.ts's HAND_START comment and animationRegistry/index.ts's empty-layers relaxation.
+      expect(TABLE_ANIMATIONS.HAND_START!.length).toBe(1);
       const def = resolveAnimation("HAND_START", 0);
       expect(def?.event).toBe("HAND_START");
       expect(def?.tier).toBe(0);
       expect(def?.durationMs).toBe(1100);
-      expect(def?.layers.map((l) => l.type)).toEqual(["FLASH", "RING"]);
-      expect(def?.layers.some((l) => l.type === "RADIAL_GLOW")).toBe(false);
-      expect(def?.layers.some((l) => l.type === "TEXT" || l.type === "PARTICLES")).toBe(false);
+      expect(def?.layers).toEqual([]);
     });
   });
 
@@ -65,7 +66,7 @@ describe("animationRegistry", () => {
 
   describe("SHOWDOWN", () => {
     it("is wired into the registry with a full tier 0-4 ladder", () => {
-      expect(TABLE_ANIMATIONS.SHOWDOWN.length).toBe(5);
+      expect(TABLE_ANIMATIONS.SHOWDOWN!.length).toBe(5);
       for (let tier = 0; tier <= 4; tier++) {
         const def = resolveAnimation("SHOWDOWN", tier);
         expect(def?.event).toBe("SHOWDOWN");

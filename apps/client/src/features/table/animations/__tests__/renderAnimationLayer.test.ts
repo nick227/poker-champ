@@ -26,7 +26,8 @@ vi.mock("react-native", () => {
   };
   const View = (_props: unknown) => null;
   const Text = (_props: unknown) => null;
-  return { Easing, Animated, StyleSheet, View, Text };
+  const Platform = { OS: "web" as const };
+  return { Easing, Animated, StyleSheet, View, Text, Platform };
 });
 
 const theme: AnimationTheme = {

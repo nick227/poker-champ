@@ -1,4 +1,5 @@
-import { Animated, View, type LayoutChangeEvent, type ReactNode } from "react-native";
+import { Animated, View, type LayoutChangeEvent } from "react-native";
+import type { ReactNode } from "react";
 import type { UiCard } from "../table.adapter";
 import { CommunityBoard } from "./CommunityBoard";
 import { Text } from "@/components/base/Text";

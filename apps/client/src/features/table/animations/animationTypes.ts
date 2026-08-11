@@ -1,11 +1,17 @@
 /** Single canonical enum. No synonyms elsewhere. Use FX_EVENT.* in code. */
-export type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN" | "HAND_START";
+export type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN" | "HAND_START" | "WINNER_REVEAL";
 
 export const FX_EVENT: Record<TableAnimationEvent, TableAnimationEvent> = {
   POT_WIN: "POT_WIN",
   ALL_IN: "ALL_IN",
   SHOWDOWN: "SHOWDOWN",
   HAND_START: "HAND_START",
+  /** SEAT-channel-only: "this seat just won the pot" pulse. Fires for every winner reveal
+   *  (fold-out or showdown, hero or opponent) — see resolveWinnerRevealAnimationDecision in
+   *  animationTriggers.ts. Deliberately has no TABLE-channel definition (see animationRegistry/
+   *  index.ts's TABLE_ANIMATIONS comment) so it never competes with POT_WIN/SHOWDOWN's own
+   *  TABLE-channel animation for the same channel slot. */
+  WINNER_REVEAL: "WINNER_REVEAL",
 };
 
 /** Request contract version; protects against breaking UI changes. */
@@ -34,7 +40,7 @@ export type AnimationSettings = {
 };
 
 /** Effects can originate from different parts of the table. */
-export type AnimationAnchor = "TABLE_CENTER" | "HERO" | "SEAT" | "BOARD" | "CARD";
+export type AnimationAnchor = "TABLE_CENTER" | "HERO" | "SEAT" | "BOARD" | "CARD" | "ABOVE_BOARD";
 
 export const FX_ANCHOR: Record<AnimationAnchor, AnimationAnchor> = {
   TABLE_CENTER: "TABLE_CENTER",
@@ -42,6 +48,8 @@ export const FX_ANCHOR: Record<AnimationAnchor, AnimationAnchor> = {
   SEAT: "SEAT",
   BOARD: "BOARD",
   CARD: "CARD",
+  /** Same width as BOARD, stacked directly above it. For text that must never sit on top of the community cards. */
+  ABOVE_BOARD: "ABOVE_BOARD",
 };
 
 /** Bounds in overlay coordinates (e.g. from onLayout). Used to position HERO/SEAT effects. */
@@ -53,6 +61,11 @@ export type AnchorBounds = {
   board?: Rect;
   /** Indices 0..4 for community card slots (flop1, flop2, flop3, turn, river). Undefined = not yet measured. */
   cardSlots?: (Rect | undefined)[];
+  /** Hero's current seat index, if seated. seatByIndex never contains an entry for this seat —
+   *  hero reports bounds separately via `hero` — so SEAT-anchored companions resolve to `hero`
+   *  instead of `seatByIndex[seatIndex]` when a request's anchorSeat equals this. See
+   *  resolveAnchorToRect in anchorResolution.ts. */
+  heroSeat?: number;
 };
 
 /** Which stacking plane the layer renders on. Default FOREGROUND when omitted. */

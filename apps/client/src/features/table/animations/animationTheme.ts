@@ -118,6 +118,13 @@ const EVENT_PALETTE_OVERRIDES: Partial<Record<TableAnimationEvent, Partial<Anima
     streakColor: "rgba(255, 210, 140, 0.35)",
     haloColor: "rgba(255, 220, 150, 0.35)",
   },
+  WINNER_REVEAL: {
+    // Only haloColor matters (SEAT_GLOW_WINNER_REVEAL is the only definition on this event, and
+    // renderSeatGlow reads palette.haloColor ?? palette.ring). Reuses POT_WIN's `ring` value
+    // exactly — the color WinningSeatPulse hard-coded before this event existed — so the
+    // migration doesn't change what the pulse looks like.
+    haloColor: "rgba(255, 200, 80, 0.92)",
+  },
 };
 
 const DEFAULT_TIMING: AnimationThemeTiming = {

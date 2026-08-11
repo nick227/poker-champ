@@ -12,12 +12,15 @@ export function SeatFeltMarkers({
   seat,
   feltCenter,
   avatarSize,
+  nameplateH = 48,
   isDealer,
   betDisplay,
 }: {
   seat: Point;
   feltCenter: Point;
   avatarSize: number;
+  /** Needed so top-seat bets clear the stack row (nameplate hangs below avatar). */
+  nameplateH?: number;
   isDealer?: boolean;
   betDisplay?: string | null;
 }) {
@@ -28,16 +31,21 @@ export function SeatFeltMarkers({
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
-  // Perpendicular nudge so the D sits beside the inward ray, clear of hole cards.
+  // Perpendicular nudge so the D sits beside the inward ray, clear of hole cards/bets.
   const px = -uy;
   const py = ux;
 
+  // Extra side clearance keeps the puck out from under hole cards (seat plate is zIndex 20).
+  const dealerClearancePx = 30;
   const dealerDist = avatarSize * 0.52;
-  const dealerSide = avatarSize * 0.38;
-  const betDist = avatarSize * 0.95;
+  const dealerSide = avatarSize * 0.38 + dealerClearancePx;
+  // Seat pods are not rotated: nameplate is always below the avatar in screen space.
+  // Top seats aim inward (+Y) through that nameplate — clear past stack before parking the bet.
+  const pastNameplate = avatarSize * 0.5 + nameplateH + 12;
+  const betDist = Math.max(avatarSize * 0.95, uy > 0 ? pastNameplate : avatarSize * 0.95);
 
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 15 }}>
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 25 }}>
       {isDealer ? (
         <View
           testID="seat-felt-dealer"

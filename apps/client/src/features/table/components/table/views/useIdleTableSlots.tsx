@@ -7,7 +7,7 @@ import { View } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import type { TablePageController } from "@/types/tableSceneContract";
 import type { TableSceneShellProps } from "../table-layout";
-import type { Opponent } from "../opponent-strip";
+import type { Opponent } from "../table.adapter";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
@@ -36,7 +36,7 @@ export function useIdleTableSlots(
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
-    winnerBanner: renderModel.displayEvents.winnerBanner,
+    // No winnerName here: see the same comment in useActiveTableSlots.tsx.
     connectionStatus: undefined,
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,

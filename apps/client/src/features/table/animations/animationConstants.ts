@@ -16,6 +16,8 @@ export const DEFAULT_HEADLINES: Record<TableAnimationEvent, string> = {
   ALL_IN: "ALL IN",
   SHOWDOWN: "SHOWDOWN",
   HAND_START: "",
+  /** No TEXT layers on this event (SEAT channel only — see seatGlow.ts). */
+  WINNER_REVEAL: "",
 };
 
 /** Fallback layer duration (ms) when definition omits durationMs. */
@@ -80,6 +82,20 @@ export const CHOREO_AMOUNT_MS = 180;
 
 /** Guardrail: max delay for cascade layers; new layers should not exceed this. */
 const MAX_CASCADE_MS = 300;
+
+/**
+ * Chip-travel pacing (chipTravel.ts / ChipTravelOverlay.tsx). Lives alongside the CHOREO_*_MS
+ * cascade offsets above rather than in its own file -- both describe gameplay-FX pacing and
+ * previously lived in two separate constant files with no shared scale.
+ */
+/** Duration floor/ceiling (ms) so travel never teleports or crawls regardless of distance. */
+export const CHIP_TRAVEL_MIN_DURATION_MS = 260;
+export const CHIP_TRAVEL_MAX_DURATION_MS = 620;
+/** Chip stack size floor/ceiling -- visual weight only, not a literal chip denomination breakdown. */
+export const CHIP_TRAVEL_MIN_CHIPS = 2;
+export const CHIP_TRAVEL_MAX_CHIPS = 6;
+/** Stagger (ms) between successive chips departing in a traveling stack. */
+export const CHIP_TRAVEL_STAGGER_MS = 55;
 
 /** Layer types to skip when reducedMotion is true (event and atmosphere). */
 const REDUCED_MOTION_SKIP_TYPES = ["PARTICLES", "STREAK", "BURST"] as const;

@@ -37,6 +37,7 @@ export function TableStage({
   heroSeat,
   maxSeats,
   board,
+  winnerName,
   onPlayerPress,
   onSeatBounds,
   onHeroBounds,
@@ -177,6 +178,7 @@ export function TableStage({
                     seat={{ x: anchor.x, y: anchor.y }}
                     feltCenter={feltCenter}
                     avatarSize={layout.avatarSize}
+                    nameplateH={layout.nameplateH}
                     isDealer={heroPlate.isDealer}
                     betDisplay={heroPlate.betDisplay}
                   />
@@ -203,6 +205,7 @@ export function TableStage({
               cardFacePackId,
               {
                 betDisplay: betCents > 0 ? formatBet(betCents) : null,
+                isWinner: winnerName != null && opponent.name === winnerName,
                 turnProgress: opponent.isActive ? activeTurnProgress : null,
                 turnCountdownSeconds: opponent.isActive ? turnCountdownSeconds : null,
               },
@@ -225,6 +228,7 @@ export function TableStage({
                   seat={{ x: anchor.x, y: anchor.y }}
                   feltCenter={feltCenter}
                   avatarSize={layout.avatarSize}
+                  nameplateH={layout.nameplateH}
                   isDealer={opponent.isDealer}
                   betDisplay={props.betDisplay}
                 />

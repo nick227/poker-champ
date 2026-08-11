@@ -9,8 +9,10 @@ Architecture for event-driven table animations: trigger contract, overlay runtim
 Single enum. No synonyms elsewhere (no "pot win", "winning hand", "hand result").
 
 ```ts
-type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN"
+type TableAnimationEvent = "POT_WIN" | "ALL_IN" | "SHOWDOWN" | "HAND_START"
 ```
+
+`HAND_START` (added later than this proposal) is the reference implementation for how small a trigger + definition pair should be: one tier, two layers, a pure decision function (`handStartTrigger.ts`) fully decoupled from the controller hook. New events should match that shape before reaching for more tiers/layers, not the other way around.
 
 ---
 

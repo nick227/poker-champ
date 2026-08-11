@@ -51,7 +51,6 @@ import { ChipTravelOverlay } from "../ChipTravelOverlay";
 
 const plan: ChipTravelPlan = {
   id: "chip-1",
-  kind: "BET_TO_POT",
   from: { x: 0, y: 0, width: 40, height: 40 },
   to: { x: 100, y: 100, width: 40, height: 40 },
   amountCents: 500,

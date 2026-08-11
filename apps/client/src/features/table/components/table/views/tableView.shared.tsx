@@ -3,13 +3,13 @@ import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { TournamentTableBanner } from "../TournamentTableBanner";
 import { TournamentResultBanner } from "../TournamentResultBanner";
 import { BoardArea } from "../board-area";
-import type { Opponent } from "../opponent-strip";
+import type { Opponent } from "../table.adapter";
 import { DUMMY_TABLE_SNAPSHOT } from "../dummyTableSnapshot";
 import { formatCents } from "@/lib/format";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
 import { useTableSceneModel, type TableSceneModel } from "../model/useTableSceneModel";
 import type { TableSceneShellProps } from "../table-layout";
-import type { ConnectionStatus, HandResultMessage } from "../table.types";
+import type { ConnectionStatus } from "../table.types";
 import type { UiCard } from "../table.adapter";
 import type { Rect } from "@/features/table/animations/animationTypes";
 import { BoardBoundsReporter } from "../board-area";
@@ -36,7 +36,13 @@ type TableShellBaseProps = Pick<
 type UseTableViewShellFrameParams = {
   snapshot: TableSnapshotPayload | null;
   sceneModel?: TableSceneModel;
-  winnerBanner?: HandResultMessage | null;
+  /**
+   * Winning seat's name for the per-tile seat-pulse (TableStage's winnerName prop) only — not the
+   * same timing as the announce text. Callers on the live table pass the delay-aware
+   * renderModel.revealedWinnerName here, not the raw winnerBanner, so the seat glow doesn't fire
+   * before a showdown reveal animation plays. See useTablePageController's "Delayed reveal" effect.
+   */
+  winnerName?: string | null;
   connectionStatus?: ConnectionStatus;
   balanceCents: number;
   topBarRight?: ReactNode;
@@ -61,7 +67,7 @@ type UseTableViewShellFrameParams = {
 export function useTableViewShellFrame({
   snapshot,
   sceneModel,
-  winnerBanner,
+  winnerName,
   connectionStatus,
   balanceCents,
   topBarRight,
@@ -98,7 +104,7 @@ export function useTableViewShellFrame({
     topBarRight,
     opponents,
     opponentStripEmptyState,
-    winnerName: winnerBanner?.winnerName,
+    winnerName: winnerName ?? undefined,
     onPlayerPress,
     onSeatBounds,
     maxSeats: table?.maxSeats ?? 6,

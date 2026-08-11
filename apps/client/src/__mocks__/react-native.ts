@@ -132,6 +132,28 @@ function animatedStub() {
   };
 }
 
+/** Curve math doesn't matter under test (no real frames render) — only that these are callable
+ *  and compose, matching real react-native's Easing module shape closely enough that any table
+ *  FX module importing Easing.* doesn't crash a component test that transitively pulls it in. */
+const identityEasing = (t: number) => t;
+export const Easing = {
+  linear: identityEasing,
+  ease: identityEasing,
+  quad: identityEasing,
+  cubic: identityEasing,
+  poly: () => identityEasing,
+  sin: identityEasing,
+  circle: identityEasing,
+  exp: identityEasing,
+  elastic: () => identityEasing,
+  back: () => identityEasing,
+  bounce: identityEasing,
+  bezier: () => identityEasing,
+  in: (fn: (t: number) => number) => fn,
+  out: (fn: (t: number) => number) => fn,
+  inOut: (fn: (t: number) => number) => fn,
+};
+
 export const Animated = {
   Value: AnimatedValue,
   View,
@@ -214,5 +236,6 @@ export default {
   PanResponder,
   useWindowDimensions,
   Animated,
+  Easing,
   Modal,
 };

@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { vi } from "vitest";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import type { Opponent } from "../../opponent-strip";
+import type { Opponent } from "../../table.adapter";
 import { useActiveTableNotification } from "../useActiveTableNotification";
 
 describe("useActiveTableNotification", () => {

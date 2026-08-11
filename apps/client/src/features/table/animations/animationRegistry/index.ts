@@ -37,11 +37,14 @@ import { ALL_IN_TIERS } from "./allIn";
 import { SHOWDOWN_TIERS } from "./showdown";
 import { HAND_START_TIERS } from "./handStart";
 import { getHeroAuraDefinition, HERO_AURA_ALL_IN } from "./heroAura";
-import { getSeatGlowDefinition, SEAT_GLOW_SHOWDOWN } from "./seatGlow";
+import { getSeatGlowDefinition, SEAT_GLOW_SHOWDOWN, SEAT_GLOW_WINNER_REVEAL } from "./seatGlow";
 
 // Constants
-/** Event-grouped registry. Tiers 0–4 per event. Resolver uses fallback to closest lower tier. */
-export const TABLE_ANIMATIONS: Record<TableAnimationEvent, TableAnimationDefinition[]> = {
+/** Event-grouped registry. Tiers 0–4 per event. Resolver uses fallback to closest lower tier.
+ *  Partial on purpose: WINNER_REVEAL has no entry here — it's SEAT-channel-only (see
+ *  getSeatGlowDefinition), so resolveAnimation("WINNER_REVEAL", ...) correctly returns undefined
+ *  and its requests never touch (or blank out) the TABLE channel. */
+export const TABLE_ANIMATIONS: Partial<Record<TableAnimationEvent, TableAnimationDefinition[]>> = {
   POT_WIN: POT_WIN_TIERS,
   ALL_IN: ALL_IN_TIERS,
   SHOWDOWN: SHOWDOWN_TIERS,
@@ -57,12 +60,12 @@ function getAllDefinitions(): TableAnimationDefinition[] {
 }
 
 function buildTierIndex(
-  tableAnimations: Record<TableAnimationEvent, TableAnimationDefinition[]>
+  tableAnimations: Partial<Record<TableAnimationEvent, TableAnimationDefinition[]>>
 ): Map<TableAnimationEvent, Map<number, TableAnimationDefinition>> {
   const out = new Map<TableAnimationEvent, Map<number, TableAnimationDefinition>>();
   for (const event of Object.keys(tableAnimations) as TableAnimationEvent[]) {
     const tierMap = new Map<number, TableAnimationDefinition>();
-    for (const d of tableAnimations[event]) tierMap.set(d.tier, d);
+    for (const d of tableAnimations[event] ?? []) tierMap.set(d.tier, d);
     out.set(event, tierMap);
   }
   return out;
@@ -98,9 +101,9 @@ const BY_EVENT_TIER = buildTierIndex(TABLE_ANIMATIONS);
 const PRELOAD_SOURCES = buildPreloadSources(ALL_DEFINITIONS);
 
 validateDefinitions(ALL_DEFINITIONS);
-validateCompanionDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN]);
+validateCompanionDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN, SEAT_GLOW_WINNER_REVEAL]);
 freezeDefinitions(ALL_DEFINITIONS);
-freezeDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN]);
+freezeDefinitions([HERO_AURA_ALL_IN, SEAT_GLOW_SHOWDOWN, SEAT_GLOW_WINNER_REVEAL]);
 
 // Public API
 export function getPreloadSources(): PreloadSource[] {
@@ -159,7 +162,8 @@ function validateDefinitions(definitions: TableAnimationDefinition[]): void {
     const key = `${d.event}:${d.tier}`;
     if (seen.has(key)) throw new Error(`${ERROR_DUPLICATE_DEFINITION}: ${key}`);
     seen.add(key);
-    if (d.layers.length === 0) throw new Error(`Animation ${d.id}: ${ERROR_EMPTY_LAYERS}`);
+    // Zero layers is valid: a signal-only event (e.g. HAND_START) that fires sound/haptic via
+    // its trigger effect but has no visual — not a definitions bug, so not rejected here.
     if (d.durationMs <= 0) throw new Error(`Animation ${d.id}: ${ERROR_DURATION_POSITIVE}`);
     if (d.durationMs < 150 || d.durationMs > 4000) {
       if (typeof __DEV__ !== "undefined" && __DEV__) {

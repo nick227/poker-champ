@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
-import { type Opponent } from "../opponent-strip";
+import { type Opponent } from "../table.adapter";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { Button } from "@/components/base/Button";
@@ -108,7 +108,7 @@ export function ActiveTableView({
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot,
     sceneModel,
-    winnerBanner: handResultMessage,
+    winnerName: handResultMessage?.winnerName,
     connectionStatus,
     balanceCents,
     topBarRight,

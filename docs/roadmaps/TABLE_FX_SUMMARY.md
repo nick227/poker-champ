@@ -90,13 +90,18 @@ apps/client/src/features/table/animations/
 
 ### Trigger matrix
 
-| Event   | Trigger (current)                    | Payload used              | Companions / notes                          |
-|---------|--------------------------------------|---------------------------|---------------------------------------------|
-| POT_WIN | Hand result (useTablePageController) | headline, amountCents, potCents | —                                       |
-| ALL_IN  | lastAction === ALL_IN                | headline, amountCents, potCents | HERO when `payload.isHero` and tier ≥ 3 |
-| SHOWDOWN| Not triggered (no effect in controller) | —                    | SEAT when `payload.anchorSeat` set          |
+| Event      | Trigger (current)                                                       | Payload used                     | Companions / notes                     |
+|------------|--------------------------------------------------------------------------|-----------------------------------|-----------------------------------------|
+| HAND_START | `handId` transitions to a new non-null value (`handStartTrigger.ts`)     | — (tier 0 only)                   | —                                       |
+| SHOWDOWN   | `resolveShowdownAnimationDecision` (`animationTriggers.ts`) — hero reached showdown, win or lose | headline, potCents, isHero, anchorSeat | SEAT when `payload.anchorSeat` set |
+| POT_WIN    | `resolvePotWinAnimationDecision` (`animationTriggers.ts`) — hero-only, delayed after a SHOWDOWN reveal via `computePotWinDispatchDelayMs` | headline, amountCents, potCents, isHero, winnerSeat | — |
+| ALL_IN     | `resolveAllInAnimationDecision` (`animationTriggers.ts`) — lastAction === ALL_IN, hero-only | headline, amountCents, potCents, isHero, anchorSeat | HERO when `payload.isHero` and tier ≥ 3 |
+
+All four trigger *decisions* are pure functions in `animations/animationTriggers.ts` (SHOWDOWN/POT_WIN/ALL_IN) or `animations/handStartTrigger.ts` (HAND_START) — `useTablePageController.tsx`'s effects only call the resolver, dedupe on the returned key, and dispatch; no tier/payload logic lives inline in the controller.
 
 **Companions:** Hero aura runs on HERO channel when ALL_IN request has `payload.isHero === true`. Seat glow runs on SEAT channel when SHOWDOWN request has `payload.anchorSeat`. Both require the host to pass `anchorBounds` for positioned rendering.
+
+**Outside the registry (by design, not scatter):** the winning seat also gets a lightweight pulse directly on its own tile (`WinningSeatPulse.tsx`, used by `OpponentStripItemView`/`HeroZone`) — this fires for *any* winner, hero or opponent, unlike the hero-voiced POT_WIN celebration above. It reuses the same `AnimationLayerSeatGlow` primitive and `POT_WIN` theme color rather than a separate implementation, but is dispatched locally (per-tile `isWinner` prop), not through `TableAnimationRequest`, since it isn't gated by tier/anchor bounds. The tournament champion/ITM reveal (`TournamentInTheMoneyReveal.tsx`) is a full-screen `Modal`, a different UI surface than the table overlay; it has its own small entrance/glow hooks and confetti-rain ambience (`TournamentConfettiRain.tsx`) but already emits sound/haptics through the same `emitSoundEvent`/`emitHapticEvent` functions as everything else — not a duplicate emission path, just a distinct visual surface with no anchor-bounds equivalent to route through.
 
 ---
 

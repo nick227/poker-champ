@@ -1279,15 +1279,27 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   /**
-   * Called remotely when the user is joining another table. Removes the user from this room
-   * (cash out, leave) and closes their connection with LEAVE_CODE_SESSION_REPLACED so they do not reconnect.
+   * Called remotely when the user is joining another table. A human may be seated at several
+   * tables at once (separate tabs, or switching through the lobby), but only ever actively plays
+   * one at a time. So this sits the player out here (seat + stack preserved, same as any other
+   * sit-out) rather than cashing them out, and closes their connection with
+   * LEAVE_CODE_SESSION_REPLACED so they do not reconnect to this table's session. They fall under
+   * the normal sit-out/turn-timeout/abandoned-seat-purge rules from here if they never return.
    */
   async requestUserLeaveBecauseJoiningAnotherTable(userId: string): Promise<void> {
     if (!this.dealer.hasPlayer(userId)) return;
     const client = this.getBoundClient(userId);
-    await this.dealer.handleConsentedLeave(userId);
+    await this.dealer.setPlayerSittingOut(userId, true);
     this.dealer.unbindClient(userId);
     this.removeTablePresence(userId);
+    if (this.persistentSeatsEnabled) {
+      await TableSeatSessionService.markSittingOut({
+        tableId: this.state.tableId,
+        userId,
+        stackCentsSnapshot: this.getPlayerStackCents(userId),
+        handIdSnapshot: this.state.handId || undefined,
+      });
+    }
     if (client) {
       if (this.controller) {
         this.controller.session.deleteSession(client.sessionId);
@@ -1304,6 +1316,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       } catch (err) {
         void err;
       }
+    } else {
+      this.updateMetadataCounts();
     }
   }
 

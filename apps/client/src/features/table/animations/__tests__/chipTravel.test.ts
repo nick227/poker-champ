@@ -19,47 +19,32 @@ describe("chipTravel", () => {
   describe("buildChipTravelPlan", () => {
     it("returns undefined when either endpoint is missing", () => {
       expect(
-        buildChipTravelPlan({ id: "a", kind: "BET_TO_POT", from: undefined, to: boardRect, amountCents: 500 }),
+        buildChipTravelPlan({ id: "a", from: undefined, to: boardRect, amountCents: 500 }),
       ).toBeUndefined();
       expect(
-        buildChipTravelPlan({ id: "a", kind: "BET_TO_POT", from: heroRect, to: undefined, amountCents: 500 }),
+        buildChipTravelPlan({ id: "a", from: heroRect, to: undefined, amountCents: 500 }),
       ).toBeUndefined();
     });
 
     it("returns undefined when a rect hasn't actually been measured (zero size)", () => {
       const unmeasured: Rect = { x: 0, y: 0, width: 0, height: 0 };
       expect(
-        buildChipTravelPlan({ id: "a", kind: "BET_TO_POT", from: unmeasured, to: boardRect, amountCents: 500 }),
+        buildChipTravelPlan({ id: "a", from: unmeasured, to: boardRect, amountCents: 500 }),
       ).toBeUndefined();
     });
 
     it("builds a plan with correct from/to coordinates when both endpoints are measured", () => {
       const plan = buildChipTravelPlan({
-        id: "bet-1",
-        kind: "BET_TO_POT",
-        from: heroRect,
-        to: boardRect,
-        amountCents: 500,
-      });
-      expect(plan).toBeDefined();
-      expect(plan?.id).toBe("bet-1");
-      expect(plan?.kind).toBe("BET_TO_POT");
-      expect(plan?.from).toEqual(heroRect);
-      expect(plan?.to).toEqual(boardRect);
-      expect(plan?.amountCents).toBe(500);
-    });
-
-    it("preserves kind and endpoints for the reverse (pot → winner) direction", () => {
-      const plan = buildChipTravelPlan({
         id: "payout-1",
-        kind: "POT_TO_WINNER",
         from: boardRect,
         to: heroRect,
         amountCents: 2500,
       });
-      expect(plan?.kind).toBe("POT_TO_WINNER");
+      expect(plan).toBeDefined();
+      expect(plan?.id).toBe("payout-1");
       expect(plan?.from).toEqual(boardRect);
       expect(plan?.to).toEqual(heroRect);
+      expect(plan?.amountCents).toBe(2500);
     });
   });
 

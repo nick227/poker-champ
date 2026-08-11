@@ -8,9 +8,15 @@ import { LobbyLessonNudge } from "@/features/lobby/components/lobby/LobbyLessonN
 import { LobbyScreenModals } from "@/features/lobby/components/lobby/LobbyScreenModals";
 import { LobbyTournamentPrimary } from "@/features/lobby/components/lobby/LobbyTournamentPrimary";
 import { useLobbyScreenModel } from "@/features/lobby/hooks/useLobbyScreenModel";
+import { usePageBoot } from "@/hooks/usePageBoot";
+import { useAuthStore } from "@/stores/auth.store";
 
 export default function LobbyScreen() {
   const m = useLobbyScreenModel();
+  const authHydrated = useAuthStore((s) => s.hydrated);
+  const ready = usePageBoot(authHydrated && !m.busy && !m.tournamentsBusy, {
+    busy: m.busy || m.tournamentsBusy,
+  });
 
   const lessonNudge = m.showFromLessonNudge ? (
     <LobbyLessonNudge
@@ -119,7 +125,7 @@ export default function LobbyScreen() {
 
   if (m.isDesktopWorkspace) {
     return (
-      <Screen>
+      <Screen ready={ready}>
         <View className="flex-1 min-h-0">
           {lessonNudge}
           {actionRow}
@@ -136,7 +142,7 @@ export default function LobbyScreen() {
   }
 
   return (
-    <Screen>
+    <Screen ready={ready}>
       {lessonNudge ? <View className="mx-4 mt-2">{lessonNudge}</View> : null}
       <ScrollView className="flex-1">
         <LobbyActionRow

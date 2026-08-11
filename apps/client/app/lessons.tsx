@@ -11,10 +11,12 @@ import {
   StatusBanners,
 } from "@/features/lessons/lessons.components";
 import { useLessonsPageViewModel } from "@/features/lessons/useLessonsPageViewModel";
+import { usePageBoot } from "@/hooks/usePageBoot";
 
 export default function LessonsScreen() {
   const router = useRouter();
   const vm = useLessonsPageViewModel();
+  const ready = usePageBoot(!vm.loadingCatalog, { busy: vm.loadingCatalog });
 
   const openLesson = useCallback(
     (lessonId: string, enabled: boolean) => {
@@ -39,7 +41,7 @@ export default function LessonsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen ready={ready}>
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 28 }} showsVerticalScrollIndicator>
         <LessonsHeroCard vm={vm} onOpenLesson={openLesson} />
 

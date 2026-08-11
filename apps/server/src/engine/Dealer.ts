@@ -2832,6 +2832,10 @@ export class Dealer {
 
       if (player.status !== "OUT") {
         player.status = "ABANDONED";
+        // ABANDONED is excluded from eligibleForShowdown, so if this player held the current
+        // high bet, roundCurrentBetCents must be resynced to the remaining ACTIVE/ALL_IN players'
+        // max (same treatment a fold gets) or the state invariant check breaks on next assert.
+        syncRoundCurrentBetCents(this.state);
       }
 
       if (this.state.street === "WAITING") {

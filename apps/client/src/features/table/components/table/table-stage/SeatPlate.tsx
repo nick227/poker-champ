@@ -8,6 +8,7 @@ import { BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
 import { SeatHoleCards } from "./SeatHoleCards";
 import { SeatTurnAura } from "./SeatTurnAura";
 import { isBannerStatus } from "./SeatStatusBanner";
+import { WinningSeatPulse } from "@/features/table/animations/WinningSeatPulse";
 import type { SeatPlateCards } from "./seatPlate.types";
 
 export type { SeatPlateCards };
@@ -35,6 +36,8 @@ export type SeatPlateProps = {
   turnCountdownSeconds?: number | null;
   /** Rendered on the felt by TableStage — kept for API compat. */
   betDisplay?: string | null;
+  /** This seat just won the pot — pulses WinningSeatPulse over the whole pod. */
+  isWinner?: boolean;
 };
 
 const PRESSABLE_RESET: ViewStyle = {
@@ -76,6 +79,7 @@ export function SeatPlate({
   nameplateH = 48,
   turnProgress = null,
   turnCountdownSeconds = null,
+  isWinner = false,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const compact = width < 120;
@@ -104,6 +108,11 @@ export function SeatPlate({
         overflow: "visible",
       }}
     >
+      {isWinner ? (
+        <View pointerEvents="none" style={{ position: "absolute", top: cardPeek, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
+          <WinningSeatPulse borderRadius={compact ? 8 : 10} />
+        </View>
+      ) : null}
       <View
         style={{
           marginTop: cardPeek,
@@ -245,6 +254,7 @@ export function opponentToSeatPlateProps(
     cards: opponent.cards,
     cardFacePackId,
     betDisplay: opts?.betDisplay ?? null,
+    isWinner: opts?.isWinner ?? false,
     turnProgress: opts?.turnProgress ?? null,
     turnCountdownSeconds: opts?.turnCountdownSeconds ?? null,
   };

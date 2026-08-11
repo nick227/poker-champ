@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, Platform, View } from "react-native";
+import { EASING_SCALE } from "./animationEasing";
 
+/**
+ * Continuous confetti-fall ambience for the tournament champion/ITM reveal (a full-screen
+ * Modal, not the table overlay). Distinct in kind from AnimationLayerParticles — that layer is
+ * a one-shot burst radiating out from a point (POT_WIN/ALL_IN accents); this is a sustained,
+ * full-width "it's raining confetti" atmosphere that loops for as long as the reveal is shown.
+ * Forcing this into the burst primitive would be a visual regression, not a cleanup — kept as
+ * its own component, but moved into animations/ and put on the same easing system as everything
+ * else here instead of a one-off, easing-free Animated.timing.
+ */
 const PARTICLE_COUNT = 28;
 const COLORS = ["#f5d76e", "#d4a84b", "#fff4c2", "#e8b923", "#ff6b35", "#c9a227"];
 
@@ -20,7 +30,7 @@ function buildParticles(): ParticleSpec[] {
   }));
 }
 
-export function TournamentConfettiBurst({ active }: { active: boolean }) {
+export function TournamentConfettiRain({ active }: { active: boolean }) {
   const particles = useMemo(() => buildParticles(), []);
   const anims = useRef(particles.map(() => new Animated.Value(0))).current;
 
@@ -35,8 +45,13 @@ export function TournamentConfettiBurst({ active }: { active: boolean }) {
             toValue: 1,
             duration: 2200 + (i % 5) * 200,
             useNativeDriver: Platform.OS !== "web",
+            easing: EASING_SCALE,
           }),
-          Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: Platform.OS !== "web" }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: Platform.OS !== "web",
+          }),
         ]),
       );
     });
