@@ -81,6 +81,7 @@ export type TablePageController = {
   uiState: {
     activeTablesDropdownVisible: boolean;
     themePickerVisible: boolean;
+    handHistoryVisible: boolean;
     rebuySheetVisible: boolean;
     botPickerVisible: boolean;
     botPickerLoading: boolean;
@@ -98,6 +99,8 @@ export type TablePageController = {
     closeActiveTablesDropdown: () => void;
     openThemePicker: () => void;
     closeThemePicker: () => void;
+    openHandHistory: () => void;
+    closeHandHistory: () => void;
     closeBotPicker: () => void;
     openRebuySheet: () => void;
     closeRebuySheet: () => void;

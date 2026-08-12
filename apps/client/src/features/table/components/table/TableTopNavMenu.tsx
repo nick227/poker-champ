@@ -9,6 +9,7 @@ export type TableTopNavMenuProps = {
   chatBadge?: number;
   voiceEnabled: boolean;
   onOpenTheme: () => void;
+  onOpenHandHistory: () => void;
   onToggleVoice: () => void;
   onOpenChat: () => void;
   onAddBot: () => void;
@@ -25,6 +26,7 @@ export function TableTopNavMenu({
   chatBadge,
   voiceEnabled,
   onOpenTheme,
+  onOpenHandHistory,
   onToggleVoice,
   onOpenChat,
   onAddBot,
@@ -114,6 +116,15 @@ export function TableTopNavMenu({
                 <Button
                   title="Theme"
                   onPress={() => runAndClose(onOpenTheme)}
+                  intent="neutral"
+                  shape="row"
+                  size="md"
+                />
+              </View>
+              <View className="mb-1">
+                <Button
+                  title="View hand history"
+                  onPress={() => runAndClose(onOpenHandHistory)}
                   intent="neutral"
                   shape="row"
                   size="md"

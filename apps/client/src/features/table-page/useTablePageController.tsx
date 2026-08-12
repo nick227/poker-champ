@@ -193,6 +193,7 @@ export function useTablePageController({
   const [playerPopup, setPlayerPopup] = useState<{ name: string } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [themePickerVisible, setThemePickerVisible] = useState(false);
+  const [handHistoryVisible, setHandHistoryVisible] = useState(false);
   const [voiceRoom, setVoiceRoom] = useState<TableRealtimeRoom | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [voiceMuted, setVoiceMuted] = useState(false);
@@ -1048,6 +1049,7 @@ export function useTablePageController({
         chatBadge={chatOverlay.unseenCount || undefined}
         voiceEnabled={voiceEnabled}
         onOpenTheme={() => setThemePickerVisible(true)}
+        onOpenHandHistory={() => setHandHistoryVisible(true)}
         onToggleVoice={handleToggleVoice}
         onOpenChat={openChat}
         onAddBot={handleAddBotPress}
@@ -1173,6 +1175,7 @@ export function useTablePageController({
     uiState: {
       activeTablesDropdownVisible,
       themePickerVisible,
+      handHistoryVisible,
       rebuySheetVisible,
       botPickerVisible,
       botPickerLoading,
@@ -1190,6 +1193,8 @@ export function useTablePageController({
       closeActiveTablesDropdown: () => setActiveTablesDropdownVisible(false),
       openThemePicker: () => setThemePickerVisible(true),
       closeThemePicker: () => setThemePickerVisible(false),
+      openHandHistory: () => setHandHistoryVisible(true),
+      closeHandHistory: () => setHandHistoryVisible(false),
       closeBotPicker,
       openRebuySheet: () => setRebuySheetVisible(true),
       closeRebuySheet: () => setRebuySheetVisible(false),

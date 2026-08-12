@@ -1,6 +1,7 @@
 import { ChooseTableModal, TournamentStandingsModal } from "@/features/lobby";
 import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
+import { HandHistorySheet } from "@/components/domain/history/HandHistorySheet";
 import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
@@ -55,6 +56,7 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
         onSelectTable={actions.selectTableFromDropdown}
       />
       <ThemePickerSheet visible={uiState.themePickerVisible} onClose={actions.closeThemePicker} />
+      <HandHistorySheet visible={uiState.handHistoryVisible} onClose={actions.closeHandHistory} />
       <BotPickerSheet
         visible={uiState.botPickerVisible}
         loading={uiState.botPickerLoading}

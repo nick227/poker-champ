@@ -124,9 +124,9 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
   );
 
   return (
-    <>
+    <View className="flex-1 min-h-0">
       <HistoryTabs activeTab={activeTab} onChange={setActiveTab} />
-      <View className="history-section">
+      <View className="flex-1 min-h-0">
         {activeTab === "overview" && <HistoryOverviewTab overview={overview} />}
         {activeTab === "hands" && (
           <HandList
@@ -147,6 +147,6 @@ export function HandHistorySection({ currentUserId }: HandHistorySectionProps) {
         currentUserId={currentUserId}
         onReplayPress={openReplay}
       />
-    </>
+    </View>
   );
 }
