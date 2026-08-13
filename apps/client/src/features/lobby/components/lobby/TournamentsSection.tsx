@@ -1,6 +1,5 @@
 import { View } from "react-native";
 import { useNowMs } from "@/hooks/useNowMs";
-import { sliceLobbyPreview } from "../../lobbyPreview";
 import { buildLobbyTournamentRows } from "../../lobbyTournamentRows";
 import type { LobbySortDir } from "../../lobbyTableSort";
 import { sortTournamentLobbyRows, type TournamentSortKey } from "../../tournamentLobbySort";
@@ -23,7 +22,6 @@ type TournamentsSectionProps = {
   dense?: boolean;
   compact?: boolean;
   embedded?: boolean;
-  previewLimit?: number;
   sortKey?: TournamentSortKey;
   sortDir?: LobbySortDir;
   onSort?: (key: TournamentSortKey) => void;
@@ -44,7 +42,6 @@ export function TournamentsSection({
   dense = false,
   compact = false,
   embedded = false,
-  previewLimit,
   sortKey = "startTime",
   sortDir = "asc",
   onSort,
@@ -52,11 +49,7 @@ export function TournamentsSection({
   const nowMs = useNowMs();
   const rows = buildLobbyTournamentRows(tournaments, authenticated);
   const browse = sortTournamentLobbyRows(rows.browse, sortKey, sortDir, nowMs);
-  const sliced =
-    previewLimit != null
-      ? sliceLobbyPreview(rows.pinned, browse, previewLimit)
-      : { pinned: rows.pinned, rest: browse };
-  const hasRows = sliced.pinned.length > 0 || sliced.rest.length > 0;
+  const hasRows = rows.pinned.length > 0 || browse.length > 0;
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Create one or check back soon."
     : "No tournaments scheduled yet. Log in to register when events are posted.";
@@ -74,8 +67,8 @@ export function TournamentsSection({
       />
       {!error && hasRows ? (
         <TournamentLobbyList
-          pinnedTournaments={sliced.pinned}
-          tournaments={sliced.rest}
+          pinnedTournaments={rows.pinned}
+          tournaments={browse}
           nowMs={nowMs}
           authenticated={authenticated}
           actionInFlight={actionInFlight}

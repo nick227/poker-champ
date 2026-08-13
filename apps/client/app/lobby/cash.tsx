@@ -1,3 +1,5 @@
-import { LobbyCashBrowseScreen } from "@/features/lobby/screens/LobbyCashBrowseScreen";
+import { Redirect } from "expo-router";
 
-export default LobbyCashBrowseScreen;
+export default function LobbyCashRedirect() {
+  return <Redirect href="/lobby" />;
+}

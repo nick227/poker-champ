@@ -220,7 +220,7 @@ export function useLobbyScreenModel() {
     showFromLessonNudge,
     playFromLesson: () => {
       setFromLessonDismissed(true);
-      router.push("/lobby/cash");
+      router.push("/lobby");
     },
     dismissLessonNudge: () => setFromLessonDismissed(true),
     openCreateTable,

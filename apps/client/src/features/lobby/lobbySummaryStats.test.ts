@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { computeCashLobbyStats, computeTournamentLobbyStats } from "./lobbySummaryStats";
-import { sliceLobbyPreview } from "./lobbyPreview";
 
 function table(partial: Partial<LobbyTableRow> & Pick<LobbyTableRow, "id">): LobbyTableRow {
   return {
@@ -40,15 +39,5 @@ describe("computeTournamentLobbyStats", () => {
       { status: "REGISTERING", registeredCount: 10 } as TournamentSummary,
     ]);
     expect(stats).toEqual({ upcomingEvents: 2, playersRegistered: 68 });
-  });
-});
-
-describe("sliceLobbyPreview", () => {
-  it("counts pinned rows toward the limit", () => {
-    const out = sliceLobbyPreview(["p1", "p2"], ["a", "b", "c", "d"], 5);
-    expect(out.pinned).toEqual(["p1", "p2"]);
-    expect(out.rest).toEqual(["a", "b", "c"]);
-    expect(out.hasMore).toBe(true);
-    expect(out.total).toBe(6);
   });
 });

@@ -7,7 +7,6 @@ import { LobbySectionFrame } from "../components/lobby/LobbySectionFrame";
 import { LobbySummaryCards } from "../components/lobby/LobbySummaryCards";
 import { LobbyTournamentPrimary } from "../components/lobby/LobbyTournamentPrimary";
 import { useLobbyScreenModel } from "../hooks/useLobbyScreenModel";
-import { LOBBY_HOME_PREVIEW_COUNT, sliceLobbyPreview } from "../lobbyPreview";
 import { computeCashLobbyStats, computeTournamentLobbyStats } from "../lobbySummaryStats";
 import { usePageBoot } from "@/hooks/usePageBoot";
 import { useAuthStore } from "@/stores/auth.store";
@@ -20,7 +19,6 @@ export function LobbyHomeScreen() {
   });
   const padded = !m.isDesktopWorkspace;
   const compact = !m.isDesktopWorkspace;
-  const cashPreview = sliceLobbyPreview(m.pinnedCashTables, m.sortedTables, LOBBY_HOME_PREVIEW_COUNT);
   const cashStats = computeCashLobbyStats([...m.pinnedCashTables, ...m.sortedTables]);
   const tourneyStats = computeTournamentLobbyStats(m.tournaments);
 
@@ -41,17 +39,12 @@ export function LobbyHomeScreen() {
           compact={compact}
         />
         <View className="mt-4">
-          <LobbySectionFrame
-            title="Cash games"
-            accent="brand"
-            viewAllLabel="View all cash games"
-            onViewAll={() => m.router.push("/lobby/cash")}
-          >
+          <LobbySectionFrame title="Cash games" accent="brand">
             <LobbyCashListStage
               busy={m.busy}
               error={m.error}
-              tables={cashPreview.rest}
-              pinnedTables={cashPreview.pinned}
+              tables={m.sortedTables}
+              pinnedTables={m.pinnedCashTables}
               sortKey={m.sortKey}
               sortDir={m.sortDir}
               onSort={m.handleSort}
@@ -70,12 +63,7 @@ export function LobbyHomeScreen() {
           </LobbySectionFrame>
         </View>
         <View className="mt-4">
-          <LobbySectionFrame
-            title="Tournaments"
-            accent="gold"
-            viewAllLabel="View all tournaments"
-            onViewAll={() => m.router.push("/lobby/tournaments")}
-          >
+          <LobbySectionFrame title="Tournaments" accent="gold">
             <LobbyTournamentPrimary
               tournaments={m.tournaments}
               busy={m.tournamentsBusy}
@@ -93,7 +81,6 @@ export function LobbyHomeScreen() {
               dense
               compact={compact}
               embedded
-              previewLimit={LOBBY_HOME_PREVIEW_COUNT}
               sortKey={m.tournamentSortKey}
               sortDir={m.tournamentSortDir}
               onSort={m.handleTournamentSort}

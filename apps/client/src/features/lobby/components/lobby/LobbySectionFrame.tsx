@@ -1,23 +1,15 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "@/components/base/Text";
 
 type Props = {
   title: string;
   accent: "brand" | "gold";
-  viewAllLabel?: string;
-  onViewAll?: () => void;
   children: ReactNode;
 };
 
-export function LobbySectionFrame({
-  title,
-  accent,
-  viewAllLabel,
-  onViewAll,
-  children,
-}: Props) {
+export function LobbySectionFrame({ title, accent, children }: Props) {
   const gold = accent === "gold";
   const iconColor = gold ? "hsl(42 82% 50%)" : "hsl(158 52% 42%)";
   return (
@@ -29,17 +21,6 @@ export function LobbySectionFrame({
         </Text>
       </View>
       {children}
-      {onViewAll && viewAllLabel ? (
-        <Pressable
-          onPress={onViewAll}
-          className="ui-center py-2 border-t border-border/40 hover:bg-panel-elevated/40"
-          accessibilityRole="link"
-        >
-          <Text variant="muted" className="text-[12px]">
-            {viewAllLabel} {'>'}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }

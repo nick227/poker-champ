@@ -1,3 +1,5 @@
-import { LobbyTournamentsBrowseScreen } from "@/features/lobby/screens/LobbyTournamentsBrowseScreen";
+import { Redirect } from "expo-router";
 
-export default LobbyTournamentsBrowseScreen;
+export default function LobbyTournamentsRedirect() {
+  return <Redirect href="/lobby" />;
+}
