@@ -1,9 +1,6 @@
-export { type LobbyTabKey, type LobbyContentMode } from "./lobbyContentMode";
-export { LobbyActionRow } from "./components/lobby/LobbyActionRow";
 export { OnlinePlayersSheet } from "./components/lobby/OnlinePlayersSheet";
 export { ReplayQuickLinks } from "./components/lobby/ReplayQuickLinks";
 export { GameTablePanelSkeleton } from "./components/lobby/GameTablePanelSkeleton";
-export { LobbyDesktopToolbar } from "./components/lobby/LobbyDesktopToolbar";
 export { LobbyTableList } from "./components/lobby/LobbyTableList";
 export { EmptyState } from "./components/lobby/EmptyState";
 export { LobbyCashListStage } from "./components/lobby/LobbyCashListStage";
@@ -18,5 +15,9 @@ export { TournamentCreateModal } from "./components/lobby/TournamentCreateModal"
 export { TournamentJoinModal } from "./components/lobby/TournamentJoinModal";
 export { TournamentRegisterModal } from "./components/lobby/TournamentRegisterModal";
 export { TournamentStandingsModal } from "./components/lobby/TournamentStandingsModal";
+export { LobbyPageHeader } from "./components/lobby/LobbyPageHeader";
+export { LobbySummaryCards } from "./components/lobby/LobbySummaryCards";
+export { LobbySectionFrame } from "./components/lobby/LobbySectionFrame";
+export { LobbyPageShell } from "./components/lobby/LobbyPageShell";
 export * from "./components/lobby/createGame.constants";
 export * from "./components/lobby/instantGame.presets";

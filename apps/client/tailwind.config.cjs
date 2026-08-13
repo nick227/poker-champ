@@ -83,6 +83,9 @@ module.exports = {
         xl: "var(--s-xl)",
         "2xl": "var(--s-2xl)",
       },
+      fontFamily: {
+        display: ["Fraunces", "Georgia", "serif"],
+      },
       borderRadius: {
         0: "var(--r-0)",
         1: "var(--r-1)",

@@ -2,17 +2,12 @@ import { EmptyState } from "./EmptyState";
 import { LobbyTableList, type LobbySortDir } from "./LobbyTableList";
 import type { LobbySortKey } from "../../lobbyTableSort";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
-import {
-  hasActiveLobbyFilters,
-  type LobbyTableFilters,
-} from "../../lobbyTableFilters";
 
 type Props = {
   busy: boolean;
   error: string | null;
   tables: LobbyTableRow[];
   pinnedTables?: LobbyTableRow[];
-  filters: LobbyTableFilters;
   sortKey: LobbySortKey;
   sortDir: LobbySortDir;
   onSort: (key: LobbySortKey) => void;
@@ -21,18 +16,16 @@ type Props = {
   onResume?: (table: LobbyTableRow) => void;
   onRetry: () => void;
   onCreate: () => void;
-  onClearFilters: () => void;
   scrollable?: boolean;
   compact?: boolean;
+  embedded?: boolean;
 };
 
-/** Cash list stage: felt empty/error CTAs or live table browser. */
 export function LobbyCashListStage({
   busy,
   error,
   tables,
   pinnedTables = [],
-  filters,
   sortKey,
   sortDir,
   onSort,
@@ -41,12 +34,12 @@ export function LobbyCashListStage({
   onResume,
   onRetry,
   onCreate,
-  onClearFilters,
   scrollable = true,
   compact = false,
+  embedded = false,
 }: Props) {
   if (busy && pinnedTables.length === 0) {
-    return <EmptyState message="Loading tables…" />;
+    return <EmptyState message="Loading tables…" embedded={embedded} />;
   }
 
   if (error && pinnedTables.length === 0) {
@@ -57,28 +50,18 @@ export function LobbyCashListStage({
         detail="Couldn’t reach the lobby. Retry, or create a table once you’re connected."
         primary={{ title: "Retry", onPress: onRetry, intent: "secondary" }}
         secondary={{ title: "New cash table", onPress: onCreate }}
+        embedded={embedded}
       />
     );
   }
 
   if (tables.length === 0 && pinnedTables.length === 0) {
-    const filtered = hasActiveLobbyFilters(filters);
     return (
       <EmptyState
-        message={filtered ? "No games match your filters." : "No open cash tables right now."}
-        detail={
-          filtered
-            ? "Clear filters to see the full list, or create your own table."
-            : "Create a cash table or start an instant game above."
-        }
-        primary={
-          filtered
-            ? { title: "Clear filters", onPress: onClearFilters, intent: "secondary" }
-            : { title: "New cash table", onPress: onCreate, intent: "accent" }
-        }
-        secondary={
-          filtered ? { title: "New cash table", onPress: onCreate } : undefined
-        }
+        message="No open cash tables right now."
+        detail="Create a cash table to get a game going."
+        primary={{ title: "New cash table", onPress: onCreate, intent: "accent" }}
+        embedded={embedded}
       />
     );
   }
@@ -95,6 +78,7 @@ export function LobbyCashListStage({
       onResume={onResume}
       scrollable={scrollable}
       compact={compact}
+      embedded={embedded}
     />
   );
 }

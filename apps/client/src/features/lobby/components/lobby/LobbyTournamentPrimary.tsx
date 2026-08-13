@@ -15,10 +15,12 @@ type Props = {
   onDeleteTournament?: (tournament: TournamentSummary) => void;
   deleteInFlightId: string | null;
   dense?: boolean;
+  compact?: boolean;
+  embedded?: boolean;
+  previewLimit?: number;
   scrollable?: boolean;
 };
 
-/** Browse tournament lists for lobby primary pane (joined pinned as first rows). */
 export function LobbyTournamentPrimary({
   tournaments,
   busy,
@@ -32,7 +34,10 @@ export function LobbyTournamentPrimary({
   onDeleteTournament,
   deleteInFlightId,
   dense = false,
-  scrollable = true,
+  compact = false,
+  embedded = false,
+  previewLimit,
+  scrollable = false,
 }: Props) {
   const body = (
     <TournamentsSection
@@ -48,21 +53,15 @@ export function LobbyTournamentPrimary({
       onDeleteTournament={onDeleteTournament}
       deleteInFlightId={deleteInFlightId}
       dense={dense}
+      compact={compact}
+      embedded={embedded}
+      previewLimit={previewLimit}
     />
   );
 
-  if (!scrollable) {
-    return <View className="ui-stack-4">{body}</View>;
+  if (scrollable) {
+    return <ScrollView className="flex-1 min-h-0">{body}</ScrollView>;
   }
 
-  return <ScrollView className="flex-1">{body}</ScrollView>;
-}
-
-export function filterTournamentsByQuery(
-  tournaments: TournamentSummary[],
-  query: string,
-): TournamentSummary[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return tournaments;
-  return tournaments.filter((t) => t.name.toLowerCase().includes(q));
+  return <View className={embedded ? "" : "ui-stack-4"}>{body}</View>;
 }

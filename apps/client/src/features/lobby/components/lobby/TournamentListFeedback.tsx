@@ -12,6 +12,7 @@ type TournamentListFeedbackProps = {
   onRetry?: () => void;
   onCreate?: () => void;
   skeletonCount?: number;
+  embedded?: boolean;
 };
 
 export function TournamentListFeedback({
@@ -22,6 +23,7 @@ export function TournamentListFeedback({
   onRetry,
   onCreate,
   skeletonCount = 2,
+  embedded = false,
 }: TournamentListFeedbackProps) {
   if (busy && isEmpty) {
     return (
@@ -41,6 +43,7 @@ export function TournamentListFeedback({
         detail="Couldn’t load tournaments. Retry when you’re back online."
         primary={onRetry ? { title: "Retry", onPress: onRetry, intent: "secondary" } : undefined}
         secondary={onCreate ? { title: "Create tournament", onPress: onCreate } : undefined}
+        embedded={embedded}
       />
     );
   }
@@ -50,6 +53,7 @@ export function TournamentListFeedback({
       <EmptyState
         message={emptyMessage}
         primary={onCreate ? { title: "Create tournament", onPress: onCreate, intent: "accent" } : undefined}
+        embedded={embedded}
       />
     );
   }

@@ -15,6 +15,7 @@ type Props = {
   secondary?: Action;
   /** Loading / neutral copy without danger styling. */
   tone?: "muted" | "danger";
+  embedded?: boolean;
 };
 
 /** Felt-framed stage message with optional directed CTAs. */
@@ -24,9 +25,14 @@ export function EmptyState({
   primary,
   secondary,
   tone = "muted",
+  embedded = false,
 }: Props) {
   return (
-    <View className="lobby-stage flex-1 min-h-[200px] ui-center rounded-2 border px-4 py-10 gap-3">
+    <View
+      className={`flex-1 min-h-[160px] ui-center px-4 py-10 gap-3 ${
+        embedded ? "" : "lobby-stage rounded-2 border"
+      }`}
+    >
       <Text
         variant={tone === "danger" ? "danger" : "muted"}
         className="text-[14px] text-center font-semibold"

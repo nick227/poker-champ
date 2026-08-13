@@ -22,6 +22,8 @@ describe("resolvePrimaryNavActive", () => {
 
   it("maps lobby-adjacent routes to lobby", () => {
     expect(resolvePrimaryNavActive("/lobby")).toBe("lobby");
+    expect(resolvePrimaryNavActive("/lobby/cash")).toBe("lobby");
+    expect(resolvePrimaryNavActive("/lobby/tournaments")).toBe("lobby");
     expect(resolvePrimaryNavActive("/tournaments/1")).toBe("lobby");
     expect(resolvePrimaryNavActive("/blog")).toBe("lobby");
   });

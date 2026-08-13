@@ -46,7 +46,7 @@ const screenByKey: Record<ScreenKey, ScreenDefinition> = {
     title: "Lobby",
     showInBottomBar: true,
     bottomBarLabel: "Lobby",
-    componentPath: "app/lobby.tsx",
+    componentPath: "app/lobby/index.tsx",
     icon: 'home',
   },
   slots: {

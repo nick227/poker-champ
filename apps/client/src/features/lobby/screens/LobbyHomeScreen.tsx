@@ -1,0 +1,112 @@
+import { View } from "react-native";
+import { ReplayQuickLinks } from "../components/lobby/ReplayQuickLinks";
+import { LobbyCashListStage } from "../components/lobby/LobbyCashListStage";
+import { LobbyPageHeader } from "../components/lobby/LobbyPageHeader";
+import { LobbyPageShell } from "../components/lobby/LobbyPageShell";
+import { LobbySectionFrame } from "../components/lobby/LobbySectionFrame";
+import { LobbySummaryCards } from "../components/lobby/LobbySummaryCards";
+import { LobbyTournamentPrimary } from "../components/lobby/LobbyTournamentPrimary";
+import { useLobbyScreenModel } from "../hooks/useLobbyScreenModel";
+import { LOBBY_HOME_PREVIEW_COUNT, sliceLobbyPreview } from "../lobbyPreview";
+import { computeCashLobbyStats, computeTournamentLobbyStats } from "../lobbySummaryStats";
+import { buildLobbyTournamentRows } from "../lobbyTournamentRows";
+import { usePageBoot } from "@/hooks/usePageBoot";
+import { useAuthStore } from "@/stores/auth.store";
+
+export function LobbyHomeScreen() {
+  const m = useLobbyScreenModel();
+  const authHydrated = useAuthStore((s) => s.hydrated);
+  const ready = usePageBoot(authHydrated && !m.busy && !m.tournamentsBusy, {
+    busy: m.busy || m.tournamentsBusy,
+  });
+  const padded = !m.isDesktopWorkspace;
+  const compact = !m.isDesktopWorkspace;
+  const cashPreview = sliceLobbyPreview(m.pinnedCashTables, m.sortedTables, LOBBY_HOME_PREVIEW_COUNT);
+  const tourneyRows = buildLobbyTournamentRows(m.tournaments, m.authenticated);
+  const tourneyPreview = sliceLobbyPreview(
+    tourneyRows.pinned,
+    tourneyRows.browse,
+    LOBBY_HOME_PREVIEW_COUNT,
+  );
+  const cashStats = computeCashLobbyStats([...m.pinnedCashTables, ...m.sortedTables]);
+  const tourneyStats = computeTournamentLobbyStats(m.tournaments);
+
+  return (
+    <LobbyPageShell model={m} ready={ready}>
+      <View className={`pb-6 ${padded ? "px-4" : ""}`}>
+        <LobbyPageHeader
+          title="Lobby"
+          subtitle="Jump into cash games or register for upcoming tournaments."
+          onNewCashTable={m.openCreateTable}
+          onCreateTournament={m.handleCreateTournament}
+        />
+        <LobbySummaryCards
+          tablesLive={cashStats.tablesLive}
+          seatsAvailable={cashStats.seatsAvailable}
+          upcomingEvents={tourneyStats.upcomingEvents}
+          playersRegistered={tourneyStats.playersRegistered}
+          compact={compact}
+        />
+        <View className="mt-5">
+          <LobbySectionFrame
+            title="Cash games"
+            accent="brand"
+            viewAllLabel={cashPreview.hasMore ? "View all cash games" : undefined}
+            onViewAll={cashPreview.hasMore ? () => m.router.push("/lobby/cash") : undefined}
+          >
+            <LobbyCashListStage
+              busy={m.busy}
+              error={m.error}
+              tables={cashPreview.rest}
+              pinnedTables={cashPreview.pinned}
+              sortKey={m.sortKey}
+              sortDir={m.sortDir}
+              onSort={m.handleSort}
+              isJoining={m.isJoining}
+              onJoin={m.openJoinModal}
+              onResume={m.resumeCashTable}
+              onRetry={() => {
+                void m.refresh();
+              }}
+              onCreate={m.openCreateTable}
+              scrollable={false}
+              compact={compact}
+              embedded
+            />
+          </LobbySectionFrame>
+        </View>
+        <View className="mt-5">
+          <LobbySectionFrame
+            title="Tournaments"
+            accent="gold"
+            viewAllLabel={tourneyPreview.hasMore ? "View all tournaments" : undefined}
+            onViewAll={tourneyPreview.hasMore ? () => m.router.push("/lobby/tournaments") : undefined}
+          >
+            <LobbyTournamentPrimary
+              tournaments={m.tournaments}
+              busy={m.tournamentsBusy}
+              error={m.tournamentsError}
+              authenticated={m.authenticated}
+              actionInFlight={m.tournamentActionBusy || m.registerBusy}
+              onTournamentAction={m.handleTournamentAction}
+              onOpenTournamentDetail={m.handleOpenTournamentDetail}
+              onRetry={() => {
+                void m.refreshTournaments();
+              }}
+              onCreate={m.handleCreateTournament}
+              onDeleteTournament={m.authenticated ? m.handleDeleteTournament : undefined}
+              deleteInFlightId={m.tournamentDeleteId}
+              dense
+              compact={compact}
+              embedded
+              previewLimit={LOBBY_HOME_PREVIEW_COUNT}
+            />
+          </LobbySectionFrame>
+        </View>
+        {compact ? (
+          <ReplayQuickLinks lessonsEnabled onPokerSchool={() => m.router.push("/lessons")} />
+        ) : null}
+      </View>
+    </LobbyPageShell>
+  );
+}

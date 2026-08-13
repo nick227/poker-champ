@@ -1,6 +1,6 @@
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 
-export type LobbySortKey = "name" | "players" | "blinds" | "buyIn" | "status";
+export type LobbySortKey = "name" | "players" | "blinds" | "avgPot" | "status";
 
 export const LOBBY_SORT_COMPARATORS: Record<
   LobbySortKey,
@@ -9,23 +9,22 @@ export const LOBBY_SORT_COMPARATORS: Record<
   name: (a, b) => a.name.localeCompare(b.name),
   players: (a, b) => b.players - a.players,
   blinds: (a, b) => a.bigBlindCents - b.bigBlindCents,
-  buyIn: (a, b) => a.minBuyInCents - b.minBuyInCents,
+  avgPot: (a, b) => (b.avgPotCents ?? -1) - (a.avgPotCents ?? -1),
   status: (a, b) => (b.connectedHumanCount ?? 0) - (a.connectedHumanCount ?? 0),
 };
 
 export const LOBBY_SORT_CYCLE: Record<LobbySortKey, LobbySortKey> = {
   name: "players",
   players: "blinds",
-  blinds: "buyIn",
-  buyIn: "status",
+  blinds: "avgPot",
+  avgPot: "status",
   status: "name",
 };
 
-/** Human-readable display names for sort keys shown in the UI. */
 export const LOBBY_SORT_LABELS: Record<LobbySortKey, string> = {
   name: "Table Name",
   players: "Players",
   blinds: "Stakes",
-  buyIn: "Buy-in",
+  avgPot: "Avg Pot",
   status: "Activity",
 };

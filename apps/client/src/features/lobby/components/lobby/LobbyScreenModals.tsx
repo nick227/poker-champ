@@ -1,3 +1,4 @@
+import type { InstantGamePresetId } from "./instantGame.presets";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import type { CreateGameConfig } from "./CreateGameModal";
 import { CreateGameModal } from "./CreateGameModal";
@@ -21,6 +22,8 @@ type Props = {
   createModalVisible: boolean;
   onCloseCreate: () => void;
   onSubmitCreate: (config: CreateGameConfig) => void;
+  onInstantStart?: (presetId: InstantGamePresetId) => void;
+  instantStartInFlight?: InstantGamePresetId | null;
   tournamentCreateVisible: boolean;
   onCloseTournamentCreate: () => void;
   onTournamentCreated: () => void;
@@ -45,6 +48,8 @@ export function LobbyScreenModals({
   createModalVisible,
   onCloseCreate,
   onSubmitCreate,
+  onInstantStart,
+  instantStartInFlight,
   tournamentCreateVisible,
   onCloseTournamentCreate,
   onTournamentCreated,
@@ -69,6 +74,8 @@ export function LobbyScreenModals({
         visible={createModalVisible}
         onClose={onCloseCreate}
         onSubmit={onSubmitCreate}
+        onInstantStart={onInstantStart}
+        instantStartInFlight={instantStartInFlight}
       />
       <TournamentCreateModal
         visible={tournamentCreateVisible}

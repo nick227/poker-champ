@@ -14,6 +14,11 @@ import {
   getDefaultMinBuyInCents,
   getMaxBuyInCents,
 } from "./createGame.constants";
+import {
+  INSTANT_GAME_PRESET_IDS,
+  getInstantGamePreset,
+  type InstantGamePresetId,
+} from "./instantGame.presets";
 
 const DEFAULT_BLINDS_INDEX = 0; // $1 / $2
 
@@ -33,9 +38,17 @@ type CreateGameModalProps = {
   visible: boolean;
   onClose: () => void;
   onSubmit: (config: CreateGameConfig) => void;
+  onInstantStart?: (presetId: InstantGamePresetId) => void;
+  instantStartInFlight?: InstantGamePresetId | null;
 };
 
-export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalProps) {
+export function CreateGameModal({
+  visible,
+  onClose,
+  onSubmit,
+  onInstantStart,
+  instantStartInFlight = null,
+}: CreateGameModalProps) {
   const [name, setName] = useState(getRandomTableName());
   const [blindsIndex, setBlindsIndex] = useState(DEFAULT_BLINDS_INDEX);
   const [seats, setSeats] = useState<3 | 6 | 9 | 18>(6);
@@ -87,6 +100,29 @@ export function CreateGameModal({ visible, onClose, onSubmit }: CreateGameModalP
     <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame} heightFraction={0.99}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
       <View className="">
+        {onInstantStart ? (
+          <View>
+            <Text variant="label">Instant start</Text>
+            <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
+              {INSTANT_GAME_PRESET_IDS.map((presetId) => {
+                const preset = getInstantGamePreset(presetId);
+                const starting = instantStartInFlight === presetId;
+                return (
+                  <ChipButton
+                    key={presetId}
+                    title={starting ? "…" : preset.cta}
+                    selected={starting}
+                    disabled={Boolean(instantStartInFlight)}
+                    onPress={() => {
+                      onInstantStart(presetId);
+                      onClose();
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
         <Input className="mb-8" label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
         <View>

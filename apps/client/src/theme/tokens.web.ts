@@ -238,6 +238,10 @@ html, body {
   background-color: transparent;
 }
 
+.font-display {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+}
+
 .bottom-sheet {
   max-width: 100% !important;
   width: 640px !important;

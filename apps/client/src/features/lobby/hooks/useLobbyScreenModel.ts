@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { LobbyContentMode } from "@/features/lobby/lobbyContentMode";
 import type { LobbySortDir } from "@/features/lobby/components/lobby/LobbyTableList";
-import { filterTournamentsByQuery } from "@/features/lobby/components/lobby/LobbyTournamentPrimary";
 import { useLobbyCashActions } from "@/features/lobby/hooks/useLobbyCashActions";
 import { useLobbyScreenEffects } from "@/features/lobby/hooks/useLobbyScreenEffects";
 import { useLobbyTournamentActions } from "@/features/lobby/hooks/useLobbyTournamentActions";
@@ -14,25 +12,16 @@ import {
   LOBBY_SORT_COMPARATORS,
   type LobbySortKey,
 } from "@/features/lobby/lobbyTableSort";
-import {
-  applyLobbyFilters,
-  DEFAULT_LOBBY_FILTERS,
-  loadLobbyFilters,
-  saveLobbyFilters,
-  type LobbyTableFilters,
-} from "@/features/lobby/lobbyTableFilters";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { useProfile } from "@/hooks/useProfile";
 import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
 import { tablePath } from "@/lib/nav";
-import { selectJoinedTournaments } from "@/lib/tournament.utils";
 import { storeRegistry } from "@/registry/store.registry";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { useAuthStore } from "@/stores/auth.store";
 import { useToastStore } from "@/stores/toast.store";
 
-/** Composes lobby data, cash actions, and tournament actions for the screen. */
 export function useLobbyScreenModel() {
   const router = useRouter();
   const authToken = useAuthStore((s) => s.token);
@@ -42,12 +31,7 @@ export function useLobbyScreenModel() {
   const [fromLessonDismissed, setFromLessonDismissed] = useState(false);
   const showFromLessonNudge = Boolean(fromLesson && !fromLessonDismissed);
 
-  const {
-    tables,
-    refresh,
-    busy,
-    error,
-  } = storeRegistry.use.lobby();
+  const { tables, refresh, busy, error } = storeRegistry.use.lobby();
   const {
     tournaments: tournamentList,
     busy: tournamentsBusy,
@@ -69,8 +53,6 @@ export function useLobbyScreenModel() {
 
   const [sortKey, setSortKey] = useState<LobbySortKey>("name");
   const [sortDir, setSortDir] = useState<LobbySortDir>("asc");
-  const [filters, setFilters] = useState<LobbyTableFilters>(() => loadLobbyFilters());
-  const [contentMode, setContentMode] = useState<LobbyContentMode>("all");
 
   const cash = useLobbyCashActions({
     authToken,
@@ -152,19 +134,11 @@ export function useLobbyScreenModel() {
   );
 
   const sortedTables = useMemo(() => {
-    const filtered = applyLobbyFilters(
-      excludePinnedLobbyTables(lobbyTableRows, pinnedCashIds),
-      filters,
-    );
+    const browse = excludePinnedLobbyTables(lobbyTableRows, pinnedCashIds);
     const cmp = LOBBY_SORT_COMPARATORS[sortKey];
-    const sorted = [...filtered].sort(cmp);
+    const sorted = [...browse].sort(cmp);
     return sortDir === "asc" ? sorted : sorted.reverse();
-  }, [lobbyTableRows, pinnedCashIds, sortKey, sortDir, filters]);
-
-  const filteredTournaments = useMemo(
-    () => filterTournamentsByQuery(tournamentList, filters.query),
-    [tournamentList, filters.query],
-  );
+  }, [lobbyTableRows, pinnedCashIds, sortKey, sortDir]);
 
   const resumeCashTable = useCallback(
     (table: LobbyTableRow) => {
@@ -183,18 +157,6 @@ export function useLobbyScreenModel() {
       return key;
     });
   }, []);
-
-  const updateFilters = useCallback((next: LobbyTableFilters) => {
-    setFilters(next);
-    saveLobbyFilters(next);
-  }, []);
-
-  const clearFilters = useCallback(() => updateFilters(DEFAULT_LOBBY_FILTERS), [updateFilters]);
-
-  const joinedTournamentsCount = useMemo(
-    () => selectJoinedTournaments(tournamentList).length,
-    [tournamentList],
-  );
 
   const {
     openCreateTable,
@@ -230,25 +192,6 @@ export function useLobbyScreenModel() {
     tournamentDeleteId,
   } = tournament;
 
-  const handleNew = useCallback(() => {
-    if (contentMode === "tournaments") {
-      handleCreateTournament();
-      return;
-    }
-    openCreateTable();
-  }, [contentMode, handleCreateTournament, openCreateTable]);
-
-  const resultLabel = useMemo(() => {
-    const cashCount = sortedTables.length + pinnedCashTables.length;
-    const tablesLabel = `${cashCount} ${cashCount === 1 ? "table" : "tables"}`;
-    const eventsLabel = `${filteredTournaments.length} ${
-      filteredTournaments.length === 1 ? "event" : "events"
-    }`;
-    if (contentMode === "cash") return tablesLabel;
-    if (contentMode === "tournaments") return eventsLabel;
-    return `${tablesLabel} · ${eventsLabel}`;
-  }, [contentMode, filteredTournaments.length, pinnedCashTables.length, sortedTables.length]);
-
   return {
     authenticated,
     profile,
@@ -257,13 +200,9 @@ export function useLobbyScreenModel() {
     showFromLessonNudge,
     playFromLesson: () => {
       setFromLessonDismissed(true);
-      setContentMode("cash");
+      router.push("/lobby/cash");
     },
     dismissLessonNudge: () => setFromLessonDismissed(true),
-    contentMode,
-    setContentMode,
-    joinedTournamentsCount,
-    handleNew,
     openCreateTable,
     handleCreateTournament,
     handleDeleteTournament,
@@ -284,16 +223,10 @@ export function useLobbyScreenModel() {
     tournamentDeleteId,
     instantStartInFlightPreset,
     handleStartInstantGame,
-    filters,
-    updateFilters,
-    clearFilters,
     sortedTables,
     pinnedCashTables,
     resumeCashTable,
-    filteredTournaments,
-    resultLabel,
-    showCash: contentMode === "all" || contentMode === "cash",
-    showTournaments: contentMode === "all" || contentMode === "tournaments",
+    tournaments: tournamentList,
     busy,
     error,
     sortKey,
@@ -302,7 +235,6 @@ export function useLobbyScreenModel() {
     isJoining,
     openJoinModal,
     refresh,
-    tournamentList,
     tournamentsBusy,
     tournamentsError,
     refreshTournaments,

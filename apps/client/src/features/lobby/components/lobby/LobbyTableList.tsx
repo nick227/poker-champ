@@ -1,15 +1,14 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { LobbySortKey } from "../../lobbyTableSort";
+import { CASH_COL_FLEX, LobbyCashDesktopRow } from "./LobbyCashDesktopRow";
 import { LobbyTableListCompact } from "./LobbyTableListCompact";
 
 export type LobbySortDir = "asc" | "desc";
 
 type Props = {
   tables: LobbyTableRow[];
-  /** Frozen session rows rendered above browse rows (status Joined). */
   pinnedTables?: LobbyTableRow[];
   sortKey: LobbySortKey;
   sortDir: LobbySortDir;
@@ -19,6 +18,7 @@ type Props = {
   onResume?: (table: LobbyTableRow) => void;
   scrollable?: boolean;
   compact?: boolean;
+  embedded?: boolean;
 };
 
 const DESKTOP_COLS: Array<{
@@ -27,11 +27,11 @@ const DESKTOP_COLS: Array<{
   flex: number;
   align: "left" | "right";
 }> = [
-  { key: "name", label: "Table", flex: 2.2, align: "left" },
-  { key: "blinds", label: "Stakes", flex: 1, align: "right" },
-  { key: "players", label: "Seats", flex: 0.8, align: "right" },
-  { key: "buyIn", label: "Buy-in", flex: 1, align: "right" },
-  { key: "status", label: "Status", flex: 1, align: "right" },
+  { key: "name", label: "Table", flex: CASH_COL_FLEX.name, align: "left" },
+  { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, align: "right" },
+  { key: "players", label: "Players", flex: CASH_COL_FLEX.players, align: "right" },
+  { key: "avgPot", label: "Avg Pot", flex: CASH_COL_FLEX.avgPot, align: "right" },
+  { key: "status", label: "Status", flex: CASH_COL_FLEX.status, align: "right" },
 ];
 
 function caret(active: boolean, dir: LobbySortDir): string {
@@ -39,95 +39,6 @@ function caret(active: boolean, dir: LobbySortDir): string {
   return dir === "asc" ? " ▴" : " ▾";
 }
 
-function cellTextClass(align: "left" | "right", extra = ""): string {
-  return `${align === "right" ? "text-right" : "text-left"} ${extra}`.trim();
-}
-
-function formatBlinds(table: LobbyTableRow): string {
-  if (table.smallBlindCents <= 0 && table.bigBlindCents <= 0) return "—";
-  return `${formatCents(table.smallBlindCents)}/${formatCents(table.bigBlindCents)}`;
-}
-
-function formatSeats(table: LobbyTableRow): string {
-  if (table.seats <= 0) return "—";
-  return `${table.players}/${table.seats}`;
-}
-
-function DesktopRow({
-  table,
-  pinned,
-  joining,
-  onPress,
-}: {
-  table: LobbyTableRow;
-  pinned: boolean;
-  joining: boolean;
-  onPress: () => void;
-}) {
-  const live = (table.connectedHumanCount ?? 0) > 0;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={joining}
-      className={`btn ui-row items-center border-b border-border/40 px-3 h-11 rounded-none ${
-        pinned ? "bg-brand-soft border-brand/25" : "active:bg-panel-elevated"
-      }`}
-      style={{ borderRadius: 0, opacity: joining ? 0.7 : 1 }}
-    >
-      {DESKTOP_COLS.map((col) => {
-        let content: string;
-        if (col.key === "name") content = joining ? "Joining…" : table.name;
-        else if (col.key === "blinds") content = formatBlinds(table);
-        else if (col.key === "players") content = formatSeats(table);
-        else if (col.key === "buyIn")
-          content = table.minBuyInCents > 0 ? formatCents(table.minBuyInCents) : "—";
-        else content = pinned ? "Joined" : live ? "Live" : "Waiting";
-
-        return (
-          <View
-            key={col.key}
-            style={{ flex: col.flex }}
-            className={`pr-2 min-w-0 ${col.align === "right" ? "items-end" : "items-start"}`}
-          >
-            {col.key === "status" ? (
-              <View className="ui-row items-center gap-1.5">
-                <View
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    pinned || live ? "bg-brand" : "bg-border"
-                  }`}
-                />
-                <Text
-                  variant="body"
-                  className={`text-[12px] ${
-                    pinned || live ? "text-brand font-semibold" : "text-muted"
-                  }`}
-                  numberOfLines={1}
-                >
-                  {content}
-                </Text>
-              </View>
-            ) : (
-              <Text
-                variant="body"
-                className={cellTextClass(
-                  col.align,
-                  col.key === "name"
-                    ? "font-semibold text-[13px] w-full"
-                    : "font-mono text-[12px] tabular-nums w-full",
-                )}
-                numberOfLines={1}
-              >
-                {content}
-              </Text>
-            )}
-          </View>
-        );
-      })}
-    </Pressable>
-  );
-}
-
-/** Dense inset list stage — game-client table browser. */
 export function LobbyTableList({
   tables,
   pinnedTables = [],
@@ -139,16 +50,8 @@ export function LobbyTableList({
   onResume,
   scrollable = true,
   compact = false,
+  embedded = false,
 }: Props) {
-  const handleRowPress = (table: LobbyTableRow, pinned: boolean) => {
-    if (isJoining(table.id)) return;
-    if (pinned) {
-      onResume?.(table);
-      return;
-    }
-    onJoin(table);
-  };
-
   if (compact) {
     return (
       <LobbyTableListCompact
@@ -158,7 +61,9 @@ export function LobbyTableList({
         sortDir={sortDir}
         onSort={onSort}
         isJoining={isJoining}
-        onRowPress={handleRowPress}
+        onJoin={onJoin}
+        onResume={onResume}
+        embedded={embedded}
       />
     );
   }
@@ -176,12 +81,9 @@ export function LobbyTableList({
         >
           <Text
             variant={sortKey === col.key ? "body" : "muted"}
-            className={cellTextClass(
-              col.align,
-              `text-[11px] tracking-wide uppercase font-semibold w-full ${
-                sortKey === col.key ? "text-gold" : ""
-              }`,
-            )}
+            className={`${col.align === "right" ? "text-right" : "text-left"} text-[11px] tracking-wide uppercase font-semibold w-full ${
+              sortKey === col.key ? "text-gold" : ""
+            }`}
             numberOfLines={1}
           >
             {col.label}
@@ -189,27 +91,30 @@ export function LobbyTableList({
           </Text>
         </Pressable>
       ))}
+      <View style={{ flex: CASH_COL_FLEX.action }} />
     </View>
   );
 
   const body = (
     <>
       {pinnedTables.map((table) => (
-        <DesktopRow
+        <LobbyCashDesktopRow
           key={`pin-${table.id}`}
           table={table}
           pinned
           joining={isJoining(table.id)}
-          onPress={() => handleRowPress(table, true)}
+          onJoin={onJoin}
+          onResume={onResume}
         />
       ))}
       {tables.map((table) => (
-        <DesktopRow
+        <LobbyCashDesktopRow
           key={table.id}
           table={table}
           pinned={false}
           joining={isJoining(table.id)}
-          onPress={() => handleRowPress(table, false)}
+          onJoin={onJoin}
+          onResume={onResume}
         />
       ))}
     </>
@@ -217,9 +122,13 @@ export function LobbyTableList({
 
   return (
     <View
-      className={`lobby-stage border rounded-2 overflow-hidden ${
-        scrollable ? "flex-1 min-h-0" : ""
-      }`}
+      className={
+        embedded
+          ? scrollable
+            ? "flex-1 min-h-0"
+            : ""
+          : `lobby-stage border rounded-2 overflow-hidden ${scrollable ? "flex-1 min-h-0" : ""}`
+      }
     >
       {header}
       {scrollable ? (
