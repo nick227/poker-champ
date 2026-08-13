@@ -32,12 +32,13 @@ describe("computeCashLobbyStats", () => {
 });
 
 describe("computeTournamentLobbyStats", () => {
-  it("counts registering events and enrolled players", () => {
+  it("counts registering events and enrolled players on lobby-visible tournaments only", () => {
     const stats = computeTournamentLobbyStats([
-      { status: "REGISTERING", registeredCount: 18 } as TournamentSummary,
-      { status: "RUNNING", registeredCount: 40 } as TournamentSummary,
-      { status: "REGISTERING", registeredCount: 10 } as TournamentSummary,
+      { status: "REGISTERING", registeredCount: 2 } as TournamentSummary,
+      { status: "RUNNING", registeredCount: 6 } as TournamentSummary,
+      { status: "FINISHED", registeredCount: 27 } as TournamentSummary,
+      { status: "CANCELLED", registeredCount: 9 } as TournamentSummary,
     ]);
-    expect(stats).toEqual({ upcomingEvents: 2, playersRegistered: 68 });
+    expect(stats).toEqual({ upcomingEvents: 1, playersRegistered: 8 });
   });
 });

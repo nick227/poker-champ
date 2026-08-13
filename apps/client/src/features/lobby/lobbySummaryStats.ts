@@ -1,4 +1,5 @@
 import type { LobbyTableRow } from "@/lib/lobbyTables";
+import { filterTournamentsForPublicLobby } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
 export function computeCashLobbyStats(tables: LobbyTableRow[]): {
@@ -16,9 +17,10 @@ export function computeTournamentLobbyStats(tournaments: TournamentSummary[]): {
   upcomingEvents: number;
   playersRegistered: number;
 } {
+  const visible = filterTournamentsForPublicLobby(tournaments);
   let upcomingEvents = 0;
   let playersRegistered = 0;
-  for (const tournament of tournaments) {
+  for (const tournament of visible) {
     if (tournament.status === "REGISTERING") upcomingEvents += 1;
     playersRegistered += tournament.registeredCount;
   }
