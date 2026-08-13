@@ -14,6 +14,7 @@ type Props = {
   isJoining: (tableId: string) => boolean;
   onJoin: (table: LobbyTableRow) => void;
   onResume?: (table: LobbyTableRow) => void;
+  onWatch?: (table: LobbyTableRow) => void;
   onRetry: () => void;
   onCreate: () => void;
   scrollable?: boolean;
@@ -32,6 +33,7 @@ export function LobbyCashListStage({
   isJoining,
   onJoin,
   onResume,
+  onWatch,
   onRetry,
   onCreate,
   scrollable = true,
@@ -76,6 +78,7 @@ export function LobbyCashListStage({
       isJoining={isJoining}
       onJoin={onJoin}
       onResume={onResume}
+      onWatch={onWatch}
       scrollable={scrollable}
       compact={compact}
       embedded={embedded}

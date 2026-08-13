@@ -16,6 +16,7 @@ type Props = {
   isJoining: (tableId: string) => boolean;
   onJoin: (table: LobbyTableRow) => void;
   onResume?: (table: LobbyTableRow) => void;
+  onWatch?: (table: LobbyTableRow) => void;
   scrollable?: boolean;
   compact?: boolean;
   embedded?: boolean;
@@ -49,6 +50,7 @@ export function LobbyTableList({
   isJoining,
   onJoin,
   onResume,
+  onWatch,
   scrollable = true,
   compact = false,
   embedded = false,
@@ -64,13 +66,14 @@ export function LobbyTableList({
         isJoining={isJoining}
         onJoin={onJoin}
         onResume={onResume}
+        onWatch={onWatch}
         embedded={embedded}
       />
     );
   }
 
   const header = (
-    <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
+    <View className="ui-row items-center border-b border-border/50 px-3 h-8">
       {DESKTOP_COLS.map((col) => (
         <Pressable
           key={col.key}
@@ -78,12 +81,12 @@ export function LobbyTableList({
             if (col.key !== "dots") onSort(col.key);
           }}
           disabled={!col.sortable}
-          className="btn h-9 justify-center items-start rounded-none pr-2"
+          className="btn h-8 justify-center items-start rounded-none pr-2"
           style={{ flex: col.flex, backgroundColor: "transparent", borderRadius: 0 }}
         >
           {col.label ? (
             <Text
-              variant={sortKey === col.key ? "body" : "muted"}
+              variant="muted"
               className={`text-left text-[11px] tracking-wide uppercase font-semibold w-full ${
                 sortKey === col.key ? "text-gold" : ""
               }`}
@@ -110,6 +113,7 @@ export function LobbyTableList({
           isLast={i === pinnedTables.length - 1 && tables.length === 0}
           onJoin={onJoin}
           onResume={onResume}
+          onWatch={onWatch}
         />
       ))}
       {tables.map((table, i) => (
@@ -121,6 +125,7 @@ export function LobbyTableList({
           isLast={i === tables.length - 1}
           onJoin={onJoin}
           onResume={onResume}
+          onWatch={onWatch}
         />
       ))}
     </>

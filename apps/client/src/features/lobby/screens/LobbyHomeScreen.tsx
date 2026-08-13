@@ -26,7 +26,7 @@ export function LobbyHomeScreen() {
 
   return (
     <LobbyPageShell model={m} ready={ready}>
-      <View className={`pb-6 ${padded ? "px-4" : ""}`}>
+      <View className={`pb-5 ${padded ? "px-4" : ""}`}>
         <LobbyPageHeader
           title="Lobby"
           subtitle="Jump into cash games or register for upcoming tournaments."
@@ -40,7 +40,7 @@ export function LobbyHomeScreen() {
           playersRegistered={tourneyStats.playersRegistered}
           compact={compact}
         />
-        <View className="mt-5">
+        <View className="mt-4">
           <LobbySectionFrame
             title="Cash games"
             accent="brand"
@@ -58,6 +58,7 @@ export function LobbyHomeScreen() {
               isJoining={m.isJoining}
               onJoin={m.openJoinModal}
               onResume={m.resumeCashTable}
+              onWatch={m.watchCashTable}
               onRetry={() => {
                 void m.refresh();
               }}
@@ -68,7 +69,7 @@ export function LobbyHomeScreen() {
             />
           </LobbySectionFrame>
         </View>
-        <View className="mt-5">
+        <View className="mt-4">
           <LobbySectionFrame
             title="Tournaments"
             accent="gold"

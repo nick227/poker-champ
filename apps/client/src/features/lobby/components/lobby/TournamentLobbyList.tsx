@@ -27,7 +27,7 @@ function HeaderCell({
   return (
     <Text
       variant="muted"
-      className="text-[11px] tracking-wide uppercase font-semibold"
+      className="text-[11px] tracking-wide uppercase font-semibold pr-2"
       numberOfLines={1}
       style={{ flex }}
     >
@@ -92,7 +92,7 @@ export function TournamentLobbyList({
 
   return (
     <View className={embedded ? "" : "lobby-stage border rounded-2 overflow-hidden"}>
-      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9 gap-2">
+      <View className="ui-row items-center border-b border-border/50 px-3 h-8">
         <HeaderCell label="Tournament" flex={TOURNEY_COL_FLEX.event} />
         <HeaderCell label="Buy-in" flex={TOURNEY_COL_FLEX.entry} />
         <HeaderCell label="Enrolled" flex={TOURNEY_COL_FLEX.field} />

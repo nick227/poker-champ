@@ -16,7 +16,7 @@ export function ReplayQuickLinks({
   const router = useRouter();
 
   return (
-    <View className="ui-row items-center flex-wrap gap-2 py-3 border-t border-border mt-2">
+    <View className="ui-row items-center flex-wrap gap-2 py-2.5 border-t border-border/50 mt-3">
       <Text variant="muted" className="text-[11px] tracking-widest uppercase mr-1">
         More
       </Text>

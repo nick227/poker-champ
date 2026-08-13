@@ -29,7 +29,7 @@ export function EmptyState({
 }: Props) {
   return (
     <View
-      className={`flex-1 min-h-[160px] ui-center px-4 py-10 gap-3 ${
+      className={`flex-1 min-h-[120px] ui-center px-4 py-8 gap-3 ${
         embedded ? "" : "lobby-stage rounded-2 border"
       }`}
     >

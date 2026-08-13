@@ -41,7 +41,8 @@ describe("cash lobby CTA mapping", () => {
   it("uses short labels when compact", () => {
     expect(cashLobbyCtaLabel("join", false)).toBe("Join Table");
     expect(cashLobbyCtaLabel("join", true)).toBe("Join");
-    expect(cashLobbyCtaLabel("view", false)).toBe("View Table");
+    expect(cashLobbyCtaLabel("view", false)).toBe("Watch");
+    expect(cashLobbyCtaLabel("view", true)).toBe("Watch");
   });
 
   it("formats waitlist copy", () => {

@@ -21,10 +21,10 @@ export function LobbySectionFrame({
   const gold = accent === "gold";
   const iconColor = gold ? "hsl(42 82% 50%)" : "hsl(158 52% 42%)";
   return (
-    <View className="rounded-2 border border-border overflow-hidden bg-panel">
-      <View className="ui-row items-center gap-2 px-3 h-10 border-b border-border/50">
-        <Ionicons name={gold ? "trophy" : "ellipse"} size={14} color={iconColor} />
-        <Text variant="label" className="font-display text-[12px] tracking-[0.16em] uppercase">
+    <View className="rounded-2 border border-border overflow-hidden">
+      <View className="ui-row items-center gap-2 px-3 h-8 border-b border-border/50">
+        <Ionicons name={gold ? "trophy" : "ellipse"} size={13} color={iconColor} />
+        <Text variant="label" className="font-display text-[11px] tracking-[0.16em] uppercase">
           {title}
         </Text>
       </View>
@@ -32,10 +32,10 @@ export function LobbySectionFrame({
       {onViewAll && viewAllLabel ? (
         <Pressable
           onPress={onViewAll}
-          className="ui-center py-3 border-t border-border/40"
+          className="ui-center py-2 border-t border-border/40 hover:bg-panel-elevated/40"
           accessibilityRole="link"
         >
-          <Text variant="muted" className="text-[13px]">
+          <Text variant="muted" className="text-[12px]">
             {viewAllLabel} {'>'}
           </Text>
         </Pressable>

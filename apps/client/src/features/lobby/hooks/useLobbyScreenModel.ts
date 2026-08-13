@@ -145,6 +145,13 @@ export function useLobbyScreenModel() {
     [lastBuyInCentsByTableId, router],
   );
 
+  const watchCashTable = useCallback(
+    (table: LobbyTableRow) => {
+      router.push(tablePath(table.id));
+    },
+    [router],
+  );
+
   const handleSort = useCallback((key: LobbySortKey) => {
     setSortKey((prev) => {
       if (prev === key) {
@@ -223,6 +230,7 @@ export function useLobbyScreenModel() {
     sortedTables,
     pinnedCashTables,
     resumeCashTable,
+    watchCashTable,
     tournaments: tournamentList,
     busy,
     error,

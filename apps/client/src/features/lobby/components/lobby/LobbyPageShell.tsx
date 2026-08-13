@@ -17,7 +17,7 @@ type Props = {
 export function LobbyPageShell({ model, ready, children, scroll = true }: Props) {
   const padded = !model.isDesktopWorkspace;
   const lessonNudge = model.showFromLessonNudge ? (
-    <View className={padded ? "mx-4 mt-2" : ""}>
+    <View className={padded ? "mx-4 mt-2" : "mt-2"}>
       <LobbyLessonNudge
         onPlay={model.playFromLesson}
         onDismiss={model.dismissLessonNudge}

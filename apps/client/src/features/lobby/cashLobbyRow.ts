@@ -35,7 +35,7 @@ export function resolveCashLobbyCta(status: CashLobbyStatus): CashLobbyCta {
 export function cashLobbyCtaLabel(cta: CashLobbyCta, compact: boolean): string {
   if (cta === "resume") return "Resume";
   if (cta === "join") return compact ? "Join" : "Join Table";
-  return compact ? "View" : "View Table";
+  return "Watch";
 }
 
 export function occupancyDotCount(seats: number): number {

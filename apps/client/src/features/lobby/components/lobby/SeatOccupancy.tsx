@@ -11,11 +11,11 @@ export function SeatOccupancy({ players, seats }: Props) {
   const filled = occupancyFilledCount(players, seats);
   if (dots <= 0) return null;
   return (
-    <View className="ui-row items-center gap-0.5">
+    <View className="ui-row items-center gap-[3px]">
       {Array.from({ length: dots }, (_, i) => (
         <View
           key={i}
-          className={`h-1.5 w-1.5 rounded-full ${i < filled ? "bg-brand" : "bg-border"}`}
+          className={`h-2 w-2 rounded-full ${i < filled ? "bg-brand" : "bg-muted/25"}`}
         />
       ))}
     </View>

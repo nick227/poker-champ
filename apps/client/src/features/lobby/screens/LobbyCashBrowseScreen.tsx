@@ -31,6 +31,7 @@ export function LobbyCashBrowseScreen() {
             isJoining={m.isJoining}
             onJoin={m.openJoinModal}
             onResume={m.resumeCashTable}
+            onWatch={m.watchCashTable}
             onRetry={() => {
               void m.refresh();
             }}

@@ -1,5 +1,4 @@
 import { Pressable, View } from "react-native";
-import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import type { LobbySortKey } from "../../lobbyTableSort";
@@ -12,6 +11,7 @@ import {
 import { formatLobbyCount } from "../../lobbyFormat";
 import type { LobbySortDir } from "./LobbyTableList";
 import { cashStatusClass, cashStatusDotClass, formatCashBlinds } from "./LobbyCashDesktopRow";
+import { LobbyRowCta, type LobbyRowCtaKind } from "./LobbyRowCta";
 
 type Props = {
   tables: LobbyTableRow[];
@@ -22,12 +22,19 @@ type Props = {
   isJoining: (tableId: string) => boolean;
   onJoin: (table: LobbyTableRow) => void;
   onResume?: (table: LobbyTableRow) => void;
+  onWatch?: (table: LobbyTableRow) => void;
   embedded?: boolean;
 };
 
 function caret(active: boolean, dir: LobbySortDir): string {
   if (!active) return "";
   return dir === "asc" ? " ▴" : " ▾";
+}
+
+function cashCtaKind(cta: ReturnType<typeof resolveCashLobbyCta>): LobbyRowCtaKind {
+  if (cta === "join") return "join";
+  if (cta === "resume") return "resume";
+  return "watch";
 }
 
 export function LobbyTableListCompact({
@@ -39,18 +46,19 @@ export function LobbyTableListCompact({
   isJoining,
   onJoin,
   onResume,
+  onWatch,
   embedded = false,
 }: Props) {
   return (
     <View className={embedded ? "" : "lobby-stage border rounded-2 overflow-hidden"}>
-      <View className="ui-row items-center border-b border-border/50 bg-panel-elevated/90 px-3 h-9">
+      <View className="ui-row items-center border-b border-border/50 px-3 h-8">
         <Pressable
           onPress={() => onSort("name")}
-          className="btn h-9 justify-center rounded-none px-1 flex-1"
+          className="btn h-8 justify-center rounded-none px-1 flex-1"
           style={{ flex: 1, backgroundColor: "transparent", borderRadius: 0 }}
         >
           <Text
-            variant={sortKey === "name" ? "body" : "muted"}
+            variant="muted"
             className={`text-[11px] tracking-wide uppercase font-semibold ${
               sortKey === "name" ? "text-gold" : ""
             }`}
@@ -61,11 +69,11 @@ export function LobbyTableListCompact({
         </Pressable>
         <Pressable
           onPress={() => onSort("players")}
-          className="btn h-9 justify-center items-end rounded-none px-1"
+          className="btn h-8 justify-center items-end rounded-none px-1"
           style={{ width: 80, backgroundColor: "transparent", borderRadius: 0 }}
         >
           <Text
-            variant={sortKey === "players" ? "body" : "muted"}
+            variant="muted"
             className={`text-[11px] tracking-wide uppercase font-semibold text-right ${
               sortKey === "players" ? "text-gold" : ""
             }`}
@@ -83,14 +91,14 @@ export function LobbyTableListCompact({
         const joining = isJoining(table.id);
         const status = resolveCashLobbyStatus(table, pinned);
         const cta = resolveCashLobbyCta(status);
-        const ctaEnabled = cta !== "view" && !joining;
         const isLast = i === rows.length - 1;
         return (
           <View
             key={`${pinned ? "pin" : "row"}-${table.id}`}
-            className={`ui-row items-center px-3 h-14 ${isLast ? "" : "border-b border-border/40"} ${
-              pinned ? "bg-brand-soft border-brand/25" : ""
+            className={`ui-row items-center px-3 ${isLast ? "" : "border-b border-border/40"} ${
+              pinned ? "bg-brand-soft/70" : ""
             }`}
+            style={{ height: 52 }}
           >
             <View className="flex-1 pr-2 min-w-0">
               <Text variant="body" className="font-semibold text-[13px]" numberOfLines={1}>
@@ -116,23 +124,15 @@ export function LobbyTableListCompact({
               </View>
             </View>
             <View style={{ width: 72 }} className="items-end pl-2">
-              <Button
+              <LobbyRowCta
                 title={joining ? "…" : cashLobbyCtaLabel(cta, true)}
+                kind={cashCtaKind(cta)}
+                disabled={joining}
                 onPress={() => {
                   if (cta === "resume") onResume?.(table);
                   else if (cta === "join") onJoin(table);
+                  else onWatch?.(table);
                 }}
-                disabled={!ctaEnabled}
-                intent={cta === "join" ? "ghost" : "neutral"}
-                size="sm"
-                shape="hud"
-                minWidth={0}
-                className={
-                  cta === "join"
-                    ? "h-8 min-h-[32px] px-2 border border-brand bg-transparent"
-                    : "h-8 min-h-[32px] px-2"
-                }
-                textClassName={cta === "join" ? "text-brand" : ""}
               />
             </View>
           </View>

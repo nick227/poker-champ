@@ -101,33 +101,40 @@ export function CreateGameModal({
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
       <View className="">
         {onInstantStart ? (
-          <View>
-            <Text variant="label">Instant start</Text>
-            <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
+          <View className="rounded-2 border border-brand/25 bg-brand-soft/30 px-3 py-3 mb-5">
+            <Text variant="label" className="text-brand">
+              Instant play
+            </Text>
+            <View className="flex-row flex-wrap gap-2 mt-2">
               {INSTANT_GAME_PRESET_IDS.map((presetId) => {
                 const preset = getInstantGamePreset(presetId);
                 const starting = instantStartInFlight === presetId;
                 return (
-                  <ChipButton
+                  <Button
                     key={presetId}
                     title={starting ? "…" : preset.cta}
-                    selected={starting}
+                    intent="ghost"
+                    size="sm"
+                    shape="hud"
+                    minWidth={0}
                     disabled={Boolean(instantStartInFlight)}
                     onPress={() => {
                       onInstantStart(presetId);
                       onClose();
                     }}
+                    className="h-9 min-h-[36px] border border-brand bg-transparent"
+                    textClassName="text-brand"
                   />
                 );
               })}
             </View>
           </View>
         ) : null}
-        <Input className="mb-8" label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
+        <Input className="mb-5" label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
 
         <View>
           <Text variant="label">Blinds</Text>
-          <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
+          <View className="flex-row flex-wrap gap-2 mt-2 mb-5">
             {BLINDS_OPTIONS.map((opt, i) => (
               <ChipButton
                 key={opt.label}
@@ -141,7 +148,7 @@ export function CreateGameModal({
 
         <View>
           <Text variant="label">Min buy-in</Text>
-          <View className="flex-row flex-wrap gap-2 mt-2 mb-8">
+          <View className="flex-row flex-wrap gap-2 mt-2 mb-5">
             {buyInOptions.map((opt) => (
               <ChipButton
                 key={opt.minBuyInCents}
@@ -155,7 +162,7 @@ export function CreateGameModal({
 
         <View>
           <Text variant="label">Visibility</Text>
-          <View className="ui-row ui-inline-2 mt-2 mb-8">
+          <View className="ui-row ui-inline-2 mt-2 mb-5">
             <ChipButton title="Public" selected={visibility === "PUBLIC"} onPress={() => setVisibility("PUBLIC")} />
             <ChipButton title="Private" selected={visibility === "PRIVATE"} onPress={() => setVisibility("PRIVATE")} />
           </View>
@@ -173,7 +180,7 @@ export function CreateGameModal({
 
       <View>
         <Text variant="label">Num Players</Text>
-        <View className="ui-row ui-inline-2 mb-8 mt-2">
+        <View className="ui-row ui-inline-2 mb-5 mt-2">
           <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
           <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
           <ChipButton title="9 Players" selected={seats === 9} onPress={() => setSeats(9)} />
@@ -182,7 +189,7 @@ export function CreateGameModal({
 
         <View>
           <Text variant="label">Show Stats</Text>
-          <View className="ui-row ui-inline-2 mb-8 mt-2">
+          <View className="ui-row ui-inline-2 mb-5 mt-2">
             <ChipButton title="On" selected={showStats === true} onPress={() => setShowStats(true)} />
             <ChipButton title="Off" selected={showStats === false} onPress={() => setShowStats(false)} />
           </View>

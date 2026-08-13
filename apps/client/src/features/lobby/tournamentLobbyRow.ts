@@ -53,7 +53,7 @@ export function lobbyTournamentStatusClass(
   nowMs: number,
   pinned: boolean,
 ): string {
-  if (pinned) return "text-brand font-semibold";
+  if (pinned) return "text-brand";
   if (isLobbyLateRegDisplay(tournament, nowMs) || tournament.status === "LATE_REG") {
     return "text-gold";
   }
