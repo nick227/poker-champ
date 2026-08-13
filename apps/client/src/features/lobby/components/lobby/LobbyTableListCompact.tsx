@@ -9,6 +9,7 @@ import {
   resolveCashLobbyCta,
   resolveCashLobbyStatus,
 } from "../../cashLobbyRow";
+import { formatLobbyCount } from "../../lobbyFormat";
 import type { LobbySortDir } from "./LobbyTableList";
 import { cashStatusClass, cashStatusDotClass, formatCashBlinds } from "./LobbyCashDesktopRow";
 
@@ -61,7 +62,7 @@ export function LobbyTableListCompact({
         <Pressable
           onPress={() => onSort("players")}
           className="btn h-9 justify-center items-end rounded-none px-1"
-          style={{ width: 56, backgroundColor: "transparent", borderRadius: 0 }}
+          style={{ width: 80, backgroundColor: "transparent", borderRadius: 0 }}
         >
           <Text
             variant={sortKey === "players" ? "body" : "muted"}
@@ -78,15 +79,16 @@ export function LobbyTableListCompact({
       {[
         ...pinnedTables.map((t) => ({ table: t, pinned: true })),
         ...tables.map((t) => ({ table: t, pinned: false })),
-      ].map(({ table, pinned }) => {
+      ].map(({ table, pinned }, i, rows) => {
         const joining = isJoining(table.id);
         const status = resolveCashLobbyStatus(table, pinned);
         const cta = resolveCashLobbyCta(status);
         const ctaEnabled = cta !== "view" && !joining;
+        const isLast = i === rows.length - 1;
         return (
           <View
             key={`${pinned ? "pin" : "row"}-${table.id}`}
-            className={`ui-row items-center border-b border-border/40 px-3 h-14 ${
+            className={`ui-row items-center px-3 h-14 ${isLast ? "" : "border-b border-border/40"} ${
               pinned ? "bg-brand-soft border-brand/25" : ""
             }`}
           >
@@ -98,9 +100,9 @@ export function LobbyTableListCompact({
                 {formatCashBlinds(table)}
               </Text>
             </View>
-            <View style={{ width: 56 }} className="items-end">
+            <View style={{ width: 80 }} className="items-end">
               <Text variant="body" className="font-mono text-[12px] tabular-nums" numberOfLines={1}>
-                {table.seats > 0 ? `${table.players}/${table.seats}` : "—"}
+                {formatLobbyCount(table.players, table.seats)}
               </Text>
               <View className="ui-row items-center gap-1 mt-0.5">
                 <View className={`h-1.5 w-1.5 rounded-full ${cashStatusDotClass(status)}`} />

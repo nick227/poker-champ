@@ -51,7 +51,7 @@ export function TournamentLobbyList({
 }: Props) {
   const rows = (
     <>
-      {pinnedTournaments.map((tournament) => (
+      {pinnedTournaments.map((tournament, i) => (
         <TournamentLobbyRow
           key={`pin-${tournament.id}`}
           tournament={tournament}
@@ -60,13 +60,14 @@ export function TournamentLobbyList({
           authenticated={authenticated}
           actionInFlight={actionInFlight}
           compact={compact}
+          isLast={i === pinnedTournaments.length - 1 && tournaments.length === 0}
           onOpenDetail={onOpenDetail}
           onAction={onAction}
           onDelete={onDelete}
           deleteInFlightId={deleteInFlightId}
         />
       ))}
-      {tournaments.map((tournament) => (
+      {tournaments.map((tournament, i) => (
         <TournamentLobbyRow
           key={tournament.id}
           tournament={tournament}
@@ -75,6 +76,7 @@ export function TournamentLobbyList({
           authenticated={authenticated}
           actionInFlight={actionInFlight}
           compact={compact}
+          isLast={i === tournaments.length - 1}
           onOpenDetail={onOpenDetail}
           onAction={onAction}
           onDelete={onDelete}
@@ -94,8 +96,8 @@ export function TournamentLobbyList({
         <HeaderCell label="Tournament" flex={TOURNEY_COL_FLEX.event} />
         <HeaderCell label="Buy-in" flex={TOURNEY_COL_FLEX.entry} />
         <HeaderCell label="Enrolled" flex={TOURNEY_COL_FLEX.field} />
-        <HeaderCell label="Starts" flex={TOURNEY_COL_FLEX.starts} />
-        <HeaderCell label="Late Reg" flex={TOURNEY_COL_FLEX.lateReg} />
+        <HeaderCell label="Starts / Started" flex={TOURNEY_COL_FLEX.starts} />
+        <HeaderCell label="Late Reg Open" flex={TOURNEY_COL_FLEX.lateReg} />
         <HeaderCell label="Status" flex={TOURNEY_COL_FLEX.status} />
         <View style={{ flex: TOURNEY_COL_FLEX.action }} />
       </View>

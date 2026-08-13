@@ -53,7 +53,7 @@ export function TournamentsSection({
     : "No tournaments scheduled yet. Log in to register when events are posted.";
 
   return (
-    <View className={`ui-stack-3 ${dense || embedded ? "" : "px-4"} ${embedded ? "" : "pb-2"}`}>
+    <View className={embedded ? "" : `ui-stack-3 ${dense ? "" : "px-4 pb-2"}`}>
       <TournamentListFeedback
         busy={busy}
         error={error}

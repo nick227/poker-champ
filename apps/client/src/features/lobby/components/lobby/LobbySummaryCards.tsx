@@ -10,19 +10,47 @@ type Props = {
   compact?: boolean;
 };
 
+function StatPair({
+  primary,
+  primaryLabel,
+  secondary,
+  secondaryLabel,
+}: {
+  primary: number;
+  primaryLabel: string;
+  secondary: number;
+  secondaryLabel: string;
+}) {
+  return (
+    <View className="ui-row items-center mt-2">
+      <Text variant="body" className="flex-1 text-[13px]" numberOfLines={2}>
+        <Text className="font-semibold tabular-nums">{primary}</Text> {primaryLabel}
+      </Text>
+      <View className="w-px self-stretch bg-border/80 mx-3" />
+      <Text variant="body" className="flex-1 text-[13px]" numberOfLines={2}>
+        <Text className="font-semibold tabular-nums">{secondary}</Text> {secondaryLabel}
+      </Text>
+    </View>
+  );
+}
+
 function SummaryCard({
+  eyebrow,
   icon,
   iconColor,
   surfaceClass,
+  eyebrowClass,
   primary,
   primaryLabel,
   secondary,
   secondaryLabel,
   compact,
 }: {
+  eyebrow: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
   surfaceClass: string;
+  eyebrowClass: string;
   primary: number;
   primaryLabel: string;
   secondary: number;
@@ -30,35 +58,20 @@ function SummaryCard({
   compact: boolean;
 }) {
   return (
-    <View
-      className={`relative overflow-hidden rounded-3 border ${surfaceClass} ${
-        compact ? "flex-1 px-3 py-3" : "flex-1 min-h-[132px] px-5 py-4"
-      }`}
-    >
-      {!compact ? (
-        <View className="absolute right-3 top-2 opacity-20">
-          <Ionicons name={icon} size={88} color={iconColor} />
-        </View>
-      ) : (
-        <Ionicons name={icon} size={18} color={iconColor} />
-      )}
-      <View className={`ui-row items-end flex-wrap ${compact ? "mt-2 gap-4" : "mt-1 gap-8"}`}>
-        <View>
-          <Text variant="h1" className={`${compact ? "text-2xl" : "text-[32px]"} font-semibold tabular-nums`}>
-            {primary}
-          </Text>
-          <Text variant="muted" className="text-[12px] mt-0.5">
-            {primaryLabel}
-          </Text>
-        </View>
-        <View>
-          <Text variant="h2" className={`${compact ? "text-xl" : "text-[24px]"} font-semibold tabular-nums`}>
-            {secondary}
-          </Text>
-          <Text variant="muted" className="text-[12px] mt-0.5">
-            {secondaryLabel}
-          </Text>
-        </View>
+    <View className={`overflow-hidden rounded-3 border flex-1 ui-row ${surfaceClass}`}>
+      <View className={`ui-center ${compact ? "w-12" : "w-[92px]"} opacity-35`}>
+        <Ionicons name={icon} size={compact ? 28 : 56} color={iconColor} />
+      </View>
+      <View className={`flex-1 justify-center ${compact ? "py-3 pr-3" : "min-h-[120px] py-4 pr-5"}`}>
+        <Text variant="label" className={`font-display tracking-[0.16em] uppercase ${eyebrowClass}`}>
+          {eyebrow}
+        </Text>
+        <StatPair
+          primary={primary}
+          primaryLabel={primaryLabel}
+          secondary={secondary}
+          secondaryLabel={secondaryLabel}
+        />
       </View>
     </View>
   );
@@ -72,25 +85,29 @@ export function LobbySummaryCards({
   compact = false,
 }: Props) {
   return (
-    <View className={`ui-row items-stretch gap-3 ${compact ? "" : "gap-4"}`}>
+    <View className="ui-row items-stretch gap-4">
       <SummaryCard
-        icon="ellipse-outline"
+        eyebrow="Cash games"
+        icon="ellipse"
         iconColor="hsl(158 52% 42%)"
         surfaceClass="border-brand/30 bg-brand-soft/80"
+        eyebrowClass="text-brand"
         primary={tablesLive}
-        primaryLabel={tablesLive === 1 ? "Table live" : "Tables live"}
+        primaryLabel={tablesLive === 1 ? "Table Live" : "Tables Live"}
         secondary={seatsAvailable}
-        secondaryLabel="Seats available"
+        secondaryLabel="Seats Available"
         compact={compact}
       />
       <SummaryCard
-        icon="trophy-outline"
+        eyebrow="Tournaments"
+        icon="trophy"
         iconColor="hsl(42 82% 50%)"
         surfaceClass="border-gold/30 bg-gold-soft/40"
+        eyebrowClass="text-gold"
         primary={upcomingEvents}
-        primaryLabel={upcomingEvents === 1 ? "Upcoming event" : "Upcoming events"}
+        primaryLabel={upcomingEvents === 1 ? "Upcoming Event" : "Upcoming Events"}
         secondary={playersRegistered}
-        secondaryLabel="Players registered"
+        secondaryLabel="Players Registered"
         compact={compact}
       />
     </View>

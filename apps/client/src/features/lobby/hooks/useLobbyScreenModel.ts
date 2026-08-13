@@ -14,7 +14,6 @@ import {
 } from "@/features/lobby/lobbyTableSort";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
-import { useProfile } from "@/hooks/useProfile";
 import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
 import { tablePath } from "@/lib/nav";
 import { storeRegistry } from "@/registry/store.registry";
@@ -47,7 +46,6 @@ export function useLobbyScreenModel() {
   const roomIdByTableId = storeRegistry.use.tables((s) => s.roomIdByTableId);
   const tableJoinById = storeRegistry.use.tables((s) => s.tableJoinById);
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
-  const profile = useProfile();
   const showToast = useToastStore((s) => s.show);
   const isDesktopWorkspace = useIsDesktopWorkspace();
 
@@ -194,7 +192,6 @@ export function useLobbyScreenModel() {
 
   return {
     authenticated,
-    profile,
     bankroll,
     isDesktopWorkspace,
     showFromLessonNudge,

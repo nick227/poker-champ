@@ -1,18 +1,22 @@
-import { isLateRegistrationOpen } from "@/lib/tournament-schedule";
-import { formatTournamentStartLocal } from "@/lib/tournament.utils";
+import { isLateRegistrationOpen, lateRegCloseMs } from "@/lib/tournament-schedule";
+import { formatTournamentStartLocal, tournamentStartMs } from "@/lib/tournament.utils";
 import { resolveTournamentLobbyTimer } from "@/lib/tournamentLobbyTimer";
 import type { TournamentSummary } from "@/services/tournaments.types";
+import { formatLobbyDurationMs } from "./lobbyFormat";
 
 export function formatLobbyStartsLine(
   tournament: TournamentSummary,
   nowMs: number,
 ): { text: string; tone: "warn" | "brand" | "muted" } {
   const timer = resolveTournamentLobbyTimer(tournament, nowMs);
+  const startMs = tournamentStartMs(tournament);
   if (timer?.mode === "countdown") {
-    return { text: `Starts in ${timer.time}`, tone: "warn" };
+    const dur = formatLobbyDurationMs(startMs - nowMs);
+    return { text: `Starts in ${dur ?? timer.time}`, tone: "warn" };
   }
   if (timer?.mode === "countup") {
-    return { text: `Started ${timer.time} ago`, tone: "brand" };
+    const dur = formatLobbyDurationMs(nowMs - startMs);
+    return { text: `Started ${dur ?? timer.time} ago`, tone: "brand" };
   }
   return { text: formatTournamentStartLocal(tournament.startTime), tone: "muted" };
 }
@@ -21,5 +25,44 @@ export function formatLateRegOpenLabel(
   tournament: TournamentSummary,
   nowMs: number,
 ): string {
-  return isLateRegistrationOpen(tournament, nowMs) ? "Open" : "Closed";
+  if (!isLateRegistrationOpen(tournament, nowMs)) return "Closed";
+  return formatLobbyDurationMs(lateRegCloseMs(tournament) - nowMs) ?? "Open";
+}
+
+export function isLobbyLateRegDisplay(
+  tournament: TournamentSummary,
+  nowMs: number,
+): boolean {
+  return tournamentStartMs(tournament) <= nowMs && isLateRegistrationOpen(tournament, nowMs);
+}
+
+export function formatLobbyTournamentStatus(
+  tournament: TournamentSummary,
+  nowMs: number,
+): string {
+  if (isLobbyLateRegDisplay(tournament, nowMs)) return "Late Reg";
+  if (tournament.status === "LATE_REG") return "Late Reg";
+  if (tournament.status === "REGISTERING") return "Registering";
+  if (tournament.status === "STARTING") return "Starting";
+  if (tournament.status === "RUNNING") return "Running";
+  return tournament.status;
+}
+
+export function lobbyTournamentStatusClass(
+  tournament: TournamentSummary,
+  nowMs: number,
+  pinned: boolean,
+): string {
+  if (pinned) return "text-brand font-semibold";
+  if (isLobbyLateRegDisplay(tournament, nowMs) || tournament.status === "LATE_REG") {
+    return "text-gold";
+  }
+  if (
+    tournament.status === "REGISTERING" ||
+    tournament.status === "RUNNING" ||
+    tournament.status === "STARTING"
+  ) {
+    return "text-brand";
+  }
+  return "text-muted";
 }

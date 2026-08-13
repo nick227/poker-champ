@@ -1,7 +1,6 @@
 import { View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import {
   cashLobbyCtaLabel,
@@ -10,25 +9,27 @@ import {
   resolveCashLobbyStatus,
   type CashLobbyCta,
 } from "../../cashLobbyRow";
+import { formatLobbyCount, formatLobbyUsd } from "../../lobbyFormat";
 import { SeatOccupancy } from "./SeatOccupancy";
 
 export const CASH_COL_FLEX = {
-  name: 2.2,
-  blinds: 1,
-  players: 1.3,
+  name: 2,
+  blinds: 1.2,
+  players: 0.85,
+  dots: 1.1,
   avgPot: 0.9,
-  status: 1.2,
-  action: 1.3,
+  status: 1.4,
+  action: 1.25,
 } as const;
 
 export function formatCashBlinds(table: LobbyTableRow): string {
   if (table.smallBlindCents <= 0 && table.bigBlindCents <= 0) return "—";
-  return `${formatCents(table.smallBlindCents)}/${formatCents(table.bigBlindCents)}`;
+  return `${formatLobbyUsd(table.smallBlindCents)} / ${formatLobbyUsd(table.bigBlindCents)}`;
 }
 
 export function formatCashAvgPot(table: LobbyTableRow): string {
   if (table.avgPotCents == null || table.avgPotCents <= 0) return "—";
-  return formatCents(table.avgPotCents);
+  return formatLobbyUsd(table.avgPotCents);
 }
 
 export function cashStatusClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
@@ -47,6 +48,7 @@ type RowProps = {
   table: LobbyTableRow;
   pinned: boolean;
   joining: boolean;
+  isLast?: boolean;
   onJoin: (table: LobbyTableRow) => void;
   onResume?: (table: LobbyTableRow) => void;
 };
@@ -64,14 +66,21 @@ function handleCashCta(
   if (cta === "join") onJoin(table);
 }
 
-export function LobbyCashDesktopRow({ table, pinned, joining, onJoin, onResume }: RowProps) {
+export function LobbyCashDesktopRow({
+  table,
+  pinned,
+  joining,
+  isLast = false,
+  onJoin,
+  onResume,
+}: RowProps) {
   const status = resolveCashLobbyStatus(table, pinned);
   const cta = resolveCashLobbyCta(status);
   const ctaEnabled = cta !== "view" && !joining;
 
   return (
     <View
-      className={`ui-row items-center border-b border-border/40 px-3 h-12 ${
+      className={`ui-row items-center px-3 h-12 ${isLast ? "" : "border-b border-border/40"} ${
         pinned ? "bg-brand-soft border-brand/25" : ""
       }`}
       style={{ opacity: joining ? 0.7 : 1 }}
@@ -86,27 +95,32 @@ export function LobbyCashDesktopRow({ table, pinned, joining, onJoin, onResume }
       </Text>
       <Text
         variant="body"
-        className="font-mono text-[12px] tabular-nums text-right pr-2"
+        className="font-mono text-[12px] tabular-nums pr-2"
         numberOfLines={1}
         style={{ flex: CASH_COL_FLEX.blinds }}
       >
         {formatCashBlinds(table)}
       </Text>
-      <View style={{ flex: CASH_COL_FLEX.players }} className="items-end pr-2 gap-0.5">
-        <Text variant="body" className="font-mono text-[12px] tabular-nums" numberOfLines={1}>
-          {table.seats > 0 ? `${table.players}/${table.seats}` : "—"}
-        </Text>
+      <Text
+        variant="body"
+        className="font-mono text-[12px] tabular-nums pr-2"
+        numberOfLines={1}
+        style={{ flex: CASH_COL_FLEX.players }}
+      >
+        {formatLobbyCount(table.players, table.seats)}
+      </Text>
+      <View style={{ flex: CASH_COL_FLEX.dots }} className="pr-2 justify-center">
         <SeatOccupancy players={table.players} seats={table.seats} />
       </View>
       <Text
         variant="body"
-        className="font-mono text-[12px] tabular-nums text-right pr-2"
+        className="font-mono text-[12px] tabular-nums pr-2"
         numberOfLines={1}
         style={{ flex: CASH_COL_FLEX.avgPot }}
       >
         {formatCashAvgPot(table)}
       </Text>
-      <View style={{ flex: CASH_COL_FLEX.status }} className="items-end pr-2">
+      <View style={{ flex: CASH_COL_FLEX.status }} className="pr-2">
         <View className="ui-row items-center gap-1.5">
           <View className={`h-1.5 w-1.5 rounded-full ${cashStatusDotClass(status)}`} />
           <Text

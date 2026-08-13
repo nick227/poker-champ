@@ -9,7 +9,6 @@ import { LobbyTournamentPrimary } from "../components/lobby/LobbyTournamentPrima
 import { useLobbyScreenModel } from "../hooks/useLobbyScreenModel";
 import { LOBBY_HOME_PREVIEW_COUNT, sliceLobbyPreview } from "../lobbyPreview";
 import { computeCashLobbyStats, computeTournamentLobbyStats } from "../lobbySummaryStats";
-import { buildLobbyTournamentRows } from "../lobbyTournamentRows";
 import { usePageBoot } from "@/hooks/usePageBoot";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -22,12 +21,6 @@ export function LobbyHomeScreen() {
   const padded = !m.isDesktopWorkspace;
   const compact = !m.isDesktopWorkspace;
   const cashPreview = sliceLobbyPreview(m.pinnedCashTables, m.sortedTables, LOBBY_HOME_PREVIEW_COUNT);
-  const tourneyRows = buildLobbyTournamentRows(m.tournaments, m.authenticated);
-  const tourneyPreview = sliceLobbyPreview(
-    tourneyRows.pinned,
-    tourneyRows.browse,
-    LOBBY_HOME_PREVIEW_COUNT,
-  );
   const cashStats = computeCashLobbyStats([...m.pinnedCashTables, ...m.sortedTables]);
   const tourneyStats = computeTournamentLobbyStats(m.tournaments);
 
@@ -51,8 +44,8 @@ export function LobbyHomeScreen() {
           <LobbySectionFrame
             title="Cash games"
             accent="brand"
-            viewAllLabel={cashPreview.hasMore ? "View all cash games" : undefined}
-            onViewAll={cashPreview.hasMore ? () => m.router.push("/lobby/cash") : undefined}
+            viewAllLabel="View all cash games"
+            onViewAll={() => m.router.push("/lobby/cash")}
           >
             <LobbyCashListStage
               busy={m.busy}
@@ -79,8 +72,8 @@ export function LobbyHomeScreen() {
           <LobbySectionFrame
             title="Tournaments"
             accent="gold"
-            viewAllLabel={tourneyPreview.hasMore ? "View all tournaments" : undefined}
-            onViewAll={tourneyPreview.hasMore ? () => m.router.push("/lobby/tournaments") : undefined}
+            viewAllLabel="View all tournaments"
+            onViewAll={() => m.router.push("/lobby/tournaments")}
           >
             <LobbyTournamentPrimary
               tournaments={m.tournaments}

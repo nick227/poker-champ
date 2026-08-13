@@ -8,7 +8,6 @@ type Props = {
   subtitle?: string;
   onNewCashTable?: () => void;
   onCreateTournament?: () => void;
-  padded?: boolean;
 };
 
 export function LobbyPageHeader({
@@ -16,12 +15,9 @@ export function LobbyPageHeader({
   subtitle,
   onNewCashTable,
   onCreateTournament,
-  padded = false,
 }: Props) {
   return (
-    <View
-      className={`ui-row items-start justify-between flex-wrap gap-3 pb-5 ${padded ? "px-4" : ""}`}
-    >
+    <View className="ui-row items-start justify-between flex-wrap gap-3 pb-5">
       <View className="min-w-0 flex-1">
         <Text variant="h1" className="font-display text-[40px] font-medium leading-tight">
           {title}

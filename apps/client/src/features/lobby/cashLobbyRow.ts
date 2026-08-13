@@ -20,7 +20,7 @@ export function cashLobbyStatusLabel(
   if (status === "joined") return "Joined";
   if (status === "waitlist") {
     const n = waitlistCount ?? 0;
-    return n === 1 ? "1 on waitlist" : `${n} on waitlist`;
+    return n === 1 ? "1 on Waitlist" : `${n} on Waitlist`;
   }
   if (status === "full") return "Full";
   return "Open";

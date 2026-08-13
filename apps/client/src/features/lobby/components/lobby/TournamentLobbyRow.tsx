@@ -1,23 +1,27 @@
 import { Pressable, View } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
-import { formatCents } from "@/lib/format";
 import {
   canCreatorDeleteTournament,
-  formatTournamentStatus,
   resolveTournamentCta,
 } from "@/lib/tournament.utils";
 import type { TournamentSummary } from "@/services/tournaments.types";
-import { formatLateRegOpenLabel, formatLobbyStartsLine } from "../../tournamentLobbyRow";
+import { formatLobbyCount, formatLobbyUsd } from "../../lobbyFormat";
+import {
+  formatLateRegOpenLabel,
+  formatLobbyStartsLine,
+  formatLobbyTournamentStatus,
+  lobbyTournamentStatusClass,
+} from "../../tournamentLobbyRow";
 
 export const TOURNEY_COL_FLEX = {
-  event: 2.2,
+  event: 2,
   entry: 0.7,
-  field: 1.1,
-  starts: 1.3,
-  lateReg: 0.8,
-  status: 1,
-  action: 1.3,
+  field: 1.05,
+  starts: 1.35,
+  lateReg: 1.1,
+  status: 0.95,
+  action: 1.2,
 } as const;
 
 type Props = {
@@ -27,18 +31,29 @@ type Props = {
   authenticated: boolean;
   actionInFlight?: boolean;
   compact?: boolean;
+  isLast?: boolean;
   onOpenDetail: (tournament: TournamentSummary) => void;
   onAction: (tournament: TournamentSummary) => void;
   onDelete?: (tournament: TournamentSummary) => void;
   deleteInFlightId?: string | null;
 };
 
+function RebuyMark() {
+  return (
+    <View className="h-4 w-4 rounded-full border border-brand/50 ui-center">
+      <Text variant="caption" className="text-[9px] text-brand font-bold">
+        R
+      </Text>
+    </View>
+  );
+}
+
 function EnrolledMeter({ registered, max }: { registered: number; max: number }) {
   const pct = max > 0 ? Math.min(100, (registered / max) * 100) : 0;
   return (
     <View className="w-full gap-0.5">
       <Text variant="body" className="font-mono text-[12px] tabular-nums" numberOfLines={1}>
-        {registered}/{max}
+        {formatLobbyCount(registered, max)}
       </Text>
       <View className="h-1 rounded-full bg-border overflow-hidden">
         <View className="h-1 rounded-full bg-accent-purple" style={{ width: `${pct}%` }} />
@@ -54,6 +69,7 @@ export function TournamentLobbyRow({
   authenticated,
   actionInFlight,
   compact = false,
+  isLast = false,
   onOpenDetail,
   onAction,
   onDelete,
@@ -65,14 +81,13 @@ export function TournamentLobbyRow({
   const starts = formatLobbyStartsLine(tournament, nowMs);
   const startsClass =
     starts.tone === "warn" ? "text-warn" : starts.tone === "brand" ? "text-brand" : "text-muted";
+  const rowClass = `ui-row items-center px-3 gap-2 ${isLast ? "" : "border-b border-border/40"} ${
+    pinned ? "bg-brand-soft border-brand/25" : ""
+  }`;
 
   if (compact) {
     return (
-      <View
-        className={`ui-row items-center border-b border-border/40 px-3 py-2 gap-2 ${
-          pinned ? "bg-brand-soft border-brand/25" : ""
-        }`}
-      >
+      <View className={`${rowClass} py-2`}>
         <Pressable
           onPress={() => onOpenDetail(tournament)}
           className="flex-1 min-w-0"
@@ -82,15 +97,11 @@ export function TournamentLobbyRow({
             <Text variant="body" className="font-semibold text-[13px] flex-1" numberOfLines={1}>
               {tournament.name}
             </Text>
-            {tournament.playFormat === "REBUY" ? (
-              <Text variant="caption" className="text-[10px] text-gold uppercase">
-                Rebuy
-              </Text>
-            ) : null}
+            {tournament.playFormat === "REBUY" ? <RebuyMark /> : null}
           </View>
           <Text variant="muted" className="text-[11px] mt-0.5" numberOfLines={1}>
-            {formatCents(tournament.entryFeeCents)} · {tournament.registeredCount}/{tournament.maxPlayers} ·{" "}
-            {starts.text}
+            {formatLobbyUsd(tournament.entryFeeCents)} ·{" "}
+            {formatLobbyCount(tournament.registeredCount, tournament.maxPlayers)} · {starts.text}
           </Text>
         </Pressable>
         <Button
@@ -108,11 +119,7 @@ export function TournamentLobbyRow({
   }
 
   return (
-    <View
-      className={`ui-row items-center border-b border-border/40 px-3 h-[56px] gap-2 overflow-hidden ${
-        pinned ? "bg-brand-soft border-brand/25" : ""
-      }`}
-    >
+    <View className={`${rowClass} h-[56px] overflow-hidden`}>
       <Pressable
         onPress={() => onOpenDetail(tournament)}
         className="flex-col items-start justify-center min-w-0 rounded-none"
@@ -122,13 +129,7 @@ export function TournamentLobbyRow({
           <Text variant="body" className="font-semibold text-[13px] flex-1" numberOfLines={1}>
             {tournament.name}
           </Text>
-          {tournament.playFormat === "REBUY" ? (
-            <View className="rounded-1 border border-gold/40 px-1.5 py-0.5">
-              <Text variant="caption" className="text-[10px] text-gold uppercase">
-                Rebuy
-              </Text>
-            </View>
-          ) : null}
+          {tournament.playFormat === "REBUY" ? <RebuyMark /> : null}
         </View>
       </Pressable>
       <Text
@@ -137,7 +138,7 @@ export function TournamentLobbyRow({
         numberOfLines={1}
         style={{ flex: TOURNEY_COL_FLEX.entry }}
       >
-        {formatCents(tournament.entryFeeCents)}
+        {formatLobbyUsd(tournament.entryFeeCents)}
       </Text>
       <View style={{ flex: TOURNEY_COL_FLEX.field }} className="pr-2">
         <EnrolledMeter registered={tournament.registeredCount} max={tournament.maxPlayers} />
@@ -160,11 +161,11 @@ export function TournamentLobbyRow({
       </Text>
       <Text
         variant="body"
-        className={`text-[12px] ${pinned ? "text-brand font-semibold" : "text-gold"}`}
+        className={`text-[12px] ${lobbyTournamentStatusClass(tournament, nowMs, pinned)}`}
         numberOfLines={1}
         style={{ flex: TOURNEY_COL_FLEX.status }}
       >
-        {pinned ? "Joined" : formatTournamentStatus(tournament.status)}
+        {pinned ? "Joined" : formatLobbyTournamentStatus(tournament, nowMs)}
       </Text>
       <View className="items-stretch gap-1 min-w-0" style={{ flex: TOURNEY_COL_FLEX.action }}>
         <Button

@@ -22,16 +22,17 @@ type Props = {
 };
 
 const DESKTOP_COLS: Array<{
-  key: LobbySortKey;
+  key: LobbySortKey | "dots";
   label: string;
   flex: number;
-  align: "left" | "right";
+  sortable: boolean;
 }> = [
-  { key: "name", label: "Table", flex: CASH_COL_FLEX.name, align: "left" },
-  { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, align: "right" },
-  { key: "players", label: "Players", flex: CASH_COL_FLEX.players, align: "right" },
-  { key: "avgPot", label: "Avg Pot", flex: CASH_COL_FLEX.avgPot, align: "right" },
-  { key: "status", label: "Status", flex: CASH_COL_FLEX.status, align: "right" },
+  { key: "name", label: "Table", flex: CASH_COL_FLEX.name, sortable: true },
+  { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, sortable: true },
+  { key: "players", label: "Players", flex: CASH_COL_FLEX.players, sortable: true },
+  { key: "dots", label: "", flex: CASH_COL_FLEX.dots, sortable: false },
+  { key: "avgPot", label: "Avg Pot", flex: CASH_COL_FLEX.avgPot, sortable: true },
+  { key: "status", label: "Waitlist / Status", flex: CASH_COL_FLEX.status, sortable: true },
 ];
 
 function caret(active: boolean, dir: LobbySortDir): string {
@@ -73,22 +74,25 @@ export function LobbyTableList({
       {DESKTOP_COLS.map((col) => (
         <Pressable
           key={col.key}
-          onPress={() => onSort(col.key)}
-          className={`btn h-9 justify-center rounded-none pr-2 ${
-            col.align === "right" ? "items-end" : "items-start"
-          }`}
+          onPress={() => {
+            if (col.key !== "dots") onSort(col.key);
+          }}
+          disabled={!col.sortable}
+          className="btn h-9 justify-center items-start rounded-none pr-2"
           style={{ flex: col.flex, backgroundColor: "transparent", borderRadius: 0 }}
         >
-          <Text
-            variant={sortKey === col.key ? "body" : "muted"}
-            className={`${col.align === "right" ? "text-right" : "text-left"} text-[11px] tracking-wide uppercase font-semibold w-full ${
-              sortKey === col.key ? "text-gold" : ""
-            }`}
-            numberOfLines={1}
-          >
-            {col.label}
-            {caret(sortKey === col.key, sortDir)}
-          </Text>
+          {col.label ? (
+            <Text
+              variant={sortKey === col.key ? "body" : "muted"}
+              className={`text-left text-[11px] tracking-wide uppercase font-semibold w-full ${
+                sortKey === col.key ? "text-gold" : ""
+              }`}
+              numberOfLines={1}
+            >
+              {col.label}
+              {col.sortable && col.key !== "dots" ? caret(sortKey === col.key, sortDir) : ""}
+            </Text>
+          ) : null}
         </Pressable>
       ))}
       <View style={{ flex: CASH_COL_FLEX.action }} />
@@ -97,22 +101,24 @@ export function LobbyTableList({
 
   const body = (
     <>
-      {pinnedTables.map((table) => (
+      {pinnedTables.map((table, i) => (
         <LobbyCashDesktopRow
           key={`pin-${table.id}`}
           table={table}
           pinned
           joining={isJoining(table.id)}
+          isLast={i === pinnedTables.length - 1 && tables.length === 0}
           onJoin={onJoin}
           onResume={onResume}
         />
       ))}
-      {tables.map((table) => (
+      {tables.map((table, i) => (
         <LobbyCashDesktopRow
           key={table.id}
           table={table}
           pinned={false}
           joining={isJoining(table.id)}
+          isLast={i === tables.length - 1}
           onJoin={onJoin}
           onResume={onResume}
         />

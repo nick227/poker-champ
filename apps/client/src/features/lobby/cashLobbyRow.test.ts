@@ -45,8 +45,8 @@ describe("cash lobby CTA mapping", () => {
   });
 
   it("formats waitlist copy", () => {
-    expect(cashLobbyStatusLabel("waitlist", 1)).toBe("1 on waitlist");
-    expect(cashLobbyStatusLabel("waitlist", 3)).toBe("3 on waitlist");
+    expect(cashLobbyStatusLabel("waitlist", 1)).toBe("1 on Waitlist");
+    expect(cashLobbyStatusLabel("waitlist", 3)).toBe("3 on Waitlist");
   });
 });
 
