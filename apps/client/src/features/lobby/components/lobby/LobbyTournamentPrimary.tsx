@@ -1,4 +1,6 @@
 import { ScrollView, View } from "react-native";
+import type { LobbySortDir } from "../../lobbyTableSort";
+import type { TournamentSortKey } from "../../tournamentLobbySort";
 import { TournamentsSection } from "./TournamentsSection";
 import type { TournamentSummary } from "@/services/tournaments.types";
 
@@ -19,6 +21,9 @@ type Props = {
   embedded?: boolean;
   previewLimit?: number;
   scrollable?: boolean;
+  sortKey?: TournamentSortKey;
+  sortDir?: LobbySortDir;
+  onSort?: (key: TournamentSortKey) => void;
 };
 
 export function LobbyTournamentPrimary({
@@ -38,6 +43,9 @@ export function LobbyTournamentPrimary({
   embedded = false,
   previewLimit,
   scrollable = false,
+  sortKey,
+  sortDir,
+  onSort,
 }: Props) {
   const body = (
     <TournamentsSection
@@ -56,6 +64,9 @@ export function LobbyTournamentPrimary({
       compact={compact}
       embedded={embedded}
       previewLimit={previewLimit}
+      sortKey={sortKey}
+      sortDir={sortDir}
+      onSort={onSort}
     />
   );
 

@@ -29,6 +29,16 @@ describe("tournament-schedule (client)", () => {
     expect(lateRegCloseMs(tournament({ status: "LATE_REG" }))).toBe(startMs + 16 * 60 * 1000);
   });
 
+  it("prefers lateRegClosesAt when the server provides it", () => {
+    expect(
+      lateRegCloseMs({
+        startTime: startIso,
+        lateRegMinutes: 16,
+        lateRegClosesAt: "2026-06-01T18:05:00.000Z",
+      }),
+    ).toBe(Date.parse("2026-06-01T18:05:00.000Z"));
+  });
+
   it("is closed when lateRegMinutes is zero", () => {
     expect(
       isLateRegistrationOpen(tournament({ status: "LATE_REG", lateRegMinutes: 0 }), startMs + 1000),

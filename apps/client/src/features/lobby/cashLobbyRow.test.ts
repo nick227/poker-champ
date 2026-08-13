@@ -10,32 +10,36 @@ import {
 
 describe("resolveCashLobbyStatus", () => {
   it("marks pinned rows as joined", () => {
-    expect(resolveCashLobbyStatus({ players: 9, seats: 9, waitlistCount: 2 }, true)).toBe(
+    expect(resolveCashLobbyStatus({ players: 9, seats: 9, connectedHumanCount: 2 }, true)).toBe(
       "joined",
     );
   });
 
-  it("prefers waitlist over full", () => {
-    expect(resolveCashLobbyStatus({ players: 9, seats: 9, waitlistCount: 1 }, false)).toBe(
-      "waitlist",
+  it("marks full tables before live", () => {
+    expect(resolveCashLobbyStatus({ players: 6, seats: 6, connectedHumanCount: 2 }, false)).toBe(
+      "full",
     );
   });
 
-  it("marks full tables without a waitlist", () => {
-    expect(resolveCashLobbyStatus({ players: 6, seats: 6 }, false)).toBe("full");
+  it("marks live tables with a connected human and an open seat", () => {
+    expect(resolveCashLobbyStatus({ players: 3, seats: 9, connectedHumanCount: 1 }, false)).toBe(
+      "live",
+    );
   });
 
-  it("marks open tables", () => {
-    expect(resolveCashLobbyStatus({ players: 3, seats: 9 }, false)).toBe("open");
+  it("marks open tables with no connected humans", () => {
+    expect(resolveCashLobbyStatus({ players: 3, seats: 9, connectedHumanCount: 0 }, false)).toBe(
+      "open",
+    );
   });
 });
 
 describe("cash lobby CTA mapping", () => {
-  it("joins open tables and resumes joined ones", () => {
+  it("joins open and live tables, watches full, resumes joined", () => {
     expect(resolveCashLobbyCta("open")).toBe("join");
+    expect(resolveCashLobbyCta("live")).toBe("join");
     expect(resolveCashLobbyCta("joined")).toBe("resume");
     expect(resolveCashLobbyCta("full")).toBe("view");
-    expect(resolveCashLobbyCta("waitlist")).toBe("view");
   });
 
   it("uses short labels when compact", () => {
@@ -45,9 +49,11 @@ describe("cash lobby CTA mapping", () => {
     expect(cashLobbyCtaLabel("view", true)).toBe("Watch");
   });
 
-  it("formats waitlist copy", () => {
-    expect(cashLobbyStatusLabel("waitlist", 1)).toBe("1 on Waitlist");
-    expect(cashLobbyStatusLabel("waitlist", 3)).toBe("3 on Waitlist");
+  it("labels real statuses only", () => {
+    expect(cashLobbyStatusLabel("joined")).toBe("Joined");
+    expect(cashLobbyStatusLabel("live")).toBe("Live");
+    expect(cashLobbyStatusLabel("open")).toBe("Open");
+    expect(cashLobbyStatusLabel("full")).toBe("Full");
   });
 });
 

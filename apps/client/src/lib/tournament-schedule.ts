@@ -15,13 +15,23 @@ export function defaultRebuyPeriodMinutesForStructure(structureId: string): numb
 export function lateRegCloseMs(tournament: {
   startTime: string;
   lateRegMinutes: number;
+  lateRegClosesAt?: string | null;
 }): number {
+  if (typeof tournament.lateRegClosesAt === "string" && tournament.lateRegClosesAt.length > 0) {
+    const ms = Date.parse(tournament.lateRegClosesAt);
+    if (Number.isFinite(ms)) return ms;
+  }
   return new Date(tournament.startTime).getTime() + tournament.lateRegMinutes * 60 * 1000;
 }
 
 /** Mirrors server `canRegisterForTournament` / `isLateRegistrationOpen`. */
 export function isLateRegistrationOpen(
-  tournament: { startTime: string; lateRegMinutes: number; status: string },
+  tournament: {
+    startTime: string;
+    lateRegMinutes: number;
+    status: string;
+    lateRegClosesAt?: string | null;
+  },
   nowMs: number = Date.now(),
 ): boolean {
   const startMs = new Date(tournament.startTime).getTime();

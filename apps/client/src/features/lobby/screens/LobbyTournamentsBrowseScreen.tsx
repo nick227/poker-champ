@@ -37,6 +37,9 @@ export function LobbyTournamentsBrowseScreen() {
             dense
             compact={compact}
             scrollable
+            sortKey={m.tournamentSortKey}
+            sortDir={m.tournamentSortDir}
+            onSort={m.handleTournamentSort}
           />
         </View>
       </View>

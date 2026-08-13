@@ -13,12 +13,11 @@ import { LobbyRowCta, type LobbyRowCtaKind } from "./LobbyRowCta";
 import { SeatOccupancy } from "./SeatOccupancy";
 
 export const CASH_COL_FLEX = {
-  name: 2,
-  blinds: 1.15,
-  players: 0.8,
-  dots: 1.15,
-  avgPot: 0.85,
-  status: 1.3,
+  name: 2.2,
+  blinds: 1.2,
+  players: 0.9,
+  dots: 1.2,
+  status: 1.35,
   action: 1.15,
 } as const;
 
@@ -27,20 +26,15 @@ export function formatCashBlinds(table: LobbyTableRow): string {
   return `${formatLobbyUsd(table.smallBlindCents)} / ${formatLobbyUsd(table.bigBlindCents)}`;
 }
 
-export function formatCashAvgPot(table: LobbyTableRow): string {
-  if (table.avgPotCents == null || table.avgPotCents <= 0) return "—";
-  return formatLobbyUsd(table.avgPotCents);
-}
-
 export function cashStatusClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
-  if (status === "joined" || status === "open") return "text-brand";
-  if (status === "waitlist") return "text-warn";
+  if (status === "joined" || status === "live") return "text-brand";
+  if (status === "open") return "text-muted";
   return "text-danger";
 }
 
 export function cashStatusDotClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
-  if (status === "joined" || status === "open") return "bg-brand";
-  if (status === "waitlist") return "bg-warn";
+  if (status === "joined" || status === "live") return "bg-brand";
+  if (status === "open") return "bg-border";
   return "bg-danger";
 }
 
@@ -124,19 +118,11 @@ export function LobbyCashDesktopRow({
       <View style={{ flex: CASH_COL_FLEX.dots }} className="pr-2 justify-center">
         <SeatOccupancy players={table.players} seats={table.seats} />
       </View>
-      <Text
-        variant="body"
-        className="font-mono text-[12px] tabular-nums text-muted pr-2"
-        numberOfLines={1}
-        style={{ flex: CASH_COL_FLEX.avgPot }}
-      >
-        {formatCashAvgPot(table)}
-      </Text>
       <View style={{ flex: CASH_COL_FLEX.status }} className="pr-2">
         <View className="ui-row items-center gap-1.5">
           <View className={`h-1.5 w-1.5 rounded-full ${cashStatusDotClass(status)}`} />
           <Text variant="body" className={`text-[12px] ${cashStatusClass(status)}`} numberOfLines={1}>
-            {cashLobbyStatusLabel(status, table.waitlistCount)}
+            {cashLobbyStatusLabel(status)}
           </Text>
         </View>
       </View>

@@ -247,6 +247,10 @@
           "lateRegMinutes": {
             "type": "integer"
           },
+          "lateRegClosesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "playFormat": {
             "type": "string",
             "enum": [
@@ -532,14 +536,6 @@
             "type": "string",
             "nullable": true
           },
-          "avgPotCents": {
-            "type": "integer",
-            "nullable": true
-          },
-          "waitlistCount": {
-            "type": "integer",
-            "nullable": true
-          },
           "showStats": {
             "type": "boolean"
           },
@@ -548,6 +544,10 @@
             "nullable": true
           },
           "connectedHumanCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "seatedCount": {
             "type": "integer",
             "nullable": true
           }

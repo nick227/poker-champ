@@ -1,35 +1,29 @@
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 
-export type CashLobbyStatus = "open" | "waitlist" | "full" | "joined";
+export type CashLobbyStatus = "open" | "live" | "full" | "joined";
 export type CashLobbyCta = "join" | "resume" | "view";
 
 export function resolveCashLobbyStatus(
-  table: Pick<LobbyTableRow, "players" | "seats" | "waitlistCount">,
+  table: Pick<LobbyTableRow, "players" | "seats" | "connectedHumanCount">,
   pinned: boolean,
 ): CashLobbyStatus {
   if (pinned) return "joined";
-  if ((table.waitlistCount ?? 0) > 0) return "waitlist";
   if (table.seats > 0 && table.players >= table.seats) return "full";
+  if ((table.connectedHumanCount ?? 0) > 0) return "live";
   return "open";
 }
 
-export function cashLobbyStatusLabel(
-  status: CashLobbyStatus,
-  waitlistCount?: number,
-): string {
+export function cashLobbyStatusLabel(status: CashLobbyStatus): string {
   if (status === "joined") return "Joined";
-  if (status === "waitlist") {
-    const n = waitlistCount ?? 0;
-    return n === 1 ? "1 on Waitlist" : `${n} on Waitlist`;
-  }
+  if (status === "live") return "Live";
   if (status === "full") return "Full";
   return "Open";
 }
 
 export function resolveCashLobbyCta(status: CashLobbyStatus): CashLobbyCta {
   if (status === "joined") return "resume";
-  if (status === "open") return "join";
-  return "view";
+  if (status === "full") return "view";
+  return "join";
 }
 
 export function cashLobbyCtaLabel(cta: CashLobbyCta, compact: boolean): string {

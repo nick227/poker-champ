@@ -1,30 +1,52 @@
 import type { LobbyTableRow } from "@/lib/lobbyTables";
+import { resolveCashLobbyStatus } from "./cashLobbyRow";
 
-export type LobbySortKey = "name" | "players" | "blinds" | "avgPot" | "status";
+export type LobbySortDir = "asc" | "desc";
+export type LobbySortKey = "name" | "players" | "blinds" | "status";
 
-export const LOBBY_SORT_COMPARATORS: Record<
+export const LOBBY_SORT_INITIAL_DIR: Record<LobbySortKey, LobbySortDir> = {
+  name: "asc",
+  blinds: "asc",
+  players: "desc",
+  status: "asc",
+};
+
+function cashStatusRank(table: LobbyTableRow): number {
+  const status = resolveCashLobbyStatus(table, false);
+  if (status === "live") return 0;
+  if (status === "open") return 1;
+  return 2;
+}
+
+const LOBBY_SORT_COMPARATORS: Record<
   LobbySortKey,
   (a: LobbyTableRow, b: LobbyTableRow) => number
 > = {
   name: (a, b) => a.name.localeCompare(b.name),
-  players: (a, b) => b.players - a.players,
   blinds: (a, b) => a.bigBlindCents - b.bigBlindCents,
-  avgPot: (a, b) => (b.avgPotCents ?? -1) - (a.avgPotCents ?? -1),
-  status: (a, b) => (b.connectedHumanCount ?? 0) - (a.connectedHumanCount ?? 0),
+  players: (a, b) => {
+    const seated = a.players - b.players;
+    if (seated !== 0) return seated;
+    return (a.connectedHumanCount ?? 0) - (b.connectedHumanCount ?? 0);
+  },
+  status: (a, b) => cashStatusRank(a) - cashStatusRank(b),
 };
 
-export const LOBBY_SORT_CYCLE: Record<LobbySortKey, LobbySortKey> = {
-  name: "players",
-  players: "blinds",
-  blinds: "avgPot",
-  avgPot: "status",
-  status: "name",
-};
+export function lobbySortCaret(active: boolean, dir: LobbySortDir): string {
+  if (!active) return "";
+  return dir === "asc" ? " ▴" : " ▾";
+}
 
-export const LOBBY_SORT_LABELS: Record<LobbySortKey, string> = {
-  name: "Table Name",
-  players: "Players",
-  blinds: "Stakes",
-  avgPot: "Avg Pot",
-  status: "Activity",
-};
+export function sortLobbyTables(
+  tables: LobbyTableRow[],
+  key: LobbySortKey,
+  dir: LobbySortDir,
+): LobbyTableRow[] {
+  const cmp = LOBBY_SORT_COMPARATORS[key];
+  const sorted = [...tables].sort((a, b) => {
+    const d = cmp(a, b);
+    if (d !== 0) return d;
+    return a.name.localeCompare(b.name);
+  });
+  return dir === "asc" ? sorted : sorted.reverse();
+}

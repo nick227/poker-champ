@@ -944,6 +944,8 @@ export interface components {
             startingStackCents: number;
             blindStructureId: string;
             lateRegMinutes: number;
+            /** Format: date-time */
+            lateRegClosesAt?: string;
             /** @enum {string} */
             playFormat?: "FREEZEOUT" | "REBUY";
             maxRebuysPerPlayer?: number;
@@ -1020,11 +1022,10 @@ export interface components {
             creatorId?: string | null;
             creatorName: string;
             creatorAvatarUrl: string | null;
-            avgPotCents?: number | null;
-            waitlistCount?: number | null;
             showStats: boolean;
             humanCount?: number | null;
             connectedHumanCount?: number | null;
+            seatedCount?: number | null;
         };
         BotSummary: {
             id: string;

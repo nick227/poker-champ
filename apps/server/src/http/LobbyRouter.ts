@@ -6,6 +6,7 @@ import { CreateTableSchema } from "../lobby/schemas.js";
 import { requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
 import { getPrisma } from "@poker-champ/db";
+import { toLobbyTableSummary } from "../lobby/mapLobbyTable.js";
 import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
 import { findLiveCashRoomByTableId } from "../tables/cash-table-room.js";
 
@@ -54,35 +55,9 @@ router.get("/tables", async (_req, res) => {
   const cashRooms = rooms.filter(
     (r: { metadata?: Record<string, unknown> }) => !isTournamentTableMetadata(r.metadata),
   );
-  const tables = cashRooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
-    const metadata = r.metadata ?? {};
-    const humanCount = typeof metadata.humanCount === "number" ? metadata.humanCount : undefined;
-    const connectedHumanCount = typeof metadata.connectedHumanCount === "number" ? metadata.connectedHumanCount : undefined;
-    return {
-      tableId: metadata.tableId ?? r.roomId,
-      roomId: r.roomId,
-      name: metadata.name ?? "Hold'em",
-      players: connectedHumanCount ?? humanCount ?? r.clients ?? 0,
-      maxSeats: metadata.maxSeats ?? r.maxClients ?? 9,
-      smallBlindCents: metadata.smallBlindCents ?? 50,
-      bigBlindCents: metadata.bigBlindCents ?? 100,
-      minBuyInCents: metadata.minBuyInCents ?? 2000,
-      maxBuyInCents: metadata.maxBuyInCents ?? 20000,
-      visibility: metadata.visibility ?? "PUBLIC",
-      speed: metadata.speed ?? "normal",
-      runningSince: metadata.runningSince ?? null,
-      createdAt: metadata.createdAt ?? Date.now(),
-      updatedAt: metadata.updatedAt ?? metadata.createdAt ?? Date.now(),
-      creatorId: metadata.creatorId != null ? String(metadata.creatorId) : undefined,
-      creatorName: typeof metadata.creatorName === "string" && metadata.creatorName.length > 0 ? metadata.creatorName : "Player",
-      creatorAvatarUrl: typeof metadata.creatorAvatarUrl === "string" ? metadata.creatorAvatarUrl : null,
-      showStats: metadata.showStats ?? false,
-      humanCount,
-      connectedHumanCount,
-      avgPotCents: typeof metadata.avgPotCents === "number" ? metadata.avgPotCents : undefined,
-      waitlistCount: typeof metadata.waitlistCount === "number" ? metadata.waitlistCount : undefined,
-    };
-  });
+  const tables = cashRooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) =>
+    toLobbyTableSummary(r),
+  );
   const creatorIds = [...new Set(tables.map((t: { creatorId?: string }) => t.creatorId).filter(Boolean))] as string[];
   const avatarByCreatorId = new Map<string, string | null>();
   if (creatorIds.length > 0) {

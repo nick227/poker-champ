@@ -9,6 +9,7 @@ import { logger } from "../lib/logger.js";
 import { AuthService } from "../engine/auth/AuthService.js";
 import { presenceIndex } from "./PresenceIndex.js";
 import { getPrisma } from "@poker-champ/db";
+import { toLobbyTableSummary } from "./mapLobbyTable.js";
 import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
 import { nanoid } from "nanoid";
 
@@ -329,34 +330,8 @@ export class LobbyRoom extends Room<LobbyState> {
     );
 
     const raw = cashRooms.map((r: { metadata?: Record<string, unknown>; roomId?: string; clients?: number; maxClients?: number }) => {
-      const m = r.metadata ?? {};
-      const humanCount = typeof m.humanCount === "number" ? m.humanCount : undefined;
-      const connectedHumanCount = typeof m.connectedHumanCount === "number" ? m.connectedHumanCount : undefined;
-      const summary: LobbyTableSummary & { passwordHash?: string } = {
-        tableId: (m.tableId as string) ?? r.roomId ?? "",
-        roomId: r.roomId ?? "",
-        name: (m.name as string) ?? "Hold'em",
-        players: connectedHumanCount ?? humanCount ?? r.clients ?? 0,
-        maxSeats: (m.maxSeats as number) ?? r.maxClients ?? 9,
-        smallBlindCents: (m.smallBlindCents as number) ?? 50,
-        bigBlindCents: (m.bigBlindCents as number) ?? 100,
-        minBuyInCents: (m.minBuyInCents as number) ?? 2000,
-        maxBuyInCents: (m.maxBuyInCents as number) ?? 20000,
-        visibility: (m.visibility as "PUBLIC" | "PRIVATE") ?? "PUBLIC",
-        showStats: (m.showStats as boolean) ?? false,
-        speed: (m.speed as "normal" | "fast") ?? "normal",
-        runningSince: m.runningSince as number | undefined,
-        createdAt: (m.createdAt as number) ?? Date.now(),
-        updatedAt: (m.updatedAt as number) ?? (m.createdAt as number) ?? Date.now(),
-        creatorId: m.creatorId != null ? String(m.creatorId) : undefined,
-        creatorName: typeof m.creatorName === "string" && m.creatorName.length > 0 ? m.creatorName : "Player",
-        creatorAvatarUrl: typeof m.creatorAvatarUrl === "string" ? m.creatorAvatarUrl : null,
-        humanCount,
-        connectedHumanCount,
-        avgPotCents: typeof m.avgPotCents === "number" ? m.avgPotCents : undefined,
-        waitlistCount: typeof m.waitlistCount === "number" ? m.waitlistCount : undefined,
-      };
-      if (includePrivateHash) summary.passwordHash = m.passwordHash as string | undefined;
+      const summary: LobbyTableSummary & { passwordHash?: string } = toLobbyTableSummary(r);
+      if (includePrivateHash) summary.passwordHash = r.metadata?.passwordHash as string | undefined;
       return summary;
     });
     const creatorIds = [...new Set(raw.map((t) => t.creatorId).filter(Boolean))] as string[];

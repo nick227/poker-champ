@@ -2,6 +2,8 @@ import { View } from "react-native";
 import { useNowMs } from "@/hooks/useNowMs";
 import { sliceLobbyPreview } from "../../lobbyPreview";
 import { buildLobbyTournamentRows } from "../../lobbyTournamentRows";
+import type { LobbySortDir } from "../../lobbyTableSort";
+import { sortTournamentLobbyRows, type TournamentSortKey } from "../../tournamentLobbySort";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { TournamentListFeedback } from "./TournamentListFeedback";
 import { TournamentLobbyList } from "./TournamentLobbyList";
@@ -22,6 +24,9 @@ type TournamentsSectionProps = {
   compact?: boolean;
   embedded?: boolean;
   previewLimit?: number;
+  sortKey?: TournamentSortKey;
+  sortDir?: LobbySortDir;
+  onSort?: (key: TournamentSortKey) => void;
 };
 
 export function TournamentsSection({
@@ -40,14 +45,18 @@ export function TournamentsSection({
   compact = false,
   embedded = false,
   previewLimit,
+  sortKey = "startTime",
+  sortDir = "asc",
+  onSort,
 }: TournamentsSectionProps) {
+  const nowMs = useNowMs();
   const rows = buildLobbyTournamentRows(tournaments, authenticated);
+  const browse = sortTournamentLobbyRows(rows.browse, sortKey, sortDir, nowMs);
   const sliced =
     previewLimit != null
-      ? sliceLobbyPreview(rows.pinned, rows.browse, previewLimit)
-      : { pinned: rows.pinned, rest: rows.browse };
+      ? sliceLobbyPreview(rows.pinned, browse, previewLimit)
+      : { pinned: rows.pinned, rest: browse };
   const hasRows = sliced.pinned.length > 0 || sliced.rest.length > 0;
-  const nowMs = useNowMs();
   const emptyMessage = authenticated
     ? "No tournaments scheduled yet. Create one or check back soon."
     : "No tournaments scheduled yet. Log in to register when events are posted.";
@@ -76,6 +85,9 @@ export function TournamentsSection({
           deleteInFlightId={deleteInFlightId}
           compact={compact}
           embedded={embedded}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={onSort}
         />
       ) : null}
     </View>

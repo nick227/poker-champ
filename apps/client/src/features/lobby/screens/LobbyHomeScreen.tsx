@@ -94,6 +94,9 @@ export function LobbyHomeScreen() {
               compact={compact}
               embedded
               previewLimit={LOBBY_HOME_PREVIEW_COUNT}
+              sortKey={m.tournamentSortKey}
+              sortDir={m.tournamentSortDir}
+              onSort={m.handleTournamentSort}
             />
           </LobbySectionFrame>
         </View>

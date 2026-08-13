@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
-import type { LobbySortKey } from "../../lobbyTableSort";
+import { lobbySortCaret, type LobbySortDir, type LobbySortKey } from "../../lobbyTableSort";
 import {
   cashLobbyCtaLabel,
   cashLobbyStatusLabel,
@@ -9,7 +9,6 @@ import {
   resolveCashLobbyStatus,
 } from "../../cashLobbyRow";
 import { formatLobbyCount } from "../../lobbyFormat";
-import type { LobbySortDir } from "./LobbyTableList";
 import { cashStatusClass, cashStatusDotClass, formatCashBlinds } from "./LobbyCashDesktopRow";
 import { LobbyRowCta, type LobbyRowCtaKind } from "./LobbyRowCta";
 
@@ -25,11 +24,6 @@ type Props = {
   onWatch?: (table: LobbyTableRow) => void;
   embedded?: boolean;
 };
-
-function caret(active: boolean, dir: LobbySortDir): string {
-  if (!active) return "";
-  return dir === "asc" ? " ▴" : " ▾";
-}
 
 function cashCtaKind(cta: ReturnType<typeof resolveCashLobbyCta>): LobbyRowCtaKind {
   if (cta === "join") return "join";
@@ -64,7 +58,7 @@ export function LobbyTableListCompact({
             }`}
             numberOfLines={1}
           >
-            Table{caret(sortKey === "name", sortDir)}
+            Table{lobbySortCaret(sortKey === "name", sortDir)}
           </Text>
         </Pressable>
         <Pressable
@@ -79,7 +73,7 @@ export function LobbyTableListCompact({
             }`}
             numberOfLines={1}
           >
-            Seats{caret(sortKey === "players", sortDir)}
+            Seats{lobbySortCaret(sortKey === "players", sortDir)}
           </Text>
         </Pressable>
         <View style={{ width: 72 }} />
@@ -119,7 +113,7 @@ export function LobbyTableListCompact({
                   className={`text-[10px] ${cashStatusClass(status)}`}
                   numberOfLines={1}
                 >
-                  {cashLobbyStatusLabel(status, table.waitlistCount)}
+                  {cashLobbyStatusLabel(status)}
                 </Text>
               </View>
             </View>

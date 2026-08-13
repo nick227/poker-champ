@@ -37,7 +37,7 @@ export type LobbyTableSummary = {
   maxBuyInCents: number;
   visibility: TableVisibility;
   speed: "normal" | "fast";
-  runningSince?: number;
+  runningSince?: number | null;
   createdAt: number;
   updatedAt: number;
   creatorId?: string;
@@ -46,6 +46,5 @@ export type LobbyTableSummary = {
   showStats: boolean;
   humanCount?: number;
   connectedHumanCount?: number;
-  avgPotCents?: number;
-  waitlistCount?: number;
+  seatedCount?: number;
 };

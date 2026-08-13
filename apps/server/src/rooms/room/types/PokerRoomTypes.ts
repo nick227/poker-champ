@@ -72,8 +72,7 @@ export type PokerRoomMetadata = {
   creatorAvatarUrl: string | null;
   humanCount?: number;
   connectedHumanCount?: number;
-  avgPotCents?: number;
-  waitlistCount?: number;
+  seatedCount?: number;
   tournamentId?: string;
   gameMode?: "CASH" | "TOURNAMENT";
 };

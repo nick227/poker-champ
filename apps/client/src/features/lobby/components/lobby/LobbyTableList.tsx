@@ -1,11 +1,11 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
-import type { LobbySortKey } from "../../lobbyTableSort";
+import { lobbySortCaret, type LobbySortDir, type LobbySortKey } from "../../lobbyTableSort";
 import { CASH_COL_FLEX, LobbyCashDesktopRow } from "./LobbyCashDesktopRow";
 import { LobbyTableListCompact } from "./LobbyTableListCompact";
 
-export type LobbySortDir = "asc" | "desc";
+export type { LobbySortDir };
 
 type Props = {
   tables: LobbyTableRow[];
@@ -32,14 +32,8 @@ const DESKTOP_COLS: Array<{
   { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, sortable: true },
   { key: "players", label: "Players", flex: CASH_COL_FLEX.players, sortable: true },
   { key: "dots", label: "", flex: CASH_COL_FLEX.dots, sortable: false },
-  { key: "avgPot", label: "Avg Pot", flex: CASH_COL_FLEX.avgPot, sortable: true },
-  { key: "status", label: "Waitlist / Status", flex: CASH_COL_FLEX.status, sortable: true },
+  { key: "status", label: "Status", flex: CASH_COL_FLEX.status, sortable: true },
 ];
-
-function caret(active: boolean, dir: LobbySortDir): string {
-  if (!active) return "";
-  return dir === "asc" ? " ▴" : " ▾";
-}
 
 export function LobbyTableList({
   tables,
@@ -93,7 +87,7 @@ export function LobbyTableList({
               numberOfLines={1}
             >
               {col.label}
-              {col.sortable && col.key !== "dots" ? caret(sortKey === col.key, sortDir) : ""}
+              {col.sortable && col.key !== "dots" ? lobbySortCaret(sortKey === col.key, sortDir) : ""}
             </Text>
           ) : null}
         </Pressable>

@@ -15,8 +15,7 @@ describe("normalizeTable", () => {
       creatorName: "Nico",
       creatorAvatarUrl: "/uploads/avatars/nico.png",
       updatedAt: now,
-      avgPotCents: 4550,
-      waitlistCount: 2,
+      connectedHumanCount: 1,
     });
 
     expect(row.id).toBe("table_abc");
@@ -25,7 +24,8 @@ describe("normalizeTable", () => {
     expect(row.creatorName).toBe("Nico");
     expect(row.creatorAvatarUrl).toBe("/uploads/avatars/nico.png");
     expect(row.updatedAt).toBe(new Date(now).toISOString());
-    expect(row.avgPotCents).toBe(4550);
-    expect(row.waitlistCount).toBe(2);
+    expect(row.connectedHumanCount).toBe(1);
+    expect(row).not.toHaveProperty("avgPotCents");
+    expect(row).not.toHaveProperty("waitlistCount");
   });
 });

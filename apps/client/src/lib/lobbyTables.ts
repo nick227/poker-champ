@@ -14,8 +14,6 @@ export type LobbyTableRow = {
   creatorName: string;
   creatorAvatarUrl: string | null;
   updatedAt: string;
-  avgPotCents?: number;
-  waitlistCount?: number;
   connectedHumanCount?: number;
 };
 
@@ -68,8 +66,6 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
       : typeof updatedAtRaw === "string" && updatedAtRaw.length > 0
         ? updatedAtRaw
         : new Date().toISOString();
-  const avgPotCents = typeof t.avgPotCents === "number" ? t.avgPotCents : undefined;
-  const waitlistCount = typeof t.waitlistCount === "number" ? t.waitlistCount : undefined;
   return {
     id,
     tableId,
@@ -91,8 +87,6 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
     creatorName,
     creatorAvatarUrl,
     updatedAt,
-    avgPotCents,
-    waitlistCount,
     connectedHumanCount,
   };
 }

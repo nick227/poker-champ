@@ -1,5 +1,6 @@
 import type { Tournament } from "@prisma/client";
 import type { TournamentPlayerStatus } from "./tournament-player-status.js";
+import { lateRegCloseMs } from "./tournament-schedule.js";
 
 type TournamentWithCount = Tournament & {
   _count?: { registrations: number };
@@ -10,6 +11,7 @@ type TournamentWithCount = Tournament & {
 
 export type TournamentApiResponse = Tournament & {
   registeredCount: number;
+  lateRegClosesAt: string;
   isRegistered?: boolean;
   isCreator?: boolean;
   tableLive?: boolean;
@@ -30,6 +32,7 @@ export function toTournamentResponse(
   const { _count, tables, ...rest } = tournament;
   return {
     ...rest,
+    lateRegClosesAt: new Date(lateRegCloseMs(tournament)).toISOString(),
     registeredCount: _count?.registrations ?? 0,
     ...(tables && tables.length > 1
       ? { tableCount: tables.length, openTableCount: tables.filter((t) => t.status === "OPEN").length }

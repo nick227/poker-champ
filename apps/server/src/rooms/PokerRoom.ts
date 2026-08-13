@@ -461,6 +461,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   updateCreateMetadataInternal(cfg?: TableConfig): void {
     const humanCount = this.computeHumanCount();
     const connectedHumanCount = this.computeConnectedHumanCount();
+    const seatedCount = this.computeSeatedCount();
     void this.setMetadata({
       tableId: this.state.tableId,
       name: this.state.tableName,
@@ -483,6 +484,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       gameMode: cfg?.gameMode ?? (this.tournamentId ? "TOURNAMENT" : "CASH"),
       humanCount,
       connectedHumanCount,
+      seatedCount,
     });
   }
 
@@ -2179,13 +2181,19 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   /**
    * Counts humans who have a bound client (binding map is source of truth, not PlayerState.connected).
    * This is the authoritative count of currently connected human players.
-   * 
-   * @returns The number of connected human players
    */
   private computeConnectedHumanCount(): number {
     let n = 0;
     for (const p of this.state.playersById.values()) {
       if (p.kind !== "BOT" && this.getBoundClient(p.id)) n++;
+    }
+    return n;
+  }
+
+  private computeSeatedCount(): number {
+    let n = 0;
+    for (const p of this.state.playersById.values()) {
+      if (p.status !== "OUT") n++;
     }
     return n;
   }
@@ -2210,9 +2218,20 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private updateMetadataCounts(): void {
     const humanCount = this.computeHumanCount();
     const connectedHumanCount = this.computeConnectedHumanCount();
+    const seatedCount = this.computeSeatedCount();
     const current = this.getMetadataSafe();
-    if (current.humanCount !== humanCount || current.connectedHumanCount !== connectedHumanCount) {
-      void this.setMetadata({ ...current, humanCount, connectedHumanCount, updatedAt: Date.now() });
+    if (
+      current.humanCount !== humanCount ||
+      current.connectedHumanCount !== connectedHumanCount ||
+      current.seatedCount !== seatedCount
+    ) {
+      void this.setMetadata({
+        ...current,
+        humanCount,
+        connectedHumanCount,
+        seatedCount,
+        updatedAt: Date.now(),
+      });
     }
   }
 

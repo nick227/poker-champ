@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { LobbySortDir } from "@/features/lobby/components/lobby/LobbyTableList";
 import { useLobbyCashActions } from "@/features/lobby/hooks/useLobbyCashActions";
 import { useLobbyScreenEffects } from "@/features/lobby/hooks/useLobbyScreenEffects";
 import { useLobbyTournamentActions } from "@/features/lobby/hooks/useLobbyTournamentActions";
@@ -9,9 +8,15 @@ import {
   excludePinnedLobbyTables,
 } from "@/features/lobby/lobbySessionTables";
 import {
-  LOBBY_SORT_COMPARATORS,
+  LOBBY_SORT_INITIAL_DIR,
+  sortLobbyTables,
+  type LobbySortDir,
   type LobbySortKey,
 } from "@/features/lobby/lobbyTableSort";
+import {
+  TOURNAMENT_SORT_INITIAL_DIR,
+  type TournamentSortKey,
+} from "@/features/lobby/tournamentLobbySort";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { normalizeTable, type LobbyTableRow } from "@/lib/lobbyTables";
@@ -49,8 +54,10 @@ export function useLobbyScreenModel() {
   const showToast = useToastStore((s) => s.show);
   const isDesktopWorkspace = useIsDesktopWorkspace();
 
-  const [sortKey, setSortKey] = useState<LobbySortKey>("name");
-  const [sortDir, setSortDir] = useState<LobbySortDir>("asc");
+  const [sortKey, setSortKey] = useState<LobbySortKey>("players");
+  const [sortDir, setSortDir] = useState<LobbySortDir>("desc");
+  const [tournamentSortKey, setTournamentSortKey] = useState<TournamentSortKey>("startTime");
+  const [tournamentSortDir, setTournamentSortDir] = useState<LobbySortDir>("asc");
 
   const cash = useLobbyCashActions({
     authToken,
@@ -133,9 +140,7 @@ export function useLobbyScreenModel() {
 
   const sortedTables = useMemo(() => {
     const browse = excludePinnedLobbyTables(lobbyTableRows, pinnedCashIds);
-    const cmp = LOBBY_SORT_COMPARATORS[sortKey];
-    const sorted = [...browse].sort(cmp);
-    return sortDir === "asc" ? sorted : sorted.reverse();
+    return sortLobbyTables(browse, sortKey, sortDir);
   }, [lobbyTableRows, pinnedCashIds, sortKey, sortDir]);
 
   const resumeCashTable = useCallback(
@@ -158,7 +163,18 @@ export function useLobbyScreenModel() {
         setSortDir((d) => (d === "asc" ? "desc" : "asc"));
         return prev;
       }
-      setSortDir(key === "name" ? "asc" : "desc");
+      setSortDir(LOBBY_SORT_INITIAL_DIR[key]);
+      return key;
+    });
+  }, []);
+
+  const handleTournamentSort = useCallback((key: TournamentSortKey) => {
+    setTournamentSortKey((prev) => {
+      if (prev === key) {
+        setTournamentSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setTournamentSortDir(TOURNAMENT_SORT_INITIAL_DIR[key]);
       return key;
     });
   }, []);
@@ -237,6 +253,9 @@ export function useLobbyScreenModel() {
     sortKey,
     sortDir,
     handleSort,
+    tournamentSortKey,
+    tournamentSortDir,
+    handleTournamentSort,
     isJoining,
     openJoinModal,
     refresh,
