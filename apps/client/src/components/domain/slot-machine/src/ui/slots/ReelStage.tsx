@@ -37,8 +37,6 @@ const styles = {
     minHeight: 0,
     overflow: "hidden" as const,
     backgroundColor: casino.reelFace,
-    borderWidth: 2,
-    borderColor: casino.goldMid,
     position: "relative" as const,
   },
   reelsRow: {

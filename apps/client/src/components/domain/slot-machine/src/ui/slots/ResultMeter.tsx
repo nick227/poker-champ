@@ -7,16 +7,6 @@ import type { MachineReadout } from "../../engine/display";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
-function copy(readout: MachineReadout): { line: string; win: boolean } {
-  if (readout.phase === "win" && readout.winCents > 0) {
-    return { line: `${formatCents(readout.winCents)}  ·  ${readout.headline}`, win: true };
-  }
-  if (readout.phase === "failed") return { line: readout.headline, win: false };
-  if (readout.phase === "miss") return { line: readout.headline, win: false };
-  if (readout.phase === "spinning") return { line: "", win: false };
-  return { line: "", win: false };
-}
-
 export function ResultMeter({
   readout,
   animatedStyle,
@@ -24,39 +14,45 @@ export function ResultMeter({
   readout: MachineReadout;
   animatedStyle?: StyleProp<ViewStyle>;
 }) {
-  const shown = copy(readout);
+  const win = readout.phase === "win" && readout.winCents > 0;
+  const failed = readout.phase === "failed";
+  if (!win && !failed) return null;
 
   return (
     <Animated.View style={[styles.wrap, animatedStyle]}>
-      <AnimatedText
-        numberOfLines={1}
-        style={[styles.line, shown.win && styles.lineWin, readout.isJackpot && styles.lineJackpot]}
-      >
-        {shown.line}
+      <AnimatedText numberOfLines={1} style={[styles.amount, readout.isJackpot && styles.jackpot]}>
+        {failed ? readout.headline : formatCents(readout.winCents)}
       </AnimatedText>
+      {win ? (
+        <Text numberOfLines={1} style={styles.caption}>
+          {readout.headline}
+        </Text>
+      ) : null}
     </Animated.View>
   );
 }
 
 const styles = {
   wrap: {
-    width: "100%" as const,
-    height: 28,
-    justifyContent: "center" as const,
     alignItems: "center" as const,
-    paddingHorizontal: 8,
+    paddingBottom: 6,
   },
-  line: {
-    fontSize: 13,
-    fontWeight: "700" as const,
-    letterSpacing: 0.6,
-    color: "#9a9a9a",
-    textTransform: "uppercase" as const,
-  },
-  lineWin: {
+  amount: {
+    fontSize: 18,
+    fontWeight: "800" as const,
     color: casino.goldHi,
+    fontVariant: ["tabular-nums" as const],
   },
-  lineJackpot: {
-    color: "#fff4c2",
+  jackpot: {
+    color: casino.cream,
+    fontSize: 20,
+  },
+  caption: {
+    marginTop: 1,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    fontWeight: "700" as const,
+    color: casino.gold,
+    textTransform: "uppercase" as const,
   },
 };

@@ -4,6 +4,7 @@ import Animated from "react-native-reanimated";
 
 import { formatCents } from "../../engine/format";
 import { litReelsForOutcome } from "../../engine/display";
+import { casino } from "../../theme/casinoCabinet";
 import { Classic3 } from "../../games/classic3";
 import type { SlotGame, SymbolKey } from "../../games/types";
 
@@ -185,7 +186,7 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     overflow: "hidden" as const,
-    backgroundColor: "#070707",
+    backgroundColor: casino.reelFace,
   },
   stage: {
     flex: 1,
