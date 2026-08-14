@@ -8,8 +8,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { casino } from "../../theme/casinoCabinet";
+import { formatCents } from "../../engine/format";
 
 export function SpinButton({
+  betCents,
   spinning,
   disabled,
   reducedMotion,
@@ -18,6 +20,7 @@ export function SpinButton({
   flashStyle,
   size = 140,
 }: {
+  betCents: number;
   spinning?: boolean;
   disabled?: boolean;
   reducedMotion?: boolean;
@@ -59,9 +62,8 @@ export function SpinButton({
             pressed && !disabled && styles.pressed,
           ]}
         >
-          <Text style={[styles.title, disabled && styles.dim, { fontSize: size < 130 ? 22 : 28 }]}>
-            {spinning ? "WAIT" : "SPIN"}
-          </Text>
+          <Text style={[styles.title, disabled && styles.dim, { fontSize: size < 130 ? 22 : 28 }]}>SPIN</Text>
+          <Text style={[styles.bet, disabled && styles.dim]}>{formatCents(betCents)}</Text>
         </Pressable>
       </Animated.View>
     </Animated.View>
@@ -98,6 +100,14 @@ const styles = {
     fontWeight: "900" as const,
     letterSpacing: 3,
     color: casino.ink,
+  },
+  bet: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+    color: casino.goldLo,
+    fontVariant: ["tabular-nums" as const],
   },
   dim: {
     color: "#5a4a20",

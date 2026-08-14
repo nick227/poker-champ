@@ -8,7 +8,6 @@ import { Classic3 } from "../../games/classic3";
 import type { SlotGame, SymbolKey } from "../../games/types";
 
 import { useControlledBankroll } from "../../hooks/useControlledBankroll";
-import { useBetTier } from "../../hooks/useBetTier";
 import { useSlotEngine } from "../../hooks/useSlotEngine";
 import { useSpinLock } from "../../hooks/useSpinLock";
 import { useSlotSpin } from "../../hooks/useSlotSpin";
@@ -19,7 +18,6 @@ import { useSlotAssetsReady } from "../../hooks/useSlotAssetsReady";
 import { MachineCabinet } from "./MachineCabinet";
 import { ReelStage } from "./ReelStage";
 import { ReelWindow } from "./ReelWindow";
-import { ResultMeter } from "./ResultMeter";
 import { JackpotBanner } from "./JackpotBanner";
 import { ControlDeck } from "./ControlDeck";
 import { VictoryText } from "./VictoryText";
@@ -78,7 +76,7 @@ export function SlotMachine({
   });
 
   const lock = useSpinLock();
-  const { tier, setTier, betCents } = useBetTier(baseBetCents);
+  const betCents = baseBetCents;
   const engine = useSlotEngine(game);
   const reelLens = useMemo(() => {
     const lens = [game.reels[0].length, game.reels[1].length, game.reels[2].length] as const;
@@ -148,26 +146,22 @@ export function SlotMachine({
               flashStyle={fx.jackpotBannerFlashStyle}
             />
 
-            <View style={styles.reels}>
-              <ReelStage onReelLayout={onReelLayout}>
-                <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
-                <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
-                <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
-              </ReelStage>
-              <ResultMeter readout={readout} animatedStyle={fx.winBannerStyle} />
-            </View>
+            <ReelStage onReelLayout={onReelLayout}>
+              <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
+              <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
+              <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
+            </ReelStage>
 
             <ControlDeck
-              tier={tier}
               betCents={betCents}
               busy={busy}
               canSpin={canSpin}
+              readout={readout}
               reducedMotion={reducedMotion}
               onSpin={handleSpin}
-              onTier={setTier}
-              onMax={() => setTier("DOUBLE")}
               spinStyle={fx.spinBtnStyle}
               spinFlashStyle={fx.spinBtnFlashStyle}
+              resultStyle={fx.winBannerStyle}
             />
           </MachineCabinet>
 
@@ -199,10 +193,5 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     zIndex: 2,
-  },
-  reels: {
-    flex: 1,
-    minHeight: 0,
-    position: "relative" as const,
   },
 };
