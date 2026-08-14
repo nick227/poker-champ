@@ -36,6 +36,8 @@ const styles = {
     paddingTop: 8,
     paddingBottom: 6,
     backgroundColor: casino.reelFace,
+    borderBottomWidth: 2,
+    borderBottomColor: casino.goldMid,
   },
   top: {
     textAlign: "center" as const,

@@ -130,6 +130,19 @@ export function litReelsForOutcome(
   return [false, false, false];
 }
 
+export function paylineRange(lit: readonly boolean[]): { start: number; count: number } | null {
+  const first = lit.findIndex(Boolean);
+  if (first < 0) return null;
+  let last = first;
+  for (let i = lit.length - 1; i >= first; i--) {
+    if (lit[i]) {
+      last = i;
+      break;
+    }
+  }
+  return { start: first, count: last - first + 1 };
+}
+
 export function isNearWin(result: readonly string[], isJackpot: boolean): boolean {
   if (isJackpot) return false;
   return result.filter((s) => s === "7").length === 2;

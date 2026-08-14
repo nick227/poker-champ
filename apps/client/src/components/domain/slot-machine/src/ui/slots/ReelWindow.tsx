@@ -12,16 +12,12 @@ export function ReelWindow({
   symbolHeight,
   animatedStyle,
   repeatCount = 7,
-  lit,
-  litStyle,
 }: {
   strip: SymbolKey[];
   symbols: Partial<Record<SymbolKey, ImageSourcePropType>>;
   symbolHeight: number;
   animatedStyle: StyleProp<ViewStyle>;
   repeatCount?: number;
-  lit?: boolean;
-  litStyle?: StyleProp<ViewStyle>;
 }) {
   const repeated = useMemo(() => Array.from({ length: repeatCount }, () => strip).flat(), [repeatCount, strip]);
   const pad = symbolHeight * 2;
@@ -42,15 +38,6 @@ export function ReelWindow({
           );
         })}
       </Animated.View>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.centerHit,
-          { top: symbolHeight, height: symbolHeight },
-          lit ? styles.centerHitOn : styles.centerHitOff,
-          litStyle,
-        ]}
-      />
     </View>
   );
 }
@@ -79,24 +66,5 @@ const styles = {
     fontWeight: "900" as const,
     color: casino.goldHi,
     letterSpacing: 1,
-  },
-  centerHit: {
-    position: "absolute" as const,
-    left: 2,
-    right: 2,
-    borderRadius: 6,
-    borderWidth: 2,
-  },
-  centerHitOff: {
-    borderColor: "transparent",
-    backgroundColor: "transparent",
-  },
-  centerHitOn: {
-    borderColor: casino.goldHi,
-    backgroundColor: "rgba(255,224,138,0.12)",
-    shadowColor: casino.goldHi,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
   },
 };

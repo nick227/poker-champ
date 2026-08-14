@@ -125,7 +125,7 @@ export function SlotMachine({
   }, [betCents, game.jackpotKey, game.paytable, jackpotBannerCents]);
 
   const { styles: fx } = celebration;
-  const reelProps = { symbols, symbolHeight, repeatCount: REEL_REPEAT_COUNT, litStyle: fx.cellLitStyle };
+  const reelProps = { symbols, symbolHeight, repeatCount: REEL_REPEAT_COUNT };
 
   return (
     <View style={styles.root}>
@@ -147,22 +147,20 @@ export function SlotMachine({
               flashStyle={fx.jackpotBannerFlashStyle}
             />
 
-            <ReelStage onReelLayout={onReelLayout}>
-              <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
-              <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
-              <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
+            <ReelStage onReelLayout={onReelLayout} lit={lit} symbolHeight={symbolHeight} litStyle={fx.cellLitStyle}>
+              <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} {...reelProps} />
+              <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} {...reelProps} />
+              <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} {...reelProps} />
             </ReelStage>
 
             <ControlDeck
               betCents={betCents}
               busy={busy}
               canSpin={canSpin}
-              readout={readout}
               reducedMotion={reducedMotion}
               onSpin={handleSpin}
               spinStyle={fx.spinBtnStyle}
               spinFlashStyle={fx.spinBtnFlashStyle}
-              resultStyle={fx.winBannerStyle}
             />
           </MachineCabinet>
 

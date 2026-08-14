@@ -1,16 +1,22 @@
 import React from "react";
 import { View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
+import Animated from "react-native-reanimated";
 import { casino } from "../../theme/casinoCabinet";
+import { paylineRange } from "../../engine/display";
 
 type Props = {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onReelLayout?: (height: number) => void;
+  lit?: readonly [boolean, boolean, boolean];
+  symbolHeight?: number;
+  litStyle?: StyleProp<ViewStyle>;
 };
 
-/** Three-reel window. Win lighting lives on the center cells, not a payline overlay. */
-export function ReelStage({ children, style, onReelLayout }: Props) {
+/** Three-reel window. Wins draw one connected payline, not per-cell boxes. */
+export function ReelStage({ children, style, onReelLayout, lit, symbolHeight = 0, litStyle }: Props) {
   const cols = React.Children.toArray(children);
+  const span = lit ? paylineRange(lit) : null;
 
   const handleLayout = (e: LayoutChangeEvent) => {
     onReelLayout?.(e.nativeEvent.layout.height);
@@ -26,6 +32,21 @@ export function ReelStage({ children, style, onReelLayout }: Props) {
           </React.Fragment>
         ))}
       </View>
+      {span && symbolHeight > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.payline,
+            {
+              top: symbolHeight,
+              height: symbolHeight,
+              left: `${(span.start / 3) * 100}%`,
+              width: `${(span.count / 3) * 100}%`,
+            },
+            litStyle,
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
@@ -55,5 +76,17 @@ const styles = {
     width: 2,
     backgroundColor: casino.goldLo,
     opacity: 0.7,
+  },
+  payline: {
+    position: "absolute" as const,
+    borderWidth: 2,
+    borderColor: casino.goldHi,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,224,138,0.12)",
+    shadowColor: casino.goldHi,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    marginHorizontal: 4,
   },
 };

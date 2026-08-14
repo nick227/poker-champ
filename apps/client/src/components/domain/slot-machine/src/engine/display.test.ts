@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isNearWin, litReelsForOutcome, outcomeHeadline, outcomeLabel, settleReadout } from "./display";
+import { isNearWin, litReelsForOutcome, outcomeHeadline, outcomeLabel, paylineRange, settleReadout } from "./display";
 
 describe("outcomeHeadline", () => {
   it("uses player-facing copy instead of reel codes", () => {
@@ -54,6 +54,16 @@ describe("litReelsForOutcome", () => {
     expect(litReelsForOutcome(["7", "A", "7"], "ANY_SEVEN", "7")).toEqual([true, false, true]);
     expect(litReelsForOutcome(["A", "A", "A"], "TRIPLE", "A")).toEqual([true, true, true]);
     expect(litReelsForOutcome(["A", "B", "C"], "NONE")).toEqual([false, false, false]);
+  });
+});
+
+describe("paylineRange", () => {
+  it("spans one connected band from first to last lit reel", () => {
+    expect(paylineRange([true, true, false])).toEqual({ start: 0, count: 2 });
+    expect(paylineRange([false, true, true])).toEqual({ start: 1, count: 2 });
+    expect(paylineRange([true, true, true])).toEqual({ start: 0, count: 3 });
+    expect(paylineRange([true, false, true])).toEqual({ start: 0, count: 3 });
+    expect(paylineRange([false, false, false])).toBeNull();
   });
 });
 

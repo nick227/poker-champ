@@ -117,14 +117,6 @@ export function useSlotCelebration() {
   );
 
   const spinBtnStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }));
-  const winBannerStyle = useAnimatedStyle(() => ({
-    opacity: 0.7 + winPulse.value * 0.3,
-    shadowColor: winPulse.value > 0.4 ? "#FFD700" : "transparent",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: winPulse.value * 0.7,
-    shadowRadius: winPulse.value * 10,
-    elevation: winPulse.value > 0.5 ? 8 : 0,
-  }));
   const cellLitStyle = useAnimatedStyle(() => ({
     opacity: 0.55 + winPulse.value * 0.45,
   }));
@@ -161,7 +153,6 @@ export function useSlotCelebration() {
     bgIntensity,
     styles: {
       spinBtnStyle,
-      winBannerStyle,
       jackpotBannerStyle,
       spinBtnFlashStyle,
       screenShakeStyle,
