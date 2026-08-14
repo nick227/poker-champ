@@ -79,14 +79,13 @@ const styles = {
   },
   payline: {
     position: "absolute" as const,
-    borderWidth: 2,
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
     borderColor: casino.goldHi,
-    borderRadius: 8,
     backgroundColor: "rgba(255,224,138,0.12)",
     shadowColor: casino.goldHi,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 12,
-    marginHorizontal: 4,
   },
 };
