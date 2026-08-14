@@ -3,7 +3,7 @@ import { View, useWindowDimensions } from "react-native";
 import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
-import { SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
+import { LONGEST_SPIN_MS, SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
 import { useBankroll } from "@/hooks/useBankroll";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -19,8 +19,8 @@ export type TableLoadingLandingProps = {
   onSlotSpinStart?: (spinDurationMs: number) => void;
 };
 
-/** Match slot machine longest reel spin (SlotMachine SPIN_DURATIONS max 1400ms). */
-const ONE_SPIN_MS = 1500;
+/** Match slot machine longest reel spin including settle and near-win linger. */
+const ONE_SPIN_MS = LONGEST_SPIN_MS;
 
 export function TableLoadingLanding({
   mode,

@@ -3,6 +3,7 @@ import { AccessibilityInfo, View, ImageSourcePropType } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { formatCents } from "../../engine/format";
+import { litReelsForOutcome } from "../../engine/display";
 import { Classic3 } from "../../games/classic3";
 import type { SlotGame, SymbolKey } from "../../games/types";
 
@@ -15,37 +16,17 @@ import { useSlotReelMotion } from "../../hooks/useSlotReelMotion";
 import { useSlotCelebration } from "../../hooks/useSlotCelebration";
 import { useSlotAssetsReady } from "../../hooks/useSlotAssetsReady";
 
-import { Chip } from "../components/Chip";
-import { PrimaryButton } from "../components/PrimaryButton";
 import { MachineCabinet } from "./MachineCabinet";
 import { ReelStage } from "./ReelStage";
 import { ReelWindow } from "./ReelWindow";
-import { WinBanner } from "./WinBanner";
+import { ResultMeter } from "./ResultMeter";
 import { JackpotBanner } from "./JackpotBanner";
+import { ControlDeck } from "./ControlDeck";
 import { VictoryText } from "./VictoryText";
 import { SlotScreenFx } from "./SlotScreenFx";
 import { WinPresentationOverlay } from "./WinPresentationOverlay";
 import { SLOT_FADE_IN_MS, SlotPreloader } from "./SlotPreloader";
-
-const DEFAULT_SYMBOL_HEIGHT = 120;
-const MIN_SYMBOL_HEIGHT = 48;
-const REEL_REPEAT_COUNT = 7;
-
-const ASSETS = {
-  symbols: {
-    A: require("../../../assets/symbols/A.png"),
-    B: require("../../../assets/symbols/B.png"),
-    C: require("../../../assets/symbols/C.png"),
-    D: require("../../../assets/symbols/D.png"),
-    E: require("../../../assets/symbols/E.png"),
-    F: require("../../../assets/symbols/F.png"),
-    "7": require("../../../assets/symbols/7.png"),
-  } satisfies Record<SymbolKey, ImageSourcePropType>,
-};
-
-function clampSymbolHeight(reelHeight: number): number {
-  return Math.max(MIN_SYMBOL_HEIGHT, Math.floor(reelHeight / 3));
-}
+import { clampSymbolHeight, DEFAULT_SYMBOL_HEIGHT, moodFor, REEL_REPEAT_COUNT, SLOT_SYMBOL_ASSETS } from "./slotMachineConfig";
 
 export function SlotMachine({
   onSpinComplete,
@@ -70,12 +51,12 @@ export function SlotMachine({
   initialBankrollCents?: number;
   jackpotBannerCents?: number;
   reducedMotion?: boolean;
-  /** Crossfade duration once assets + reel layout are ready. */
   fadeInMs?: number;
 }) {
   const [reducedMotionSystem, setReducedMotionSystem] = useState(false);
   const [symbolHeight, setSymbolHeight] = useState(DEFAULT_SYMBOL_HEIGHT);
   const [layoutReady, setLayoutReady] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   useEffect(() => {
     if (reducedMotionProp != null) return;
@@ -105,7 +86,7 @@ export function SlotMachine({
     return Object.freeze(lens);
   }, [game.reels]);
 
-  const symbols = useMemo(() => ({ ...ASSETS.symbols, ...(symbolMap ?? {}) }), [symbolMap]);
+  const symbols = useMemo(() => ({ ...SLOT_SYMBOL_ASSETS, ...(symbolMap ?? {}) }), [symbolMap]);
   const assetsReady = useSlotAssetsReady(symbols);
   const motion = useSlotReelMotion(reelLens, symbolHeight);
   const celebration = useSlotCelebration();
@@ -118,7 +99,7 @@ export function SlotMachine({
     setLayoutReady(true);
   }, []);
 
-  const { machineOutput, handleSpin } = useSlotSpin({
+  const { readout, busy, nearWin, handleSpin } = useSlotSpin({
     bank,
     betCents,
     engine,
@@ -133,7 +114,21 @@ export function SlotMachine({
     reducedMotion,
   });
 
-  const canSpin = !lock.locked && bank >= betCents;
+  const canSpin = !busy && bank >= betCents;
+  const lit = litReelsForOutcome(readout.result, readout.kind, readout.matchedSymbol);
+  const mood = moodFor(busy, nearWin, canSpin, readout.isJackpot, readout.phase === "win");
+
+  useEffect(() => {
+    if (!autoPlay || busy) return;
+    if (bank < betCents) {
+      setAutoPlay(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      void handleSpin();
+    }, 480);
+    return () => clearTimeout(t);
+  }, [autoPlay, busy, bank, betCents, handleSpin]);
 
   const jackpotValueCents = useMemo(() => {
     if (jackpotBannerCents !== undefined) return jackpotBannerCents;
@@ -144,6 +139,7 @@ export function SlotMachine({
   }, [betCents, game.jackpotKey, game.paytable, jackpotBannerCents]);
 
   const { styles: fx } = celebration;
+  const reelProps = { symbols, symbolHeight, repeatCount: REEL_REPEAT_COUNT, litStyle: fx.cellLitStyle };
 
   return (
     <View style={styles.root}>
@@ -156,55 +152,36 @@ export function SlotMachine({
         />
 
         <Animated.View style={[styles.stage, fx.screenShakeStyle]}>
-          <MachineCabinet spinning={lock.locked}>
+          <MachineCabinet mood={mood} reducedMotion={reducedMotion}>
             <JackpotBanner
               title="777 Jackpot"
               value={formatCents(jackpotValueCents)}
+              reducedMotion={reducedMotion}
               animatedStyle={fx.jackpotBannerStyle}
               flashStyle={fx.jackpotBannerFlashStyle}
             />
 
-            <ReelStage onReelLayout={onReelLayout}>
-              <ReelWindow
-                strip={game.reels[0]}
-                symbols={symbols}
-                symbolHeight={symbolHeight}
-                animatedStyle={motion.reelStyle0}
-                repeatCount={REEL_REPEAT_COUNT}
-              />
-              <ReelWindow
-                strip={game.reels[1]}
-                symbols={symbols}
-                symbolHeight={symbolHeight}
-                animatedStyle={motion.reelStyle1}
-                repeatCount={REEL_REPEAT_COUNT}
-              />
-              <ReelWindow
-                strip={game.reels[2]}
-                symbols={symbols}
-                symbolHeight={symbolHeight}
-                animatedStyle={motion.reelStyle2}
-                repeatCount={REEL_REPEAT_COUNT}
-              />
+            <ReelStage onReelLayout={onReelLayout} paylineLit={readout.phase === "win"} paylineStyle={fx.paylineStyle}>
+              <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
+              <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
+              <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
             </ReelStage>
 
-            <View style={styles.dock}>
-              <WinBanner text={machineOutput} animatedStyle={fx.winBannerStyle} />
-              <PrimaryButton
-                betCents={betCents}
-                title="SPIN"
-                subtitle={canSpin ? "PUSH" : "WAIT"}
-                disabled={!canSpin}
-                onPress={handleSpin}
-                animatedStyle={fx.spinBtnStyle}
-                flashStyle={fx.spinBtnFlashStyle}
-              />
-              <View style={styles.betRow}>
-                <Chip label="1/2" active={tier === "HALF"} onPress={() => setTier("HALF")} disabled={lock.locked} />
-                <Chip label="1x" active={tier === "FULL"} onPress={() => setTier("FULL")} disabled={lock.locked} />
-                <Chip label="2x" active={tier === "DOUBLE"} onPress={() => setTier("DOUBLE")} disabled={lock.locked} />
-              </View>
-            </View>
+            <ResultMeter readout={readout} betCents={betCents} animatedStyle={fx.winBannerStyle} />
+            <ControlDeck
+              tier={tier}
+              betCents={betCents}
+              busy={busy}
+              autoPlay={autoPlay}
+              canSpin={canSpin}
+              reducedMotion={reducedMotion}
+              onSpin={handleSpin}
+              onToggleAuto={() => setAutoPlay((v) => !v)}
+              onTier={setTier}
+              onMax={() => setTier("DOUBLE")}
+              spinStyle={fx.spinBtnStyle}
+              spinFlashStyle={fx.spinBtnFlashStyle}
+            />
           </MachineCabinet>
 
           <VictoryText animatedStyle={fx.victoryTextStyle} />
@@ -227,8 +204,7 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     overflow: "hidden" as const,
-    maxWidth: "900px" as const,
-    marginHorizontal: "auto" as const,
+    backgroundColor: "#070707",
   },
   stage: {
     flex: 1,
@@ -236,15 +212,5 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     zIndex: 2,
-  },
-  dock: {
-    width: "100%" as const,
-    gap: 8,
-    flexShrink: 0,
-  },
-  betRow: {
-    flexDirection: "row" as const,
-    gap: 8,
-    width: "100%" as const,
   },
 };

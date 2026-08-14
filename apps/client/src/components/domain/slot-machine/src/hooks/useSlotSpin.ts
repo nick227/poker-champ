@@ -2,10 +2,16 @@ import React, { useCallback, useState } from "react";
 import { Easing, withSequence, withTiming } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
-import { formatCents } from "../engine/format";
-import { toOddsText, outcomeLabel } from "../engine/display";
+import {
+  FAILED_READOUT,
+  IDLE_READOUT,
+  SPINNING_READOUT,
+  isNearWin,
+  settleReadout,
+  type MachineReadout,
+} from "../engine/display";
+import { NEAR_WIN_LINGER_MS, type SpinToOptions } from "./useSlotReelMotion";
 import type { SlotOutcomeKind, SymbolKey } from "../games/types";
-
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
 
 interface SpinResult {
@@ -28,7 +34,7 @@ interface UseSlotSpinProps {
   onSpinComplete?: (winCents: number) => void;
   onSpinStart?: () => void;
   setBank: (updater: (current: number) => number) => void;
-  spinTo: (stops: readonly [number, number, number]) => Promise<void>;
+  spinTo: (stops: readonly [number, number, number], options?: SpinToOptions) => Promise<void>;
   normalizeReelPositions: () => void;
   pressScale: SharedNum;
   playWinFx: (isJackpot: boolean, winMultiplier: number, winCents: number, reducedMotion?: boolean) => void;
@@ -49,7 +55,9 @@ export function useSlotSpin({
   playWinFx,
   reducedMotion = false,
 }: UseSlotSpinProps) {
-  const [machineOutput, setMachineOutput] = useState("No Match");
+  const [readout, setReadout] = useState<MachineReadout>(IDLE_READOUT);
+  const [busy, setBusy] = useState(false);
+  const [nearWin, setNearWin] = useState(false);
   const mountedRef = React.useRef(true);
 
   React.useEffect(() => {
@@ -62,9 +70,10 @@ export function useSlotSpin({
     if (lock.locked || bank < betCents) return;
 
     lock.lock();
+    setBusy(true);
     onSpinStart?.();
     setBank((b: number) => Math.max(0, b - betCents));
-    setMachineOutput("Spinning...");
+    setReadout(SPINNING_READOUT);
     normalizeReelPositions();
 
     emitSoundEvent("slot.pull");
@@ -76,13 +85,16 @@ export function useSlotSpin({
       /* native only */
     }
     pressScale.value = withSequence(
-      withTiming(0.97, { duration: 50, easing: Easing.out(Easing.quad) }),
-      withTiming(1.0, { duration: 90, easing: Easing.out(Easing.quad) }),
+      withTiming(0.94, { duration: 50, easing: Easing.out(Easing.quad) }),
+      withTiming(1.0, { duration: 110, easing: Easing.out(Easing.quad) }),
     );
 
     try {
-      const { stops, result, winUnits, isJackpot, outcomeKind, matchedSymbol, probability } = engine.spin();
-      await spinTo(stops);
+      const spun = engine.spin();
+      const lingerMs = isNearWin(spun.result, spun.isJackpot) ? NEAR_WIN_LINGER_MS : 0;
+      if (mountedRef.current) setNearWin(lingerMs > 0);
+      await spinTo(spun.stops, { lingerMs, reducedMotion });
+      if (mountedRef.current) setNearWin(false);
 
       if (!mountedRef.current) {
         lock.unlock();
@@ -91,32 +103,36 @@ export function useSlotSpin({
 
       emitSoundEvent("slot.reelStop");
 
-      const win = winUnits * betCents;
+      const win = spun.winUnits * betCents;
       if (win > 0) {
         setBank((b: number) => b + win);
       }
 
-      const combo = result.join("-");
+      const next = settleReadout({
+        kind: spun.outcomeKind,
+        matchedSymbol: spun.matchedSymbol,
+        isJackpot: spun.isJackpot,
+        winCents: win,
+        result: spun.result as SymbolKey[],
+      });
+      setReadout(next);
+
       if (win > 0) {
         emitSoundEvent("slot.win");
-        const odds = toOddsText(probability);
-        const outcome = outcomeLabel(outcomeKind, combo, matchedSymbol);
-        const winMultiplier = win / betCents;
-        setMachineOutput(`${outcome} pays ${formatCents(win)} (${odds})`);
-        playWinFx(isJackpot, winMultiplier, win, reducedMotion);
-      } else {
-        setMachineOutput("No Match");
+        playWinFx(spun.isJackpot, win / betCents, win, reducedMotion);
       }
 
       onSpinComplete?.(win);
     } catch (error) {
       if (mountedRef.current) {
         console.warn("[slot] spin aborted", error);
-        setMachineOutput("Spin Failed");
+        setReadout(FAILED_READOUT);
       }
     } finally {
       if (mountedRef.current) {
+        setNearWin(false);
         lock.unlock();
+        setBusy(false);
       }
     }
   }, [
@@ -134,8 +150,5 @@ export function useSlotSpin({
     onSpinStart,
   ]);
 
-  return {
-    machineOutput,
-    handleSpin,
-  };
+  return { readout, busy, nearWin, handleSpin };
 }

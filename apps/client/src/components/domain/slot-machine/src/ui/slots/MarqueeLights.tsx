@@ -16,24 +16,34 @@ const BULB = 9;
 
 type Props = {
   active: boolean;
+  reducedMotion?: boolean;
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Continuous marquee bulb ring around the reel housing. Always faintly lit; chases while spinning. */
-export function MarqueeLights({ active, children, style }: Props) {
+/** Continuous marquee bulb ring around the reel housing. Breathes idle; chases while spinning. */
+export function MarqueeLights({ active, reducedMotion, children, style }: Props) {
   const phase = useSharedValue(0);
   const chasing = useSharedValue(0);
 
   React.useEffect(() => {
+    if (reducedMotion) {
+      chasing.value = 0;
+      phase.value = 0.45;
+      return;
+    }
     if (!active) {
       chasing.value = 0;
-      phase.value = withTiming(0, { duration: 280 });
+      phase.value = withRepeat(
+        withTiming(1, { duration: 2400, easing: Easing.inOut(Easing.quad) }),
+        -1,
+        true,
+      );
       return;
     }
     chasing.value = 1;
     phase.value = withRepeat(withTiming(1, { duration: 1100, easing: Easing.linear }), -1, false);
-  }, [active, phase, chasing]);
+  }, [active, reducedMotion, phase, chasing]);
 
   const top = useMemo(() => Array.from({ length: TOP }, (_, i) => i), []);
   const bottom = useMemo(() => Array.from({ length: TOP }, (_, i) => i + TOP), []);
@@ -81,10 +91,11 @@ function Bulb({
 }) {
   const a = useAnimatedStyle(() => {
     if (chasing.value < 0.5) {
+      const idle = 0.38 + phase.value * 0.32;
       return {
-        opacity: 0.55,
+        opacity: idle,
         backgroundColor: casino.bulbOff,
-        shadowOpacity: 0.25,
+        shadowOpacity: 0.18 + phase.value * 0.22,
       };
     }
     const t = (phase.value + index / total) % 1;

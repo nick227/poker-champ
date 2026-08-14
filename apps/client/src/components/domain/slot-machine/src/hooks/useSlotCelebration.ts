@@ -118,12 +118,18 @@ export function useSlotCelebration() {
 
   const spinBtnStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }));
   const winBannerStyle = useAnimatedStyle(() => ({
-    opacity: 0.55 + winPulse.value * 0.45,
-    shadowColor: winPulse.value > 0.5 ? "#FFD700" : "transparent",
+    opacity: 0.7 + winPulse.value * 0.3,
+    shadowColor: winPulse.value > 0.4 ? "#FFD700" : "transparent",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: winPulse.value * 0.8,
-    shadowRadius: winPulse.value * 12,
+    shadowOpacity: winPulse.value * 0.7,
+    shadowRadius: winPulse.value * 10,
     elevation: winPulse.value > 0.5 ? 8 : 0,
+  }));
+  const paylineStyle = useAnimatedStyle(() => ({
+    opacity: 0.42 + winPulse.value * 0.58,
+  }));
+  const cellLitStyle = useAnimatedStyle(() => ({
+    opacity: 0.55 + winPulse.value * 0.45,
   }));
   const jackpotBannerStyle = useAnimatedStyle(() => ({
     opacity: 0.75 + jackpotPulse.value * 0.25,
@@ -164,6 +170,8 @@ export function useSlotCelebration() {
       screenShakeStyle,
       victoryTextStyle,
       jackpotBannerFlashStyle,
+      paylineStyle,
+      cellLitStyle,
     },
   };
 }
