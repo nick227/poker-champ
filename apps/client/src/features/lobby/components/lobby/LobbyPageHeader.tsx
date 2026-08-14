@@ -8,6 +8,7 @@ type Props = {
   subtitle?: string;
   onNewCashTable?: () => void;
   onCreateTournament?: () => void;
+  compact?: boolean;
 };
 
 export function LobbyPageHeader({
@@ -15,45 +16,55 @@ export function LobbyPageHeader({
   subtitle,
   onNewCashTable,
   onCreateTournament,
+  compact = false,
 }: Props) {
-  return (
-    <View className="ui-row items-center justify-between flex-wrap gap-3 pb-4">
-      <View className="min-w-0 flex-1">
-        <Text variant="h1" className="font-display text-[34px] font-medium leading-none">
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text variant="muted" className="mt-1.5 text-[13px]">
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      <View className="ui-row items-center flex-wrap gap-2 shrink-0">
+  const actions =
+    onNewCashTable || onCreateTournament ? (
+      <View className={`ui-row items-center gap-2 ${compact ? "w-full" : "shrink-0 flex-wrap"}`}>
         {onNewCashTable ? (
           <Button
-            title="New cash table"
+            title={compact ? "New table" : "New cash table"}
             onPress={onNewCashTable}
             intent="accent"
             size="sm"
             shape="hud"
             minWidth={0}
+            className={compact ? "flex-1 min-h-[40px]" : ""}
             leftIcon={<Ionicons name="grid-outline" size={15} color="#fff" />}
           />
         ) : null}
         {onCreateTournament ? (
           <Button
-            title="Create tournament"
+            title={compact ? "New event" : "Create tournament"}
             onPress={onCreateTournament}
             intent="ghost"
             size="sm"
             shape="hud"
             minWidth={0}
-            className="border border-border bg-transparent"
+            className={`border border-border bg-transparent ${compact ? "flex-1 min-h-[40px]" : ""}`}
             textClassName="text-text"
             leftIcon={<Ionicons name="trophy-outline" size={15} color="hsl(0 0% 90%)" />}
           />
         ) : null}
       </View>
+    ) : null;
+
+  return (
+    <View className={`pb-4 ${compact ? "ui-stack-3" : "ui-row items-center justify-between flex-wrap gap-3"}`}>
+      <View className="min-w-0 flex-1">
+        <Text
+          variant="h1"
+          className={`font-display font-medium leading-none ${compact ? "text-[26px]" : "text-[34px]"}`}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text variant="muted" className={`text-[13px] ${compact ? "mt-1" : "mt-1.5"}`}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {actions}
     </View>
   );
 }

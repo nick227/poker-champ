@@ -42,12 +42,12 @@ function SummaryCard({
         <Text variant="label" className={`font-display tracking-[0.14em] uppercase ${eyebrowClass}`}>
           {eyebrow}
         </Text>
-        <View className="ui-row items-center mt-1.5">
-          <Text variant="muted" className="flex-1 text-[12px]" numberOfLines={1}>
+        <View className={`${compact ? "mt-1 gap-0.5" : "ui-row items-center mt-1.5"}`}>
+          <Text variant="muted" className={`text-[12px] ${compact ? "" : "flex-1"}`} numberOfLines={1}>
             <Text className="font-semibold tabular-nums text-text">{primary}</Text> {primaryLabel}
           </Text>
-          <View className="w-px self-stretch bg-border/70 mx-3" />
-          <Text variant="muted" className="flex-1 text-[12px]" numberOfLines={1}>
+          {compact ? null : <View className="w-px self-stretch bg-border/70 mx-3" />}
+          <Text variant="muted" className={`text-[12px] ${compact ? "" : "flex-1"}`} numberOfLines={1}>
             <Text className="font-semibold tabular-nums text-text">{secondary}</Text> {secondaryLabel}
           </Text>
         </View>
@@ -72,9 +72,17 @@ export function LobbySummaryCards({
         surfaceClass="border-brand/20 bg-brand-soft/40"
         eyebrowClass="text-brand"
         primary={tablesLive}
-        primaryLabel={tablesLive === 1 ? "Table Live" : "Tables Live"}
+        primaryLabel={
+          compact
+            ? tablesLive === 1
+              ? "Live table"
+              : "Live tables"
+            : tablesLive === 1
+              ? "Table Live"
+              : "Tables Live"
+        }
         secondary={seatsAvailable}
-        secondaryLabel="Seats Available"
+        secondaryLabel={compact ? "Open seats" : "Seats Available"}
         compact={compact}
       />
       <SummaryCard
@@ -84,9 +92,15 @@ export function LobbySummaryCards({
         surfaceClass="border-gold/20 bg-gold-soft/25"
         eyebrowClass="text-gold"
         primary={upcomingEvents}
-        primaryLabel={upcomingEvents === 1 ? "Upcoming Event" : "Upcoming Events"}
+        primaryLabel={
+          compact
+            ? "Upcoming"
+            : upcomingEvents === 1
+              ? "Upcoming Event"
+              : "Upcoming Events"
+        }
         secondary={playersRegistered}
-        secondaryLabel="Players Registered"
+        secondaryLabel={compact ? "Registered" : "Players Registered"}
         compact={compact}
       />
     </View>

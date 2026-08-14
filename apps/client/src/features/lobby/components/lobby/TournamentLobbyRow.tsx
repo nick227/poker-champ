@@ -7,6 +7,7 @@ import {
 import type { TournamentCta, TournamentSummary } from "@/services/tournaments.types";
 import { formatLobbyCount, formatLobbyUsd } from "../../lobbyFormat";
 import {
+  compactTournamentCtaLabel,
   formatLateRegOpenLabel,
   formatLobbyStartsLine,
   formatLobbyTournamentStatus,
@@ -84,7 +85,7 @@ export function TournamentLobbyRow({
   const cta = resolveTournamentCta(tournament, { authenticated, nowMs });
   const disabled = cta.disabled || actionInFlight;
   const showDelete = onDelete != null && canCreatorDeleteTournament(tournament);
-  const starts = formatLobbyStartsLine(tournament, nowMs);
+  const starts = formatLobbyStartsLine(tournament, nowMs, compact);
   const startsClass =
     starts.tone === "warn" ? "text-warn" : starts.tone === "brand" ? "text-brand" : "text-muted";
   const lateReg = formatLateRegOpenLabel(tournament, nowMs);
@@ -115,24 +116,38 @@ export function TournamentLobbyRow({
 
   if (compact) {
     return (
-      <View className={`${rowClass} py-2`}>
+      <View className={`${rowClass} py-2`} style={{ minHeight: 52 }}>
         <Pressable
           onPress={() => onOpenDetail(tournament)}
-          className="flex-1 min-w-0"
+          className="flex-1 min-w-0 pr-2"
           style={{ backgroundColor: "transparent" }}
         >
           {nameRow}
           <Text variant="muted" className="text-[11px] mt-0.5" numberOfLines={1}>
             {formatLobbyUsd(tournament.entryFeeCents)} ·{" "}
-            {formatLobbyCount(tournament.registeredCount, tournament.maxPlayers)} · {starts.text}
+            {formatLobbyCount(tournament.registeredCount, tournament.maxPlayers)}
           </Text>
         </Pressable>
-        <LobbyRowCta
-          title={actionInFlight ? "…" : cta.label}
-          kind={tourneyCtaKind(cta)}
-          disabled={disabled}
-          onPress={() => onAction(tournament)}
-        />
+        <View style={{ width: 84 }} className="items-end pr-2">
+          <Text variant="body" className={`text-[11px] ${startsClass}`} numberOfLines={1}>
+            {starts.text}
+          </Text>
+          <Text
+            variant="body"
+            className={`text-[10px] mt-0.5 ${lobbyTournamentStatusClass(tournament, nowMs, pinned)}`}
+            numberOfLines={1}
+          >
+            {pinned ? "Joined" : formatLobbyTournamentStatus(tournament, nowMs)}
+          </Text>
+        </View>
+        <View style={{ width: 76 }} className="items-end">
+          <LobbyRowCta
+            title={actionInFlight ? "…" : compactTournamentCtaLabel(cta.label)}
+            kind={tourneyCtaKind(cta)}
+            disabled={disabled}
+            onPress={() => onAction(tournament)}
+          />
+        </View>
       </View>
     );
   }

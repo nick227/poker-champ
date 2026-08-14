@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import {
+  compactTournamentCtaLabel,
   formatLateRegOpenLabel,
   formatLobbyStartsLine,
   formatLobbyTournamentStatus,
@@ -42,6 +43,13 @@ describe("formatLobbyStartsLine", () => {
     expect(line.tone).toBe("brand");
     expect(line.text).toBe("Started 8 min ago");
   });
+
+  it("shortens countdown copy when compact", () => {
+    const now = Date.parse("2026-08-13T17:48:00.000Z");
+    expect(formatLobbyStartsLine(tournament({ status: "REGISTERING" }), now, true).text).toBe(
+      "in 12 min",
+    );
+  });
 });
 
 describe("formatLateRegOpenLabel", () => {
@@ -69,5 +77,13 @@ describe("formatLobbyTournamentStatus", () => {
     const t = tournament({ status: "RUNNING" });
     expect(formatLobbyTournamentStatus(t, now)).toBe("Running");
     expect(lobbyTournamentStatusClass(t, now, false)).toBe("text-brand");
+  });
+});
+
+describe("compactTournamentCtaLabel", () => {
+  it("shortens long lobby actions for narrow rows", () => {
+    expect(compactTournamentCtaLabel("Join Table")).toBe("Join");
+    expect(compactTournamentCtaLabel("Log in to register")).toBe("Log in");
+    expect(compactTournamentCtaLabel("Register")).toBe("Register");
   });
 });

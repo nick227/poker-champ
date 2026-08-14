@@ -30,6 +30,7 @@ export function LobbyHomeScreen() {
           subtitle="Jump into cash games or register for upcoming tournaments."
           onNewCashTable={m.openCreateTable}
           onCreateTournament={m.handleCreateTournament}
+          compact={compact}
         />
         <LobbySummaryCards
           tablesLive={cashStats.tablesLive}

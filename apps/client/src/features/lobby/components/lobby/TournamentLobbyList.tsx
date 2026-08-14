@@ -129,14 +129,23 @@ export function TournamentLobbyList({
             dir={sortDir}
             onPress={onSort ? () => onSort("name") : undefined}
           />
-          <HeaderCell
-            label="Starts"
-            flex={1}
-            active={sortKey === "startTime"}
-            dir={sortDir}
+          <Pressable
             onPress={onSort ? () => onSort("startTime") : undefined}
-          />
-          <View style={{ width: 72 }} />
+            disabled={!onSort}
+            className="btn h-8 justify-center items-end rounded-none px-1"
+            style={{ width: 84, backgroundColor: "transparent", borderRadius: 0 }}
+          >
+            <Text
+              variant="muted"
+              className={`text-right text-[11px] tracking-wide uppercase font-semibold w-full ${
+                sortKey === "startTime" ? "text-gold" : ""
+              }`}
+              numberOfLines={1}
+            >
+              Starts{onSort ? lobbySortCaret(sortKey === "startTime", sortDir) : ""}
+            </Text>
+          </Pressable>
+          <View style={{ width: 76 }} />
         </View>
         {rows}
       </View>

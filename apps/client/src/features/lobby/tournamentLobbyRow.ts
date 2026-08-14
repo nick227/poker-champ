@@ -7,16 +7,17 @@ import { formatLobbyDurationMs } from "./lobbyFormat";
 export function formatLobbyStartsLine(
   tournament: TournamentSummary,
   nowMs: number,
+  compact = false,
 ): { text: string; tone: "warn" | "brand" | "muted" } {
   const timer = resolveTournamentLobbyTimer(tournament, nowMs);
   const startMs = tournamentStartMs(tournament);
   if (timer?.mode === "countdown") {
     const dur = formatLobbyDurationMs(startMs - nowMs);
-    return { text: `Starts in ${dur ?? timer.time}`, tone: "warn" };
+    return { text: compact ? `in ${dur ?? timer.time}` : `Starts in ${dur ?? timer.time}`, tone: "warn" };
   }
   if (timer?.mode === "countup") {
     const dur = formatLobbyDurationMs(nowMs - startMs);
-    return { text: `Started ${dur ?? timer.time} ago`, tone: "brand" };
+    return { text: compact ? `${dur ?? timer.time} ago` : `Started ${dur ?? timer.time} ago`, tone: "brand" };
   }
   return { text: formatTournamentStartLocal(tournament.startTime), tone: "muted" };
 }
@@ -65,4 +66,14 @@ export function lobbyTournamentStatusClass(
     return "text-brand";
   }
   return "text-muted";
+}
+
+export function compactTournamentCtaLabel(label: string): string {
+  if (label === "Join Table") return "Join";
+  if (label === "Log in to register") return "Log in";
+  if (label === "View Standings") return "Standings";
+  if (label === "Registration closed") return "Closed";
+  if (label === "Table ended") return "Ended";
+  if (label === "Starts soon") return "Soon";
+  return label;
 }
