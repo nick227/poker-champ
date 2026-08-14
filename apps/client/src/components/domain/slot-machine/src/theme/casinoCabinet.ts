@@ -16,7 +16,8 @@ export const casino = {
   panelHi: "#1c1c1c",
   /** --c-border 0 0% 18% */
   border: "#2e2e2e",
-  reelFace: "#000000",
+  /** Matches symbol PNG canvas after corner flood-fill. */
+  reelFace: "#050505",
   bulbOn: "#fff8e7",
   bulbOff: "#c9a227",
   ink: "#0d0d0d",
