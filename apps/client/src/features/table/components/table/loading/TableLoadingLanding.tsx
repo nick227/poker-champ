@@ -19,7 +19,7 @@ export type TableLoadingLandingProps = {
   onSlotSpinStart?: (spinDurationMs: number) => void;
 };
 
-/** Match slot machine longest reel spin including settle and near-win linger. */
+/** Match slot machine longest reel spin including near-win linger. */
 const ONE_SPIN_MS = LONGEST_SPIN_MS;
 
 export function TableLoadingLanding({

@@ -63,6 +63,7 @@ const styles = {
   },
   cell: {
     width: "100%" as const,
+    overflow: "hidden" as const,
     alignItems: "center" as const,
     justifyContent: "center" as const,
     backgroundColor: casino.reelFace,
