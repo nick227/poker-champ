@@ -56,7 +56,6 @@ export function SlotMachine({
   const [reducedMotionSystem, setReducedMotionSystem] = useState(false);
   const [symbolHeight, setSymbolHeight] = useState(DEFAULT_SYMBOL_HEIGHT);
   const [layoutReady, setLayoutReady] = useState(false);
-  const [autoPlay, setAutoPlay] = useState(false);
 
   useEffect(() => {
     if (reducedMotionProp != null) return;
@@ -118,18 +117,6 @@ export function SlotMachine({
   const lit = litReelsForOutcome(readout.result, readout.kind, readout.matchedSymbol);
   const mood = moodFor(busy, nearWin, canSpin, readout.isJackpot, readout.phase === "win");
 
-  useEffect(() => {
-    if (!autoPlay || busy) return;
-    if (bank < betCents) {
-      setAutoPlay(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      void handleSpin();
-    }, 480);
-    return () => clearTimeout(t);
-  }, [autoPlay, busy, bank, betCents, handleSpin]);
-
   const jackpotValueCents = useMemo(() => {
     if (jackpotBannerCents !== undefined) return jackpotBannerCents;
     const jackpotKey = game.jackpotKey;
@@ -161,22 +148,22 @@ export function SlotMachine({
               flashStyle={fx.jackpotBannerFlashStyle}
             />
 
-            <ReelStage onReelLayout={onReelLayout}>
-              <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
-              <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
-              <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
-            </ReelStage>
+            <View style={styles.reels}>
+              <ReelStage onReelLayout={onReelLayout}>
+                <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
+                <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
+                <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
+              </ReelStage>
+              <ResultMeter readout={readout} animatedStyle={fx.winBannerStyle} />
+            </View>
 
-            <ResultMeter readout={readout} animatedStyle={fx.winBannerStyle} />
             <ControlDeck
               tier={tier}
               betCents={betCents}
               busy={busy}
-              autoPlay={autoPlay}
               canSpin={canSpin}
               reducedMotion={reducedMotion}
               onSpin={handleSpin}
-              onToggleAuto={() => setAutoPlay((v) => !v)}
               onTier={setTier}
               onMax={() => setTier("DOUBLE")}
               spinStyle={fx.spinBtnStyle}
@@ -212,5 +199,10 @@ const styles = {
     minHeight: 0,
     position: "relative" as const,
     zIndex: 2,
+  },
+  reels: {
+    flex: 1,
+    minHeight: 0,
+    position: "relative" as const,
   },
 };

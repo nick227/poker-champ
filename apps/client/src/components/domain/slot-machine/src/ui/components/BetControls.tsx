@@ -33,22 +33,15 @@ export function BetStepper({
   );
 }
 
-export function DeckActions({
-  autoPlay,
-  disabled,
-  onMax,
-  onToggleAuto,
-}: {
-  autoPlay?: boolean;
-  disabled?: boolean;
-  onMax: () => void;
-  onToggleAuto: () => void;
-}) {
+export function MaxBetButton({ disabled, onPress }: { disabled?: boolean; onPress: () => void }) {
   return (
-    <View style={styles.actions}>
-      <Ghost label="Max bet" disabled={disabled} onPress={onMax} />
-      <Ghost label={autoPlay ? "Auto on" : "Auto play"} active={autoPlay} onPress={onToggleAuto} />
-    </View>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.max, disabled && styles.dim, pressed && !disabled && styles.pressed]}
+    >
+      <Text style={styles.maxText}>Max</Text>
+    </Pressable>
   );
 }
 
@@ -64,48 +57,16 @@ function Step({ label, disabled, onPress }: { label: string; disabled?: boolean;
   );
 }
 
-function Ghost({
-  label,
-  active,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  active?: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.ghost,
-        active && styles.ghostOn,
-        disabled && styles.dim,
-        pressed && !disabled && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.ghostText, active && styles.ghostTextOn]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = {
   stepper: {
-    flex: 1,
-    minWidth: 0,
     flexDirection: "row" as const,
-    alignItems: "stretch" as const,
-    gap: 6,
-  },
-  actions: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6,
+    alignItems: "center" as const,
+    height: 40,
+    gap: 4,
   },
   step: {
-    width: 52,
+    width: 36,
+    height: 40,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: casino.goldMid,
@@ -114,48 +75,42 @@ const styles = {
     justifyContent: "center" as const,
   },
   stepText: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "800" as const,
     color: casino.goldHi,
   },
   betFace: {
-    flex: 1,
-    minWidth: 0,
+    minWidth: 64,
+    height: 40,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: casino.goldLo,
     backgroundColor: casino.ink,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingHorizontal: 6,
   },
   betValue: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800" as const,
     color: "#f2f2f2",
     fontVariant: ["tabular-nums" as const],
   },
-  ghost: {
-    flex: 1,
+  max: {
+    height: 40,
+    minWidth: 72,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: casino.goldLo,
     backgroundColor: casino.bg,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-    paddingHorizontal: 8,
   },
-  ghostOn: {
-    borderColor: casino.goldHi,
-    backgroundColor: "#1a1408",
-  },
-  ghostText: {
-    fontSize: 13,
-    letterSpacing: 1.4,
+  maxText: {
+    fontSize: 12,
+    letterSpacing: 1.6,
     fontWeight: "800" as const,
     color: casino.gold,
     textTransform: "uppercase" as const,
-  },
-  ghostTextOn: {
-    color: casino.goldHi,
   },
   dim: {
     opacity: 0.45,

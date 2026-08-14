@@ -11,21 +11,17 @@ import { casino } from "../../theme/casinoCabinet";
 
 export function SpinButton({
   spinning,
-  autoPlay,
   disabled,
   reducedMotion,
   onPress,
-  onLongPress,
   animatedStyle,
   flashStyle,
-  size = 104,
+  size = 140,
 }: {
   spinning?: boolean;
-  autoPlay?: boolean;
   disabled?: boolean;
   reducedMotion?: boolean;
   onPress?: () => void;
-  onLongPress?: () => void;
   animatedStyle?: StyleProp<ViewStyle>;
   flashStyle?: StyleProp<ViewStyle>;
   size?: number;
@@ -43,8 +39,6 @@ export function SpinButton({
     shadowRadius: 10 + idle.value * 10,
   }));
 
-  const subtitle = spinning ? "Spinning" : autoPlay ? "Auto on" : "Hold for auto";
-
   return (
     <Animated.View style={[animatedStyle, { width: size, height: size }]}>
       <Animated.View
@@ -58,8 +52,6 @@ export function SpinButton({
       >
         <Pressable
           onPress={onPress}
-          onLongPress={onLongPress}
-          delayLongPress={450}
           disabled={disabled}
           style={({ pressed }) => [
             styles.face,
@@ -67,8 +59,9 @@ export function SpinButton({
             pressed && !disabled && styles.pressed,
           ]}
         >
-          <Text style={[styles.title, disabled && styles.dim]}>{spinning ? "WAIT" : "SPIN"}</Text>
-          <Text style={[styles.sub, disabled && styles.dim]}>{subtitle}</Text>
+          <Text style={[styles.title, disabled && styles.dim, { fontSize: size < 130 ? 22 : 28 }]}>
+            {spinning ? "WAIT" : "SPIN"}
+          </Text>
         </Pressable>
       </Animated.View>
     </Animated.View>
@@ -77,7 +70,7 @@ export function SpinButton({
 
 const styles = {
   bezel: {
-    padding: 5,
+    padding: 6,
     backgroundColor: casino.goldLo,
     borderWidth: 2,
     borderColor: casino.goldHi,
@@ -102,18 +95,9 @@ const styles = {
     transform: [{ translateY: 2 }],
   },
   title: {
-    fontSize: 22,
     fontWeight: "900" as const,
     letterSpacing: 3,
     color: casino.ink,
-  },
-  sub: {
-    marginTop: 2,
-    fontSize: 8,
-    fontWeight: "800" as const,
-    letterSpacing: 0.8,
-    color: casino.goldLo,
-    textTransform: "uppercase" as const,
   },
   dim: {
     color: "#5a4a20",

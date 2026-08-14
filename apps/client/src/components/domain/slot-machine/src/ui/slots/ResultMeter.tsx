@@ -7,16 +7,6 @@ import type { MachineReadout } from "../../engine/display";
 
 const AnimatedText = Animated.createAnimatedComponent(Text);
 
-function centerCopy(readout: MachineReadout): { amount: string; caption: string; win: boolean } {
-  if (readout.phase === "idle") return { amount: "—", caption: "", win: false };
-  if (readout.phase === "spinning") return { amount: "—", caption: "Spinning", win: false };
-  if (readout.phase === "failed") return { amount: "—", caption: readout.headline, win: false };
-  if (readout.phase === "miss" || readout.winCents <= 0) {
-    return { amount: "—", caption: readout.headline, win: false };
-  }
-  return { amount: formatCents(readout.winCents), caption: readout.headline, win: true };
-}
-
 export function ResultMeter({
   readout,
   animatedStyle,
@@ -24,17 +14,18 @@ export function ResultMeter({
   readout: MachineReadout;
   animatedStyle?: StyleProp<ViewStyle>;
 }) {
-  const center = centerCopy(readout);
-  const jackpot = readout.isJackpot;
+  const win = readout.phase === "win" && readout.winCents > 0;
+  const failed = readout.phase === "failed";
+  if (!win && !failed) return null;
 
   return (
-    <Animated.View style={[styles.wrap, jackpot && styles.wrapJackpot, animatedStyle]}>
-      <AnimatedText style={[styles.amount, center.win && styles.amountWin, jackpot && styles.amountJackpot]}>
-        {center.amount}
+    <Animated.View style={[styles.wrap, readout.isJackpot && styles.jackpot, animatedStyle]} pointerEvents="none">
+      <AnimatedText style={[styles.amount, readout.isJackpot && styles.amountJackpot]}>
+        {failed ? readout.headline : formatCents(readout.winCents)}
       </AnimatedText>
-      {center.caption ? (
+      {win && readout.headline ? (
         <Text numberOfLines={1} style={styles.caption}>
-          {center.caption}
+          {readout.headline}
         </Text>
       ) : null}
     </Animated.View>
@@ -43,41 +34,37 @@ export function ResultMeter({
 
 const styles = {
   wrap: {
-    width: "100%" as const,
-    flexShrink: 0,
-    minHeight: 56,
-    backgroundColor: casino.ink,
+    position: "absolute" as const,
+    left: 8,
+    right: 8,
+    bottom: 8,
+    alignItems: "center" as const,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(13,13,13,0.82)",
     borderWidth: 1,
     borderColor: casino.goldMid,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
   },
-  wrapJackpot: {
+  jackpot: {
     borderColor: casino.goldHi,
-    backgroundColor: "#140f05",
+    backgroundColor: "rgba(20,15,5,0.9)",
   },
   amount: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: "800" as const,
-    color: "#d0d0d0",
-    letterSpacing: 0.5,
-    fontVariant: ["tabular-nums" as const],
-  },
-  amountWin: {
     color: casino.goldHi,
+    fontVariant: ["tabular-nums" as const],
   },
   amountJackpot: {
     color: "#fff4c2",
-    fontSize: 28,
+    fontSize: 22,
   },
   caption: {
-    marginTop: 2,
-    fontSize: 12,
+    marginTop: 1,
+    fontSize: 11,
     letterSpacing: 1,
     fontWeight: "700" as const,
-    color: "#b8b8b8",
+    color: "#d8d8d8",
     textTransform: "uppercase" as const,
   },
 };
