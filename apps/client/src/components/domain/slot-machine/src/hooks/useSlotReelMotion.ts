@@ -10,10 +10,13 @@ import { normalizeReelPositions } from "../engine/reelMath";
 
 const PAD_ROWS = 2;
 const BASE_COPY_INDEX = 2;
-const EXTRA_LOOPS: readonly [number, number, number] = [1, 2, 2];
-export const SPIN_DURATIONS = [900, 1150, 1400] as const;
+/** Extra full-strip travel so the middle of the spin is a roll, not a hop. Max 3 stays on a 7-copy strip. */
+const EXTRA_LOOPS: readonly [number, number, number] = [2, 3, 3];
+export const SPIN_DURATIONS = [1250, 1700, 2200] as const;
 export const NEAR_WIN_LINGER_MS = 420;
 export const LONGEST_SPIN_MS = SPIN_DURATIONS[2] + NEAR_WIN_LINGER_MS;
+/** Soft takeoff, long landing — single withTiming so web actually completes. */
+const REEL_EASING = Easing.bezier(0.22, 0.0, 0.12, 1);
 
 function getReelOffsetForPosition(symbolHeight: number, stripLen: number, reelPosition: number): number {
   return -((PAD_ROWS + BASE_COPY_INDEX * stripLen + reelPosition - 1) * symbolHeight);
@@ -44,9 +47,9 @@ export function useSlotReelMotion(
     y2.value = getReelOffsetForPosition(h, reelLens[2], nextPos[2]);
   }, [reelLens, symbolHeight, y0, y1, y2]);
 
-  const reelStyle0 = useAnimatedStyle(() => ({ transform: [{ translateY: y0.value }] }));
-  const reelStyle1 = useAnimatedStyle(() => ({ transform: [{ translateY: y1.value }] }));
-  const reelStyle2 = useAnimatedStyle(() => ({ transform: [{ translateY: y2.value }] }));
+  const reelStyle0 = useAnimatedStyle(() => ({ transform: [{ translateY: y0.value }, { translateZ: 0 }] }));
+  const reelStyle1 = useAnimatedStyle(() => ({ transform: [{ translateY: y1.value }, { translateZ: 0 }] }));
+  const reelStyle2 = useAnimatedStyle(() => ({ transform: [{ translateY: y2.value }, { translateZ: 0 }] }));
 
   const normalize = useCallback(() => {
     const nextPos = normalizeReelPositions(reelPosRef.current, reelLens);
@@ -95,13 +98,13 @@ export function useSlotReelMotion(
           if (completed === 3) resolve();
         };
 
-        y0.value = withTiming(targets[0], { duration: durations[0], easing: Easing.out(Easing.cubic) }, (f) => {
+        y0.value = withTiming(targets[0], { duration: durations[0], easing: REEL_EASING }, (f) => {
           if (f) runOnJS(onFinish)(0);
         });
-        y1.value = withTiming(targets[1], { duration: durations[1], easing: Easing.out(Easing.cubic) }, (f) => {
+        y1.value = withTiming(targets[1], { duration: durations[1], easing: REEL_EASING }, (f) => {
           if (f) runOnJS(onFinish)(1);
         });
-        y2.value = withTiming(targets[2], { duration: durations[2], easing: Easing.out(Easing.cubic) }, (f) => {
+        y2.value = withTiming(targets[2], { duration: durations[2], easing: REEL_EASING }, (f) => {
           if (f) runOnJS(onFinish)(2);
         });
       });

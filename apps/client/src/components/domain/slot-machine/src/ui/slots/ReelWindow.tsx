@@ -28,7 +28,7 @@ export function ReelWindow({
 
   return (
     <View style={[styles.clip, { height: symbolHeight * 3 }]}>
-      <Animated.View style={[{ paddingTop: pad, paddingBottom: pad }, animatedStyle]}>
+      <Animated.View style={[styles.strip, { paddingTop: pad, paddingBottom: pad }, animatedStyle]}>
         {repeated.map((k, i) => {
           const src = symbols[k];
           return (
@@ -60,6 +60,9 @@ const styles = {
     width: "100%" as const,
     overflow: "hidden" as const,
     backgroundColor: casino.reelFace,
+  },
+  strip: {
+    backfaceVisibility: "hidden" as const,
   },
   cell: {
     width: "100%" as const,
