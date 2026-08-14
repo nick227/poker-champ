@@ -125,9 +125,6 @@ export function useSlotCelebration() {
     shadowRadius: winPulse.value * 10,
     elevation: winPulse.value > 0.5 ? 8 : 0,
   }));
-  const paylineStyle = useAnimatedStyle(() => ({
-    opacity: 0.42 + winPulse.value * 0.58,
-  }));
   const cellLitStyle = useAnimatedStyle(() => ({
     opacity: 0.55 + winPulse.value * 0.45,
   }));
@@ -170,7 +167,6 @@ export function useSlotCelebration() {
       screenShakeStyle,
       victoryTextStyle,
       jackpotBannerFlashStyle,
-      paylineStyle,
       cellLitStyle,
     },
   };

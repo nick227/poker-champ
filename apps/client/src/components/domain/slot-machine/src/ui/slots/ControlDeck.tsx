@@ -31,24 +31,26 @@ export function ControlDeck({
   spinStyle?: StyleProp<ViewStyle>;
   spinFlashStyle?: StyleProp<ViewStyle>;
 }) {
-  const size = useWindowDimensions().width < 520 ? 88 : 108;
+  const size = useWindowDimensions().width < 520 ? 96 : 120;
 
   return (
-    <View style={styles.deck}>
+    <View style={[styles.deck, { height: size }]}>
       <View style={styles.side}>
         <BetStepper tier={tier} betCents={betCents} disabled={busy} onTier={onTier} />
       </View>
-      <SpinButton
-        spinning={busy}
-        autoPlay={autoPlay}
-        disabled={!canSpin && !busy}
-        reducedMotion={reducedMotion}
-        onPress={onSpin}
-        onLongPress={onToggleAuto}
-        animatedStyle={spinStyle}
-        flashStyle={spinFlashStyle}
-        size={size}
-      />
+      <View style={[styles.hub, { width: size }]}>
+        <SpinButton
+          spinning={busy}
+          autoPlay={autoPlay}
+          disabled={!canSpin && !busy}
+          reducedMotion={reducedMotion}
+          onPress={onSpin}
+          onLongPress={onToggleAuto}
+          animatedStyle={spinStyle}
+          flashStyle={spinFlashStyle}
+          size={size}
+        />
+      </View>
       <View style={styles.side}>
         <DeckActions autoPlay={autoPlay} disabled={busy} onMax={onMax} onToggleAuto={onToggleAuto} />
       </View>
@@ -61,12 +63,16 @@ const styles = {
     width: "100%" as const,
     flexShrink: 0,
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 8,
-    paddingTop: 2,
+    alignItems: "stretch" as const,
+    gap: 10,
   },
   side: {
     flex: 1,
     minWidth: 0,
+  },
+  hub: {
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    flexShrink: 0,
   },
 };

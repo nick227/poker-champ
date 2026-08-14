@@ -28,7 +28,7 @@ describe("settleReadout", () => {
       result: ["A", "B", "C"],
     });
     expect(miss.headline).toBe("No match");
-    expect(miss.detail).toBe("Payline is clear");
+    expect(miss.detail).toBe("");
     expect(miss.phase).toBe("miss");
   });
 
@@ -41,7 +41,8 @@ describe("settleReadout", () => {
       result: ["B", "B", "A"],
     });
     expect(win.headline).toBe("Pair of cherries");
-    expect(win.detail).toContain("Payline pays");
+    expect(win.detail).toContain("Pays");
+    expect(win.detail).not.toContain("Payline");
     expect(win.detail).not.toContain("1 in");
     expect(win.winCents).toBe(300);
   });

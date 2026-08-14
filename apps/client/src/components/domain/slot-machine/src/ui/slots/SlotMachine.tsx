@@ -161,13 +161,13 @@ export function SlotMachine({
               flashStyle={fx.jackpotBannerFlashStyle}
             />
 
-            <ReelStage onReelLayout={onReelLayout} paylineLit={readout.phase === "win"} paylineStyle={fx.paylineStyle}>
+            <ReelStage onReelLayout={onReelLayout}>
               <ReelWindow strip={game.reels[0]} animatedStyle={motion.reelStyle0} lit={lit[0]} {...reelProps} />
               <ReelWindow strip={game.reels[1]} animatedStyle={motion.reelStyle1} lit={lit[1]} {...reelProps} />
               <ReelWindow strip={game.reels[2]} animatedStyle={motion.reelStyle2} lit={lit[2]} {...reelProps} />
             </ReelStage>
 
-            <ResultMeter readout={readout} betCents={betCents} animatedStyle={fx.winBannerStyle} />
+            <ResultMeter readout={readout} animatedStyle={fx.winBannerStyle} />
             <ControlDeck
               tier={tier}
               betCents={betCents}

@@ -26,7 +26,6 @@ export function BetStepper({
     <View style={styles.stepper}>
       <Step label="−" disabled={disabled || tier === "HALF"} onPress={() => onTier(nextTier(tier, -1))} />
       <View style={styles.betFace}>
-        <Text style={styles.betLabel}>Bet</Text>
         <Text style={styles.betValue}>{formatCents(betCents)}</Text>
       </View>
       <Step label="+" disabled={disabled || tier === "DOUBLE"} onPress={() => onTier(nextTier(tier, 1))} />
@@ -97,18 +96,17 @@ const styles = {
     flex: 1,
     minWidth: 0,
     flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 4,
+    alignItems: "stretch" as const,
+    gap: 6,
   },
   actions: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 6,
   },
   step: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 52,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: casino.goldMid,
     backgroundColor: casino.bg,
@@ -116,47 +114,42 @@ const styles = {
     justifyContent: "center" as const,
   },
   stepText: {
-    fontSize: 18,
+    fontSize: 26,
     fontWeight: "800" as const,
     color: casino.goldHi,
   },
   betFace: {
     flex: 1,
     minWidth: 0,
-    height: 36,
     borderWidth: 1,
     borderColor: casino.goldLo,
     backgroundColor: casino.ink,
     alignItems: "center" as const,
     justifyContent: "center" as const,
-  },
-  betLabel: {
-    fontSize: 8,
-    letterSpacing: 1.4,
-    fontWeight: "700" as const,
-    color: "#8a8a8a",
-    textTransform: "uppercase" as const,
+    paddingHorizontal: 6,
   },
   betValue: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: "800" as const,
     color: "#f2f2f2",
     fontVariant: ["tabular-nums" as const],
   },
   ghost: {
+    flex: 1,
     borderWidth: 1,
     borderColor: casino.goldLo,
     backgroundColor: casino.bg,
-    paddingVertical: 7,
     alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 8,
   },
   ghostOn: {
     borderColor: casino.goldHi,
     backgroundColor: "#1a1408",
   },
   ghostText: {
-    fontSize: 10,
-    letterSpacing: 1.2,
+    fontSize: 13,
+    letterSpacing: 1.4,
     fontWeight: "800" as const,
     color: casino.gold,
     textTransform: "uppercase" as const,

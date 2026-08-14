@@ -37,8 +37,8 @@ export type MachineReadout = {
 export const IDLE_READOUT: MachineReadout = {
   phase: "idle",
   kind: "IDLE",
-  headline: "Good luck",
-  detail: "Press spin",
+  headline: "",
+  detail: "",
   winCents: 0,
   isJackpot: false,
 };
@@ -96,7 +96,7 @@ export function settleReadout(args: {
       phase: "miss",
       kind: "NONE",
       headline: "No match",
-      detail: "Payline is clear",
+      detail: "",
       winCents: 0,
       isJackpot: false,
       result: args.result,
@@ -106,7 +106,7 @@ export function settleReadout(args: {
     phase: "win",
     kind: args.kind,
     headline,
-    detail: args.isJackpot ? `Jackpot pays ${formatCents(args.winCents)}` : `Payline pays ${formatCents(args.winCents)}`,
+    detail: args.isJackpot ? `Jackpot pays ${formatCents(args.winCents)}` : `Pays ${formatCents(args.winCents)}`,
     winCents: args.winCents,
     isJackpot: args.isJackpot,
     matchedSymbol: args.matchedSymbol,
