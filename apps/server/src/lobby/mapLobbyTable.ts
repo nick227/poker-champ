@@ -1,5 +1,13 @@
 import type { LobbyTableSummary } from "./types.js";
 
+export function resolveLobbyViewer(
+  state?: "SEATED_ACTIVE" | "SEATED_SITTING_OUT",
+): LobbyTableSummary["viewer"] {
+  if (state === "SEATED_ACTIVE") return { status: "SEATED", canResume: true };
+  if (state === "SEATED_SITTING_OUT") return { status: "RECONNECTABLE", canResume: true };
+  return { status: "NONE", canResume: false };
+}
+
 export function resolveLobbyOccupancy(
   metadata: Record<string, unknown>,
   fallbackClients: number,
@@ -41,5 +49,7 @@ export function toLobbyTableSummary(r: {
     humanCount,
     connectedHumanCount,
     seatedCount,
+    status: "LIVE",
+    viewer: resolveLobbyViewer(),
   };
 }

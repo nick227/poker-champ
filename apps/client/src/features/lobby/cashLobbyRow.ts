@@ -1,27 +1,30 @@
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 
-export type CashLobbyStatus = "open" | "live" | "full" | "joined";
+export type CashLobbyStatus = "open" | "live" | "full" | "joined" | "reconnectable";
 export type CashLobbyCta = "join" | "resume" | "view";
 
 export function resolveCashLobbyStatus(
-  table: Pick<LobbyTableRow, "players" | "seats" | "connectedHumanCount">,
-  pinned: boolean,
+  table: Pick<LobbyTableRow, "players" | "seats" | "connectedHumanCount" | "status" | "viewer">,
+  _pinned: boolean,
 ): CashLobbyStatus {
-  if (pinned) return "joined";
+  if (table.status !== "ENDED" && table.viewer?.canResume) {
+    return table.viewer.status === "RECONNECTABLE" ? "reconnectable" : "joined";
+  }
   if (table.seats > 0 && table.players >= table.seats) return "full";
   if ((table.connectedHumanCount ?? 0) > 0) return "live";
   return "open";
 }
 
 export function cashLobbyStatusLabel(status: CashLobbyStatus): string {
-  if (status === "joined") return "Joined";
+  if (status === "joined") return "Seated";
+  if (status === "reconnectable") return "Reconnect";
   if (status === "live") return "Live";
   if (status === "full") return "Full";
   return "Open";
 }
 
 export function resolveCashLobbyCta(status: CashLobbyStatus): CashLobbyCta {
-  if (status === "joined") return "resume";
+  if (status === "joined" || status === "reconnectable") return "resume";
   if (status === "full") return "view";
   return "join";
 }

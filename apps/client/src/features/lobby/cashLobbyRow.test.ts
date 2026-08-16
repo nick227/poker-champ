@@ -9,10 +9,25 @@ import {
 } from "./cashLobbyRow";
 
 describe("resolveCashLobbyStatus", () => {
-  it("marks pinned rows as joined", () => {
-    expect(resolveCashLobbyStatus({ players: 9, seats: 9, connectedHumanCount: 2 }, true)).toBe(
-      "joined",
-    );
+  it("does not let a local pin manufacture joined state", () => {
+    expect(resolveCashLobbyStatus({ players: 9, seats: 9, connectedHumanCount: 2 }, true)).toBe("full");
+  });
+
+  it("uses server viewer membership for resume and reconnect", () => {
+    expect(resolveCashLobbyStatus({
+      players: 2,
+      seats: 6,
+      connectedHumanCount: 1,
+      status: "LIVE",
+      viewer: { status: "SEATED", canResume: true },
+    }, false)).toBe("joined");
+    expect(resolveCashLobbyStatus({
+      players: 2,
+      seats: 6,
+      connectedHumanCount: 0,
+      status: "LIVE",
+      viewer: { status: "RECONNECTABLE", canResume: true },
+    }, false)).toBe("reconnectable");
   });
 
   it("marks full tables before live", () => {
@@ -39,6 +54,7 @@ describe("cash lobby CTA mapping", () => {
     expect(resolveCashLobbyCta("open")).toBe("join");
     expect(resolveCashLobbyCta("live")).toBe("join");
     expect(resolveCashLobbyCta("joined")).toBe("resume");
+    expect(resolveCashLobbyCta("reconnectable")).toBe("resume");
     expect(resolveCashLobbyCta("full")).toBe("view");
   });
 
@@ -50,7 +66,8 @@ describe("cash lobby CTA mapping", () => {
   });
 
   it("labels real statuses only", () => {
-    expect(cashLobbyStatusLabel("joined")).toBe("Joined");
+    expect(cashLobbyStatusLabel("joined")).toBe("Seated");
+    expect(cashLobbyStatusLabel("reconnectable")).toBe("Reconnect");
     expect(cashLobbyStatusLabel("live")).toBe("Live");
     expect(cashLobbyStatusLabel("open")).toBe("Open");
     expect(cashLobbyStatusLabel("full")).toBe("Full");

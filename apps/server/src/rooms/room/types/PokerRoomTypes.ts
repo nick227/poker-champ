@@ -112,6 +112,8 @@ export interface PokerRoomFacade {
   removeTablePresenceInternal(userId: string): void;
   handleEmptyStateChangeInternal(): void;
   scheduleIdleDisposeInternal(): void;
+  canIdleDisposeInternal(): Promise<boolean>;
+  reevaluateIdleLifecycleInternal(): Promise<void>;
   runPersistentSeatCleanupInternal(): Promise<void>;
   runSittingOutSweepInternal(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }>;
   seedInstantBotsInternal(

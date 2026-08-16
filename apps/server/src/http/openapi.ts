@@ -234,6 +234,15 @@ export const openApiSpec = {
           humanCount: { type: "integer", nullable: true },
           connectedHumanCount: { type: "integer", nullable: true },
           seatedCount: { type: "integer", nullable: true },
+          status: { type: "string", enum: ["LIVE"] },
+          viewer: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["NONE", "SEATED", "RECONNECTABLE"] },
+              canResume: { type: "boolean" },
+            },
+            required: ["status", "canResume"],
+          },
         },
         required: [
           "tableId",
@@ -246,6 +255,8 @@ export const openApiSpec = {
           "minBuyInCents",
           "maxBuyInCents",
           "visibility",
+          "status",
+          "viewer",
           "runningSince",
           "createdAt",
           "updatedAt",

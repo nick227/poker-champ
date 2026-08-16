@@ -15,6 +15,11 @@ export type LobbyTableRow = {
   creatorAvatarUrl: string | null;
   updatedAt: string;
   connectedHumanCount?: number;
+  status?: "LIVE" | "ENDED";
+  viewer?: {
+    status: "NONE" | "SEATED" | "RECONNECTABLE";
+    canResume: boolean;
+  };
 };
 
 export type CashLobbyJoinBlockReason = "insufficient_balance";
@@ -57,6 +62,11 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
   const bigBlindCents = bb != null ? bb : 200;
   const blinds = sb != null && bb != null ? `${sb}/${bb}` : undefined;
   const connectedHumanCount = typeof t.connectedHumanCount === "number" ? t.connectedHumanCount : undefined;
+  const rawViewer = t.viewer && typeof t.viewer === "object" ? (t.viewer as Record<string, unknown>) : {};
+  const viewerStatus =
+    rawViewer.status === "SEATED" || rawViewer.status === "RECONNECTABLE"
+      ? rawViewer.status
+      : "NONE";
   const creatorName = typeof t.creatorName === "string" && t.creatorName.length > 0 ? t.creatorName : "Player";
   const creatorAvatarUrl = typeof t.creatorAvatarUrl === "string" ? t.creatorAvatarUrl : null;
   const updatedAtRaw = t.updatedAt ?? t.createdAt;
@@ -88,5 +98,10 @@ export function normalizeTable(t: Record<string, unknown>): LobbyTableRow {
     creatorAvatarUrl,
     updatedAt,
     connectedHumanCount,
+    status: t.status === "ENDED" ? "ENDED" : "LIVE",
+    viewer: {
+      status: viewerStatus,
+      canResume: viewerStatus !== "NONE" && rawViewer.canResume !== false,
+    },
   };
 }

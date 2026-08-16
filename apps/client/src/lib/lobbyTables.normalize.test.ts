@@ -16,6 +16,8 @@ describe("normalizeTable", () => {
       creatorAvatarUrl: "/uploads/avatars/nico.png",
       updatedAt: now,
       connectedHumanCount: 1,
+      status: "LIVE",
+      viewer: { status: "RECONNECTABLE", canResume: true },
     });
 
     expect(row.id).toBe("table_abc");
@@ -25,6 +27,8 @@ describe("normalizeTable", () => {
     expect(row.creatorAvatarUrl).toBe("/uploads/avatars/nico.png");
     expect(row.updatedAt).toBe(new Date(now).toISOString());
     expect(row.connectedHumanCount).toBe(1);
+    expect(row.status).toBe("LIVE");
+    expect(row.viewer).toEqual({ status: "RECONNECTABLE", canResume: true });
     expect(row).not.toHaveProperty("avgPotCents");
     expect(row).not.toHaveProperty("waitlistCount");
   });

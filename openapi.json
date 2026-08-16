@@ -550,6 +550,32 @@
           "seatedCount": {
             "type": "integer",
             "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "LIVE"
+            ]
+          },
+          "viewer": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "SEATED",
+                  "RECONNECTABLE"
+                ]
+              },
+              "canResume": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "status",
+              "canResume"
+            ]
           }
         },
         "required": [
@@ -563,6 +589,8 @@
           "minBuyInCents",
           "maxBuyInCents",
           "visibility",
+          "status",
+          "viewer",
           "runningSince",
           "createdAt",
           "updatedAt",

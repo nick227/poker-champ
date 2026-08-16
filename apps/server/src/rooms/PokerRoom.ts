@@ -195,12 +195,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * cleared when clients reconnect.
    */
   private idleDisposeTimer: ReturnType<typeof setTimeout> | null = null;
-  /**
-   * Grace period in milliseconds before disposing an empty room.
-   * Allows players to reconnect without losing their seats.
-   * Default: 60 seconds (configurable via POKER_ROOM_EMPTY_GRACE_MS)
-   */
-  private readonly EMPTY_GRACE_MS = Number(process.env.POKER_ROOM_EMPTY_GRACE_MS ?? 60_000);
+  /** Independently invalidates async checks and already-queued timer callbacks. */
+  private idleEvaluationGeneration = 0;
+  private idleTimerGeneration = 0;
   /**
    * Idle timeout in milliseconds before disposing an inactive room.
    * Room is disposed if no activity for this duration while empty.
@@ -326,6 +323,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       // Invoked by SnapshotService.emitToAll and emitToUser only, so lastSnapshotAt stays accurate for TABLE_STALLED.
       onTableSnapshotEmitted: async (snapshot) => {
         this.lastSnapshotAt = Date.now();
+        // Hand completion can be the final transition that makes an otherwise empty
+        // cash table disposable. Socket presence is not table ownership.
+        void this.reevaluateIdleLifecycle();
         const payload = snapshot.payloadJson as { snapshotSeq?: number } | undefined;
         if (typeof payload?.snapshotSeq === "number") this.lastSnapshotSeq = payload.snapshotSeq;
         if (!this.snapshotLogEnabled) return;
@@ -971,11 +971,19 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   handleEmptyStateChangeInternal(): void {
-    this.handleEmptyStateChange();
+    void this.reevaluateIdleLifecycle();
   }
 
   scheduleIdleDisposeInternal(): void {
-    this.scheduleIdleDispose();
+    void this.reevaluateIdleLifecycle();
+  }
+
+  async canIdleDisposeInternal(): Promise<boolean> {
+    return this.canIdleDispose();
+  }
+
+  async reevaluateIdleLifecycleInternal(): Promise<void> {
+    await this.reevaluateIdleLifecycle();
   }
 
   addTablePresenceInternal(client: Client, userId: string, displayName?: string): void {
@@ -988,6 +996,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
 
   async bootstrapPersistentSeatRecoveryInternal(): Promise<void> {
     await this.bootstrapPersistentSeatRecovery();
+    await this.reevaluateIdleLifecycle();
   }
 
   async runPersistentSeatCleanupInternal(): Promise<void> {
@@ -1321,6 +1330,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     } else {
       this.updateMetadataCounts();
     }
+    await this.reevaluateIdleLifecycle();
   }
 
   /**
@@ -2150,6 +2160,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     if (purgedUserIds.length > 0) {
       await this.maybeRemoveBotsIfNoHumans();
       this.updateMetadataCounts();
+      await this.reevaluateIdleLifecycle();
     }
     return { purgedUserIds };
   }
@@ -2259,6 +2270,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       }
     }
     if (botIds.length > 0) this.updateMetadataCounts();
+    await this.reevaluateIdleLifecycle();
   }
 
   /**
@@ -2269,30 +2281,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.lastActiveAtTs = Date.now();
   }
 
-  /**
-   * Gets the current number of connected clients.
-   * 
-   * @returns The number of connected clients
-   */
-  private getConnectedClientCount(): number {
-    return this.clients?.length ?? 0;
-  }
-
-  /**
-   * Handles changes in the empty state of the room.
-   * Manages the idle disposal timer based on client connections.
-   */
-  private handleEmptyStateChange(): void {
-    const count = this.getConnectedClientCount();
-    if (count === 0) {
-      // Room became empty - start grace period timer
-      if (this.emptySinceTs == null) {
-        this.emptySinceTs = Date.now();
-        this.scheduleIdleDispose();
-      }
-      return;
-    }
-    // Room has clients - clear empty state and timer
+  private cancelIdleDispose(): void {
+    this.idleEvaluationGeneration += 1;
+    this.idleTimerGeneration += 1;
     this.emptySinceTs = null;
     if (this.idleDisposeTimer) {
       clearTimeout(this.idleDisposeTimer);
@@ -2301,27 +2292,75 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   }
 
   /**
-   * Schedules the idle disposal timer for an empty room.
-   * The timer will dispose the room if it remains empty beyond
-   * the grace period and idle timeout.
+   * Idle disposal may only destroy a cash table already proven economically
+   * empty. It never cashes players out or expires their ownership as a side effect.
    */
-  private scheduleIdleDispose(): void {
-    if (this.idleDisposeTimer) return;
-    this.idleDisposeTimer = setTimeout(() => {
-      const now = Date.now();
-      if (this.getConnectedClientCount() !== 0) return;
-      if (this.emptySinceTs != null && now - this.emptySinceTs < this.EMPTY_GRACE_MS) {
-        // Still in grace period - reschedule
-        this.idleDisposeTimer = null;
-        this.scheduleIdleDispose();
-        return;
-      }
-      logger.info(
-        { roomId: this.roomId, tableId: this.state.tableId, idleMs: now - this.lastActiveAtTs },
-        "POKER_ROOM_IDLE_DISPOSE",
+  private async canIdleDispose(): Promise<boolean> {
+    if (this.isDeleting || this.state.tournamentMode) return false;
+    if (this.computeConnectedHumanCount() !== 0) return false;
+    if (this.computeHumanCount() !== 0) return false;
+    if (this.state.street !== "WAITING") return false;
+
+    try {
+      const prisma = getPrisma() as any;
+      const [reconnectableSessionCount, activeBalanceCount] = await Promise.all([
+        TableSeatSessionService.countReconnectableSessionsForTable(this.state.tableId),
+        prisma.playerBalance.count({
+          where: { tableId: this.state.tableId, status: "ACTIVE", balanceCents: { gt: 0 } },
+        }),
+      ]);
+      return reconnectableSessionCount === 0 && activeBalanceCount === 0;
+    } catch (err) {
+      logger.warn(
+        { roomId: this.roomId, tableId: this.state.tableId, message: (err as Error)?.message ?? String(err) },
+        "POKER_ROOM_IDLE_CHECK_FAILED_CLOSED",
       );
-      this.requestDisconnect();
+      return false;
+    }
+  }
+
+  private async reevaluateIdleLifecycle(): Promise<void> {
+    const evaluationGeneration = ++this.idleEvaluationGeneration;
+
+    // Cancel synchronously on common active-state transitions so an old callback
+    // cannot win while the durable checks are in flight.
+    if (
+      this.isDeleting ||
+      this.state.tournamentMode ||
+      this.computeConnectedHumanCount() !== 0 ||
+      this.computeHumanCount() !== 0 ||
+      this.state.street !== "WAITING"
+    ) {
+      this.cancelIdleDispose();
+      return;
+    }
+
+    if (!(await this.canIdleDispose()) || evaluationGeneration !== this.idleEvaluationGeneration) {
+      if (evaluationGeneration === this.idleEvaluationGeneration) this.cancelIdleDispose();
+      return;
+    }
+    if (this.idleDisposeTimer) return;
+
+    this.emptySinceTs = Date.now();
+    const timerGeneration = ++this.idleTimerGeneration;
+    this.idleDisposeTimer = setTimeout(() => {
+      void this.handleIdleDisposeTimer(timerGeneration);
     }, this.IDLE_DISPOSE_MS);
+  }
+
+  private async handleIdleDisposeTimer(timerGeneration: number): Promise<void> {
+    if (timerGeneration !== this.idleTimerGeneration) return;
+    this.idleDisposeTimer = null;
+    if (!(await this.canIdleDispose()) || timerGeneration !== this.idleTimerGeneration) {
+      this.cancelIdleDispose();
+      return;
+    }
+    const now = Date.now();
+    logger.info(
+      { roomId: this.roomId, tableId: this.state.tableId, idleMs: this.emptySinceTs == null ? 0 : now - this.emptySinceTs },
+      "POKER_ROOM_IDLE_DISPOSE",
+    );
+    await this.requestDisconnect();
   }
 
   /**
@@ -2562,4 +2601,3 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 }
-

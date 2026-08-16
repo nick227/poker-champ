@@ -25,21 +25,21 @@ function row(overrides: Partial<LobbyTableRow> & Pick<LobbyTableRow, "id">): Lob
 }
 
 describe("lobbySessionTables", () => {
-  it("pins matched lobby rows and synthesizes missing session seats", () => {
-    const lobby = [row({ id: "cash-1", name: "Felt One" })];
+  it("pins only live rows whose server membership is resumable", () => {
+    const lobby = [row({
+      id: "cash-1",
+      name: "Felt One",
+      status: "LIVE",
+      viewer: { status: "SEATED", canResume: true },
+    })];
     const pinned = buildPinnedCashLobbyRows({
       openTableIds: ["cash-1", "orphan", "tour-1"],
       lobbyTables: lobby,
       tournamentTableIds: new Set(["tour-1"]),
-      tableNameByTableId: { orphan: "My Seat" },
-      lastBuyInCentsByTableId: { orphan: 5000 },
-      roomIdByTableId: { orphan: "room-o" },
     });
 
-    expect(pinned).toHaveLength(2);
+    expect(pinned).toHaveLength(1);
     expect(pinned[0]?.name).toBe("Felt One");
-    expect(pinned[1]?.name).toBe("My Seat");
-    expect(pinned[1]?.minBuyInCents).toBe(5000);
   });
 
   it("excludes pinned ids from browse list", () => {

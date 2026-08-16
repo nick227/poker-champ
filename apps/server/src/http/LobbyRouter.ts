@@ -3,12 +3,13 @@ import { matchMaker } from "@colyseus/core";
 import { z } from "zod";
 import { buildTableConfig } from "../lobby/TableManager.js";
 import { CreateTableSchema } from "../lobby/schemas.js";
-import { requireAuth } from "../engine/auth/RequireAuth.js";
+import { attachAuthIfPresent, requireAuth } from "../engine/auth/RequireAuth.js";
 import { logger } from "../lib/logger.js";
 import { getPrisma } from "@poker-champ/db";
-import { toLobbyTableSummary } from "../lobby/mapLobbyTable.js";
+import { resolveLobbyViewer, toLobbyTableSummary } from "../lobby/mapLobbyTable.js";
 import { isTournamentTableMetadata } from "../tournaments/lobby-table-filter.js";
 import { findLiveCashRoomByTableId } from "../tables/cash-table-room.js";
+import { TableSeatSessionService } from "../engine/seats/TableSeatSessionService.js";
 
 const router = express.Router();
 const InstantPresetIdSchema = z.enum(["MULTIPLAYER_RING", "HEADS_UP_BOT"]);
@@ -50,7 +51,7 @@ function logInstantGamePhase(phase: string, extra?: Record<string, unknown>): vo
   );
 }
 
-router.get("/tables", async (_req, res) => {
+router.get("/tables", attachAuthIfPresent, async (req, res) => {
   const rooms = await matchMaker.query({ name: "poker" });
   const cashRooms = rooms.filter(
     (r: { metadata?: Record<string, unknown> }) => !isTournamentTableMetadata(r.metadata),
@@ -70,9 +71,21 @@ router.get("/tables", async (_req, res) => {
       avatarByCreatorId.set(u.id, u.avatarUrl ?? null);
     }
   }
-  const enriched = tables.map((t: { creatorId?: string; creatorAvatarUrl?: string | null }) => {
+  const viewerSessionByTableId = new Map<string, "SEATED_ACTIVE" | "SEATED_SITTING_OUT">();
+  if (req.user?.id) {
+    const sessions = await TableSeatSessionService.listViewerSessionsForTables({
+      tableIds: tables.map((table) => table.tableId),
+      userId: String(req.user.id),
+    });
+    for (const session of sessions) viewerSessionByTableId.set(session.tableId, session.state);
+  }
+  const enriched = tables.map((t: { tableId: string; creatorId?: string; creatorAvatarUrl?: string | null }) => {
     const avatar = t.creatorAvatarUrl ?? (t.creatorId ? avatarByCreatorId.get(t.creatorId) ?? null : null);
-    return { ...t, creatorAvatarUrl: typeof avatar === "string" ? avatar : null };
+    return {
+      ...t,
+      creatorAvatarUrl: typeof avatar === "string" ? avatar : null,
+      viewer: resolveLobbyViewer(viewerSessionByTableId.get(t.tableId)),
+    };
   });
   res.json({ tables: enriched });
 });
@@ -388,4 +401,3 @@ router.get("/chat/messages", requireAuth, async (req, res) => {
 });
 
 export const lobbyRouter = router;
-

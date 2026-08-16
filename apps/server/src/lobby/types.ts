@@ -47,4 +47,9 @@ export type LobbyTableSummary = {
   humanCount?: number;
   connectedHumanCount?: number;
   seatedCount?: number;
+  status: "LIVE";
+  viewer: {
+    status: "NONE" | "SEATED" | "RECONNECTABLE";
+    canResume: boolean;
+  };
 };

@@ -121,6 +121,7 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
           handIdSnapshot: this.ctx.state.handId || undefined,
         });
       }
+      await room.reevaluateIdleLifecycleInternal();
       return;
     }
 
@@ -233,15 +234,18 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
       room.sendTableMessageInternal(reconnected, "SESSION_RESTORED", { userId, deadlineTs: 0, joinMode: "RESTORE" });
       await this.emitReconnectSnapshotOrError(reconnected, userId);
       room.updateMetadataCountsInternal();
+      await room.reevaluateIdleLifecycleInternal();
     } catch {
       if (room.persistentSeatsEnabledInternal) {
         room.updateMetadataCountsInternal();
+        await room.reevaluateIdleLifecycleInternal();
         this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_RECONNECT_WINDOW_EXPIRED_SEAT_PRESERVED");
         return;
       }
       await room.markAbandonedSafeInternal(userId);
       await room.maybeRemoveBotsIfNoHumansInternal();
       room.updateMetadataCountsInternal();
+      await room.reevaluateIdleLifecycleInternal();
     }
   }
 }

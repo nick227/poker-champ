@@ -21,6 +21,8 @@ describe("lobby table shape", () => {
       creatorName: "Player",
       creatorAvatarUrl: null,
       showStats: true,
+      status: "LIVE",
+      viewer: { status: "NONE", canResume: false },
     };
     expect(t.bigBlindCents).toBe(200);
   });

@@ -30,6 +30,7 @@ type LobbyState = {
   onlineBusy: boolean;
   onlineError: string | null;
   busy: boolean;
+  loaded: boolean;
   error: string | null;
   transportState: "CONNECTED" | "DISCONNECTED" | "RECONNECTING";
   lobbyVoiceParticipantIds: string[];
@@ -55,6 +56,7 @@ export const useLobbyStore = create<LobbyState>((set) => ({
   onlineBusy: false,
   onlineError: null,
   busy: false,
+  loaded: false,
   error: null,
   transportState: "DISCONNECTED",
   lobbyVoiceParticipantIds: [],
@@ -72,7 +74,7 @@ export const useLobbyStore = create<LobbyState>((set) => ({
     if (!background) set({ busy: true, error: null });
     try {
       const tables = await getLobbyTables();
-      set({ tables, busy: false });
+      set({ tables, busy: false, loaded: true });
     } catch (e: any) {
       set({ error: e?.message ?? "Failed to load tables", busy: false });
     }

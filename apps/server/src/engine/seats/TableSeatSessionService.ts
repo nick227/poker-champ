@@ -48,7 +48,38 @@ type SittingOutSessionTimestamp = {
   disconnectAt: Date | null;
 };
 
+export type LobbyViewerSeatSession = {
+  tableId: string;
+  state: "SEATED_ACTIVE" | "SEATED_SITTING_OUT";
+};
+
 export class TableSeatSessionService {
+  static async countReconnectableSessionsForTable(tableId: string): Promise<number> {
+    const prisma = getPrisma() as any;
+    return prisma.tableSeatSession.count({
+      where: {
+        tableId,
+        state: { in: ["SEATED_ACTIVE", "SEATED_SITTING_OUT"] },
+      },
+    });
+  }
+
+  static async listViewerSessionsForTables(params: {
+    tableIds: string[];
+    userId: string;
+  }): Promise<LobbyViewerSeatSession[]> {
+    if (params.tableIds.length === 0) return [];
+    const prisma = getPrisma() as any;
+    return prisma.tableSeatSession.findMany({
+      where: {
+        tableId: { in: params.tableIds },
+        userId: params.userId,
+        state: { in: ["SEATED_ACTIVE", "SEATED_SITTING_OUT"] },
+      },
+      select: { tableId: true, state: true },
+    });
+  }
+
   private static async safeSeatSessionUpdateMany(args: {
     op: string;
     context: Record<string, unknown>;
@@ -364,4 +395,3 @@ export class TableSeatSessionService {
     });
   }
 }
-

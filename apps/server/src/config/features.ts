@@ -1,5 +1,7 @@
 export function isPersistentSeatsEnabled(): boolean {
-  return process.env.FEATURE_PERSISTENT_SEATS === "true";
+  // Seat ownership is durable domain state, not an optional socket enhancement.
+  // Keep an explicit opt-out for rollback and isolated tests.
+  return process.env.FEATURE_PERSISTENT_SEATS !== "false";
 }
 
 export function isTableSnapshotLogPersistenceEnabled(): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveLobbyOccupancy, toLobbyTableSummary } from "./mapLobbyTable.js";
+import { resolveLobbyOccupancy, resolveLobbyViewer, toLobbyTableSummary } from "./mapLobbyTable.js";
 
 describe("resolveLobbyOccupancy", () => {
   it("prefers seatedCount over human or client fallbacks", () => {
@@ -31,5 +31,13 @@ describe("toLobbyTableSummary", () => {
     expect(row.connectedHumanCount).toBe(1);
     expect(row).not.toHaveProperty("avgPotCents");
     expect(row).not.toHaveProperty("waitlistCount");
+  });
+});
+
+describe("resolveLobbyViewer", () => {
+  it("maps durable seat state to lobby actions", () => {
+    expect(resolveLobbyViewer("SEATED_ACTIVE")).toEqual({ status: "SEATED", canResume: true });
+    expect(resolveLobbyViewer("SEATED_SITTING_OUT")).toEqual({ status: "RECONNECTABLE", canResume: true });
+    expect(resolveLobbyViewer()).toEqual({ status: "NONE", canResume: false });
   });
 });

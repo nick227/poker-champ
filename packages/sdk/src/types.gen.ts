@@ -1026,6 +1026,13 @@ export interface components {
             humanCount?: number | null;
             connectedHumanCount?: number | null;
             seatedCount?: number | null;
+            /** @enum {string} */
+            status: "LIVE";
+            viewer: {
+                /** @enum {string} */
+                status: "NONE" | "SEATED" | "RECONNECTABLE";
+                canResume: boolean;
+            };
         };
         BotSummary: {
             id: string;

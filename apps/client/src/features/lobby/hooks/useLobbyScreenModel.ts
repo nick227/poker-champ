@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLobbyCashActions } from "@/features/lobby/hooks/useLobbyCashActions";
 import { useLobbyScreenEffects } from "@/features/lobby/hooks/useLobbyScreenEffects";
@@ -35,7 +35,7 @@ export function useLobbyScreenModel() {
   const [fromLessonDismissed, setFromLessonDismissed] = useState(false);
   const showFromLessonNudge = Boolean(fromLesson && !fromLessonDismissed);
 
-  const { tables, refresh, busy, error } = storeRegistry.use.lobby();
+  const { tables, refresh, busy, error, loaded } = storeRegistry.use.lobby();
   const {
     tournaments: tournamentList,
     busy: tournamentsBusy,
@@ -43,12 +43,11 @@ export function useLobbyScreenModel() {
     refresh: refreshTournaments,
   } = storeRegistry.use.tournaments();
   const openTable = storeRegistry.use.tables((s) => s.openTable);
+  const closeTable = storeRegistry.use.tables((s) => s.closeTable);
   const setRoomForTable = storeRegistry.use.tables((s) => s.setRoomForTable);
   const setTableName = storeRegistry.use.tables((s) => s.setTableName);
   const openTableIds = storeRegistry.use.tables((s) => s.openTableIds);
-  const tableNameByTableId = storeRegistry.use.tables((s) => s.tableNameByTableId);
   const lastBuyInCentsByTableId = storeRegistry.use.tables((s) => s.lastBuyInCentsByTableId);
-  const roomIdByTableId = storeRegistry.use.tables((s) => s.roomIdByTableId);
   const tableJoinById = storeRegistry.use.tables((s) => s.tableJoinById);
   const { cents: bankroll, refresh: refreshBankroll } = useBankroll();
   const showToast = useToastStore((s) => s.show);
@@ -113,23 +112,25 @@ export function useLobbyScreenModel() {
     return ids;
   }, [tableJoinById, tournamentList]);
 
+  useEffect(() => {
+    if (!loaded) return;
+    const liveCashIds = new Set(lobbyTableRows.filter((row) => row.status === "LIVE").map((row) => row.id));
+    for (const tableId of openTableIds) {
+      if (!tournamentTableIds.has(tableId) && !liveCashIds.has(tableId)) closeTable(tableId);
+    }
+  }, [closeTable, loaded, lobbyTableRows, openTableIds, tournamentTableIds]);
+
   const pinnedCashTables = useMemo(
     () =>
       buildPinnedCashLobbyRows({
         openTableIds,
         lobbyTables: lobbyTableRows,
         tournamentTableIds,
-        tableNameByTableId,
-        lastBuyInCentsByTableId,
-        roomIdByTableId,
       }),
     [
       openTableIds,
       lobbyTableRows,
       tournamentTableIds,
-      tableNameByTableId,
-      lastBuyInCentsByTableId,
-      roomIdByTableId,
     ],
   );
 
