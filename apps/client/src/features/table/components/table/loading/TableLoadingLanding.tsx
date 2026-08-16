@@ -1,6 +1,8 @@
-import { useMemo } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { useMemo, useState } from "react";
+import { View } from "react-native";
 import { Button } from "@/components/base/Button";
+import { IconButton } from "@/components/base/IconButton";
+import { Icon } from "@/components/base/Icons";
 import { Text } from "@/components/base/Text";
 import { LoadingIndicatorMinimal } from "./LoadingIndicatorMinimal";
 import { LONGEST_SPIN_MS, SlotMachine, ThemeProvider } from "@/components/domain/slot-machine/src";
@@ -31,9 +33,7 @@ export function TableLoadingLanding({
   reducedMotion,
   onSlotSpinStart,
 }: TableLoadingLandingProps) {
-  const { width } = useWindowDimensions();
-  const compact = width < 430;
-  const cardPadding = compact ? 14 : 18;
+  const [isDismissed, setIsDismissed] = useState(false);
 
   const loadingTitle = useMemo(() => {
     if (mode === "auth_required") return "Login Required";
@@ -51,28 +51,8 @@ export function TableLoadingLanding({
   const handleSlotSpinStart = () => onSlotSpinStart?.(ONE_SPIN_MS);
 
   return (
-    <View
-      className="flex-1"
-      style={{
-        paddingHorizontal: compact ? 8 : 12,
-        paddingVertical: compact ? 10 : 14,
-        gap: 10,
-        minHeight: 0,
-      }}
-    >
-      <View className="rounded-2xl border border-border-subtle bg-panel-elevated" style={{ padding: cardPadding, flexShrink: 0 }}>
-        <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
-        <Text variant="h2" className="mt-3 text-text">
-          {loadingTitle} {statusMessage}
-        </Text>
-        {shouldShowAction ? (
-          <View className="mt-4">
-            <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
-          </View>
-        ) : null}
-      </View>
-
-      <View key={tableId ?? "session"} style={{ flex: 1, minHeight: 0 }}>
+    <View className="flex-1 bg-background relative">
+      <View key={tableId ?? "session"} className="absolute inset-0" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
         <ThemeProvider initialThemeId="poker-champ-dark">
           <SlotMachine
             bankrollCents={linked ? bankroll : undefined}
@@ -83,9 +63,57 @@ export function TableLoadingLanding({
         </ThemeProvider>
       </View>
 
-      <Text variant="caption" className="text-center text-text-subtle" style={{ flexShrink: 0 }}>
-        Staying on this screen while the table initializes.
-      </Text>
+      {/* Centered Combined Message & Action Card */}
+      {!isDismissed && (
+        <View className="absolute inset-0 items-center justify-center pointer-events-none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, zIndex: 10 }}>
+          <View 
+            className="bg-panel-elevated/95 border border-border-subtle rounded-2xl p-6 items-center pointer-events-auto"
+            style={{ width: 320, maxWidth: '90%', shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 10 }}
+          >
+            <View className="absolute top-2 right-2">
+              <IconButton
+                icon={<Icon name="close" size={20} />}
+                onPress={() => setIsDismissed(true)}
+                intent="ghost"
+                size="sm"
+                accessibilityLabel="Dismiss message"
+              />
+            </View>
+
+            <View className="items-center mb-4 mt-2">
+              <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
+            </View>
+
+            <Text variant="h3" className="text-text text-center mb-2">
+              {loadingTitle}
+            </Text>
+            {statusMessage ? (
+              <Text variant="body" className="text-text-subtle text-center mb-6">
+                {statusMessage}
+              </Text>
+            ) : null}
+
+            {shouldShowAction ? (
+              <View className="w-full">
+                <Button title={actionTitle} onPress={actionHandler} intent="secondary" />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      )}
+
+      {/* Persistent discreet Return to Lobby button if dismissed */}
+      {isDismissed && shouldShowAction && (
+        <View className="absolute top-4 left-4 z-10">
+          <IconButton
+            icon={<Icon name="back" size={24} />}
+            onPress={actionHandler}
+            intent="ghost"
+            size="lg"
+            accessibilityLabel={actionTitle}
+          />
+        </View>
+      )}
     </View>
   );
 }
