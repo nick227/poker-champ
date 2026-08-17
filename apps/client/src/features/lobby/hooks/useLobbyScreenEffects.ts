@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import type { TournamentSummary } from "@/services/tournaments.types";
 import { useTournamentStartLobbyEffects } from "@/features/lobby/hooks/useTournamentStartLobbyEffects";
 
@@ -33,6 +34,30 @@ export function useLobbyScreenEffects({
     if (!authHydrated) return;
     void refreshTournaments();
   }, [authHydrated, authToken, refreshTournaments]);
+
+  // Refetch the authoritative per-viewer table snapshot every time the lobby regains focus, not
+  // just on mount + a 30s timer. Joining or leaving a table navigates away from the lobby and
+  // back; without this, whichever row the user was sitting at keeps showing the state from
+  // *before* that trip (e.g. a table that just filled up because they joined it still reads
+  // "not seated" -> "Watch" instead of "Resume", or a table they just left still reads
+  // "Resume" until the next poll). The realtime LIST_TABLES broadcast can't fix this itself:
+  // it's a shared, unauthenticated snapshot with no per-viewer data (see
+  // mergeLobbyTableViewerState in useLobbyRealtime.ts), so only this authenticated HTTP refetch
+  // can promote a row's viewer state -- the broadcast can only preserve what's already known.
+  // Skip the very first focus (mount already triggers the effect above) to avoid a duplicate
+  // fetch on initial load.
+  const skippedInitialFocusRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!authHydrated) return;
+      if (!skippedInitialFocusRef.current) {
+        skippedInitialFocusRef.current = true;
+        return;
+      }
+      void refresh({ background: true });
+      void refreshTournaments({ background: true });
+    }, [authHydrated, refresh, refreshTournaments]),
+  );
 
   useEffect(() => {
     if (!authHydrated) return;
