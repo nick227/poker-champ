@@ -10,15 +10,13 @@ import {
 } from "../../cashLobbyRow";
 import { formatLobbyCount, formatLobbyUsd } from "../../lobbyFormat";
 import { LobbyRowCta, type LobbyRowCtaKind } from "./LobbyRowCta";
-import { SeatOccupancy } from "./SeatOccupancy";
 
 export const CASH_COL_FLEX = {
   name: 2.2,
   blinds: 1.2,
   players: 0.9,
-  dots: 1.2,
-  status: 1.35,
-  action: 1.15,
+  status: 1.1,
+  action: 0.9,
 } as const;
 
 export function formatCashBlinds(table: LobbyTableRow): string {
@@ -32,6 +30,7 @@ export function cashStatusClass(status: ReturnType<typeof resolveCashLobbyStatus
   return "text-danger";
 }
 
+/** Compact rows retain a small status marker where horizontal space is constrained. */
 export function cashStatusDotClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
   if (status === "joined" || status === "live") return "bg-brand";
   if (status === "open") return "bg-border";
@@ -86,8 +85,8 @@ export function LobbyCashDesktopRow({
 
   return (
     <View
-      className={`ui-row items-center px-3 h-12 ${isLast ? "" : "border-b border-border/40"} ${
-        pinned ? "bg-brand-soft/70" : "hover:bg-panel-elevated/40"
+      className={`ui-row items-center px-4 min-h-[56px] ${isLast ? "" : "border-b border-border/50"} ${
+        pinned ? "bg-brand-soft/55" : "hover:bg-panel-elevated/60"
       }`}
       style={{ opacity: joining ? 0.7 : 1 }}
     >
@@ -115,20 +114,14 @@ export function LobbyCashDesktopRow({
       >
         {formatLobbyCount(table.players, table.seats)}
       </Text>
-      <View style={{ flex: CASH_COL_FLEX.dots }} className="pr-2 justify-center">
-        <SeatOccupancy players={table.players} seats={table.seats} />
-      </View>
       <View style={{ flex: CASH_COL_FLEX.status }} className="pr-2">
-        <View className="ui-row items-center gap-1.5">
-          <View className={`h-1.5 w-1.5 rounded-full ${cashStatusDotClass(status)}`} />
-          <Text variant="body" className={`text-[12px] ${cashStatusClass(status)}`} numberOfLines={1}>
-            {cashLobbyStatusLabel(status)}
-          </Text>
-        </View>
+        <Text variant="body" className={`text-[12px] ${cashStatusClass(status)}`} numberOfLines={1}>
+          {cashLobbyStatusLabel(status)}
+        </Text>
       </View>
       <View style={{ flex: CASH_COL_FLEX.action }} className="items-end">
         <LobbyRowCta
-          title={joining ? "…" : cashLobbyCtaLabel(cta, false)}
+          title={joining ? "…" : cashLobbyCtaLabel(cta, true)}
           kind={cashCtaKind(cta)}
           disabled={joining}
           onPress={() => handleCashCta(cta, table, onJoin, onResume, onWatch)}

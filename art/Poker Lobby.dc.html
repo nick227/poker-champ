@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  @keyframes pl-pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 oklch(0.72 0.15 150 / 0.5);} 50% { opacity:.7; box-shadow:0 0 0 5px oklch(0.72 0.15 150 / 0);} }
+  @keyframes pl-fade { from { opacity:0; transform:translateY(2px);} to { opacity:1; transform:translateY(0);} }
+  body { margin:0; background:oklch(0.14 0.005 260); }
+  * { box-sizing:border-box; }
+  ::placeholder { color:oklch(0.5 0.006 260); }
+</style>
+</helmet>
+
+<div style="{{rootStyle}}">
+
+  <div style="{{topBarStyle}}">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="{{markStyle}}"><div style="{{markInnerStyle}}"></div></div>
+      <span style="color:oklch(0.9 0.005 260);font-weight:700;font-size:15px;letter-spacing:-0.01em;">Poker Champ</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;">
+      <div style="display:flex;align-items:center;gap:8px;color:oklch(0.6 0.006 260);font-size:14px;">
+        <div style="{{onlineDotStyle}}"></div>
+        0 Online
+      </div>
+      <div style="{{balancePillStyle}}">
+        <div style="{{avatarBadgeStyle}}"><div style="{{chipInnerDotStyle}}"></div></div>
+        <span style="color:oklch(0.96 0.003 260);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;">$9,581.54</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex:1;min-height:0;">
+    <div style="{{sidebarStyle}}">
+      <sc-for list="{{navItems}}" as="navi" hint-placeholder-count="5">
+        <div style="{{navi.style}}" onClick="{{navi.onClick}}">
+          <sc-if value="{{navi.isHome}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></sc-if>
+          <sc-if value="{{navi.isDice}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="16" cy="16" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></svg></sc-if>
+          <sc-if value="{{navi.isBook}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 012-2h6v18H6a2 2 0 00-2 2V5z"/><path d="M20 5a2 2 0 00-2-2h-6v18h6a2 2 0 002-2V5z"/></svg></sc-if>
+          <sc-if value="{{navi.isChart}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></sc-if>
+          <sc-if value="{{navi.isPerson}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="{{mainStyle}}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:20px;">
+        <div>
+          <div style="{{titleStyle}}">Lobby</div>
+          <div style="color:oklch(0.58 0.006 260);font-size:15px;margin-top:6px;">Jump into cash games or register for upcoming tournaments.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="{{primaryBtnStyle}}" style-hover="{{primaryBtnHover}}" onClick="{{openModal}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            New cash table
+          </div>
+          <div style="{{secondaryBtnStyle}}" style-hover="{{secondaryBtnHover}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 3h12v6a6 6 0 01-12 0V3z"/><path d="M6 5H3a3 3 0 003 5"/><path d="M18 5h3a3 3 0 01-3 5"/><path d="M12 15v3"/><path d="M8 21h8"/></svg>
+            Create tournament
+          </div>
+        </div>
+      </div>
+
+      <div style="{{quickActionsStyle}}">
+        <sc-for list="{{quickActions}}" as="qa" hint-placeholder-count="4">
+          <div style="{{qa.style}}">
+            <div style="{{qa.badgeStyle}}">
+              <sc-if value="{{qa.isBot}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="16" cy="16" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></svg></sc-if>
+              <sc-if value="{{qa.isBoard}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg></sc-if>
+              <sc-if value="{{qa.isTraining}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 012-2h6v18H6a2 2 0 00-2 2V5z"/><path d="M20 5a2 2 0 00-2-2h-6v18h6a2 2 0 002-2V5z"/></svg></sc-if>
+              <sc-if value="{{qa.isProfile}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg></sc-if>
+            </div>
+            <div>
+              <div style="{{qa.labelStyle}}">{{qa.label}}</div>
+              <div style="{{qa.subStyle}}">{{qa.sub}}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div style="{{statCardStyle}}">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(158 52% 48%)" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+            <div style="color:oklch(0.58 0.006 260);font-size:12px;letter-spacing:.08em;font-weight:600;">CASH GAMES</div>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:8px;gap:10px;">
+            <div><span style="{{statNumStyle}}">{{cashSummary.tables}}</span><span style="color:oklch(0.58 0.006 260);font-size:14px;margin-left:8px;">Table{{cashSummary.tablesPlural}} Live</span></div>
+            <div style="{{diamondBulletStyle}}"></div>
+            <div><span style="{{statNumStyle}}">{{cashSummary.seats}}</span><span style="color:oklch(0.58 0.006 260);font-size:14px;margin-left:8px;">Seats Available</span></div>
+          </div>
+        </div>
+        <div style="{{statCardStyle}}">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(42 82% 50%)" stroke-width="2.4"><path d="M6 3h12v6a6 6 0 01-12 0V3z"/><path d="M6 5H3a3 3 0 003 5"/><path d="M18 5h3a3 3 0 01-3 5"/><path d="M12 15v3"/><path d="M8 21h8"/></svg>
+            <div style="color:oklch(0.58 0.006 260);font-size:12px;letter-spacing:.08em;font-weight:600;">TOURNAMENTS</div>
+          </div>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:8px;gap:10px;">
+            <div><span style="{{statNumStyle}}">{{tourneySummary.events}}</span><span style="color:oklch(0.58 0.006 260);font-size:14px;margin-left:8px;">Upcoming Event{{tourneySummary.eventsPlural}}</span></div>
+            <div style="{{diamondBulletStyleGold}}"></div>
+            <div><span style="{{statNumStyle}}">{{tourneySummary.players}}</span><span style="color:oklch(0.58 0.006 260);font-size:14px;margin-left:8px;">Players Registered</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="{{sectionCardStyle}}">
+        <div style="{{sectionHeaderStyle}}">
+          <div style="color:oklch(0.58 0.006 260);font-size:12px;letter-spacing:.08em;font-weight:600;">CASH GAMES</div>
+        </div>
+        <sc-if value="{{hasCashTables}}" hint-placeholder-val="{{true}}">
+          <div style="{{cashHeaderStyle}}">
+            <div>TABLE</div><div>STAKES</div><div>PLAYERS</div><div>AVG HAND</div><div>STATUS</div><div></div>
+          </div>
+          <sc-for list="{{cashTables}}" as="t" hint-placeholder-count="1">
+            <div style="{{t.rowStyle}}" style-hover="{{rowHover}}">
+              <div style="font-weight:600;color:oklch(0.96 0.003 260);font-size:15px;">{{t.name}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;font-variant-numeric:tabular-nums;">${{t.small}} / ${{t.big}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;font-variant-numeric:tabular-nums;">{{t.filled}} / {{t.max}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;font-variant-numeric:tabular-nums;">${{t.avgHand}}</div>
+              <div style="color:oklch(0.68 0.006 260);font-size:14px;">{{t.status}}</div>
+              <div style="{{joinBtnStyle}}" style-hover="{{joinBtnHover}}">{{t.ctaLabel}}</div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{!hasCashTables}}" hint-placeholder-val="{{false}}">
+          <div style="{{emptyStateStyle}}">
+            <div style="color:oklch(0.85 0.005 260);font-size:16px;font-weight:600;">No open cash tables right now.</div>
+            <div style="color:oklch(0.52 0.006 260);font-size:14px;">Create a cash table to get a game going.</div>
+            <div style="{{primaryBtnStyle}} margin-top:8px;" onClick="{{openModal}}">New cash table</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="{{tourneySectionCardStyle}}">
+        <div style="{{tourneyHeaderAccentStyle}}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(42 82% 50%)" stroke-width="2.4"><path d="M6 3h12v6a6 6 0 01-12 0V3z"/><path d="M6 5H3a3 3 0 003 5"/><path d="M18 5h3a3 3 0 01-3 5"/><path d="M12 15v3"/><path d="M8 21h8"/></svg>
+          <div style="color:oklch(0.58 0.006 260);font-size:12px;letter-spacing:.08em;font-weight:600;">TOURNAMENTS</div>
+        </div>
+        <sc-if value="{{hasTournaments}}" hint-placeholder-val="{{true}}">
+          <div style="{{tourneyHeaderStyle}}">
+            <div>TOURNAMENT</div><div>BUY-IN</div><div>ENROLLED</div><div>STARTS / STARTED</div><div>LATE REG</div><div>STATUS</div><div></div>
+          </div>
+          <sc-for list="{{tournaments}}" as="tr" hint-placeholder-count="1">
+            <div style="{{tourneyRowStyle}}" style-hover="{{rowHover}}">
+              <div style="font-weight:600;color:oklch(0.96 0.003 260);font-size:15px;">{{tr.name}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;">${{tr.buyin}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;font-variant-numeric:tabular-nums;">{{tr.enrolled}} / {{tr.max}}</div>
+              <div style="color:hsl(42 82% 50%);font-size:14px;font-weight:400;">{{tr.startsIn}}</div>
+              <div style="color:oklch(0.82 0.005 260);font-size:14px;">{{tr.lateReg}}</div>
+              <div style="color:oklch(0.68 0.006 260);font-size:14px;">{{tr.status}}</div>
+              <div style="{{joinBtnStyle}}" style-hover="{{joinBtnHover}}">Register</div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{!hasTournaments}}" hint-placeholder-val="{{false}}">
+          <div style="{{emptyStateStyle}}">
+            <div style="color:oklch(0.85 0.005 260);font-size:16px;font-weight:600;">No tournaments scheduled yet.</div>
+            <div style="color:oklch(0.52 0.006 260);font-size:14px;">Create one or check back soon.</div>
+            <div style="{{primaryBtnStyle}} margin-top:8px;">Create tournament</div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{modalOpen}}" hint-placeholder-val="{{false}}">
+    <div style="{{overlayStyle}}" onClick="{{closeModalBackdrop}}">
+      <div style="{{modalStyle}}" onClick="{{stopProp}}">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:20px;font-weight:700;color:oklch(0.96 0.003 260);letter-spacing:-0.01em;">Create Game</div>
+          <div style="color:oklch(0.58 0.006 260);font-size:14px;cursor:pointer;" onClick="{{closeModal}}">Close</div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">INSTANT PLAY</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{instantPlayOptions}}" as="op" hint-placeholder-count="2">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">TABLE NAME</div>
+          <input value="{{tableName}}" onChange="{{onTableNameChange}}" style="{{inputStyle}}"/>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">BLINDS</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{blindsOptions}}" as="op" hint-placeholder-count="4">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">MIN BUY-IN</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{buyinOptions}}" as="op" hint-placeholder-count="3">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">VISIBILITY</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{visibilityOptions}}" as="op" hint-placeholder-count="2">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">NUM PLAYERS</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{numPlayersOptions}}" as="op" hint-placeholder-count="3">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div>
+          <div style="{{eyebrowStyle}}">SHOW STATS</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <sc-for list="{{showStatsOptions}}" as="op" hint-placeholder-count="2">
+              <div style="{{op.style}}" onClick="{{op.onClick}}">{{op.label}}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;">
+          <div style="{{secondaryBtnStyle}}" onClick="{{closeModal}}">Cancel</div>
+          <div style="{{primaryBtnStyle}}" onClick="{{closeModal}}">Apply</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:900},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;comfortable&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;liveIndicators&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;showEmptyState&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+const ACCENT = 'hsl(158 52% 42%)';
+const ACCENT_TXT = 'hsl(0 0% 100%)';
+const ACCENT_SOFT = 'hsl(158 40% 20%)';
+const GOLD = 'hsl(42 82% 50%)';
+const GREEN = 'hsl(158 52% 48%)';
+const RED = 'hsl(0 65% 55%)';
+const BORDER = 'hsl(0 0% 18%)';
+const TEXT = 'hsl(0 0% 96%)';
+const MUTED = 'hsl(0 0% 60%)';
+const ELEV = 'hsl(0 0% 9%)';
+const ELEV2 = 'hsl(0 0% 12%)';
+
+function pill(selected) {
+  return {
+    padding: '9px 16px',
+    borderRadius: '8px',
+    border: selected ? `1px solid ${ACCENT}` : `1px solid ${BORDER}`,
+    background: selected ? ACCENT_SOFT : 'transparent',
+    color: selected ? 'oklch(0.9 0.06 275)' : MUTED,
+    fontSize: '14px',
+    fontWeight: selected ? 600 : 500,
+    cursor: 'pointer',
+    userSelect: 'none',
+    transition: 'all .15s ease',
+    whiteSpace: 'nowrap',
+  };
+}
+
+const NAMES = ['MJ', 'AK', 'TS', 'RV', 'DL', 'NC'];
+
+class Component extends DCLogic {
+  state = {
+    modalOpen: false,
+    instantPlay: '9max',
+    tableName: 'Cold Donkey TreasureHunt',
+    blinds: '1-2',
+    buyin: '40',
+    visibility: 'public',
+    numPlayers: '6',
+    showStats: 'on',
+    navActive: 0,
+  };
+
+  seg(options, currentKey, stateKey) {
+    return options.map(o => ({
+      label: o.label,
+      style: pill(currentKey === o.value),
+      onClick: () => this.setState({ [stateKey]: o.value }),
+    }));
+  }
+
+  renderVals() {
+    const density = this.props.density ?? 'comfortable';
+    const live = this.props.liveIndicators ?? true;
+    const emptyDemo = this.props.showEmptyState ?? false;
+    const rowPad = density === 'compact' ? '12px 24px' : '16px 24px';
+
+    const navDefs = [
+      { isHome: true }, { isDice: true }, { isBook: true }, { isChart: true }, { isPerson: true },
+    ];
+    const navItems = navDefs.map((n, i) => {
+      const active = this.state.navActive === i;
+      return {
+        ...n,
+        style: {
+          width: '44px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: active ? GOLD : MUTED,
+          background: active ? ELEV2 : 'transparent',
+          borderLeft: active ? `2px solid ${GOLD}` : '2px solid transparent',
+          transition: 'all .15s ease',
+        },
+        onClick: () => this.setState({ navActive: i }),
+      };
+    });
+
+    const cashTablesRaw = emptyDemo ? [] : [
+      { name: 'Cold Donkey TreasureHunt', small: '1.00', big: '2.00', filled: 2, max: 6, status: 'Open', pinned: false, avgHand: '14.50' },
+      { name: 'Midnight Grinder', small: '2.00', big: '5.00', filled: 5, max: 6, status: 'Joined', pinned: true, avgHand: '38.20' },
+    ];
+    const cashTables = cashTablesRaw.map(t => ({
+      ...t,
+      rowStyle: {
+        display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 1fr 1fr 0.9fr', alignItems: 'center', columnGap: '16px',
+        padding: rowPad, borderBottom: `1px solid ${BORDER}`,
+        ...(t.pinned ? { background: ACCENT_SOFT.replace('20%', '14%') } : {}),
+      },
+      ctaLabel: t.pinned ? 'Resume' : 'Join',
+    }));
+
+    const tournaments = emptyDemo ? [] : [
+      { name: 'Blitzed Spectacular Massacre', buyin: '1.00', enrolled: 0, max: 9, startsIn: 'Starts in 3 min', lateReg: '8 min', status: 'Registering' },
+    ];
+    const tournamentsWithMeter = tournaments.map(t => {
+      const pct = t.max > 0 ? Math.min(100, (t.enrolled / t.max) * 100) : 0;
+      return { ...t, meterBarStyle: { height: '100%', borderRadius: '999px', background: ACCENT, width: `${pct}%` } };
+    });
+
+    const totalSeats = cashTablesRaw.reduce((s, t) => s + (t.max - t.filled), 0);
+    const totalPlayers = tournaments.reduce((s, t) => s + t.enrolled, 0);
+
+    const qaDefs = [
+      { isBot: true, label: 'Quick Start', sub: 'Play bots heads-up or 6-max', accent: GREEN },
+      { isBoard: true, label: 'Leaderboard', sub: 'See where you rank', accent: GREEN },
+      { isTraining: true, label: 'Poker Training', sub: 'Sharpen your strategy', accent: GREEN },
+      { isProfile: true, label: 'My Profile', sub: 'Stats & hand history', accent: GREEN },
+    ];
+    const quickActions = qaDefs.map(qa => ({
+      ...qa,
+      style: {
+        display: 'flex', alignItems: 'center', gap: '13px',
+        background: ELEV, border: `1px solid ${BORDER}`, borderTop: `2px solid ${qa.accent}`,
+        borderRadius: '10px', padding: '14px 16px', cursor: 'pointer',
+        boxShadow: '0 2px 8px hsl(0 0% 0% / 0.25)',
+      },
+      badgeStyle: {
+        width: '38px', height: '38px', borderRadius: '50%', flexShrink: 0,
+        border: `2px solid ${qa.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: qa.accent,
+      },
+      labelStyle: { fontSize: '14px', fontWeight: 700, color: TEXT },
+      subStyle: { fontSize: '12px', color: MUTED, marginTop: '2px' },
+    }));
+
+    const gridCols6 = '1.8fr 1fr 1.3fr 1fr 1fr 0.9fr';
+    const gridCols7 = '2fr 0.8fr 1fr 1.3fr 0.9fr 1fr 0.9fr';
+
+    return {
+      liveActivity: live,
+      rootStyle: {
+        display: 'flex', flexDirection: 'column', minHeight: '100vh',
+        background: 'hsl(0 0% 5%)', color: TEXT,
+        fontFamily: "'Helvetica Neue', Helvetica, system-ui, sans-serif",
+        position: 'relative',
+      },
+      topBarStyle: {
+        height: '56px', flexShrink: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', padding: '0 24px',
+        borderBottom: `1px solid ${BORDER}`,
+      },
+      markStyle: {
+        width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${GOLD}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'hsl(0 0% 5%)',
+      },
+      markInnerStyle: { width: '8px', height: '8px', borderRadius: '50%', border: `1.5px dashed ${GOLD}` },
+      onlineDotStyle: { width: '7px', height: '7px', borderRadius: '50%', background: MUTED },
+      balancePillStyle: {
+        display: 'flex', alignItems: 'center', gap: '9px', background: ELEV,
+        border: `1px solid ${BORDER}`, borderRadius: '999px', padding: '5px 16px 5px 6px',
+        boxShadow: '0 1px 2px hsl(0 0% 0% / 0.3)',
+      },
+      avatarBadgeStyle: {
+        width: '22px', height: '22px', borderRadius: '50%', border: `2px solid ${GOLD}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+      },
+      chipInnerDotStyle: { width: '7px', height: '7px', borderRadius: '50%', border: `1.5px dashed ${GOLD}` },
+      sidebarStyle: {
+        width: '60px', flexShrink: 0, borderRight: `1px solid ${BORDER}`,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '20px 0',
+      },
+      mainStyle: { flex: 1, minWidth: 0, padding: '36px 48px', display: 'flex', flexDirection: 'column', gap: '24px' },
+      titleStyle: { fontSize: '30px', fontWeight: 700, color: TEXT, letterSpacing: '-0.02em', lineHeight: 1 },
+      primaryBtnStyle: {
+        display: 'flex', alignItems: 'center', gap: '8px', background: ACCENT, color: ACCENT_TXT,
+        padding: '10px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+        border: `1px solid ${ACCENT}`, whiteSpace: 'nowrap',
+      },
+      secondaryBtnStyle: {
+        display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', color: TEXT,
+        padding: '10px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+        border: `1px solid ${BORDER}`, whiteSpace: 'nowrap',
+      },
+      joinBtnStyle: {
+        justifySelf: 'end', width: '92px', textAlign: 'center', background: ACCENT, color: ACCENT_TXT,
+        padding: '7px 10px', borderRadius: '7px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+        border: `1px solid ${ACCENT}`, whiteSpace: 'nowrap',
+      },
+      quickActionsStyle: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' },
+      quickActions,
+      statCardStyle: {
+        background: `radial-gradient(120% 140% at 0% 0%, hsl(158 40% 20% / 0.18), transparent 60%), ${ELEV}`,
+        border: `1px solid ${BORDER}`, borderRadius: '12px', padding: '18px 22px', boxShadow: '0 2px 8px hsl(0 0% 0% / 0.25)',
+      },
+      statDotStyle_green: { width: '9px', height: '9px', borderRadius: '50%', background: GREEN, ...(live ? { animation: 'pl-pulse 2s ease infinite' } : {}) },
+      chipIconOuter: { width: '14px', height: '14px', borderRadius: '50%', border: `2px solid ${GREEN}`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      chipIconInner: { width: '4px', height: '4px', borderRadius: '50%', border: `1px dashed ${GREEN}`, ...(live ? { animation: 'pl-pulse 2s ease infinite' } : {}) },
+      diamondBulletStyle: { width: '5px', height: '5px', background: BORDER, transform: 'rotate(45deg)', flexShrink: 0 },
+      diamondBulletStyleGold: { width: '5px', height: '5px', background: 'hsl(42 30% 30%)', transform: 'rotate(45deg)', flexShrink: 0 },
+      statNumStyle: { fontSize: '21px', fontWeight: 700, color: TEXT, fontVariantNumeric: 'tabular-nums' },
+      sectionCardStyle: { background: ELEV, border: `1px solid ${BORDER}`, borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 16px hsl(0 0% 0% / 0.3)' },
+      tourneySectionCardStyle: { background: ELEV, border: `1px solid ${BORDER}`, borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 16px hsl(0 0% 0% / 0.3)' },
+      sectionHeaderStyle: { display: 'flex', alignItems: 'center', gap: '10px', padding: '15px 24px', borderBottom: `1px solid ${BORDER}`, borderTop: `2px solid ${ACCENT}` },
+      tourneyHeaderAccentStyle: { display: 'flex', alignItems: 'center', gap: '10px', padding: '15px 24px', borderBottom: `1px solid ${BORDER}`, borderTop: `2px solid ${ACCENT}` },
+      liveDotStyle: { width: '9px', height: '9px', borderRadius: '50%', background: GREEN, ...(live ? { animation: 'pl-pulse 2s ease infinite' } : {}) },
+      cashHeaderStyle: { display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 1fr 1fr 0.9fr', alignItems: 'center', columnGap: '16px', padding: '11px 24px', color: MUTED, fontSize: '11px', letterSpacing: '.06em', fontWeight: 600, borderBottom: `1px solid ${BORDER}` },
+      joinBtnHover: { filter: 'brightness(1.12)' },
+      primaryBtnHover: { filter: 'brightness(1.1)' },
+      secondaryBtnHover: { borderColor: TEXT, background: ELEV2 },
+      rowHover: { background: ELEV2 },
+      tourneyHeaderStyle: { display: 'grid', gridTemplateColumns: gridCols7, alignItems: 'center', columnGap: '16px', padding: '11px 24px', color: MUTED, fontSize: '11px', letterSpacing: '.06em', fontWeight: 600, borderBottom: `1px solid ${BORDER}` },
+      tourneyRowStyle: { display: 'grid', gridTemplateColumns: gridCols7, alignItems: 'center', columnGap: '16px', padding: rowPad, borderBottom: `1px solid ${BORDER}` },
+      hasCashTables: cashTables.length > 0,
+      hasTournaments: tournaments.length > 0,
+      cashTables, tournaments: tournamentsWithMeter,
+      meterTrackStyle: { height: '3px', borderRadius: '999px', background: BORDER, overflow: 'hidden', marginTop: '4px' },
+      cashSummary: { tables: cashTablesRaw.length, tablesPlural: cashTablesRaw.length === 1 ? '' : 's', seats: totalSeats },
+      tourneySummary: { events: tournaments.length, eventsPlural: tournaments.length === 1 ? '' : 's', players: totalPlayers },
+      emptyStateStyle: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '52px 24px', textAlign: 'center' },
+      navItems,
+      modalOpen: this.state.modalOpen,
+      openModal: () => this.setState({ modalOpen: true }),
+      closeModal: () => this.setState({ modalOpen: false }),
+      closeModalBackdrop: () => this.setState({ modalOpen: false }),
+      stopProp: (e) => e.stopPropagation(),
+      overlayStyle: { position: 'fixed', inset: 0, background: 'hsl(0 0% 0% / 0.6)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 },
+      modalStyle: { width: '460px', maxHeight: '86vh', overflowY: 'auto', background: ELEV2, border: `1px solid ${BORDER}`, borderRadius: '14px', padding: '26px', display: 'flex', flexDirection: 'column', gap: '18px' },
+      eyebrowStyle: { color: MUTED, fontSize: '11px', letterSpacing: '.08em', fontWeight: 600, marginBottom: '10px' },
+      inputStyle: {
+        width: '100%', background: 'hsl(0 0% 7%)', border: `1px solid ${BORDER}`, borderRadius: '8px',
+        padding: '10px 14px', color: TEXT, fontSize: '14px', marginTop: '4px', outline: 'none',
+      },
+      tableName: this.state.tableName,
+      onTableNameChange: (e) => this.setState({ tableName: e.target.value }),
+      instantPlayOptions: this.seg([{ label: '9-Max', value: '9max' }, { label: 'Heads-Up', value: 'headsup' }], this.state.instantPlay, 'instantPlay'),
+      blindsOptions: this.seg([{ label: '$1 / $2', value: '1-2' }, { label: '$2 / $5', value: '2-5' }, { label: '$5 / $10', value: '5-10' }, { label: '$100 / $200', value: '100-200' }], this.state.blinds, 'blinds'),
+      buyinOptions: this.seg([{ label: '$40 (20 BB)', value: '40' }, { label: '$100 (50 BB)', value: '100' }, { label: '$200 (100 BB)', value: '200' }], this.state.buyin, 'buyin'),
+      visibilityOptions: this.seg([{ label: 'Public', value: 'public' }, { label: 'Private', value: 'private' }], this.state.visibility, 'visibility'),
+      numPlayersOptions: this.seg([{ label: '3 Players', value: '3' }, { label: '6 Players', value: '6' }, { label: '9 Players', value: '9' }], this.state.numPlayers, 'numPlayers'),
+      showStatsOptions: this.seg([{ label: 'On', value: 'on' }, { label: 'Off', value: 'off' }], this.state.showStats, 'showStats'),
+    };
+  }
+}
+</script>
+</body>
+</html>

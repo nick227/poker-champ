@@ -21,6 +21,7 @@ export function ModalSheet({
   blocking = true,
   snapPoints,
   defaultSnapIndex,
+  desktopCentered = false,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -38,8 +39,10 @@ export function ModalSheet({
   snapPoints?: Array<number | "minimal">;
   /** Which snap index to open at. Defaults to the last (largest) snap. */
   defaultSnapIndex?: number;
+  /** Present a centered, fully rounded dialog on desktop web while preserving the native bottom sheet. */
+  desktopCentered?: boolean;
 }) {
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const availableHeight = windowHeight - insets.top - insets.bottom;
 
@@ -269,6 +272,7 @@ export function ModalSheet({
   ).current;
 
   const showOverlay = visible || isExiting;
+  const centeredDialog = desktopCentered && Platform.OS === "web" && windowWidth >= 768;
 
   const sheetInner = (
     <>
@@ -332,7 +336,9 @@ export function ModalSheet({
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: 0,
+          ...(centeredDialog
+            ? { top: Math.max(insets.top + 24, (windowHeight - maxSheetHeight) / 2) }
+            : { bottom: 0 }),
           height: maxSheetHeight,
           transform: [{ translateY: slide }],
           pointerEvents: "box-none",
@@ -347,7 +353,9 @@ export function ModalSheet({
         {(blocking ? (
           <Pressable
             style={{ height: maxSheetHeight, paddingBottom: insets.bottom }}
-            className="flex flex-col rounded-t-lg bg-panel bottom-sheet"
+            className={`flex flex-col bg-panel-elevated bottom-sheet border border-border ${
+              centeredDialog ? "rounded-4" : "rounded-t-lg"
+            }`}
             onPress={(e) => e.stopPropagation()}
           >
             {sheetInner}
@@ -355,7 +363,9 @@ export function ModalSheet({
         ) : (
           <View
             style={{ height: maxSheetHeight, paddingBottom: insets.bottom }}
-            className="flex flex-col rounded-t-lg bg-panel bottom-sheet"
+            className={`flex flex-col bg-panel-elevated bottom-sheet border border-border ${
+              centeredDialog ? "rounded-4" : "rounded-t-lg"
+            }`}
           >
             {sheetInner}
           </View>

@@ -13,10 +13,10 @@ export function LobbySectionFrame({ title, accent, children }: Props) {
   const gold = accent === "gold";
   const iconColor = gold ? "hsl(42 82% 50%)" : "hsl(158 52% 42%)";
   return (
-    <View className="rounded-2 border border-border overflow-hidden">
-      <View className="ui-row items-center gap-2 px-3 h-8 border-b border-border/50">
+    <View className="rounded-3 border border-border border-t-2 border-t-brand bg-panel overflow-hidden">
+      <View className="ui-row items-center gap-2 px-4 h-11 border-b border-border/70">
         <Ionicons name={gold ? "trophy" : "ellipse"} size={13} color={iconColor} />
-        <Text variant="label" className="font-display text-[11px] tracking-[0.16em] uppercase">
+        <Text variant="label" className="text-[11px] font-semibold tracking-[0.12em] uppercase">
           {title}
         </Text>
       </View>

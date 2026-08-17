@@ -130,7 +130,7 @@ export function Button({
       onPress={handlePress}
       disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
+      accessibilityState={{ disabled: !!isDisabled, busy: !!loading, selected }}
       className={`${resolvedClassName} min-w-0 overflow-hidden`}
       style={({ pressed }) => [
         {

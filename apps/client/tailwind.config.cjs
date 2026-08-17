@@ -199,7 +199,7 @@ module.exports = {
         ".btn-primary-selected": { backgroundColor: "hsl(var(--accent-purple-strong))" },
         ".btn-accent-selected": { backgroundColor: "hsl(var(--btn-accent-bg-strong))" },
         ".btn-secondary-selected": { backgroundColor: "hsl(var(--btn-secondary-bg-strong))" },
-        ".btn-neutral-selected": { borderColor: "hsl(var(--accent-purple))" },
+        ".btn-neutral-selected": { borderColor: "hsl(var(--c-brand))" },
         ".btn-pill-sm": { "@apply min-h-[36px] rounded-full px-3 py-1.5": {} },
         ".btn-pill-md": { "@apply min-h-[34px] rounded-full px-4 py-2": {} },
         ".btn-pill-lg": { "@apply min-h-[34px] rounded-full px-5 py-3": {} },

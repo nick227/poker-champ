@@ -49,20 +49,6 @@ function RebuyMark() {
   );
 }
 
-function EnrolledMeter({ registered, max }: { registered: number; max: number }) {
-  const pct = max > 0 ? Math.min(100, (registered / max) * 100) : 0;
-  return (
-    <View className="w-full gap-0.5">
-      <Text variant="body" className="font-mono text-[12px] tabular-nums" numberOfLines={1}>
-        {formatLobbyCount(registered, max)}
-      </Text>
-      <View className="h-0.5 rounded-full bg-border overflow-hidden">
-        <View className="h-0.5 rounded-full bg-accent-purple" style={{ width: `${pct}%` }} />
-      </View>
-    </View>
-  );
-}
-
 function tourneyCtaKind(cta: TournamentCta): LobbyRowCtaKind {
   if (cta.action === "none") return "quiet";
   if (cta.action === "register" || cta.action === "join" || cta.action === "rebuy") return "register";
@@ -89,8 +75,8 @@ export function TournamentLobbyRow({
   const startsClass =
     starts.tone === "warn" ? "text-warn" : starts.tone === "brand" ? "text-brand" : "text-muted";
   const lateReg = formatLateRegOpenLabel(tournament, nowMs);
-  const rowClass = `ui-row items-center px-3 ${isLast ? "" : "border-b border-border/40"} ${
-    pinned ? "bg-brand-soft/70" : "hover:bg-panel-elevated/40"
+  const rowClass = `ui-row items-center px-4 ${isLast ? "" : "border-b border-border/50"} ${
+    pinned ? "bg-brand-soft/55" : "hover:bg-panel-elevated/60"
   }`;
 
   const nameRow = (
@@ -153,7 +139,7 @@ export function TournamentLobbyRow({
   }
 
   return (
-    <View className={`${rowClass} h-12`}>
+    <View className={`${rowClass} min-h-[56px]`}>
       <Pressable
         onPress={() => onOpenDetail(tournament)}
         className="flex-col items-start justify-center min-w-0 rounded-none pr-2"
@@ -169,9 +155,14 @@ export function TournamentLobbyRow({
       >
         {formatLobbyUsd(tournament.entryFeeCents)}
       </Text>
-      <View style={{ flex: TOURNEY_COL_FLEX.field }} className="pr-2">
-        <EnrolledMeter registered={tournament.registeredCount} max={tournament.maxPlayers} />
-      </View>
+      <Text
+        variant="body"
+        className="font-mono text-[12px] tabular-nums pr-2"
+        numberOfLines={1}
+        style={{ flex: TOURNEY_COL_FLEX.field }}
+      >
+        {formatLobbyCount(tournament.registeredCount, tournament.maxPlayers)}
+      </Text>
       <Text
         variant="body"
         className={`text-[12px] pr-2 ${startsClass}`}

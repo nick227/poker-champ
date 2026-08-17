@@ -48,13 +48,13 @@ function HeaderCell({
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      className="btn h-8 justify-center items-start rounded-none pr-2"
+      className="h-8 justify-center items-start pr-2"
       style={{ flex, backgroundColor: "transparent", borderRadius: 0 }}
     >
       <Text
         variant="muted"
         className={`text-left text-[11px] tracking-wide uppercase font-semibold w-full ${
-          active ? "text-gold" : ""
+          active ? "text-brand" : ""
         }`}
         numberOfLines={1}
       >
@@ -154,7 +154,7 @@ export function TournamentLobbyList({
 
   return (
     <View className={embedded ? "" : "lobby-stage border rounded-2 overflow-hidden"}>
-      <View className="ui-row items-center border-b border-border/50 px-3 h-8">
+      <View className="ui-row items-center border-b border-border/70 px-4 h-9">
         {DESKTOP_COLS.map((col) => (
           <HeaderCell
             key={col.key}

@@ -97,12 +97,22 @@ export function CreateGameModal({
   };
 
   return (
-    <ModalSheet visible={visible} onClose={onClose} title={MODAL.createGame} heightFraction={0.99}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
-      <View className="">
+    <ModalSheet
+      visible={visible}
+      onClose={onClose}
+      title={MODAL.createGame}
+      heightFraction={0.88}
+      desktopCentered
+    >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 8 }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View>
         {onInstantStart ? (
-          <View className="rounded-2 border border-brand/25 bg-brand-soft/30 px-3 py-3 mb-5">
-            <Text variant="label" className="text-brand">
+          <View className="mb-5">
+            <Text variant="label" className="font-semibold tracking-[0.1em]">
               Instant play
             </Text>
             <View className="flex-row flex-wrap gap-2 mt-2">
@@ -110,30 +120,30 @@ export function CreateGameModal({
                 const preset = getInstantGamePreset(presetId);
                 const starting = instantStartInFlight === presetId;
                 return (
-                  <Button
+                  <ChipButton
                     key={presetId}
                     title={starting ? "…" : preset.cta}
-                    intent="ghost"
-                    size="sm"
-                    shape="hud"
-                    minWidth={0}
+                    selected={starting}
                     disabled={Boolean(instantStartInFlight)}
                     onPress={() => {
                       onInstantStart(presetId);
                       onClose();
                     }}
-                    className="h-9 min-h-[36px] border border-brand bg-transparent"
-                    textClassName="text-brand"
                   />
                 );
               })}
             </View>
           </View>
         ) : null}
-        <Input className="mb-5" label="Table Name" value={name} onChangeText={setName} placeholder="Enter table name..." />
+        <View className="mb-5">
+          <Text variant="label" className="font-semibold tracking-[0.1em]">Table name</Text>
+          <View className="mt-2 rounded-2 border border-border bg-panel px-1">
+            <Input bare value={name} onChangeText={setName} placeholder="Enter table name…" />
+          </View>
+        </View>
 
         <View>
-          <Text variant="label">Blinds</Text>
+          <Text variant="label" className="font-semibold tracking-[0.1em]">Blinds</Text>
           <View className="flex-row flex-wrap gap-2 mt-2 mb-5">
             {BLINDS_OPTIONS.map((opt, i) => (
               <ChipButton
@@ -147,7 +157,7 @@ export function CreateGameModal({
         </View>
 
         <View>
-          <Text variant="label">Min buy-in</Text>
+          <Text variant="label" className="font-semibold tracking-[0.1em]">Min buy-in</Text>
           <View className="flex-row flex-wrap gap-2 mt-2 mb-5">
             {buyInOptions.map((opt) => (
               <ChipButton
@@ -161,7 +171,7 @@ export function CreateGameModal({
         </View>
 
         <View>
-          <Text variant="label">Visibility</Text>
+          <Text variant="label" className="font-semibold tracking-[0.1em]">Visibility</Text>
           <View className="ui-row ui-inline-2 mt-2 mb-5">
             <ChipButton title="Public" selected={visibility === "PUBLIC"} onPress={() => setVisibility("PUBLIC")} />
             <ChipButton title="Private" selected={visibility === "PRIVATE"} onPress={() => setVisibility("PRIVATE")} />
@@ -169,17 +179,22 @@ export function CreateGameModal({
         </View>
 
         {visibility === "PRIVATE" && (
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Invite-only password..."
-            autoCapitalize="none"
-          />
+          <View className="mb-5">
+            <Text variant="label" className="font-semibold tracking-[0.1em]">Password</Text>
+            <View className="mt-2 rounded-2 border border-border bg-panel px-1">
+              <Input
+                bare
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Invite-only password…"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
         )}
 
       <View>
-        <Text variant="label">Num Players</Text>
+        <Text variant="label" className="font-semibold tracking-[0.1em]">Players</Text>
         <View className="ui-row ui-inline-2 mb-5 mt-2">
           <ChipButton title="3 Players" selected={seats === 3} onPress={() => setSeats(3)} />
           <ChipButton title="6 Players" selected={seats === 6} onPress={() => setSeats(6)} />
@@ -188,16 +203,16 @@ export function CreateGameModal({
       </View>
 
         <View>
-          <Text variant="label">Show Stats</Text>
+          <Text variant="label" className="font-semibold tracking-[0.1em]">Show stats</Text>
           <View className="ui-row ui-inline-2 mb-5 mt-2">
             <ChipButton title="On" selected={showStats === true} onPress={() => setShowStats(true)} />
             <ChipButton title="Off" selected={showStats === false} onPress={() => setShowStats(false)} />
           </View>
         </View>
 
-        <View className="ui-row ui-inline-2 justify-end w-full">
-          <Button intent="ghost" title="Cancel" onPress={onClose} />
-          <Button intent="primary" title="Apply" onPress={handleSubmit} />
+        <View className="ui-row ui-inline-2 justify-end w-full border-t border-border pt-4">
+          <Button intent="ghost" shape="hud" title="Cancel" onPress={onClose} />
+          <Button intent="accent" shape="hud" className="bg-brand" title="Apply" onPress={handleSubmit} />
         </View>
       </View>
       </ScrollView>

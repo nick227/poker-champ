@@ -29,7 +29,7 @@ export function LobbyPageHeader({
             size="sm"
             shape="hud"
             minWidth={0}
-            className={compact ? "flex-1 min-h-[40px]" : ""}
+            className={`bg-brand ${compact ? "flex-1 min-h-[40px]" : ""}`}
             leftIcon={<Ionicons name="grid-outline" size={15} color="#fff" />}
           />
         ) : null}
@@ -54,7 +54,7 @@ export function LobbyPageHeader({
       <View className="min-w-0 flex-1">
         <Text
           variant="h1"
-          className={`font-display font-medium leading-none ${compact ? "text-[26px]" : "text-[34px]"}`}
+          className={`font-bold leading-none tracking-[-0.02em] ${compact ? "text-[26px]" : "text-[30px]"}`}
         >
           {title}
         </Text>

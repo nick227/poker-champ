@@ -1,8 +1,8 @@
 import { View } from "react-native";
-import { ReplayQuickLinks } from "../components/lobby/ReplayQuickLinks";
 import { LobbyCashListStage } from "../components/lobby/LobbyCashListStage";
 import { LobbyPageHeader } from "../components/lobby/LobbyPageHeader";
 import { LobbyPageShell } from "../components/lobby/LobbyPageShell";
+import { LobbyQuickActions } from "../components/lobby/LobbyQuickActions";
 import { LobbySectionFrame } from "../components/lobby/LobbySectionFrame";
 import { LobbySummaryCards } from "../components/lobby/LobbySummaryCards";
 import { LobbyTournamentPrimary } from "../components/lobby/LobbyTournamentPrimary";
@@ -31,6 +31,12 @@ export function LobbyHomeScreen() {
           onNewCashTable={m.openCreateTable}
           onCreateTournament={m.handleCreateTournament}
           compact={compact}
+        />
+        <LobbyQuickActions
+          onQuickStart={m.openCreateTable}
+          onLeaderboard={() => m.router.push("/leaderboard")}
+          onTraining={() => m.router.push("/lessons")}
+          onProfile={() => m.router.push("/settings")}
         />
         <LobbySummaryCards
           tablesLive={cashStats.tablesLive}
@@ -88,9 +94,6 @@ export function LobbyHomeScreen() {
             />
           </LobbySectionFrame>
         </View>
-        {compact ? (
-          <ReplayQuickLinks lessonsEnabled onPokerSchool={() => m.router.push("/lessons")} />
-        ) : null}
       </View>
     </LobbyPageShell>
   );

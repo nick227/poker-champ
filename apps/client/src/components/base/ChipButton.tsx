@@ -15,12 +15,12 @@ export function ChipButton({
   selectedAccent?: "brand" | "gold";
   className?: string;
 }) {
-  // Quiet selection: gold border + gold text, not a solid gold brick.
+  // Selected chips use a quiet semantic tint so option groups read consistently.
   const selectedAccentClass =
     selected && selectedAccent === "gold"
       ? "bg-panel-elevated border-gold"
       : selected
-        ? "bg-panel-elevated border-brand/50"
+        ? "bg-brand-soft/70 border-brand"
         : "";
 
   const selectedText =

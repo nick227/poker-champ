@@ -14,8 +14,7 @@ function SummaryCard({
   eyebrow,
   icon,
   iconColor,
-  surfaceClass,
-  eyebrowClass,
+  iconSurfaceClass,
   primary,
   primaryLabel,
   secondary,
@@ -25,8 +24,7 @@ function SummaryCard({
   eyebrow: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
-  surfaceClass: string;
-  eyebrowClass: string;
+  iconSurfaceClass: string;
   primary: number;
   primaryLabel: string;
   secondary: number;
@@ -34,24 +32,24 @@ function SummaryCard({
   compact: boolean;
 }) {
   return (
-    <View className={`overflow-hidden rounded-2 border flex-1 ui-row ${surfaceClass}`}>
-      <View className={`ui-center ${compact ? "w-9" : "w-14"} opacity-30`}>
-        <Ionicons name={icon} size={compact ? 18 : 26} color={iconColor} />
-      </View>
-      <View className={`flex-1 justify-center ${compact ? "py-2 pr-3" : "py-3 pr-4"}`}>
-        <Text variant="label" className={`font-display tracking-[0.14em] uppercase ${eyebrowClass}`}>
+    <View className="overflow-hidden rounded-3 border border-border bg-panel flex-1 px-4 py-4">
+      <View className="ui-row gap-2">
+        <View className={`h-7 w-7 rounded-full ui-center ${iconSurfaceClass}`}>
+          <Ionicons name={icon} size={14} color={iconColor} />
+        </View>
+        <Text variant="label" className="tracking-[0.12em] uppercase font-semibold">
           {eyebrow}
         </Text>
-        <View className={`${compact ? "mt-1 gap-0.5" : "ui-row items-center mt-1.5"}`}>
+      </View>
+        <View className={`${compact ? "mt-2 gap-1" : "ui-row items-center mt-3"}`}>
           <Text variant="muted" className={`text-[12px] ${compact ? "" : "flex-1"}`} numberOfLines={1}>
             <Text className="font-semibold tabular-nums text-text">{primary}</Text> {primaryLabel}
           </Text>
-          {compact ? null : <View className="w-px self-stretch bg-border/70 mx-3" />}
+          {compact ? null : <View className="h-1 w-1 rotate-45 bg-muted/50 mx-4" />}
           <Text variant="muted" className={`text-[12px] ${compact ? "" : "flex-1"}`} numberOfLines={1}>
             <Text className="font-semibold tabular-nums text-text">{secondary}</Text> {secondaryLabel}
           </Text>
         </View>
-      </View>
     </View>
   );
 }
@@ -69,8 +67,7 @@ export function LobbySummaryCards({
         eyebrow="Cash games"
         icon="ellipse"
         iconColor="hsl(158 52% 42%)"
-        surfaceClass="border-brand/20 bg-brand-soft/40"
-        eyebrowClass="text-brand"
+        iconSurfaceClass="border border-brand/60 bg-brand-soft/30"
         primary={tablesLive}
         primaryLabel={
           compact
@@ -89,8 +86,7 @@ export function LobbySummaryCards({
         eyebrow="Tournaments"
         icon="trophy"
         iconColor="hsl(42 82% 50%)"
-        surfaceClass="border-gold/20 bg-gold-soft/25"
-        eyebrowClass="text-gold"
+        iconSurfaceClass="border border-gold/50 bg-gold-soft/15"
         primary={upcomingEvents}
         primaryLabel={
           compact

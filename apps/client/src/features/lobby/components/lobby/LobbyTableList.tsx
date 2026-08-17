@@ -23,7 +23,7 @@ type Props = {
 };
 
 const DESKTOP_COLS: Array<{
-  key: LobbySortKey | "dots";
+  key: LobbySortKey;
   label: string;
   flex: number;
   sortable: boolean;
@@ -31,7 +31,6 @@ const DESKTOP_COLS: Array<{
   { key: "name", label: "Table", flex: CASH_COL_FLEX.name, sortable: true },
   { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, sortable: true },
   { key: "players", label: "Players", flex: CASH_COL_FLEX.players, sortable: true },
-  { key: "dots", label: "", flex: CASH_COL_FLEX.dots, sortable: false },
   { key: "status", label: "Status", flex: CASH_COL_FLEX.status, sortable: true },
 ];
 
@@ -67,27 +66,27 @@ export function LobbyTableList({
   }
 
   const header = (
-    <View className="ui-row items-center border-b border-border/50 px-3 h-8">
+    <View className="ui-row items-center border-b border-border/70 px-4 h-9">
       {DESKTOP_COLS.map((col) => (
         <Pressable
           key={col.key}
           onPress={() => {
-            if (col.key !== "dots") onSort(col.key);
+            onSort(col.key);
           }}
           disabled={!col.sortable}
-          className="btn h-8 justify-center items-start rounded-none pr-2"
+          className="h-8 justify-center items-start pr-2"
           style={{ flex: col.flex, backgroundColor: "transparent", borderRadius: 0 }}
         >
           {col.label ? (
             <Text
               variant="muted"
               className={`text-left text-[11px] tracking-wide uppercase font-semibold w-full ${
-                sortKey === col.key ? "text-gold" : ""
+                sortKey === col.key ? "text-brand" : ""
               }`}
               numberOfLines={1}
             >
               {col.label}
-              {col.sortable && col.key !== "dots" ? lobbySortCaret(sortKey === col.key, sortDir) : ""}
+              {col.sortable ? lobbySortCaret(sortKey === col.key, sortDir) : ""}
             </Text>
           ) : null}
         </Pressable>

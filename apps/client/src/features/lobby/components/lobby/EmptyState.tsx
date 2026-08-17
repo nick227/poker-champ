@@ -29,18 +29,18 @@ export function EmptyState({
 }: Props) {
   return (
     <View
-      className={`flex-1 min-h-[120px] ui-center px-4 py-8 gap-3 ${
+      className={`flex-1 min-h-[152px] ui-center px-4 py-10 gap-2 ${
         embedded ? "" : "lobby-stage rounded-2 border"
       }`}
     >
       <Text
         variant={tone === "danger" ? "danger" : "muted"}
-        className="text-[14px] text-center font-semibold"
+        className="text-[16px] text-center font-semibold"
       >
         {message}
       </Text>
       {detail ? (
-        <Text variant="muted" className="text-[12px] text-center max-w-[360px]">
+        <Text variant="muted" className="text-[13px] text-center max-w-[360px]">
           {detail}
         </Text>
       ) : null}
