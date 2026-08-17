@@ -60,8 +60,8 @@ export function LobbyCashListStage({
   if (tables.length === 0 && pinnedTables.length === 0) {
     return (
       <EmptyState
-        message="No open cash tables right now."
-        detail="Create a cash table to get a game going."
+        message=""
+        detail=""
         primary={{ title: "New cash table", onPress: onCreate, intent: "accent" }}
         embedded={embedded}
       />

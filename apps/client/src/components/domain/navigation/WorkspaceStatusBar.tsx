@@ -83,14 +83,14 @@ export function WorkspaceStatusBar({
 
   return (
     <View
-      className={`ui-row items-center justify-between border-b border-border gap-3 shrink-0 ${
+      className={`ui-row items-center justify-between border-b border-border gap-3 pt-4 shrink-0 ${
         isDesktopWorkspace ? "pb-4" : "px-4 pt-3 pb-3"
       }`}
     >
       {!isDesktopWorkspace ? (
         <IconButton icon={<Icon name="menu" size={20} />} size="sm" onPress={openMobileNav} />
       ) : null}
-      <View className="flex-1 min-w-0 flex-col justify-center">
+      <View className="flex-1 min-w-0 flex-col px-4 justify-center">
         <View className="flex-row items-center gap-2">
           {leadingLabel ? (
             <Text

@@ -51,8 +51,8 @@ export function TournamentsSection({
   const browse = sortTournamentLobbyRows(rows.browse, sortKey, sortDir, nowMs);
   const hasRows = rows.pinned.length > 0 || browse.length > 0;
   const emptyMessage = authenticated
-    ? "No tournaments scheduled yet. Create one or check back soon."
-    : "No tournaments scheduled yet. Log in to register when events are posted.";
+    ? ""
+    : "Log in to see tournaments.";
 
   return (
     <View className={embedded ? "" : `ui-stack-3 ${dense ? "" : "px-4 pb-2"}`}>
