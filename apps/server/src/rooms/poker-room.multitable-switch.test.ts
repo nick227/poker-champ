@@ -128,6 +128,11 @@ describe("multi-table: a human can be seated at several tables and switch betwee
     );
     expect(clientA.leave).toHaveBeenCalledWith(4001);
     expect(roomA.dealer.getClient(userId)).toBeFalsy();
+
+    // Colyseus subsequently invokes onLeave with the same close code. That path
+    // returns before starting allowReconnection or assigning a deadline.
+    await roomA.onLeave(clientA, 4001);
+    expect(roomA.state.playersById.get(userId)?.disconnectDeadlineTs).toBe(0);
   });
 
   it("joins table A, switches to table B and keeps playing, then switches back to A and resumes with the same stack", async () => {

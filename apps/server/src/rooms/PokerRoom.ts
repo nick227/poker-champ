@@ -46,7 +46,6 @@ import type {
   AuthContext,
   TableConfig,
   PokerRoomMetadata,
-  SittingOutSweepOptions,
   InstantGamePresetId,
   InstantGameSeedConfig,
 } from "./room/types/PokerRoomTypes.js";
@@ -160,6 +159,31 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * try to join simultaneously for the same user. Key format: "tableId:userId"
    */
   private readonly joinLocksByKey: Map<string, Promise<void>> = new Map();
+  /**
+   * Reader/writer lock guarding the final disposal decision against joins, reconnects, and
+   * economic admission. Joins/reconnects/admissions are "readers": frequent, and only need to
+   * exclude a disposal that is *concurrently* deciding, not each other -- so any number of them
+   * run in parallel. handleIdleDisposeTimer/requestDisconnect are the sole "writer": rare, and
+   * needs exclusive access (waits for in-flight readers to drain, blocks new readers meanwhile)
+   * so its canIdleDispose() check and the actual disconnect stay atomic against a join landing
+   * mid-decision. A single FIFO mutex here would make every join wait behind every other join,
+   * not just behind disposal -- this keeps the hot (join) path cheap while keeping the same
+   * correctness guarantee on the cold (disposal) path.
+   */
+  private lifecycleReaderCount = 0;
+  private lifecycleWriterActive = false;
+  /** Writers that have called lifecycleAcquireWrite but not yet acquired -- see lifecycleAcquireRead. */
+  private lifecycleWritersWaiting = 0;
+  private lifecycleWaitQueue: Array<() => void> = [];
+  /**
+   * Per-user in-flight buy-in/rebuy admissions (userId -> token -> refcount). Held from before
+   * the CashierService DB commit until after the room-side applyRebuy/addPlayer sync completes,
+   * so a concurrent cash-out for the same user can see "money already committed but not yet
+   * reflected in room state" even before the player is seated, and refuse to race it.
+   */
+  private readonly buyInAdmissionsByUser = new Map<string, Map<string, number>>();
+  /** userIds with an in-flight cash-out (past the seat/admission guard, before the ledger call resolves). */
+  private readonly cashOutAdmissionUsers = new Set<string>();
   /**
    * Schema version for persistent seat data. Used to detect and handle
    * data migration scenarios when the seat schema changes.
@@ -318,6 +342,16 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
           stackCentsSnapshot: stackCents,
           handIdSnapshot: this.state.handId || undefined,
         });
+      },
+      // Centralized occupancy-changed signal (see Dealer's onPlayerRemoved doc comment): fired
+      // whenever any removal path actually vacates a seat, including DisconnectManager's
+      // periodic sweep, which has no room-level caller to follow up afterward. Deliberately not
+      // folded into onTableSnapshotEmitted below: a SEAT_CHANGE snapshot while street === WAITING
+      // resolves to "lightweight_waiting" build mode and never reaches that hook at all -- exactly
+      // the case that matters for a table becoming newly disposable.
+      onPlayerRemoved: () => {
+        this.updateMetadataCounts();
+        void this.reevaluateIdleLifecycle();
       },
       // Callback when table state snapshot is emitted for logging and stall detection.
       // Invoked by SnapshotService.emitToAll and emitToUser only, so lastSnapshotAt stays accurate for TABLE_STALLED.
@@ -1011,10 +1045,6 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     this.purgeBotsForDelete();
   }
 
-  async runSittingOutSweepInternal(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }> {
-    return this.runSittingOutSweep(options);
-  }
-
   async seedInstantBotsInternal(
     presetId: InstantGamePresetId,
     targetBotCountOverride?: number,
@@ -1099,6 +1129,10 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.withJoinLock(key, fn);
   }
 
+  withTableLifecycleLockInternal<T>(fn: () => Promise<T>): Promise<T> {
+    return this.withTableLifecycleReadLock(fn);
+  }
+
   processJoinBuyInForZeroStackSeatInternal(userId: string, buyInCents: number): Promise<void> {
     return this.processJoinBuyInForZeroStackSeat(userId, buyInCents);
   }
@@ -1111,7 +1145,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.markDisconnectedSafe(userId, disconnectDeadlineTs);
   }
 
-  markReconnectedSafeInternal(userId: string): Promise<void> {
+  markReconnectedSafeInternal(userId: string): Promise<boolean> {
     return this.markReconnectedSafe(userId);
   }
 
@@ -1119,8 +1153,8 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.clearSittingOutOnRestoreSafe(userId);
   }
 
-  markAbandonedSafeInternal(userId: string): Promise<void> {
-    return this.markAbandonedSafe(userId);
+  markAbandonedSafeInternal(userId: string, expectedDisconnectDeadlineTs?: number): Promise<void> {
+    return this.markAbandonedSafe(userId, expectedDisconnectDeadlineTs);
   }
 
   emitSnapshotsToAllSafeInternal(reason: string): Promise<void> {
@@ -1342,6 +1376,13 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param rebuyRef - Optional reference for the rebuy transaction
    */
   async applyRebuy(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
+    await this.withTableLifecycleReadLock(async () => {
+      if (this.isDeleting) throw new Error("TABLE_GONE");
+      await this.applyRebuyUnderLifecycleLock(userId, amountCents, rebuyRef);
+    });
+  }
+
+  private async applyRebuyUnderLifecycleLock(userId: string, amountCents: number, rebuyRef?: string): Promise<void> {
     await this.dealer.applyRebuy(userId, amountCents, rebuyRef);
     if (this.persistentSeatsEnabled) {
       const seat = this.findPlayerSeat(userId);
@@ -1394,7 +1435,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
         creatorId: this.state.creatorId || undefined,
       },
     });
-    await this.applyRebuy(userId, buyInCents, externalRef);
+    await this.applyRebuyUnderLifecycleLock(userId, buyInCents, externalRef);
     logger.info({ roomId: this.roomId, tableId: this.state.tableId, userId, buyInCents }, "POKER_JOIN_BUYIN_OVERRIDE_APPLIED");
   }
 
@@ -1855,16 +1896,16 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * 
    * @param userId - The user ID to mark as reconnected
    */
-  private async markReconnectedSafe(userId: string): Promise<void> {
+  private async markReconnectedSafe(userId: string): Promise<boolean> {
     const dealer = this.dealer as unknown as {
-      markReconnectedSerialized?: (id: string) => Promise<void>;
+      markReconnectedSerialized?: (id: string) => Promise<boolean>;
       markReconnected: (id: string) => void;
     };
     if (typeof dealer.markReconnectedSerialized === "function") {
-      await dealer.markReconnectedSerialized(userId);
-      return;
+      return dealer.markReconnectedSerialized(userId);
     }
     dealer.markReconnected(userId);
+    return true;
   }
 
   private async clearSittingOutOnRestoreSafe(userId: string): Promise<void> {
@@ -1888,7 +1929,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * 
    * @param userId - The user ID to mark as abandoned
    */
-  private async markAbandonedSafe(userId: string): Promise<void> {
+  private async markAbandonedSafe(userId: string, expectedDisconnectDeadlineTs?: number): Promise<void> {
     if (this.tournamentId) {
       logger.info(
         { roomId: this.roomId, tableId: this.state.tableId, tournamentId: this.tournamentId, userId },
@@ -1897,11 +1938,11 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       return;
     }
     const dealer = this.dealer as unknown as {
-      markAbandonedSerialized?: (id: string) => Promise<void>;
+      markAbandonedSerialized?: (id: string, expectedDeadlineTs?: number) => Promise<boolean>;
       markAbandoned: (id: string) => Promise<void>;
     };
     if (typeof dealer.markAbandonedSerialized === "function") {
-      await dealer.markAbandonedSerialized(userId);
+      await dealer.markAbandonedSerialized(userId, expectedDisconnectDeadlineTs);
       return;
     }
     await dealer.markAbandoned(userId);
@@ -2012,6 +2053,135 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     }
   }
 
+  private lifecycleWakeWaiters(): void {
+    const queue = this.lifecycleWaitQueue;
+    if (queue.length === 0) return;
+    this.lifecycleWaitQueue = [];
+    for (const resolve of queue) resolve();
+  }
+
+  private async lifecycleAcquireRead(): Promise<void> {
+    // Writer-preference: once a writer is *queued* (not just once it's active), new readers must
+    // stop entering immediately -- checking only lifecycleWriterActive here would let a steady
+    // stream of readers arriving faster than they drain keep readerCount above zero forever,
+    // starving the writer, which never gets to flip writerActive true in the first place.
+    while (this.lifecycleWriterActive || this.lifecycleWritersWaiting > 0) {
+      await new Promise<void>((resolve) => this.lifecycleWaitQueue.push(resolve));
+    }
+    this.lifecycleReaderCount += 1;
+  }
+
+  private lifecycleReleaseRead(): void {
+    this.lifecycleReaderCount -= 1;
+    if (this.lifecycleReaderCount === 0) this.lifecycleWakeWaiters();
+  }
+
+  private async lifecycleAcquireWrite(): Promise<void> {
+    this.lifecycleWritersWaiting += 1;
+    try {
+      while (this.lifecycleWriterActive || this.lifecycleReaderCount > 0) {
+        await new Promise<void>((resolve) => this.lifecycleWaitQueue.push(resolve));
+      }
+    } finally {
+      this.lifecycleWritersWaiting -= 1;
+    }
+    this.lifecycleWriterActive = true;
+  }
+
+  private lifecycleReleaseWrite(): void {
+    this.lifecycleWriterActive = false;
+    this.lifecycleWakeWaiters();
+  }
+
+  /** Cheap hot path: joins, reconnects, and economic admission run concurrently with each other. */
+  private async withTableLifecycleReadLock<T>(fn: () => Promise<T>): Promise<T> {
+    await this.lifecycleAcquireRead();
+    try {
+      return await fn();
+    } finally {
+      this.lifecycleReleaseRead();
+    }
+  }
+
+  /** Cold path: the final disposal decision needs exclusive access. */
+  private async withTableLifecycleWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+    await this.lifecycleAcquireWrite();
+    try {
+      return await fn();
+    } finally {
+      this.lifecycleReleaseWrite();
+    }
+  }
+
+  /**
+   * Begin a buy-in/rebuy admission for userId, identified by a deterministic token (the rebuy's
+   * externalRef). Held for the *entire* window from before the CashierService DB commit (in
+   * EconomyRouter) through the room-side applyRebuy/addPlayer sync -- not just around the room
+   * mutation -- so a concurrent /cash-out for the same user can see "this user has money in
+   * flight" even while they are not yet seated, and refuse to race the buy-in to zero.
+   */
+  async beginEconomicAdmission(userId: string, token: string): Promise<{ ok: boolean; reason?: string }> {
+    return this.withTableLifecycleReadLock(async () => {
+      if (this.isDeleting) return { ok: false, reason: "TABLE_GONE" };
+      if (this.cashOutAdmissionUsers.has(userId)) return { ok: false, reason: "CASHOUT_IN_PROGRESS" };
+      const userTokens = this.buyInAdmissionsByUser.get(userId) ?? new Map<string, number>();
+      userTokens.set(token, (userTokens.get(token) ?? 0) + 1);
+      this.buyInAdmissionsByUser.set(userId, userTokens);
+      this.cancelIdleDispose();
+      return { ok: true };
+    });
+  }
+
+  async endEconomicAdmission(userId: string, token: string): Promise<void> {
+    await this.withTableLifecycleReadLock(async () => {
+      const userTokens = this.buyInAdmissionsByUser.get(userId);
+      if (!userTokens) return;
+      const count = userTokens.get(token) ?? 0;
+      if (count <= 1) userTokens.delete(token);
+      else userTokens.set(token, count - 1);
+      if (userTokens.size === 0) this.buyInAdmissionsByUser.delete(userId);
+    });
+    void this.reevaluateIdleLifecycle();
+  }
+
+  /**
+   * Begin a cash-out admission for userId, used by EconomyRouter's /cash-out endpoint (via
+   * remoteRoomCall) *before* touching CashierService. Rejects if the user is currently seated
+   * (cash-out for a seated/in-hand player must go through the poker lifecycle, not bypass it --
+   * the room's in-memory stack is only a mirror of PlayerBalance synced at specific touchpoints,
+   * so an out-of-band debit while seated can desync it and surface as a mid-hand
+   * INSUFFICIENT_BALANCE failure), if a buy-in/rebuy admission is in flight for this user (money
+   * already committed to PlayerBalance but not yet synced to room state -- see
+   * beginEconomicAdmission), or if another cash-out is already in flight for this user.
+   */
+  async beginCashOutAdmission(userId: string): Promise<{ ok: boolean; reason?: string }> {
+    return this.withTableLifecycleReadLock(async () => {
+      if (this.isDeleting) return { ok: false, reason: "TABLE_GONE" };
+      if (this.isUserSeated(userId)) return { ok: false, reason: "SEATED_AT_TABLE" };
+      if (this.buyInAdmissionsByUser.has(userId)) return { ok: false, reason: "ADMISSION_IN_PROGRESS" };
+      if (this.cashOutAdmissionUsers.has(userId)) return { ok: false, reason: "CASHOUT_IN_PROGRESS" };
+      this.cashOutAdmissionUsers.add(userId);
+      this.cancelIdleDispose();
+      return { ok: true };
+    });
+  }
+
+  async endCashOutAdmission(userId: string): Promise<void> {
+    await this.withTableLifecycleReadLock(async () => {
+      this.cashOutAdmissionUsers.delete(userId);
+    });
+    void this.reevaluateIdleLifecycle();
+  }
+
+  /**
+   * Read-only check of whether the live room currently has userId seated. Also used directly by
+   * beginCashOutAdmission above.
+   */
+  isUserSeated(userId: string): boolean {
+    const player = this.state.playersById.get(userId);
+    return Boolean(player) && player!.kind === "HUMAN";
+  }
+
   /**
    * Runs cleanup for expired persistent seat sessions.
    * Removes players who have been disconnected too long and processes
@@ -2101,68 +2271,6 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
       },
       "SEAT_TTL_REAP",
     );
-  }
-
-  /**
-   * Purge long-abandoned seated humans when no humans are currently connected.
-   * Presence gate uses binding-map truth (connectedHumanCount), never PlayerState.connected.
-   * 
-   * @param options - Configuration options for the sweep
-   * @returns List of user IDs that were purged
-   */
-  async runSittingOutSweep(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }> {
-    if (this.isDeleting) return { purgedUserIds: [] };
-    if (!this.persistentSeatsEnabled) return { purgedUserIds: [] };
-    if (this.computeConnectedHumanCount() > 0) return { purgedUserIds: [] };
-
-    const nowTs = options?.nowTs ?? Date.now();
-    const abandonedPurgeMs = options?.abandonedPurgeMs ?? 30 * 60 * 1000;
-    
-    // Find abandoned human players
-    const abandonedHumans = [...this.state.playersById.values()]
-      .filter((p) => p.kind === "HUMAN" && p.status === "ABANDONED")
-      .map((p) => p.id);
-    if (abandonedHumans.length === 0) return { purgedUserIds: [] };
-
-    // Get disconnect times for abandoned players
-    const disconnectRows = await TableSeatSessionService.listSittingOutDisconnectTimesForUsers({
-      tableId: this.state.tableId,
-      userIds: abandonedHumans,
-    });
-    const disconnectAtByUserId = new Map<string, number>();
-    for (const row of disconnectRows) {
-      if (row.disconnectAt instanceof Date) {
-        disconnectAtByUserId.set(row.userId, row.disconnectAt.getTime());
-      }
-    }
-
-    // Purge players who have been abandoned long enough
-    const purgedUserIds: string[] = [];
-    for (const userId of abandonedHumans) {
-      const player = this.state.playersById.get(userId);
-      // Do not purge while a reconnect grace window is still active in-memory.
-      // This protects restored disconnected seats whose persisted disconnectAt may be older.
-      if (player && player.disconnectDeadlineTs > 0 && nowTs <= player.disconnectDeadlineTs) continue;
-
-      const disconnectedAtTs = disconnectAtByUserId.get(userId);
-      if (disconnectedAtTs == null) continue;
-      if (nowTs - disconnectedAtTs <= abandonedPurgeMs) continue;
-
-      await this.dealer.removePlayer(userId);
-      await TableSeatSessionService.markLeft({
-        tableId: this.state.tableId,
-        userId,
-        reason: "ABANDONED_TIMEOUT",
-      });
-      purgedUserIds.push(userId);
-    }
-
-    if (purgedUserIds.length > 0) {
-      await this.maybeRemoveBotsIfNoHumans();
-      this.updateMetadataCounts();
-      await this.reevaluateIdleLifecycle();
-    }
-    return { purgedUserIds };
   }
 
   /**
@@ -2297,6 +2405,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    */
   private async canIdleDispose(): Promise<boolean> {
     if (this.isDeleting || this.state.tournamentMode) return false;
+    if (this.buyInAdmissionsByUser.size !== 0 || this.cashOutAdmissionUsers.size !== 0) return false;
     if (this.computeConnectedHumanCount() !== 0) return false;
     if (this.computeHumanCount() !== 0) return false;
     if (this.state.street !== "WAITING") return false;
@@ -2351,16 +2460,18 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
   private async handleIdleDisposeTimer(timerGeneration: number): Promise<void> {
     if (timerGeneration !== this.idleTimerGeneration) return;
     this.idleDisposeTimer = null;
-    if (!(await this.canIdleDispose()) || timerGeneration !== this.idleTimerGeneration) {
-      this.cancelIdleDispose();
-      return;
-    }
-    const now = Date.now();
-    logger.info(
-      { roomId: this.roomId, tableId: this.state.tableId, idleMs: this.emptySinceTs == null ? 0 : now - this.emptySinceTs },
-      "POKER_ROOM_IDLE_DISPOSE",
-    );
-    await this.requestDisconnect();
+    await this.withTableLifecycleWriteLock(async () => {
+      if (timerGeneration !== this.idleTimerGeneration || !(await this.canIdleDispose())) {
+        this.cancelIdleDispose();
+        return;
+      }
+      const now = Date.now();
+      logger.info(
+        { roomId: this.roomId, tableId: this.state.tableId, idleMs: this.emptySinceTs == null ? 0 : now - this.emptySinceTs },
+        "POKER_ROOM_IDLE_DISPOSE",
+      );
+      await this.requestDisconnectUnderLifecycleLock();
+    });
   }
 
   /**
@@ -2369,11 +2480,15 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * Notifies all clients and initiates disconnection.
    */
   async requestDisconnect(): Promise<void> {
-    this.isDeleting = true;
+    await this.withTableLifecycleWriteLock(() => this.requestDisconnectUnderLifecycleLock());
+  }
+
+  private async requestDisconnectUnderLifecycleLock(): Promise<void> {
     const connectedHumanCount = this.computeConnectedHumanCount();
     if (connectedHumanCount !== 0) {
       throw new Error(`DELETE_INVARIANT_FAILED: connectedHumanCount=${connectedHumanCount}`);
     }
+    this.isDeleting = true;
     
     // Remove all bots before disconnecting
     this.purgeBotsForDelete();

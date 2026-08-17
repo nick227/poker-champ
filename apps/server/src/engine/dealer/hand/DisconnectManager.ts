@@ -9,22 +9,32 @@ export class DisconnectManager {
 
   constructor(private readonly deps: {
     state: PokerState;
-    enqueueSerializedStateMutation: (work: () => Promise<void>) => Promise<void>;
     hasClient: (userId: string) => boolean;
     markReconnected: (userId: string) => Promise<void>;
-    markAbandoned: (userId: string) => Promise<void>;
+    markAbandoned: (userId: string, expectedDeadlineTs: number) => Promise<void>;
   }) {}
 
+  /**
+   * Does NOT wrap the sweep itself in enqueueSerializedStateMutation: markAbandoned (wired to
+   * Dealer.markAbandonedSerialized) and markReconnected already each serialize their own mutation
+   * individually. Wrapping the whole sweep too would nest one enqueueSerializedStateMutation call
+   * inside another -- the inner call chains onto the dealer's mutation queue *behind* the outer
+   * sweep call it's running inside, which can never resolve, permanently deadlocking the queue
+   * (and with it every future action/hand at the table) the first time the sweep finds someone to
+   * abandon. The scan below only reads state synchronously before calling those serialized
+   * methods, which is safe in JS's single-threaded execution model, and each serialized call
+   * re-validates against current state (see the expectedDeadlineTs guard in
+   * Dealer.markAbandonedSerialized) so a candidate that changed between the scan and its turn in
+   * the queue is a safe no-op instead of acting on stale information.
+   */
   startSweep(): void {
     if (this.disconnectSweepIntervalId != null) return;
     this.disconnectSweepIntervalId = setInterval(() => {
       if (this.sweepRunning) return;
       this.sweepRunning = true;
-      void this.deps
-        .enqueueSerializedStateMutation(() => this.sweepDisconnectDeadlines())
-        .finally(() => {
-          this.sweepRunning = false;
-        });
+      void this.sweepDisconnectDeadlines().finally(() => {
+        this.sweepRunning = false;
+      });
     }, DisconnectManager.DISCONNECT_SWEEP_MS);
   }
 
@@ -54,7 +64,7 @@ export class DisconnectManager {
     }
     for (const item of toAbandon) {
       try {
-        await this.deps.markAbandoned(item.userId);
+        await this.deps.markAbandoned(item.userId, item.deadline);
       } catch (err) {
         logger.warn({ err, userId: item.userId, deadline: item.deadline }, "disconnect sweep markAbandoned failed");
       }

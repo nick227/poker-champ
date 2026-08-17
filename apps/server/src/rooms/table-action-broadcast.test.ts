@@ -93,7 +93,7 @@ describe("table action broadcasting", () => {
   beforeEach(() => {
     // Default no-op to keep teardown deterministic in tests that do not
     // explicitly mock seat-session persistence.
-    vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue(true);
   });
 
   afterEach(async () => {

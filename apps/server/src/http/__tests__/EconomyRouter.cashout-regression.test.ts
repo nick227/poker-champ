@@ -128,4 +128,79 @@ describe("EconomyRouter cash-out regressions", () => {
     expect(firstCall.externalRef).toBe("client-ref-retry");
     expect(secondCall.externalRef).toBe("client-ref-retry");
   });
+
+  describe("rejects cash-out via the shared admission boundary", () => {
+    beforeEach(() => {
+      matchMakerMock.query.mockResolvedValue([
+        { roomId: "room_1", metadata: { tableId: "table_1", name: "Table 1", creatorId: "creator_1" } },
+      ]);
+    });
+
+    it("rejects before any balance mutation when the player is actively seated (bet in flight)", async () => {
+      // Models the exact race: player is seated, a bet operation is conceptually in flight in the
+      // room, and an HTTP cash-out is attempted concurrently. The room-side admission boundary must
+      // win and no money may move -- the ledger must never discover afterward that the stack vanished.
+      matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId: string, method: string) =>
+        method === "beginCashOutAdmission" ? { ok: false, reason: "SEATED_AT_TABLE" } : undefined,
+      );
+
+      const res = await post("/api/economy/cash-out", { tableId: "table_1", amountCents: 3000 });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "SEATED_AT_TABLE" });
+      expect(cashOutMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects when a buy-in has already committed funds but not yet synced room state", async () => {
+      // The TOCTOU window this admission boundary closes: isUserSeated() alone would read false
+      // here (the player isn't seated yet), but the room reports a buy-in admission still in
+      // flight for this user, so cash-out must not be allowed to race it.
+      matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId: string, method: string) =>
+        method === "beginCashOutAdmission" ? { ok: false, reason: "ADMISSION_IN_PROGRESS" } : undefined,
+      );
+
+      const res = await post("/api/economy/cash-out", { tableId: "table_1", amountCents: 3000 });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "ADMISSION_IN_PROGRESS" });
+      expect(cashOutMock).not.toHaveBeenCalled();
+    });
+
+    it("allows cash-out once the room admits it, and releases the admission afterward", async () => {
+      matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId: string, method: string) =>
+        method === "beginCashOutAdmission" ? { ok: true } : undefined,
+      );
+
+      const res = await post("/api/economy/cash-out", { tableId: "table_1", amountCents: 3000 });
+
+      expect(res.status).toBe(200);
+      expect(cashOutMock).toHaveBeenCalledTimes(1);
+      const endCalls = matchMakerMock.remoteRoomCall.mock.calls.filter((c: unknown[]) => c[1] === "endCashOutAdmission");
+      expect(endCalls).toHaveLength(1);
+      expect(endCalls[0]?.[2]).toEqual(["user_test_1"]);
+    });
+
+    it("releases the admission even when the ledger call throws", async () => {
+      matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId: string, method: string) =>
+        method === "beginCashOutAdmission" ? { ok: true } : undefined,
+      );
+      cashOutMock.mockRejectedValueOnce(new Error("INSUFFICIENT_TABLE_BALANCE"));
+
+      const res = await post("/api/economy/cash-out", { tableId: "table_1", amountCents: 3000 });
+
+      expect(res.status).toBe(400);
+      const endCalls = matchMakerMock.remoteRoomCall.mock.calls.filter((c: unknown[]) => c[1] === "endCashOutAdmission");
+      expect(endCalls).toHaveLength(1);
+    });
+
+    it("fails closed (rejects, no mutation) if the admission check itself fails", async () => {
+      matchMakerMock.remoteRoomCall.mockRejectedValue(new Error("room unreachable"));
+
+      const res = await post("/api/economy/cash-out", { tableId: "table_1", amountCents: 3000 });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "TABLE_STATE_UNAVAILABLE" });
+      expect(cashOutMock).not.toHaveBeenCalled();
+    });
+  });
 });

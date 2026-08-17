@@ -158,7 +158,7 @@ describe("disconnect policy", () => {
     u2.roundBetCents = 100;
     u2.committedCents = 100;
 
-    await expect(dealer.markReconnectedSerialized("u1")).resolves.toBeUndefined();
+    await expect(dealer.markReconnectedSerialized("u1")).resolves.toBe(true);
     expect(state.playersById.get("u1")?.status).toBe("ABANDONED");
     expect(state.playersById.get("u1")?.connected).toBe(true);
   });

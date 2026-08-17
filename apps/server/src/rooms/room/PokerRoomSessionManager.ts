@@ -51,6 +51,11 @@ export class PokerRoomSessionManager {
     this.bindingEpochByUserId.delete(userId);
   }
 
+  invalidatePriorBinding(userId: string): void {
+    const nextEpoch = (this.bindingEpochByUserId.get(userId) ?? 0) + 1;
+    this.bindingEpochByUserId.set(userId, nextEpoch);
+  }
+
   valuesUserIds(): IterableIterator<string> {
     return this.userIdBySessionId.values();
   }

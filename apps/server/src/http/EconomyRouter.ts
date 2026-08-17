@@ -124,57 +124,100 @@ router.post("/buy-in", async (req, res) => {
     const rebuyRef =
       parsed.data.externalRef ?? `buyin_${parsed.data.tableId}_${req.user!.id}_${Date.now()}_${nanoid(6)}`;
 
-    const result = activeTournament
-      ? await CashierService.processTournamentRebuy({
-          userId: req.user!.id,
-          tableId: parsed.data.tableId,
-          tournamentId: activeTournament.id,
-          amountCents: parsed.data.amountCents,
-          externalRef: rebuyRef,
-          tableMeta,
-        })
-      : await CashierService.processCashGameBuyIn({
-          userId: req.user!.id,
-          tableId: parsed.data.tableId,
-          amountCents: parsed.data.amountCents,
-          externalRef: rebuyRef,
-          tableMeta,
-        });
-    const userId = req.user!.id;
-    const { tableId, amountCents } = parsed.data;
-    if (room?.roomId) {
-      const { synced, attempts } = await CashierService.syncRoomAfterBuyIn({
-        userId,
-        tableId,
-        externalRef: rebuyRef,
-        roomSync: async () => {
-          if (activeTournament) {
-            const user = await prisma.user.findUnique({
-              where: { id: userId },
-              select: { displayName: true },
-            });
-            const displayName = user?.displayName?.trim() || "Player";
-            await matchMaker.remoteRoomCall(room.roomId!, "applyTournamentRebuy", [
-              userId,
-              displayName,
-              amountCents,
-              rebuyRef,
-            ]);
-          } else {
-            await matchMaker.remoteRoomCall(room.roomId!, "applyRebuy", [userId, amountCents, rebuyRef]);
-          }
-        },
-      });
-      if (!synced) {
-        logger.error(
-          { tableId, userId, attempts, externalRef: rebuyRef },
-          "applyRebuy to room failed after buy-in; exhausted retries, dead-lettered for manual reconciliation",
-        );
-        res.status(502).json({ error: "BUYIN_APPLIED_ROOM_SYNC_FAILED" });
+    let cashAdmissionStarted = false;
+    if (!activeTournament) {
+      if (!room?.roomId) {
+        res.status(409).json({ error: "TABLE_NOT_LIVE" });
         return;
       }
+      let admission: { ok?: boolean; reason?: string };
+      try {
+        admission = await matchMaker.remoteRoomCall(
+          room.roomId,
+          "beginEconomicAdmission" as never,
+          [req.user!.id, rebuyRef],
+          5000,
+        ) as { ok?: boolean; reason?: string };
+      } catch {
+        res.status(409).json({ error: "TABLE_NOT_LIVE" });
+        return;
+      }
+      if (!admission?.ok) {
+        res.status(409).json({ error: admission?.reason ?? "TABLE_NOT_ACCEPTING_BUYINS" });
+        return;
+      }
+      cashAdmissionStarted = true;
     }
-    res.json(result);
+
+    try {
+      const result = activeTournament
+        ? await CashierService.processTournamentRebuy({
+            userId: req.user!.id,
+            tableId: parsed.data.tableId,
+            tournamentId: activeTournament.id,
+            amountCents: parsed.data.amountCents,
+            externalRef: rebuyRef,
+            tableMeta,
+          })
+        : await CashierService.processCashGameBuyIn({
+            userId: req.user!.id,
+            tableId: parsed.data.tableId,
+            amountCents: parsed.data.amountCents,
+            externalRef: rebuyRef,
+            tableMeta,
+          });
+      const userId = req.user!.id;
+      const { tableId, amountCents } = parsed.data;
+      if (room?.roomId) {
+        const { synced, attempts } = await CashierService.syncRoomAfterBuyIn({
+          userId,
+          tableId,
+          externalRef: rebuyRef,
+          roomSync: async () => {
+            if (activeTournament) {
+              const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { displayName: true },
+              });
+              const displayName = user?.displayName?.trim() || "Player";
+              await matchMaker.remoteRoomCall(room.roomId!, "applyTournamentRebuy", [
+                userId,
+                displayName,
+                amountCents,
+                rebuyRef,
+              ]);
+            } else {
+              await matchMaker.remoteRoomCall(room.roomId!, "applyRebuy", [userId, amountCents, rebuyRef]);
+            }
+          },
+        });
+        if (!synced) {
+          logger.error(
+            { tableId, userId, attempts, externalRef: rebuyRef },
+            "applyRebuy to room failed after buy-in; exhausted retries, dead-lettered for manual reconciliation",
+          );
+          res.status(502).json({ error: "BUYIN_APPLIED_ROOM_SYNC_FAILED" });
+          return;
+        }
+      }
+      res.json(result);
+    } finally {
+      if (cashAdmissionStarted && room?.roomId) {
+        try {
+          await matchMaker.remoteRoomCall(
+            room.roomId,
+            "endEconomicAdmission" as never,
+            [req.user!.id, rebuyRef],
+            5000,
+          );
+        } catch (endErr) {
+          logger.error(
+            { err: endErr, tableId: parsed.data.tableId, roomId: room.roomId, externalRef: rebuyRef },
+            "endEconomicAdmission failed",
+          );
+        }
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "INSUFFICIENT_BANKROLL") {
@@ -221,18 +264,61 @@ router.post("/cash-out", async (req, res) => {
       creatorId: room?.metadata?.creatorId ?? tableRow?.creatorId ?? undefined,
     };
 
-    const cashOutRef =
-      parsed.data.externalRef ??
-      `cashout_${parsed.data.tableId}_${req.user!.id}_${Date.now()}_${nanoid(6)}`;
+    // Cash-out participates in the same per-user admission synchronization as buy-in, rather
+    // than a loose independent pre-check: this closes the TOCTOU window where a buy-in has
+    // already committed PlayerBalance but has not yet synced room state (isUserSeated() would
+    // still read false), which a plain seated-check alone cannot see. Held through the whole
+    // ledger call so a concurrent buy-in also sees this cash-out in flight and refuses to start.
+    let cashOutAdmissionStarted = false;
+    if (room?.roomId) {
+      let admission: { ok?: boolean; reason?: string };
+      try {
+        admission = (await matchMaker.remoteRoomCall(
+          room.roomId,
+          "beginCashOutAdmission" as never,
+          [req.user!.id],
+          5000,
+        )) as { ok?: boolean; reason?: string };
+      } catch (err) {
+        logger.warn(
+          { err, tableId: parsed.data.tableId, roomId: room.roomId, userId: req.user!.id },
+          "beginCashOutAdmission failed; failing closed on cash-out",
+        );
+        res.status(409).json({ error: "TABLE_STATE_UNAVAILABLE" });
+        return;
+      }
+      if (!admission?.ok) {
+        res.status(409).json({ error: admission?.reason ?? "CASHOUT_NOT_ALLOWED" });
+        return;
+      }
+      cashOutAdmissionStarted = true;
+    }
 
-    const result = await CashierService.processCashGameCashOut({
-      userId: req.user!.id,
-      tableId: parsed.data.tableId,
-      amountCents: parsed.data.amountCents,
-      externalRef: cashOutRef,
-      tableMeta,
-    });
-    res.json(result);
+    try {
+      const cashOutRef =
+        parsed.data.externalRef ??
+        `cashout_${parsed.data.tableId}_${req.user!.id}_${Date.now()}_${nanoid(6)}`;
+
+      const result = await CashierService.processCashGameCashOut({
+        userId: req.user!.id,
+        tableId: parsed.data.tableId,
+        amountCents: parsed.data.amountCents,
+        externalRef: cashOutRef,
+        tableMeta,
+      });
+      res.json(result);
+    } finally {
+      if (cashOutAdmissionStarted && room?.roomId) {
+        try {
+          await matchMaker.remoteRoomCall(room.roomId, "endCashOutAdmission" as never, [req.user!.id], 5000);
+        } catch (endErr) {
+          logger.error(
+            { err: endErr, tableId: parsed.data.tableId, roomId: room.roomId, userId: req.user!.id },
+            "endCashOutAdmission failed",
+          );
+        }
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "INSUFFICIENT_TABLE_BALANCE") {
@@ -248,4 +334,3 @@ router.post("/cash-out", async (req, res) => {
 });
 
 export const economyRouter = router;
-

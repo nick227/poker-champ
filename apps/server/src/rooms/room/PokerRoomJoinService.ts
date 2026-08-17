@@ -100,6 +100,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
 
     const lockKey = `${this.ctx.state.tableId}:${userId ?? client.sessionId}`;
     await room.withJoinLockInternal(lockKey, async () => {
+      await room.withTableLifecycleLockInternal(async () => {
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
         client.leave();
@@ -174,9 +175,18 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
           }
         }
 
+        // Invalidate the old leave continuation before the serialized dealer
+        // mutation yields. Otherwise an immediate replacement connection can
+        // let the old onLeave enter allowReconnection and wait indefinitely.
+        this.session.invalidatePriorBinding(userId);
+        const reconnectWon = await room.markReconnectedSafeInternal(userId);
+        if (!reconnectWon) {
+          room.sendTableMessageInternal(client, "ERROR", { code: "SESSION_ENDED", message: "This table session has ended." });
+          client.leave();
+          return;
+        }
         this.session.rebindClientExclusive(userId, client);
         room.logRestoreBindOkInternal(userId, client.sessionId);
-        await room.markReconnectedSafeInternal(userId);
         await room.clearSittingOutOnRestoreSafeInternal(userId);
         room.addTablePresenceInternal(client, userId, username);
         if (room.persistentSeatsEnabledInternal) {
@@ -219,9 +229,10 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
             try {
               await this.ctx.dealer.restorePlayerFromSession(userId, username, persisted.seat, persisted.stackCentsSnapshot);
               room.updateMetadataCountsInternal();
+              const reconnectWon = await room.markReconnectedSafeInternal(userId);
+              if (!reconnectWon) throw new PokerError("BAD_STATE", "This table session has ended.");
               this.session.rebindClientExclusive(userId, client);
               room.logRestoreBindOkInternal(userId, client.sessionId);
-              await room.markReconnectedSafeInternal(userId);
               await room.clearSittingOutOnRestoreSafeInternal(userId);
               room.addTablePresenceInternal(client, userId, username);
               await TableSeatSessionService.touchConnected({
@@ -385,6 +396,7 @@ export class PokerRoomJoinService implements PokerRoomJoinServiceContract {
         else room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: PokerRoomJoinService.asErrorMessage(err) });
         client.leave();
       }
+      });
     });
   }
 }

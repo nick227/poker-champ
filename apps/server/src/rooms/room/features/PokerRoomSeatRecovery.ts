@@ -10,8 +10,4 @@ export class PokerRoomSeatRecovery {
   async runPersistentSeatCleanup(): Promise<void> {
     await this.ctx.runPersistentSeatCleanup();
   }
-
-  async runSittingOutSweep(options?: { nowTs?: number; abandonedPurgeMs?: number }): Promise<{ purgedUserIds: string[] }> {
-    return this.ctx.runSittingOutSweep(options);
-  }
 }

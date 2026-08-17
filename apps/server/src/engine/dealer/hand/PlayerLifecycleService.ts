@@ -37,6 +37,7 @@ import { PlayerState } from "../../../state/PlayerState.js";
 import { PokerError } from "../../errors.js";
 import type { PersistenceFacade } from "../../persistence/PersistenceFacade.js";
 import { CashierService } from "../../economy/CashierService.js";
+import { TableSeatSessionService } from "../../seats/TableSeatSessionService.js";
 
 // ============================================================================
 // IMPORTS - Poker Rules & Game Logic
@@ -116,6 +117,15 @@ export class PlayerLifecycleService {
   private readonly leaveInProgressUserIds = new Set<string>();
   /** Prevents duplicate rebuy state mutation when the same idempotency key is replayed. */
   private readonly appliedRebuyKeys = new Set<string>();
+  /**
+   * Stable per-disconnect-episode id (the reconnect deadline timestamp), keyed by userId.
+   * Set when markAbandoned is called and consumed when the abandonment finally finalizes
+   * (immediately if already WAITING, or later via finalizePendingRemoval once a mid-hand
+   * removal is flushed). Gives the eventual cash-out a deterministic externalRef so a retry
+   * of the *same* disconnect episode after a process restart is naturally idempotent, instead
+   * of relying only on the in-memory cashedOutUserIds guard.
+   */
+  private readonly disconnectEpisodeByUserId = new Map<string, number>();
 
   // ============================================================================
   // CONSTRUCTOR & DEPENDENCIES
@@ -135,6 +145,8 @@ export class PlayerLifecycleService {
     ensurePlayerPersistence: (player: PlayerState) => Promise<void>;
     /** When set, used to force-fold before abandon/remove so hand history and pot math are consistent. */
     forceFoldIfInHand?: ForceFoldIfInHand;
+    /** Fired whenever finalizeRemoval actually vacates a seat -- see Dealer's onPlayerRemoved option. */
+    notifyPlayerRemoved?: (userId: string) => void;
   }) {}
 
   private assignToActSeatWithTrace(nextSeat: number, trigger: string): void {
@@ -761,6 +773,7 @@ export class PlayerLifecycleService {
       player.status = "ACTIVE";
     }
     player.disconnectDeadlineTs = 0;
+    this.disconnectEpisodeByUserId.delete(userId);
     this.deps.autoActionsByUserId.delete(userId);
     this.ensureToActHasNeedsActionIfNeeded(player.seat, userId);
     plans.push({ kind: "EMIT_SNAPSHOT", reason: "RECONNECT" });
@@ -778,11 +791,13 @@ export class PlayerLifecycleService {
     return plans;
   }
 
-  async markAbandoned(userId: string): Promise<PlayerLifecyclePlan[]> {
+  async markAbandoned(userId: string, expectedDeadlineTs?: number): Promise<PlayerLifecyclePlan[]> {
     const plans: PlayerLifecyclePlan[] = [];
     let player = this.deps.state.playersById.get(userId);
     if (!player) return plans;
     const nowTs = Date.now();
+    const episodeId = expectedDeadlineTs ?? (player.disconnectDeadlineTs > 0 ? player.disconnectDeadlineTs : nowTs);
+    this.disconnectEpisodeByUserId.set(userId, episodeId);
 
     if (this.shouldForceFold(player) && this.deps.forceFoldIfInHand) {
       await this.deps.forceFoldIfInHand(userId);
@@ -918,9 +933,16 @@ export class PlayerLifecycleService {
       if (!player) return plans;
     }
 
+    // The disconnect episode id (if any) must be read before it's cleared below, so the
+    // eventual cash-out's externalRef stays deterministic across retries of *this* episode.
+    const disconnectEpisodeId = this.disconnectEpisodeByUserId.get(userId);
+    this.disconnectEpisodeByUserId.delete(userId);
+    const removalReason = player.pendingRemovalReason;
+
     const remainingStack = player.kind === "HUMAN" ? player.stackCents : 0;
+    let cashOutOk = player.kind !== "HUMAN";
     if (player.kind === "HUMAN" && !options?.cashOutAfterRemoval) {
-      await this.cashOutRemainingStack(userId, remainingStack);
+      cashOutOk = await this.cashOutRemainingStack(userId, remainingStack, disconnectEpisodeId);
     }
 
     this.deps.pendingSeatReleaseUserIds.delete(userId);
@@ -942,8 +964,44 @@ export class PlayerLifecycleService {
     plans.push({ kind: "ENSURE_HAND_ADVANCING_AFTER_PLAYER_REMOVAL", removedSeat: seat });
 
     if (player.kind === "HUMAN" && options?.cashOutAfterRemoval) {
-      await this.cashOutRemainingStack(userId, remainingStack);
+      cashOutOk = await this.cashOutRemainingStack(userId, remainingStack, disconnectEpisodeId);
     }
+
+    // Runtime removal, the durable seat record, and the balance must move together: only mark
+    // the durable seat LEFT once we know the money side actually landed (or there was none to
+    // move). If cash-out failed, leave the durable row exactly as it was (SEATED_SITTING_OUT/
+    // SEATED_ACTIVE) so it still points at unresolved money instead of silently claiming LEFT
+    // over a stranded balance.
+    if (player.kind === "HUMAN" && cashOutOk) {
+      const markedLeft = await TableSeatSessionService.markLeft({
+        tableId: this.deps.state.tableId,
+        userId,
+        reason: removalReason || "REMOVED",
+        stackCentsSnapshot: 0,
+      });
+      if (!markedLeft) {
+        // The money side already landed (cashOutOk), but the durable seat row failed to follow
+        // it to LEFT: it's now stale, still claiming SEATED with a nonzero stackCentsSnapshot
+        // over a balance that's actually gone. This is not a transient, ignorable warning --
+        // flag it distinctly from safeSeatSessionUpdateMany's generic persist-failed log so it
+        // can be found and reconciled, rather than silently retried away.
+        logger.error(
+          {
+            tableId: this.deps.state.tableId,
+            userId,
+            remainingStack,
+            reason: removalReason || "REMOVED",
+          },
+          "SEAT_MARK_LEFT_FAILED_AFTER_CASHOUT_RECONCILIATION_REQUIRED",
+        );
+      }
+    }
+    // Centralized occupancy-changed signal: every removal path (consented leave, bot auto-remove,
+    // disconnect-timeout finalize) funnels through here. Callers that already explicitly re-check
+    // idle eligibility after their own removal calls get a harmless redundant notification;
+    // DisconnectManager's periodic sweep -- which has no room-level caller to react afterward --
+    // gets the only signal it will ever get.
+    this.deps.notifyPlayerRemoved?.(userId);
     maybeAssertStateInvariants(this.deps.state);
     return plans;
   }
@@ -1043,16 +1101,44 @@ export class PlayerLifecycleService {
    * 
    * @param userId Unique player identifier
    * @param remainingStack Amount to cash out
+   * @param disconnectEpisodeId When this cash-out is finalizing a disconnect/abandonment
+   *   episode, its stable id (the reconnect deadline timestamp for that episode). Used to build
+   *   a deterministic externalRef so a retry of the same episode after a crash/restart replays
+   *   idempotently instead of minting a fresh reference every attempt.
+   * @returns true if the balance is known to be resolved (cashed out, or nothing to cash out);
+   *   false if a cash-out was attempted and failed, meaning it is not safe to treat the seat as
+   *   fully released yet.
    */
-  private async cashOutRemainingStack(userId: string, remainingStack: number): Promise<void> {
-    if (remainingStack <= 0) return;
+  private async cashOutRemainingStack(
+    userId: string,
+    remainingStack: number,
+    disconnectEpisodeId?: number,
+  ): Promise<boolean> {
+    if (remainingStack <= 0) return true;
+    // Cash-game financial logic must never be attempted for a tournament table's player, under
+    // any caller or removal reason: tournament chips are not real money and must never be routed
+    // through CashierService.processCashGameCashOut, which would credit them straight into the
+    // player's cash bankroll. Tournament removal has its own dedicated forfeiture/elimination
+    // handling (see CashierService.forfeitTournamentTableBalance and the tournament director) --
+    // this path is not it, and must be a hard no-op here rather than relying on callers to
+    // remember not to reach it.
+    if (this.deps.state.tournamentMode) {
+      logger.warn(
+        { userId, tableId: this.deps.state.tableId, remainingStack },
+        "CASH_OUT_SKIPPED_TOURNAMENT_TABLE",
+      );
+      return true;
+    }
     if (this.cashedOutUserIds.has(userId)) {
       logger.warn({ userId }, "Duplicate cash-out prevented");
-      return;
+      return true;
     }
     this.cashedOutUserIds.add(userId);
 
-    const externalRef = `cashout_${this.deps.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
+    const externalRef =
+      disconnectEpisodeId != null
+        ? `cashout_abandon_${this.deps.state.tableId}_${userId}_${disconnectEpisodeId}`
+        : `cashout_${this.deps.state.tableId}_${userId}_${Date.now()}_${nanoid(6)}`;
     try {
       await CashierService.processCashGameCashOut({
         userId,
@@ -1064,9 +1150,11 @@ export class PlayerLifecycleService {
         },
       });
       logger.info({ userId, remainingStack }, "cash-out processed");
+      return true;
     } catch (err: unknown) {
       this.cashedOutUserIds.delete(userId);
       logger.error({ userId, err }, "cash-out failed, funds may be locked in PlayerBalance");
+      return false;
     }
   }
 

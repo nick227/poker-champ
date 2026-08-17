@@ -207,6 +207,7 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
         return;
       }
 
+      await room.withTableLifecycleLockInternal(async () => {
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(reconnected, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
         try {
@@ -217,9 +218,14 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
         return;
       }
 
+      const reconnectWon = await room.markReconnectedSafeInternal(userId);
+      if (!reconnectWon) {
+        room.sendTableMessageInternal(reconnected, "ERROR", { code: "SESSION_ENDED", message: "This table session has ended." });
+        reconnected.leave();
+        return;
+      }
       this.session.rebindClientExclusive(userId, reconnected);
       room.logRestoreBindOkInternal(userId, reconnected.sessionId);
-      await room.markReconnectedSafeInternal(userId);
       await room.clearSittingOutOnRestoreSafeInternal(userId);
       room.addTablePresenceInternal(reconnected, userId);
       if (room.persistentSeatsEnabledInternal) {
@@ -235,14 +241,20 @@ export class PokerRoomLeaveService implements PokerRoomLeaveServiceContract {
       await this.emitReconnectSnapshotOrError(reconnected, userId);
       room.updateMetadataCountsInternal();
       await room.reevaluateIdleLifecycleInternal();
+      });
     } catch {
-      if (room.persistentSeatsEnabledInternal) {
-        room.updateMetadataCountsInternal();
-        await room.reevaluateIdleLifecycleInternal();
-        this.ctx.logger.info({ roomId: room.roomId, tableId: this.ctx.state.tableId, userId }, "POKER_RECONNECT_WINDOW_EXPIRED_SEAT_PRESERVED");
-        return;
-      }
-      await room.markAbandonedSafeInternal(userId);
+      // Single abandonment policy for both persistent- and non-persistent-seat tables: once the
+      // reconnect window has expired, finalize now. finalizeRemoval (PlayerLifecycleService) pairs
+      // the cash-out with TableSeatSessionService.markLeft, so the durable seat, the runtime seat,
+      // and PlayerBalance always move together no matter which of markAbandonedSafeInternal's two
+      // callers (this one, or DisconnectManager's periodic sweep) actually wins the race -- the
+      // expectedDisconnectDeadlineTs guard in Dealer.markAbandonedSerialized makes whichever one
+      // loses a safe no-op instead of a second, divergent abandonment.
+      this.ctx.logger.info(
+        { roomId: room.roomId, tableId: this.ctx.state.tableId, userId, persistentSeatsEnabled: room.persistentSeatsEnabledInternal },
+        "POKER_RECONNECT_WINDOW_EXPIRED_FINALIZING",
+      );
+      await room.markAbandonedSafeInternal(userId, deadlineTs);
       await room.maybeRemoveBotsIfNoHumansInternal();
       room.updateMetadataCountsInternal();
       await room.reevaluateIdleLifecycleInternal();

@@ -32,7 +32,6 @@ describe("DisconnectManager", () => {
 
     const manager = new DisconnectManager({
       state,
-      enqueueSerializedStateMutation: (work) => work(),
       hasClient: () => false,
       markReconnected: async () => {},
       markAbandoned,
@@ -42,7 +41,7 @@ describe("DisconnectManager", () => {
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(markAbandoned).toHaveBeenCalledTimes(1);
-    expect(markAbandoned).toHaveBeenCalledWith("u1");
+    expect(markAbandoned).toHaveBeenCalledWith("u1", state.playersById.get("u1")!.disconnectDeadlineTs);
     manager.dispose();
   });
 
@@ -55,7 +54,6 @@ describe("DisconnectManager", () => {
 
     const manager = new DisconnectManager({
       state,
-      enqueueSerializedStateMutation: (work) => work(),
       hasClient: () => true,
       markReconnected,
       markAbandoned,
@@ -70,32 +68,66 @@ describe("DisconnectManager", () => {
     manager.dispose();
   });
 
-  it("prevents overlapping sweeps while a sweep is running", async () => {
+  it("does not nest a serialized mutation inside the sweep's own execution", async () => {
+    // Regression: the sweep itself must not be wrapped in the dealer's serialized-mutation
+    // queue. markAbandoned (wired to Dealer.markAbandonedSerialized) enqueues its own serialized
+    // mutation; nesting that inside another enqueued mutation (the sweep) would deadlock the
+    // queue permanently the first time the sweep found someone to abandon, since the inner
+    // enqueue chains behind the outer one that is still executing and waiting on it.
     vi.useFakeTimers();
     const state = createStateWithPlayer("u1");
-    const releaseRef: { call: (() => void) | null } = { call: null };
-    const gate = new Promise<void>((resolve) => {
-      releaseRef.call = () => resolve();
-    });
-    const enqueueSerializedStateMutation = vi.fn(async (work: () => Promise<void>) => {
-      await gate;
-      await work();
+    state.playersById.get("u1")!.disconnectDeadlineTs = Date.now() - 1_000;
+
+    // Models a serialized-mutation-style markAbandoned: it can only resolve once *this* sweep
+    // tick has fully returned control to the event loop (i.e. is not itself still on the stack
+    // waiting on this call), proving the sweep does not hold any outer lock across this await.
+    let sweepStillOnStack = true;
+    const markAbandoned = vi.fn(async () => {
+      expect(sweepStillOnStack).toBe(false);
     });
 
     const manager = new DisconnectManager({
       state,
-      enqueueSerializedStateMutation,
       hasClient: () => false,
       markReconnected: async () => {},
-      markAbandoned: async () => {},
+      markAbandoned,
+    });
+
+    manager.startSweep();
+    await vi.advanceTimersByTimeAsync(10_000);
+    sweepStillOnStack = false;
+
+    expect(markAbandoned).toHaveBeenCalledTimes(1);
+    manager.dispose();
+  });
+
+  it("prevents overlapping sweeps while a sweep is running", async () => {
+    vi.useFakeTimers();
+    const state = createStateWithPlayer("u1");
+    state.playersById.get("u1")!.disconnectDeadlineTs = Date.now() - 1_000;
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const markAbandoned = vi.fn(async () => {
+      await gate;
+    });
+
+    const manager = new DisconnectManager({
+      state,
+      hasClient: () => false,
+      markReconnected: async () => {},
+      markAbandoned,
     });
 
     manager.startSweep();
     await vi.advanceTimersByTimeAsync(10_000);
     await vi.advanceTimersByTimeAsync(10_000);
 
-    expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(1);
-    releaseRef.call?.();
+    // The second interval tick fired while the first sweep's markAbandoned call was still
+    // pending, but sweepRunning must have suppressed a second concurrent sweep.
+    expect(markAbandoned).toHaveBeenCalledTimes(1);
+    releaseGate();
     await Promise.resolve();
     manager.dispose();
   });
@@ -103,24 +135,22 @@ describe("DisconnectManager", () => {
   it("stops interval on dispose", async () => {
     vi.useFakeTimers();
     const state = createStateWithPlayer("u1");
-    const enqueueSerializedStateMutation = vi.fn(async (work: () => Promise<void>) => {
-      await work();
-    });
+    state.playersById.get("u1")!.disconnectDeadlineTs = Date.now() - 1_000;
+    const markAbandoned = vi.fn(async () => {});
     const manager = new DisconnectManager({
       state,
-      enqueueSerializedStateMutation,
       hasClient: () => false,
       markReconnected: async () => {},
-      markAbandoned: async () => {},
+      markAbandoned,
     });
 
     manager.startSweep();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(1);
+    expect(markAbandoned).toHaveBeenCalledTimes(1);
 
     manager.dispose();
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(enqueueSerializedStateMutation).toHaveBeenCalledTimes(1);
+    expect(markAbandoned).toHaveBeenCalledTimes(1);
   });
 });

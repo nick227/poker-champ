@@ -51,7 +51,6 @@ export class PokerRoomController {
       handleEmptyStateChange: () => room.handleEmptyStateChangeInternal(),
       scheduleIdleDispose: () => room.scheduleIdleDisposeInternal(),
       runPersistentSeatCleanup: () => room.runPersistentSeatCleanupInternal(),
-      runSittingOutSweep: (options) => room.runSittingOutSweepInternal(options),
       seedInstantBots: (presetId, targetBotCountOverride) => room.seedInstantBotsInternal(presetId, targetBotCountOverride),
       maybeStartPendingInstantGameSeed: () => room.maybeStartPendingInstantGameSeedInternal(),
       maybeRemoveBotsIfNoHumans: () => room.maybeRemoveBotsIfNoHumansInternal(),

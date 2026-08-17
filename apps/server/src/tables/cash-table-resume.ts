@@ -73,7 +73,22 @@ async function loadSeatSessionWithDisconnect(tableId: string, userId: string): P
     },
   });
   if (!row || row.state === "LEFT") return null;
-  return row;
+
+  // The durable seat row's stackCentsSnapshot is only a mirror; PlayerBalance is the actual
+  // source of truth for money. A row can go stale (e.g. a cash-out succeeded but the follow-up
+  // markLeft failed to persist -- see PlayerLifecycleService.finalizeRemoval) and keep claiming
+  // SEATED with a nonzero snapshot over a balance that's already been paid out. Never report that
+  // seat as resumable once the balance is explicitly CASHED_OUT -- treat it the same as LEFT. A
+  // legitimately-busted but still-seated player (balanceCents 0, status still ACTIVE) is a
+  // different, valid state -- that's NEEDS_BUY_IN below, not a stale row.
+  const fullPrisma = getPrisma() as any;
+  const balance = await fullPrisma.playerBalance?.findUnique?.({
+    where: { tableId_userId: { tableId, userId } },
+    select: { balanceCents: true, status: true },
+  });
+  if (!balance || balance.status === "CASHED_OUT") return null;
+
+  return { ...row, stackCentsSnapshot: Math.min(row.stackCentsSnapshot, balance.balanceCents) };
 }
 
 export async function resumeCashTableForUser(params: {

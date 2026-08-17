@@ -155,6 +155,20 @@ type DealerConstructorOptions = {
     countdownMs?: number | null;
     potCents?: number | null;
   }) => void;
+  /**
+   * Fired synchronously whenever finalizeRemoval actually vacates a seat (any reason: consented
+   * leave, bot auto-remove, or disconnect-timeout finalize). This is the one centralized signal
+   * for "the room's occupancy may have changed" that every removal path funnels through --
+   * callers that already explicitly re-check idle eligibility after their own removal calls
+   * (e.g. PokerRoomLeaveService) get a harmless redundant call; callers that don't have a
+   * explicit follow-up (DisconnectManager's periodic sweep, which calls straight into
+   * Dealer.markAbandonedSerialized with no room-level caller to react afterward) get the only
+   * signal they'll ever get. Deliberately NOT routed through the table snapshot/emit hook:
+   * SEAT_CHANGE snapshots while street === "WAITING" resolve to "lightweight_waiting" build mode
+   * (see SnapshotService.resolveBuildMode), which skips the snapshot-emitted hook entirely --
+   * exactly the case that matters most for idle disposal.
+   */
+  onPlayerRemoved?: (userId: string) => void;
 };
 
 type DealerSoakTimingEvent = Omit<
@@ -611,10 +625,10 @@ export class Dealer {
       getHoleCardsByPlayerId: () => this.currentHand?.holeCardsByPlayerId ?? new Map(),
       ensurePlayerPersistence: (player) => this.ensurePlayerPersistence(player),
       forceFoldIfInHand: (userId) => this.forceFoldForLeave(userId),
+      notifyPlayerRemoved: options?.onPlayerRemoved,
     });
     this.disconnectManager = new DisconnectManager({
       state: this.state,
-      enqueueSerializedStateMutation: (work) => this.enqueueSerializedStateMutation(work),
       hasClient: (userId) => this.clientsByUserId.has(userId),
       markReconnected: async (userId) => {
         logger.info(
@@ -647,7 +661,8 @@ export class Dealer {
           "DISCONNECT_SWEEP_RECONNECT_COMPLETE",
         );
       },
-      markAbandoned: (userId) => this.markAbandoned(userId),
+      markAbandoned: (userId, expectedDeadlineTs) =>
+        this.markAbandonedSerialized(userId, expectedDeadlineTs).then(() => undefined),
     });
     this.lifecycleExecutor = new LifecycleExecutor({
       sendTableSnapshotToAll: (reason, actionId) => this.sendTableSnapshotToAll(reason, actionId),
@@ -1078,7 +1093,7 @@ export class Dealer {
     });
   }
 
-  async markReconnectedSerialized(userId: string): Promise<void> {
+  async markReconnectedSerialized(userId: string): Promise<boolean> {
     logger.info(
       {
         tableId: this.state.tableId,
@@ -1092,6 +1107,7 @@ export class Dealer {
       },
       "RECONNECT_QUEUE_ENQUEUE",
     );
+    let reconnectWon = false;
     await this.enqueueSerializedStateMutation(async () => {
       logger.info(
         {
@@ -1106,7 +1122,10 @@ export class Dealer {
         },
         "RECONNECT_QUEUE_START",
       );
+      const player = this.state.playersById.get(userId);
+      if (!player || player.pendingLeave || this.pendingSeatReleaseUserIds.has(userId)) return;
       const plans = this.playerLifecycleService.markReconnected(userId);
+      reconnectWon = true;
       this.stageExternalPlayerLifecyclePlans(plans, "MARK_RECONNECTED");
       await this.requestDrive("MARK_RECONNECTED");
       await this.snapshotService.emitToUser(userId, "RECONNECT");
@@ -1124,14 +1143,25 @@ export class Dealer {
         "RECONNECT_QUEUE_COMPLETE",
       );
     });
+    return reconnectWon;
   }
 
-  async markAbandonedSerialized(userId: string): Promise<void> {
+  async markAbandonedSerialized(userId: string, expectedDisconnectDeadlineTs?: number): Promise<boolean> {
+    let abandonmentWon = false;
     await this.enqueueSerializedStateMutation(async () => {
-      const plans = await this.playerLifecycleService.markAbandoned(userId);
+      const player = this.state.playersById.get(userId);
+      if (!player) return;
+      if (expectedDisconnectDeadlineTs != null) {
+        if (player.connected) return;
+        if (player.disconnectDeadlineTs !== expectedDisconnectDeadlineTs) return;
+        if (Date.now() <= expectedDisconnectDeadlineTs) return;
+      }
+      const plans = await this.playerLifecycleService.markAbandoned(userId, expectedDisconnectDeadlineTs);
+      abandonmentWon = true;
       this.stageExternalPlayerLifecyclePlans(plans, "MARK_ABANDONED");
       await this.requestDrive("MARK_ABANDONED");
     });
+    return abandonmentWon;
   }
 
   /**
@@ -3607,5 +3637,4 @@ export class Dealer {
   }
 
 }
-
 

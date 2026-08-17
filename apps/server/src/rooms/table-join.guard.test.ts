@@ -260,7 +260,7 @@ describe("table join guardrails", () => {
     vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
     vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
     vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
-    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue(true);
     vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
     vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
       success: true,
@@ -309,7 +309,7 @@ describe("table join guardrails", () => {
     vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue(null);
     vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
     vi.spyOn(TableSeatSessionService, "upsertActiveSeat").mockResolvedValue();
-    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue(true);
     vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
     vi.spyOn(CashierService, "processCashGameBuyIn").mockResolvedValue({
       success: true,
@@ -601,7 +601,7 @@ describe("table join guardrails", () => {
     });
     vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
     vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
-    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue(true);
     vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue({
       tableId: "table_join_guard",
       userId: "user_rejoin_zero",
@@ -641,7 +641,7 @@ describe("table join guardrails", () => {
     });
     vi.spyOn(TableSeatSessionService, "markLeftBySessionId").mockResolvedValue();
     vi.spyOn(TableSeatSessionService, "touchConnected").mockResolvedValue();
-    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue();
+    const markLeftSpy = vi.spyOn(TableSeatSessionService, "markLeft").mockResolvedValue(true);
     vi.spyOn(TableSeatSessionService, "findRejoinableSession").mockResolvedValue({
       tableId: "table_join_guard",
       userId: "user_rejoin_zero_restore",

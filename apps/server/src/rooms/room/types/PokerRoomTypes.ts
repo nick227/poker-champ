@@ -77,11 +77,6 @@ export type PokerRoomMetadata = {
   gameMode?: "CASH" | "TOURNAMENT";
 };
 
-export type SittingOutSweepOptions = {
-  nowTs?: number;
-  abandonedPurgeMs?: number;
-};
-
 /**
  * Architectural boundary: room services depend on this facade, never on PokerRoom directly.
  * This breaks the circular dependency between PokerRoom and its child controller/services.
@@ -115,7 +110,6 @@ export interface PokerRoomFacade {
   canIdleDisposeInternal(): Promise<boolean>;
   reevaluateIdleLifecycleInternal(): Promise<void>;
   runPersistentSeatCleanupInternal(): Promise<void>;
-  runSittingOutSweepInternal(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }>;
   seedInstantBotsInternal(
     presetId: InstantGamePresetId,
     targetBotCountOverride?: number,
@@ -133,12 +127,13 @@ export interface PokerRoomFacade {
   getPlayerStackCentsInternal(userId: string): number;
   findPlayerSeatInternal(userId: string): number | null;
   withJoinLockInternal(key: string, fn: () => Promise<void>): Promise<void>;
+  withTableLifecycleLockInternal<T>(fn: () => Promise<T>): Promise<T>;
   processJoinBuyInForZeroStackSeatInternal(userId: string, buyInCents: number): Promise<void>;
   logRestoreBindOkInternal(userId: string, sessionId: string): void;
   markDisconnectedSafeInternal(userId: string, disconnectDeadlineTs: number): Promise<void>;
-  markReconnectedSafeInternal(userId: string): Promise<void>;
+  markReconnectedSafeInternal(userId: string): Promise<boolean>;
   clearSittingOutOnRestoreSafeInternal(userId: string): Promise<void>;
-  markAbandonedSafeInternal(userId: string): Promise<void>;
+  markAbandonedSafeInternal(userId: string, expectedDisconnectDeadlineTs?: number): Promise<void>;
   emitSnapshotsToAllSafeInternal(reason: string): Promise<void>;
   readonly lastSnapshotSeqInternal: number | undefined;
   getReadyPlayerCountInternal(): number;
@@ -172,7 +167,6 @@ export type PokerRoomContext = {
   handleEmptyStateChange(): void;
   scheduleIdleDispose(): void;
   runPersistentSeatCleanup(): Promise<void>;
-  runSittingOutSweep(options?: SittingOutSweepOptions): Promise<{ purgedUserIds: string[] }>;
   seedInstantBots(
     presetId: InstantGamePresetId,
     targetBotCountOverride?: number,

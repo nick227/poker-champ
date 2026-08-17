@@ -80,12 +80,18 @@ export class TableSeatSessionService {
     });
   }
 
+  /**
+   * @returns true if the update was applied (or attempted successfully); false if persistence
+   * was skipped (no Prisma client) or the update threw. Callers that need to react to failure
+   * (e.g. escalate a reconciliation-required error after a successful cash-out) can check this;
+   * callers that don't care can keep awaiting without capturing the result, as before.
+   */
   private static async safeSeatSessionUpdateMany(args: {
     op: string;
     context: Record<string, unknown>;
     where: Record<string, unknown>;
     data: Record<string, unknown>;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const prisma = getPrisma() as any;
     const updateMany = prisma?.tableSeatSession?.updateMany;
     if (typeof updateMany !== "function") {
@@ -98,13 +104,26 @@ export class TableSeatSessionService {
         },
         "TABLE_SEAT_SESSION_PERSIST_SKIPPED",
       );
-      return;
+      return false;
     }
     try {
-      await updateMany({
+      const result = await updateMany({
         where: args.where,
         data: args.data,
       });
+      // A completed updateMany that matched zero rows is not the same thing as one that actually
+      // applied a change: the former means there was nothing at (tableId, userId) to transition
+      // (already gone, or never existed) and is not itself evidence of a persistence failure,
+      // while the latter is the real, expected success path. Log them distinctly so a
+      // reconciliation-required escalation upstream (e.g. after a successful cash-out) can be
+      // diagnosed against the right underlying cause instead of both looking like plain success.
+      if (typeof result?.count === "number" && result.count === 0) {
+        logger.info(
+          { ...args.context, op: args.op },
+          "TABLE_SEAT_SESSION_UPDATE_NO_ROW_MATCHED",
+        );
+      }
+      return true;
     } catch (err) {
       logger.warn(
         {
@@ -114,6 +133,7 @@ export class TableSeatSessionService {
         },
         "TABLE_SEAT_SESSION_PERSIST_FAILED",
       );
+      return false;
     }
   }
 
@@ -240,7 +260,23 @@ export class TableSeatSessionService {
     });
     if (!row) return null;
     if (row.state === "LEFT") return null;
-    return row;
+
+    // The durable seat row's stackCentsSnapshot is only a mirror; PlayerBalance is the actual
+    // source of truth for money (see LedgerService's doc comment). A row can go stale -- e.g. a
+    // cash-out succeeded but the follow-up markLeft failed to persist (see
+    // PlayerLifecycleService.finalizeRemoval) -- and keep claiming SEATED with a nonzero snapshot
+    // over a balance that's already been paid out. Never let a stale row reseat a player with
+    // phantom chips: once the balance is explicitly CASHED_OUT, treat the seat the same as LEFT
+    // (not resumable), regardless of what the snapshot still claims. A legitimately-busted but
+    // still-seated player (balanceCents 0, status still ACTIVE) is a different, valid state --
+    // that's NEEDS_BUY_IN, not a stale row, so balanceCents alone must not gate this.
+    const balance = await prisma.playerBalance?.findUnique?.({
+      where: { tableId_userId: { tableId: params.tableId, userId: params.userId } },
+      select: { balanceCents: true, status: true },
+    });
+    if (!balance || balance.status === "CASHED_OUT") return null;
+
+    return { ...row, stackCentsSnapshot: Math.min(row.stackCentsSnapshot, balance.balanceCents) };
   }
 
   static async upsertActiveSeat(input: UpsertSeatInput): Promise<void> {
@@ -318,14 +354,15 @@ export class TableSeatSessionService {
     });
   }
 
+  /** @returns true if the durable transition to LEFT was applied; false if it was not (see safeSeatSessionUpdateMany). */
   static async markLeft(params: {
     tableId: string;
     userId: string;
     reason?: string;
     stackCentsSnapshot?: number;
     handIdSnapshot?: string;
-  }): Promise<void> {
-    await this.safeSeatSessionUpdateMany({
+  }): Promise<boolean> {
+    return this.safeSeatSessionUpdateMany({
       op: "markLeft",
       context: {
         tableId: params.tableId,

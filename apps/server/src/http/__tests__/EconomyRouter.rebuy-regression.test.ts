@@ -105,7 +105,9 @@ describe("EconomyRouter rebuy regressions", () => {
         metadata: { tableId: "table_1", name: "Table 1", creatorId: "creator_1" },
       },
     ]);
-    matchMakerMock.remoteRoomCall.mockResolvedValue(undefined);
+    matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId, method) =>
+      method === "beginEconomicAdmission" ? { ok: true } : undefined,
+    );
     prismaMock.pokerTable.findUnique.mockResolvedValue({ name: "Table 1", creatorId: "creator_1" });
     prismaMock.tournament.findFirst.mockResolvedValue(null);
     prismaMock.balanceTransaction.findUnique.mockResolvedValue(null);
@@ -113,11 +115,25 @@ describe("EconomyRouter rebuy regressions", () => {
     buyInMock.mockResolvedValue({ success: true, newTableBalance: 8000 });
   });
 
+  it("does not write a balance when the room loses the disposal race", async () => {
+    matchMakerMock.remoteRoomCall.mockResolvedValue({ ok: false, reason: "TABLE_GONE" });
+
+    const res = await post("/api/economy/buy-in", { tableId: "table_1", amountCents: 3000 });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "TABLE_GONE" });
+    expect(buyInMock).not.toHaveBeenCalled();
+  });
+
   it("returns an error when room rebuy application keeps failing after exhausting retries", async () => {
     // The buy-in route now retries the room-sync call a bounded number of
     // times with backoff (see CashierService.syncRoomAfterBuyIn); only a
     // failure on *every* attempt should surface as an error to the client.
-    matchMakerMock.remoteRoomCall.mockRejectedValue(new Error("room unavailable"));
+    matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId, method) => {
+      if (method === "beginEconomicAdmission") return { ok: true };
+      if (method === "endEconomicAdmission") return undefined;
+      throw new Error("room unavailable");
+    });
     prismaMock.balanceTransaction.findUnique.mockResolvedValue({ metaJson: null });
 
     const res = await post("/api/economy/buy-in", { tableId: "table_1", amountCents: 3000 });
@@ -134,14 +150,19 @@ describe("EconomyRouter rebuy regressions", () => {
   });
 
   it("recovers via retry when the room rebuy application fails transiently then succeeds", async () => {
-    matchMakerMock.remoteRoomCall
-      .mockRejectedValueOnce(new Error("transient room unavailable"))
-      .mockResolvedValueOnce(undefined);
+    let applyAttempts = 0;
+    matchMakerMock.remoteRoomCall.mockImplementation(async (_roomId, method) => {
+      if (method === "beginEconomicAdmission") return { ok: true };
+      if (method === "endEconomicAdmission") return undefined;
+      applyAttempts += 1;
+      if (applyAttempts === 1) throw new Error("transient room unavailable");
+      return undefined;
+    });
 
     const res = await post("/api/economy/buy-in", { tableId: "table_1", amountCents: 3000 });
 
     expect(res.status).toBe(200);
-    expect(matchMakerMock.remoteRoomCall).toHaveBeenCalledTimes(2);
+    expect(applyAttempts).toBe(2);
   });
 
   it("generates a unique externalRef per rebuy when client omits externalRef", async () => {
@@ -156,4 +177,3 @@ describe("EconomyRouter rebuy regressions", () => {
     expect(firstCall.externalRef).not.toBe(secondCall.externalRef);
   });
 });
-

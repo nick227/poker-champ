@@ -415,6 +415,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         room.sendTableMessageInternal(client, "ERROR", { code: e.code ?? "BAD_STATE", message: e.message });
         return;
       }
+      await room.withTableLifecycleLockInternal(async () => {
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(client, "ERROR", { code: "REJOIN_FAILED_TABLE_GONE", message: "Table no longer exists" });
         return;
@@ -444,6 +445,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         );
         room.sendTableMessageInternal(client, "ERROR", { code: "REJOIN_FAILED_TEMPORARY", message: "Could not rejoin table. Please retry." });
       }
+      });
     });
 
     room.onMessage("JOIN_TABLE", async (client: Client, message: unknown) => {
@@ -469,6 +471,8 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         room.sendTableMessageInternal(client, "ERROR", { code: e.code ?? "BAD_STATE", message: e.message });
         return;
       }
+      const buyInCents = parsed.data.payload.buyInCents;
+      await room.withTableLifecycleLockInternal(async () => {
       if (room.isDeletingInternal) {
         room.sendTableMessageInternal(client, "ERROR", { code: "TABLE_GONE", message: "Table no longer exists" });
         return;
@@ -478,7 +482,6 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
 
-      const buyInCents = parsed.data.payload.buyInCents;
       const username =
         typeof client.auth?.username === "string" && client.auth.username.trim().length > 0
           ? client.auth.username
@@ -528,6 +531,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           room.sendTableMessageInternal(client, "ERROR", { code: "JOIN_FAILED", message: PokerRoomMessageRouter.asErrorLike(err).message });
         }
       }
+      });
     });
   }
 }
