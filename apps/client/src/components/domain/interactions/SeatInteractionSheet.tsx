@@ -121,7 +121,7 @@ export function SeatInteractionSheet({
 
   return (
     <ModalSheet visible={visible} onClose={handleClose} title={targetName}>
-      <View className="ui-stack-4">
+      <View className="ui-stack-4" style={{ flex: 1, minHeight: 0 }}>
         {step === "menu" ? (
           <View className="ui-stack-2">
             <Button title="🎁 Send Gift" intent="primary" onPress={() => setStep("gift")} />
@@ -133,16 +133,16 @@ export function SeatInteractionSheet({
             />
           </View>
         ) : step === "gift" ? (
-          <View className="ui-stack-3">
+          <View className="ui-stack-3" style={{ flex: 1, minHeight: 0 }}>
             <BackRow to="menu" />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="ui-row ui-inline-2">
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              <View className="ui-row-wrap ui-inline-2">
                 {GIFT_CATALOG.map((entry: GiftCatalogEntry) => (
                   <Pressable
                     key={entry.id}
                     onPress={() => handleSendGift(entry.id)}
                     className="ui-surface px-3 py-2 items-center"
-                    style={{ minWidth: 84 }}
+                    style={{ width: 84 }}
                   >
                     <Text variant="h2">{entry.emoji}</Text>
                     <Text variant="label" numberOfLines={1}>
