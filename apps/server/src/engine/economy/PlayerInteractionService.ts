@@ -1,5 +1,4 @@
 import { getPrisma } from "@poker-champ/db";
-import { nanoid } from "nanoid";
 import { GIFT_CATALOG_BY_KEY } from "@poker-champ/realtime-contract";
 import { CashierService } from "./CashierService.js";
 
@@ -27,8 +26,9 @@ export class PlayerInteractionService {
     recipientId: string;
     tableId: string;
     catalogKey: string;
+    clientRequestId: string;
   }): Promise<SendGiftResult> {
-    const { initiatorId, recipientId, tableId, catalogKey } = params;
+    const { initiatorId, recipientId, tableId, catalogKey, clientRequestId } = params;
 
     const entry = GIFT_CATALOG_BY_KEY.get(catalogKey);
     if (!entry) {
@@ -39,43 +39,80 @@ export class PlayerInteractionService {
     }
 
     const prisma = getPrisma();
-    const interactionId = nanoid();
+    // Deterministic (not random) so a duplicate message carrying the same client-generated
+    // clientRequestId — a UI double-tap that slipped past the client-side guard, or a naive
+    // network retry — resolves to the same interaction instead of charging twice.
+    const interactionId = `gift_${initiatorId}_${clientRequestId}`;
     const costCents = entry.costCents;
+
+    const existing = await prisma.playerInteraction.findUnique({ where: { id: interactionId } });
+    if (existing) {
+      return {
+        interactionId: existing.id,
+        senderUserId: existing.initiatorId,
+        recipientUserId: existing.recipientId,
+        catalogKey: existing.catalogKey,
+        stakeCents: existing.stakeCents,
+        createdAt: existing.createdAt.getTime(),
+      };
+    }
+
     const createdAt = new Date();
 
-    await prisma.$transaction(async (tx: any) => {
-      await CashierService.debitUser({
-        userId: initiatorId,
-        amountCents: costCents,
-        type: "GIFT_SENT",
-        externalRef: `gift:${interactionId}:debit`,
-        tx,
-      });
-      await CashierService.creditUser({
-        userId: recipientId,
-        amountCents: costCents,
-        type: "GIFT_RECEIVED",
-        externalRef: `gift:${interactionId}:credit`,
-        tx,
-      });
+    try {
+      await prisma.$transaction(async (tx: any) => {
+        await CashierService.debitUser({
+          userId: initiatorId,
+          amountCents: costCents,
+          type: "GIFT_SENT",
+          externalRef: `gift:${interactionId}:debit`,
+          tx,
+        });
+        await CashierService.creditUser({
+          userId: recipientId,
+          amountCents: costCents,
+          type: "GIFT_RECEIVED",
+          externalRef: `gift:${interactionId}:credit`,
+          tx,
+        });
 
-      await tx.playerInteraction.create({
-        data: {
-          id: interactionId,
-          type: "GIFT",
-          status: "COMPLETED",
-          catalogKey,
-          tableId,
-          initiatorId,
-          recipientId,
-          stakeCents: costCents,
-          payoutCents: costCents,
-          externalRef: `gift:${interactionId}`,
-          respondedAt: createdAt,
-          resolvedAt: createdAt,
-        },
+        await tx.playerInteraction.create({
+          data: {
+            id: interactionId,
+            type: "GIFT",
+            status: "COMPLETED",
+            catalogKey,
+            tableId,
+            initiatorId,
+            recipientId,
+            stakeCents: costCents,
+            payoutCents: costCents,
+            externalRef: `gift:${interactionId}`,
+            respondedAt: createdAt,
+            resolvedAt: createdAt,
+          },
+        });
       });
-    });
+    } catch (err: unknown) {
+      // A true concurrent duplicate (two in-flight requests racing on the same
+      // clientRequestId) can lose the findUnique check above and hit the unique
+      // constraint on `id` here instead. Treat that the same as the pre-check hit —
+      // idempotent, not an error — rather than surfacing a raw DB error to the sender.
+      if (err && typeof err === "object" && "code" in err && (err as { code?: unknown }).code === "P2002") {
+        const existingAfterRace = await prisma.playerInteraction.findUnique({ where: { id: interactionId } });
+        if (existingAfterRace) {
+          return {
+            interactionId: existingAfterRace.id,
+            senderUserId: existingAfterRace.initiatorId,
+            recipientUserId: existingAfterRace.recipientId,
+            catalogKey: existingAfterRace.catalogKey,
+            stakeCents: existingAfterRace.stakeCents,
+            createdAt: existingAfterRace.createdAt.getTime(),
+          };
+        }
+      }
+      throw err;
+    }
 
     return {
       interactionId,

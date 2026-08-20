@@ -234,7 +234,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
 
-      const { recipientUserId, catalogKey } = parsed.data;
+      const { recipientUserId, catalogKey, clientRequestId } = parsed.data;
       if (recipientUserId === userId) {
         room.sendTableMessageInternal(client, "ERROR", {
           code: GIFT_RECIPIENT_INVALID,
@@ -257,6 +257,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           recipientId: recipientUserId,
           tableId: this.ctx.state.tableId,
           catalogKey,
+          clientRequestId,
         });
         const payload = {
           ...result,

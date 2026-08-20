@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
+import { nanoid } from "nanoid";
 import type { TableActionKey } from "@/registry/table-action.registry";
 import { toServerActionPayload } from "@/realtime/action.mapper";
 import { isValidTableInbound } from "@/realtime/contract.guards";
@@ -264,7 +265,7 @@ export const useMultiTableStore = create<MultiTableState>()(
       dispatchSendGift: ({ tableId, recipientUserId, catalogKey }): boolean => {
         const sender = get().tableSenders[tableId];
         if (!sender) return false;
-        const payload = { recipientUserId, catalogKey };
+        const payload = { recipientUserId, catalogKey, clientRequestId: nanoid(12) };
         if (!isValidTableInbound("SEND_GIFT", payload)) return false;
         return sender("SEND_GIFT", payload);
       },

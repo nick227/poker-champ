@@ -1,4 +1,6 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
+import { useBankrollStore } from "@/stores/bankroll.store";
+import { useProfileStore } from "@/stores/profile.store";
 import type {
   TableSnapshotPayload,
   ChatMessagePayload,
@@ -126,6 +128,17 @@ const realtimeChannelByScope: ScopeRegistryMap = {
       const p = payload as GiftReceivedPayload;
       if (p?.interactionId) {
         context.appendGiftEvent?.(context.tableId, p);
+      }
+      // The bankroll debit/credit already happened server-side (PlayerInteractionService.sendGift);
+      // this only keeps the header wallet display in sync for whichever side of the gift the
+      // current session is on, since TABLE_SNAPSHOT doesn't carry bankrollCents.
+      const myUserId = useProfileStore.getState().profile.userId;
+      if (myUserId && typeof p?.stakeCents === "number") {
+        if (p.senderUserId === myUserId) {
+          useBankrollStore.getState().applyDelta(-p.stakeCents);
+        } else if (p.recipientUserId === myUserId) {
+          useBankrollStore.getState().applyDelta(p.stakeCents);
+        }
       }
     },
     BOTS_LIST: (payload, context) => {

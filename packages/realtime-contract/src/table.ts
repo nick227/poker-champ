@@ -88,6 +88,7 @@ export const SetSittingOutPayloadSchema = z.object({
 export const SendGiftPayloadSchema = z.object({
   recipientUserId: z.string().min(1),
   catalogKey: z.string().min(1),
+  clientRequestId: z.string().min(1),
 });
 
 export const GiftReceivedPayloadSchema = z.object({

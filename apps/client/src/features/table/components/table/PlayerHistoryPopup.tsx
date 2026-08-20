@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { GIFT_CATALOG, type GiftCatalogEntry } from "@poker-champ/realtime-contract";
 import { ModalSheet } from "@/components/containers/ModalSheet";
@@ -35,18 +35,32 @@ export function PlayerHistoryPopup({
 }: PlayerHistoryPopupProps) {
   const [tab, setTab] = useState<PlayerHistoryPopupTab>("stats");
   const [selectedGiftKey, setSelectedGiftKey] = useState<string | null>(null);
+  const [sendingGift, setSendingGift] = useState(false);
+  const sendingGiftRef = useRef(false);
   const canGift = Boolean(userId && onSendGift);
 
   const handleClose = () => {
     setTab("stats");
     setSelectedGiftKey(null);
+    setSendingGift(false);
+    sendingGiftRef.current = false;
     onClose();
   };
 
   const handleConfirmGift = () => {
-    if (!selectedGiftKey || !onSendGift) return;
+    // Guard against a rapid double-tap dispatching two separate SEND_GIFT messages (each
+    // charged independently — see docs/GIFTS_AND_SIDE_BETS_DESIGN.md checkpoint testing).
+    // A ref is used, not just state, because two click events can fire synchronously back
+    // to back before a state update re-renders the disabled button.
+    if (!selectedGiftKey || !onSendGift || sendingGiftRef.current) return;
+    sendingGiftRef.current = true;
+    setSendingGift(true);
     onSendGift(selectedGiftKey);
     setSelectedGiftKey(null);
+    setTimeout(() => {
+      sendingGiftRef.current = false;
+      setSendingGift(false);
+    }, 1500);
   };
 
   return (
@@ -124,7 +138,12 @@ export function PlayerHistoryPopup({
               ))}
             </View>
             {selectedGiftKey ? (
-              <Button title={`Send ${GIFT_CATALOG.find((g) => g.id === selectedGiftKey)?.label ?? "Gift"}`} intent="primary" onPress={handleConfirmGift} />
+              <Button
+                title={sendingGift ? "Sending…" : `Send ${GIFT_CATALOG.find((g) => g.id === selectedGiftKey)?.label ?? "Gift"}`}
+                intent="primary"
+                onPress={handleConfirmGift}
+                disabled={sendingGift}
+              />
             ) : (
               <Text variant="muted">Pick a gift to send.</Text>
             )}
