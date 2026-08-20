@@ -379,8 +379,14 @@ export class PlayerInteractionService {
      *  interactionId, ever). Accepted anyway for wire-contract consistency with propose/cancel
      *  and so it's captured in the audit trail (metadata) alongside the response. */
     clientRequestId: string;
+    /** Injected by the router, which owns live game-state access this service deliberately
+     *  doesn't have (see proposeSideBet's docblock). Re-checks that both subjects are still
+     *  dealt into the target hand at accept time, not just at propose time — hand state can
+     *  change in between (docs/GIFTS_AND_SIDE_BETS_DESIGN.md §5.1). Only called when the
+     *  catalog entry actually has subjects. */
+    validateSubjectsStillDealtIn?: (subjectUserIds: [string, string]) => boolean;
   }): Promise<SideBetUpdateResult & { alreadyProcessed?: boolean }> {
-    const { interactionId, recipientId, accept, bigBlindCents, clientRequestId } = params;
+    const { interactionId, recipientId, accept, bigBlindCents, clientRequestId, validateSubjectsStillDealtIn } = params;
     const prisma = getPrisma();
 
     const row = await prisma.playerInteraction.findUnique({ where: { id: interactionId } });
@@ -411,16 +417,31 @@ export class PlayerInteractionService {
     const entry = SIDE_BET_CATALOG_BY_KEY.get(row.catalogKey);
     const maxCents = (entry?.maxStakeBigBlinds ?? 0) * bigBlindCents;
     const minCents = (entry?.minStakeBigBlinds ?? 0) * bigBlindCents;
-    if (!entry || row.stakeCents > maxCents || row.stakeCents < minCents) {
+    const voidOffer = async (reason: string): Promise<boolean> => {
       const voided = await prisma.playerInteraction.updateMany({
         where: { id: interactionId, status: "PENDING" },
-        data: { status: "VOIDED", respondedAt: new Date(), resolvedAt: new Date() },
+        data: { status: "VOIDED", respondedAt: new Date(), resolvedAt: new Date(), metadata: { ...readMetadata(row), voidReason: reason } },
       });
-      if (voided.count === 0) {
+      return voided.count > 0;
+    };
+    if (!entry || row.stakeCents > maxCents || row.stakeCents < minCents) {
+      if (!(await voidOffer("Stake no longer within bounds at accept time."))) {
         const current = await prisma.playerInteraction.findUniqueOrThrow({ where: { id: interactionId } });
         return { interactionId, status: current.status as SideBetUpdateResult["status"], ...ids, alreadyProcessed: true };
       }
       throw new Error(SIDE_BET_STAKE_OUT_OF_BOUNDS);
+    }
+
+    // Re-check subject eligibility at accept time too, not just propose time (§5.1) — a subject
+    // could have folded out of eligibility, or the hand itself could have ended, in the window
+    // between propose and accept.
+    const subjectUserIds = readMetadata(row).subjectUserIds;
+    if (entry.requiresSubjects && subjectUserIds && validateSubjectsStillDealtIn && !validateSubjectsStillDealtIn(subjectUserIds)) {
+      if (!(await voidOffer("Subjects no longer dealt into the hand at accept time."))) {
+        const current = await prisma.playerInteraction.findUniqueOrThrow({ where: { id: interactionId } });
+        return { interactionId, status: current.status as SideBetUpdateResult["status"], ...ids, alreadyProcessed: true };
+      }
+      throw new Error(SIDE_BET_SUBJECTS_INVALID);
     }
 
     const exposure = exposureCentsForRole("recipient", row.stakeCents, entry);

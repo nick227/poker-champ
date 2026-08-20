@@ -447,6 +447,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           accept,
           bigBlindCents: this.ctx.state.bigBlindCents,
           clientRequestId,
+          validateSubjectsStillDealtIn: ([a, b]) => this.isDealtIntoCurrentHand(a) && this.isDealtIntoCurrentHand(b),
         });
         const payload = { interactionId: result.interactionId, status: result.status };
         this.sendToUserId(result.initiatorId, "SIDE_BET_UPDATE", payload);
