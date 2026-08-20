@@ -25,6 +25,9 @@ export type TableStageProps = {
   board: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  /** Opens the Gift/Side Bet sheet for an occupied opponent/bot seat — separate from
+   *  onPlayerPress (stats popup / bot removal). Never wired for the hero's own seat. */
+  onSeatInteractPress?: (opponent: Opponent) => void;
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   onHeroBounds?: (rect: Rect) => void;
   activeTurnProgress?: number | null;
@@ -39,6 +42,7 @@ export function TableStage({
   board,
   winnerName,
   onPlayerPress,
+  onSeatInteractPress,
   onSeatBounds,
   onHeroBounds,
   activeTurnProgress = null,
@@ -217,6 +221,7 @@ export function TableStage({
                 {...props}
                 {...sizeProps}
                 onPress={onPlayerPress ? () => onPlayerPress(opponent) : undefined}
+                onInteractPress={onSeatInteractPress ? () => onSeatInteractPress(opponent) : undefined}
               />
             );
             return (

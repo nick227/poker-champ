@@ -38,6 +38,10 @@ export type SeatPlateProps = {
   betDisplay?: string | null;
   /** This seat just won the pot — pulses WinningSeatPulse over the whole pod. */
   isWinner?: boolean;
+  /** Opens the Gift/Side Bet sheet for this seat — opponents/bots only, never the hero.
+   *  A sibling Pressable to the avatar body (not nested inside it), so tapping "+" never
+   *  also triggers `onPress` (stats popup / bot removal). */
+  onInteractPress?: () => void;
 };
 
 const PRESSABLE_RESET: ViewStyle = {
@@ -80,6 +84,7 @@ export function SeatPlate({
   turnProgress = null,
   turnCountdownSeconds = null,
   isWinner = false,
+  onInteractPress,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const compact = width < 120;
@@ -213,11 +218,43 @@ export function SeatPlate({
     </View>
   );
 
-  if (!onPress) return body;
-  return (
+  const pressableBody = onPress ? (
     <Pressable onPress={onPress} accessibilityRole="button" style={PRESSABLE_RESET}>
       {body}
     </Pressable>
+  ) : (
+    body
+  );
+
+  if (!onInteractPress) return pressableBody;
+
+  // Sibling to pressableBody, not nested inside it — tapping "+" must never also fire
+  // onPress (stats popup / bot removal).
+  return (
+    <View style={{ width, height }}>
+      {pressableBody}
+      <Pressable
+        onPress={onInteractPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Send gift or propose side bet to ${name}`}
+        style={{
+          position: "absolute",
+          top: cardPeek,
+          right: compact ? 6 : 10,
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "rgba(3,5,8,0.94)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.2)",
+          zIndex: 40,
+        }}
+      >
+        <Text style={{ fontSize: 14, fontWeight: "800", color: "rgba(255,255,255,0.9)", lineHeight: 16 }}>+</Text>
+      </Pressable>
+    </View>
   );
 }
 

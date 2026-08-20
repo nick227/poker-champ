@@ -91,6 +91,7 @@ export type TablePageController = {
     botPickerVisible: boolean;
     botPickerLoading: boolean;
     playerPopup: { name: string; userId: string } | null;
+    seatInteraction: { name: string; userId: string } | null;
   };
   actions: {
     goToLogin: () => void;
@@ -113,6 +114,8 @@ export type TablePageController = {
     leaveTournament: () => void;
     closePlayerPopup: () => void;
     onPlayerPress: (opponent: Opponent) => void;
+    onSeatInteractPress: (opponent: Opponent) => void;
+    closeSeatInteraction: () => void;
     sendGift: (input: { recipientUserId: string; catalogKey: string }) => boolean;
     proposeSideBet: (input: {
       recipientUserId: string;

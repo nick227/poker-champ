@@ -33,6 +33,7 @@ export type TableSceneShellProps = {
   opponentStripEmptyState?: ReactNode;
   winnerName?: string;
   onPlayerPress?: (opponent: Opponent) => void;
+  onSeatInteractPress?: (opponent: Opponent) => void;
   onSeatBounds?: (seatIndex: number, rect: Rect) => void;
   onHeroBounds?: (rect: Rect) => void;
   activeTurnProgress?: number | null;
@@ -72,6 +73,7 @@ export function TableSceneShell({
   opponents,
   winnerName,
   onPlayerPress,
+  onSeatInteractPress,
   onSeatBounds,
   onHeroBounds,
   activeTurnProgress,
@@ -164,6 +166,7 @@ export function TableSceneShell({
                 board={board}
                 winnerName={winnerName}
                 onPlayerPress={onPlayerPress}
+                onSeatInteractPress={onSeatInteractPress}
                 onSeatBounds={onSeatBounds}
                 onHeroBounds={onHeroBounds}
                 activeTurnProgress={activeTurnProgress}

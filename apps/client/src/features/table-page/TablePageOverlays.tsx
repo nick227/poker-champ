@@ -6,6 +6,7 @@ import { GiftToast } from "@/components/domain/interactions/GiftToast";
 import { SideBetOfferBanner } from "@/components/domain/interactions/SideBetOfferBanner";
 import { SideBetResolvedToast } from "@/components/domain/interactions/SideBetResolvedToast";
 import { ActiveSideBetsStrip } from "@/components/domain/interactions/ActiveSideBetsStrip";
+import { SeatInteractionSheet } from "@/components/domain/interactions/SeatInteractionSheet";
 import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
@@ -46,20 +47,30 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
       />
       <ActiveSideBetsStrip sideBets={renderModel.sideBets} heroUserId={renderModel.heroUserId} onCancel={actions.cancelSideBet} />
       {uiState.playerPopup && (
-        <PlayerHistoryPopup
+        <PlayerHistoryPopup visible onClose={actions.closePlayerPopup} name={uiState.playerPopup.name} />
+      )}
+      {uiState.seatInteraction && (
+        <SeatInteractionSheet
           visible
-          onClose={actions.closePlayerPopup}
-          name={uiState.playerPopup.name}
-          userId={uiState.playerPopup.userId}
-          onSendGift={(catalogKey) =>
-            actions.sendGift({ recipientUserId: uiState.playerPopup!.userId, catalogKey })
-          }
+          onClose={actions.closeSeatInteraction}
+          targetUserId={uiState.seatInteraction.userId}
+          targetName={uiState.seatInteraction.name}
           bigBlindCents={renderModel.bigBlindCents}
           availableSubjects={renderModel.opponents
-            .filter((o) => !o.isBot && o.id !== renderModel.heroUserId && o.id !== uiState.playerPopup!.userId)
+            // Bots are excluded here deliberately, not by oversight: PokerPlayer.userId
+            // persists as "" for every bot (HandHistoryService.ts), so
+            // SideBetConditionEvaluator.findPlayer can never match a bot subject against
+            // persisted hand data — a bot-subject bet would always resolve VOID. That's an
+            // existing gap in already-verified predicate/resolution logic, out of scope to
+            // fix here; offering bots as a subject choice that can never actually resolve
+            // would be worse than not offering it.
+            .filter((o) => !o.isBot && o.id !== renderModel.heroUserId && o.id !== uiState.seatInteraction!.userId)
             .map((o) => ({ userId: o.id, name: o.name }))}
+          onSendGift={(catalogKey) =>
+            actions.sendGift({ recipientUserId: uiState.seatInteraction!.userId, catalogKey })
+          }
           onProposeSideBet={(input) =>
-            actions.proposeSideBet({ recipientUserId: uiState.playerPopup!.userId, ...input })
+            actions.proposeSideBet({ recipientUserId: uiState.seatInteraction!.userId, ...input })
           }
         />
       )}

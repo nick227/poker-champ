@@ -80,6 +80,7 @@ export function useActiveTableSlots(
     opponents,
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
+    onSeatInteractPress: actions.onSeatInteractPress,
     onBoardBounds: actions.reportBoardBounds,
     onCardSlotBounds: actions.reportCardSlotBounds,
     onSeatBounds: actions.reportSeatBounds,

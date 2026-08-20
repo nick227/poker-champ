@@ -197,6 +197,7 @@ export function useTablePageController({
   const profile = useProfile();
 
   const [playerPopup, setPlayerPopup] = useState<{ name: string; userId: string } | null>(null);
+  const [seatInteraction, setSeatInteraction] = useState<{ name: string; userId: string } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [themePickerVisible, setThemePickerVisible] = useState(false);
   const [handHistoryVisible, setHandHistoryVisible] = useState(false);
@@ -1020,6 +1021,14 @@ export function useTablePageController({
     [dispatchRemoveBot, tableId],
   );
 
+  // Seat-based Gift/Side Bet entry point (the small "+" on occupied opponent/bot seats) —
+  // deliberately independent of onPlayerPress above, which removes bots on tap; bots are
+  // valid gift/side-bet targets, so this must never trigger REMOVE_BOT.
+  const onSeatInteractPress = useCallback((o: Opponent) => {
+    setSeatInteraction({ name: o.name, userId: o.id });
+  }, []);
+  const closeSeatInteraction = useCallback(() => setSeatInteraction(null), []);
+
   const sendGift = useCallback(
     (input: { recipientUserId: string; catalogKey: string }) =>
       dispatchSendGift({ tableId, recipientUserId: input.recipientUserId, catalogKey: input.catalogKey }),
@@ -1217,6 +1226,7 @@ export function useTablePageController({
       botPickerVisible,
       botPickerLoading,
       playerPopup,
+      seatInteraction,
     },
     actions: {
       goToLogin,
@@ -1244,6 +1254,8 @@ export function useTablePageController({
       },
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
+      onSeatInteractPress,
+      closeSeatInteraction,
       sendGift,
       proposeSideBet,
       respondSideBet,

@@ -26,6 +26,7 @@ type TableShellBaseProps = Pick<
   | "opponentStripEmptyState"
   | "winnerName"
   | "onPlayerPress"
+  | "onSeatInteractPress"
   | "onSeatBounds"
   | "tournamentBanner"
   | "maxSeats"
@@ -48,6 +49,7 @@ type UseTableViewShellFrameParams = {
   opponents: Opponent[];
   opponentStripEmptyState?: ReactNode;
   onPlayerPress?: (opponent: Opponent) => void;
+  onSeatInteractPress?: (opponent: Opponent) => void;
   /** When set, board is wrapped and measured; rect reported for overlay (overlay coordinate space). */
   onBoardBounds?: (rect: Rect) => void;
   /** When set, each community card slot (0..4) reports bounds for CARD-anchored FX. */
@@ -73,6 +75,7 @@ export function useTableViewShellFrame({
   opponents,
   opponentStripEmptyState,
   onPlayerPress,
+  onSeatInteractPress,
   onBoardBounds,
   onCardSlotBounds,
   onSeatBounds,
@@ -105,6 +108,7 @@ export function useTableViewShellFrame({
     opponentStripEmptyState,
     winnerName: winnerName ?? undefined,
     onPlayerPress,
+    onSeatInteractPress,
     onSeatBounds,
     maxSeats: table?.maxSeats ?? 6,
     heroSeat: effectiveSnapshot.hero.seat ?? 0,

@@ -35,6 +35,8 @@ import {
   SIDE_BET_NOT_RECIPIENT,
   PlayerInteractionService,
 } from "../../engine/economy/PlayerInteractionService.js";
+import { ensureCashTableBotUser } from "../../engine/economy/botInteractionUsers.js";
+import { logger } from "../../lib/logger.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomMessageRouterContract } from "./types/PokerRoomTypes.js";
 import { assertNotTournamentTableSpectator } from "../../tournaments/tournament-table-spectator.js";
@@ -52,6 +54,40 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
   private isDealtIntoCurrentHand(userId: string): boolean {
     const player = this.ctx.state.playersById.get(userId);
     return !!player && (player.status === "ACTIVE" || player.status === "FOLDED" || player.status === "ALL_IN");
+  }
+
+  /** Shared by the real RESPOND_SIDE_BET handler and the bot auto-response trigger below —
+   *  same CAS-guarded respondSideBet call, same SIDE_BET_UPDATE broadcast to both sides. */
+  private async respondSideBetAndBroadcast(params: {
+    interactionId: string;
+    recipientId: string;
+    accept: boolean;
+    clientRequestId: string;
+  }): Promise<void> {
+    const result = await PlayerInteractionService.respondSideBet({
+      interactionId: params.interactionId,
+      recipientId: params.recipientId,
+      accept: params.accept,
+      bigBlindCents: this.ctx.state.bigBlindCents,
+      clientRequestId: params.clientRequestId,
+      validateSubjectsStillDealtIn: ([a, b]) => this.isDealtIntoCurrentHand(a) && this.isDealtIntoCurrentHand(b),
+    });
+    const payload = { interactionId: result.interactionId, status: result.status };
+    this.sendToUserId(result.initiatorId, "SIDE_BET_UPDATE", payload);
+    this.sendToUserId(result.recipientId, "SIDE_BET_UPDATE", payload);
+  }
+
+  /** A bot recipient can't click Accept/Decline — respond immediately through the exact
+   *  same path (respondSideBetAndBroadcast) a real response would use, with a simple
+   *  coin-flip decision. Not meant to be a "smart" bot, just unblock the flow. */
+  private async triggerBotSideBetResponse(interactionId: string, botId: string): Promise<void> {
+    const accept = Math.random() < 0.5;
+    await this.respondSideBetAndBroadcast({
+      interactionId,
+      recipientId: botId,
+      accept,
+      clientRequestId: `bot_auto_${nanoid(12)}`,
+    });
   }
 
   private sendToUserId(userId: string, type: string, payload: unknown): void {
@@ -277,7 +313,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
       const recipient = room.getPlayerByUserIdInternal(recipientUserId);
-      if (!recipient || recipient.kind === "BOT") {
+      if (!recipient) {
         room.sendTableMessageInternal(client, "ERROR", {
           code: GIFT_RECIPIENT_INVALID,
           message: "Recipient must be seated at this table.",
@@ -286,6 +322,9 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
 
       try {
+        if (recipient.kind === "BOT") {
+          await ensureCashTableBotUser(recipient.id, recipient.name);
+        }
         const result = await PlayerInteractionService.sendGift({
           initiatorId: userId,
           recipientId: recipientUserId,
@@ -362,7 +401,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         return;
       }
       const recipient = room.getPlayerByUserIdInternal(recipientUserId);
-      if (!recipient || recipient.kind === "BOT") {
+      if (!recipient) {
         room.sendTableMessageInternal(client, "ERROR", { code: SIDE_BET_RECIPIENT_INVALID, message: "Recipient must be seated at this table." });
         return;
       }
@@ -385,6 +424,9 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
 
       try {
+        if (recipient.kind === "BOT") {
+          await ensureCashTableBotUser(recipient.id, recipient.name);
+        }
         const result = await PlayerInteractionService.proposeSideBet({
           initiatorId: userId,
           recipientId: recipientUserId,
@@ -410,6 +452,17 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         };
         this.sendToUserId(userId, "SIDE_BET_OFFER", payload);
         this.sendToUserId(recipientUserId, "SIDE_BET_OFFER", payload);
+
+        // Bots can't click Accept/Decline — respond immediately through the exact same
+        // path a real RESPOND_SIDE_BET would use (same CAS guard, same re-validation).
+        // A failure here (e.g. the bot's bankroll can't cover its exposure) must not break
+        // the propose flow — the offer just sits PENDING and gets caught by the 30s TTL sweep,
+        // same as any other unresolved offer.
+        if (recipient.kind === "BOT") {
+          this.triggerBotSideBetResponse(result.interactionId, recipient.id).catch((err: unknown) => {
+            logger.error({ err, interactionId: result.interactionId, botId: recipient.id }, "BOT_SIDE_BET_AUTO_RESPONSE_FAILED");
+          });
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code = sideBetErrorCodes.has(message) ? message : "PROPOSE_SIDE_BET_FAILED";
@@ -441,17 +494,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
 
       const { interactionId, accept, clientRequestId } = parsed.data;
       try {
-        const result = await PlayerInteractionService.respondSideBet({
-          interactionId,
-          recipientId: userId,
-          accept,
-          bigBlindCents: this.ctx.state.bigBlindCents,
-          clientRequestId,
-          validateSubjectsStillDealtIn: ([a, b]) => this.isDealtIntoCurrentHand(a) && this.isDealtIntoCurrentHand(b),
-        });
-        const payload = { interactionId: result.interactionId, status: result.status };
-        this.sendToUserId(result.initiatorId, "SIDE_BET_UPDATE", payload);
-        this.sendToUserId(result.recipientId, "SIDE_BET_UPDATE", payload);
+        await this.respondSideBetAndBroadcast({ interactionId, recipientId: userId, accept, clientRequestId });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code = sideBetErrorCodes.has(message) ? message : "RESPOND_SIDE_BET_FAILED";

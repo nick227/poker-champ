@@ -44,6 +44,7 @@ export function useIdleTableSlots(
     opponents: renderModel.opponents as Opponent[],
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
+    onSeatInteractPress: actions.onSeatInteractPress,
     onBoardBounds: actions.reportBoardBounds,
     onCardSlotBounds: actions.reportCardSlotBounds,
     onSeatBounds: actions.reportSeatBounds,
