@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { TableSnapshotPayload, BotSummary } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, BotSummary, GiftReceivedPayload } from "@poker-champ/realtime-contract";
 import type { TableSceneModel } from "@/features/table";
 import type { TableSceneMode } from "@/features/table";
 import type { TableLoadPhase } from "@/lib/tableLoadPhase";
@@ -58,6 +58,7 @@ export type TablePageController = {
     opponents: Opponent[];
     displayEvents: TableDisplayEvents;
     pendingAction?: PendingAction;
+    giftFeed: GiftReceivedPayload[];
     canRebuy: boolean;
     leaveTournamentBusy: boolean;
     tableTopBarRight: ReactNode;
@@ -85,7 +86,7 @@ export type TablePageController = {
     rebuySheetVisible: boolean;
     botPickerVisible: boolean;
     botPickerLoading: boolean;
-    playerPopup: { name: string } | null;
+    playerPopup: { name: string; userId: string } | null;
   };
   actions: {
     goToLogin: () => void;
@@ -108,6 +109,7 @@ export type TablePageController = {
     leaveTournament: () => void;
     closePlayerPopup: () => void;
     onPlayerPress: (opponent: Opponent) => void;
+    sendGift: (input: { recipientUserId: string; catalogKey: string }) => boolean;
     openAddBotPicker: () => void;
     pickBot: (botId: string) => void;
     sendAction: (payload: { type: TableAction; amount?: number }) => boolean;

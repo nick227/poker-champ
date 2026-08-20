@@ -62,6 +62,7 @@ type MultiTableState = {
   unregisterTableSender: (id: string) => void;
   dispatchTableAction: (input: { tableId: string; action: TableActionKey; amountCents?: number }) => boolean;
   dispatchSendChat: (input: { tableId: string; text: string }) => boolean;
+  dispatchSendGift: (input: { tableId: string; recipientUserId: string; catalogKey: string }) => boolean;
   dispatchListBots: (input: { tableId: string }) => boolean;
   dispatchRejoin: (input: { tableId: string }) => boolean;
   dispatchJoinTable: (input: { tableId: string; buyInCents: number }) => boolean;
@@ -259,6 +260,13 @@ export const useMultiTableStore = create<MultiTableState>()(
         const payload = { text: trimmed };
         if (!isValidTableInbound("CHAT", payload)) return false;
         return sender("CHAT", payload);
+      },
+      dispatchSendGift: ({ tableId, recipientUserId, catalogKey }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = { recipientUserId, catalogKey };
+        if (!isValidTableInbound("SEND_GIFT", payload)) return false;
+        return sender("SEND_GIFT", payload);
       },
       dispatchListBots: ({ tableId }): boolean => {
         const sender = get().tableSenders[tableId];

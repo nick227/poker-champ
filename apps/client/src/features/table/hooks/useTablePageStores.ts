@@ -25,6 +25,7 @@ export function useTablePageStores(tableId: string | undefined) {
       persistedBuyInCents: id ? s.lastBuyInCentsByTableId[id] : undefined,
       dispatchTableAction: s.dispatchTableAction,
       dispatchSendChat: s.dispatchSendChat,
+      dispatchSendGift: s.dispatchSendGift,
       dispatchListBots: s.dispatchListBots,
       dispatchRejoin: s.dispatchRejoin,
       dispatchJoinTable: s.dispatchJoinTable,
@@ -42,6 +43,7 @@ export function useTablePageStores(tableId: string | undefined) {
     useShallow((s: TableState) => ({
       snapshotsByTableId: s.snapshotsByTableId,
       chatMessagesForTable: id ? (s.chatMessagesByTableId[id] ?? []) : [],
+      giftFeedForTable: id ? (s.giftFeedByTableId[id] ?? []) : [],
       botSummariesForTable: id ? (s.botSummariesByTableId[id] ?? []) : [],
       botSummariesUpdatedAtForTable: id ? s.botSummariesUpdatedAtByTableId[id] : undefined,
       connectionStatusForTable: id ? s.connectionStatusByTableId[id] : undefined,

@@ -145,6 +145,7 @@ export function useTablePageController({
     persistedBuyInCents,
     dispatchTableAction,
     dispatchSendChat,
+    dispatchSendGift,
     dispatchListBots,
     dispatchRejoin,
     dispatchJoinTable,
@@ -156,6 +157,7 @@ export function useTablePageController({
     lobbyTables,
     snapshotsByTableId,
     chatMessagesForTable,
+    giftFeedForTable,
     botSummariesForTable,
     botSummariesUpdatedAtForTable,
     connectionStatusForTable,
@@ -190,7 +192,7 @@ export function useTablePageController({
   const { cents: balanceCents, refresh: refreshBankroll } = useBankroll();
   const profile = useProfile();
 
-  const [playerPopup, setPlayerPopup] = useState<{ name: string } | null>(null);
+  const [playerPopup, setPlayerPopup] = useState<{ name: string; userId: string } | null>(null);
   const [activeTablesDropdownVisible, setActiveTablesDropdownVisible] = useState(false);
   const [themePickerVisible, setThemePickerVisible] = useState(false);
   const [handHistoryVisible, setHandHistoryVisible] = useState(false);
@@ -1008,10 +1010,16 @@ export function useTablePageController({
         pendingRemoveBotIdRef.current = o.id;
         dispatchRemoveBot({ tableId, botId: o.id });
       } else {
-        setPlayerPopup({ name: o.name });
+        setPlayerPopup({ name: o.name, userId: o.id });
       }
     },
     [dispatchRemoveBot, tableId],
+  );
+
+  const sendGift = useCallback(
+    (input: { recipientUserId: string; catalogKey: string }) =>
+      dispatchSendGift({ tableId, recipientUserId: input.recipientUserId, catalogKey: input.catalogKey }),
+    [tableId, dispatchSendGift],
   );
 
   useEffect(() => {
@@ -1158,6 +1166,7 @@ export function useTablePageController({
       opponents,
       displayEvents,
       pendingAction: pendingActionForTable,
+      giftFeed: giftFeedForTable,
       canRebuy,
       leaveTournamentBusy,
       tableTopBarRight,
@@ -1207,6 +1216,7 @@ export function useTablePageController({
       },
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
+      sendGift,
       openAddBotPicker: handleAddBotPress,
       pickBot: handleBotPick,
       sendAction,

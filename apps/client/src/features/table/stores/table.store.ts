@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import type { TableSnapshotPayload, ChatMessagePayload, BotSummary } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload, BotSummary, GiftReceivedPayload } from "@poker-champ/realtime-contract";
 
 const CHAT_MESSAGES_CAP = 100;
+const GIFT_FEED_CAP = 20;
 
 type TableStoreState = {
   snapshotsByTableId: Record<string, TableSnapshotPayload | undefined>;
   chatMessagesByTableId: Record<string, ChatMessagePayload[]>;
+  giftFeedByTableId: Record<string, GiftReceivedPayload[]>;
   botSummariesByTableId: Record<string, BotSummary[]>;
   botSummariesUpdatedAtByTableId: Record<string, number>;
   lastSeqByTableId: Record<string, number>;
@@ -23,6 +25,7 @@ type TableStoreState = {
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
   resetSnapshotStream: (tableId: string) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
+  appendGiftEvent: (tableId: string, gift: GiftReceivedPayload) => void;
   setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
   clearConnectionStatus: (tableId: string) => void;
@@ -37,6 +40,7 @@ type TableStoreState = {
 export const useTableStore = create<TableStoreState>((set, get) => ({
   snapshotsByTableId: {},
   chatMessagesByTableId: {},
+  giftFeedByTableId: {},
   botSummariesByTableId: {},
   botSummariesUpdatedAtByTableId: {},
   lastSeqByTableId: {},
@@ -76,6 +80,13 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       if (list.some((m) => m.id === message.id)) return s;
       const next = [...list, message].slice(-CHAT_MESSAGES_CAP);
       return { chatMessagesByTableId: { ...s.chatMessagesByTableId, [tableId]: next } };
+    }),
+  appendGiftEvent: (tableId, gift) =>
+    set((s) => {
+      const list = s.giftFeedByTableId[tableId] ?? [];
+      if (list.some((g) => g.interactionId === gift.interactionId)) return s;
+      const next = [...list, gift].slice(-GIFT_FEED_CAP);
+      return { giftFeedByTableId: { ...s.giftFeedByTableId, [tableId]: next } };
     }),
   setBotSummaries: (tableId, bots) =>
     set((s) => ({
@@ -195,6 +206,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
     set((s) => {
       const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
       const { [tableId]: _chat, ...chatMessagesByTableId } = s.chatMessagesByTableId;
+      const { [tableId]: _gifts, ...giftFeedByTableId } = s.giftFeedByTableId;
       const { [tableId]: _bots, ...botSummariesByTableId } = s.botSummariesByTableId;
       const { [tableId]: _botsAt, ...botSummariesUpdatedAtByTableId } = s.botSummariesUpdatedAtByTableId;
       const { [tableId]: _status, ...statusByTableId } = s.statusByTableId;
@@ -206,6 +218,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       return {
         snapshotsByTableId,
         chatMessagesByTableId,
+        giftFeedByTableId,
         botSummariesByTableId,
         botSummariesUpdatedAtByTableId,
         statusByTableId,

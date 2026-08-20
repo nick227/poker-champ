@@ -85,6 +85,22 @@ export const SetSittingOutPayloadSchema = z.object({
   sittingOut: z.boolean(),
 });
 
+export const SendGiftPayloadSchema = z.object({
+  recipientUserId: z.string().min(1),
+  catalogKey: z.string().min(1),
+});
+
+export const GiftReceivedPayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  senderUserId: z.string().min(1),
+  senderName: z.string().min(1),
+  recipientUserId: z.string().min(1),
+  recipientName: z.string().min(1),
+  catalogKey: z.string().min(1),
+  stakeCents: z.number().int().nonnegative(),
+  createdAt: z.number().int().nonnegative(),
+});
+
 export const ChatMessagePayloadSchema = z.object({
   id: z.string().min(1),
   tableId: z.string().min(1),
@@ -103,6 +119,7 @@ export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("REMOVE_BOT"), payload: RemoveBotPayloadSchema }),
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
   z.object({ type: z.literal("SET_SITTING_OUT"), payload: SetSittingOutPayloadSchema }),
+  z.object({ type: z.literal("SEND_GIFT"), payload: SendGiftPayloadSchema }),
 ]);
 
 export const HeroActionOptionsSchema = z.object({
@@ -319,6 +336,7 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("BOTS_LIST"), payload: BotsListPayloadSchema }),
   z.object({ type: z.literal("CHAT_MESSAGE"), payload: ChatMessagePayloadSchema }),
+  z.object({ type: z.literal("GIFT_RECEIVED"), payload: GiftReceivedPayloadSchema }),
 ]);
 
 export type TableJoinOptions = z.infer<typeof TableJoinOptionsSchema>;
@@ -335,3 +353,5 @@ export type HeroPlayerStats = z.infer<typeof HeroPlayerStatsSchema>;
 export type TableErrorCode = z.infer<typeof TableErrorCodeEnum>;
 export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;
 export type BotSummary = z.infer<typeof BotSummarySchema>;
+export type SendGiftPayload = z.infer<typeof SendGiftPayloadSchema>;
+export type GiftReceivedPayload = z.infer<typeof GiftReceivedPayloadSchema>;

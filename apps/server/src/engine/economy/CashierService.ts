@@ -69,6 +69,96 @@ export class CashierService {
   }
 
   /**
+   * Atomic bankroll debit, guarded so it never drives a balance negative.
+   * Idempotent via externalRef: a retry with the same ref is a no-op.
+   *
+   * Accepts an optional `tx` so callers that need debit+credit to commit or
+   * fail together (e.g. PlayerInteractionService.sendGift, which must not
+   * leave a debited-but-uncredited gift if the process dies mid-flight) can
+   * pass in their own `prisma.$transaction` callback's `tx` instead of
+   * letting this method open its own. Without `tx`, this is a standalone
+   * atomic operation like every other method in this class.
+   */
+  static async debitUser(params: {
+    userId: string;
+    amountCents: number;
+    type: string;
+    externalRef: string;
+    tx?: any;
+  }): Promise<{ success: boolean }> {
+    const { userId, amountCents, type, externalRef, tx } = params;
+
+    const run = async (t: any) => {
+      const existingTx = await t.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingTx) return { success: true };
+
+      const debitResult = await t.user.updateMany({
+        where: { id: userId, bankrollCents: { gte: amountCents } },
+        data: { bankrollCents: { decrement: amountCents } },
+      });
+      if (debitResult.count !== 1) {
+        throw new Error("INSUFFICIENT_BANKROLL");
+      }
+
+      await t.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          type,
+          amountCents,
+          externalRef,
+        },
+      });
+
+      return { success: true };
+    };
+
+    if (tx) return run(tx);
+    const prisma = getPrisma();
+    return await prisma.$transaction(run);
+  }
+
+  /**
+   * Atomic bankroll credit. Idempotent via externalRef, same `tx`-composability
+   * as debitUser — see its comment for why that matters.
+   */
+  static async creditUser(params: {
+    userId: string;
+    amountCents: number;
+    type: string;
+    externalRef: string;
+    tx?: any;
+  }): Promise<{ success: boolean }> {
+    const { userId, amountCents, type, externalRef, tx } = params;
+
+    const run = async (t: any) => {
+      const existingTx = await t.balanceTransaction.findUnique({ where: { externalRef } });
+      if (existingTx) return { success: true };
+
+      await t.user.update({
+        where: { id: userId },
+        data: { bankrollCents: { increment: amountCents } },
+      });
+
+      await t.balanceTransaction.create({
+        data: {
+          id: nanoid(),
+          userId,
+          type,
+          amountCents,
+          externalRef,
+        },
+      });
+
+      return { success: true };
+    };
+
+    if (tx) return run(tx);
+    const prisma = getPrisma();
+    return await prisma.$transaction(run);
+  }
+
+  /**
    * Cash Game Buy-In
    * Atomically debits User.bankrollCents and credits PlayerBalance.
    */

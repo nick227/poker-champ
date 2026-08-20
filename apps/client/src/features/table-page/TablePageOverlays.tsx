@@ -2,6 +2,7 @@ import { ChooseTableModal, TournamentStandingsModal } from "@/features/lobby";
 import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { HandHistorySheet } from "@/components/domain/history/HandHistorySheet";
+import { GiftToast } from "@/components/domain/interactions/GiftToast";
 import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
@@ -33,8 +34,17 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
         onRequestComplete={actions.completeChipTravel}
       />
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
+      <GiftToast gifts={renderModel.giftFeed} />
       {uiState.playerPopup && (
-        <PlayerHistoryPopup visible onClose={actions.closePlayerPopup} name={uiState.playerPopup.name} />
+        <PlayerHistoryPopup
+          visible
+          onClose={actions.closePlayerPopup}
+          name={uiState.playerPopup.name}
+          userId={uiState.playerPopup.userId}
+          onSendGift={(catalogKey) =>
+            actions.sendGift({ recipientUserId: uiState.playerPopup!.userId, catalogKey })
+          }
+        />
       )}
       {uiState.rebuySheetVisible &&
       snapshot?.table?.minBuyInCents != null &&

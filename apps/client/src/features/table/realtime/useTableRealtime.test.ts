@@ -113,6 +113,7 @@ function dispatchTableMessage(
       resetSnapshotStream: (t) => useTableStore.getState().resetSnapshotStream(t),
       setSnapshot: (t, snapshot) => useTableStore.getState().setSnapshot(t, snapshot),
       appendChatMessage: (t, msg) => useTableStore.getState().appendChatMessage(t, msg),
+      appendGiftEvent: (t, gift) => useTableStore.getState().appendGiftEvent(t, gift),
       setBotSummaries: (t, bots) => useTableStore.getState().setBotSummaries(t, bots),
       setConnectionStatus: (t, status) => useTableStore.getState().setConnectionStatus(t, status),
       clearConnectionStatus: (t) => useTableStore.getState().clearConnectionStatus(t),

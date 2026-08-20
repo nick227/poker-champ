@@ -4,6 +4,7 @@ import type {
   ChatMessagePayload,
   OnlinePlayerSummary,
   BotSummary,
+  GiftReceivedPayload,
 } from "@poker-champ/realtime-contract";
 
 export type RealtimeScope = "lobby" | "table";
@@ -34,6 +35,7 @@ type TableMessageContext = {
   onSnapshot?: (tableId: string, snapshot: TableSnapshotPayload) => void;
   appendChatMessage?: (tableId: string, message: ChatMessagePayload) => void;
   onBotsList?: (tableId: string, bots: BotSummary[]) => void;
+  appendGiftEvent?: (tableId: string, gift: GiftReceivedPayload) => void;
 };
 
 type ScopeContextMap = {
@@ -117,6 +119,13 @@ const realtimeChannelByScope: ScopeRegistryMap = {
       const p = payload as ChatMessagePayload;
       if (p?.tableId && p?.id) {
         context.appendChatMessage?.(p.tableId, p);
+      }
+    },
+    GIFT_RECEIVED: (payload, context) => {
+      if (!context.tableId) return;
+      const p = payload as GiftReceivedPayload;
+      if (p?.interactionId) {
+        context.appendGiftEvent?.(context.tableId, p);
       }
     },
     BOTS_LIST: (payload, context) => {

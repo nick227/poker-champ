@@ -96,6 +96,7 @@ export function useTableRealtime({
           resetSnapshotStream: (t) => storeRegistry.table().resetSnapshotStream(t),
           setSnapshot: (t, snapshot) => storeRegistry.table().setSnapshot(t, snapshot),
           appendChatMessage: (t, message) => storeRegistry.table().appendChatMessage(t, message),
+          appendGiftEvent: (t, gift) => storeRegistry.table().appendGiftEvent(t, gift),
           setBotSummaries: (t, bots) => storeRegistry.table().setBotSummaries(t, bots),
           setConnectionStatus: (t, status) => storeRegistry.table().setConnectionStatus(t, status),
           clearConnectionStatus: (t) => storeRegistry.table().clearConnectionStatus(t),

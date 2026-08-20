@@ -1,4 +1,4 @@
-import type { TableSnapshotPayload, ChatMessagePayload, BotSummary } from "@poker-champ/realtime-contract";
+import type { TableSnapshotPayload, ChatMessagePayload, BotSummary, GiftReceivedPayload } from "@poker-champ/realtime-contract";
 import { dispatchRealtimeChannelMessage } from "@/registry/realtime-channel.registry";
 import { storeRegistry } from "@/registry/store.registry";
 
@@ -9,6 +9,7 @@ export type TableRealtimeMessageHandlerDeps = {
   resetSnapshotStream: (tableId: string) => void;
   setSnapshot: (tableId: string, snapshot: TableSnapshotPayload) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
+  appendGiftEvent: (tableId: string, gift: GiftReceivedPayload) => void;
   setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: Exclude<TableLifecycleStatus, "DISCONNECTED">) => void;
   clearConnectionStatus: (tableId: string) => void;
@@ -173,6 +174,9 @@ export function handleTableRealtimeInboundMessage({ tableId, type, payload, deps
     },
     appendChatMessage: (targetTableId, message) => {
       deps.appendChatMessage(targetTableId, message);
+    },
+    appendGiftEvent: (targetTableId, gift) => {
+      deps.appendGiftEvent(targetTableId, gift);
     },
     onBotsList: (targetTableId, bots) => {
       deps.setBotSummaries(targetTableId, bots);

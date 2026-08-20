@@ -23,6 +23,7 @@ model PokerTable {
   snapshotLogs TableSnapshotLog[]
   balances     PlayerBalance[]
   transactions BalanceTransaction[]
+  interactions PlayerInteraction[]
 
   @@index([creatorId])
 }
@@ -122,6 +123,7 @@ model Hand {
   payouts      HandPayout[]
   snapshotLogs TableSnapshotLog[]
   txs          BalanceTransaction[]
+  interactions PlayerInteraction[]
 }
 
 model HandPlayer {
@@ -220,6 +222,55 @@ model TableSnapshotLog {
   @@index([tableId, reason, createdAt])
 }
 
+enum PlayerInteractionType {
+  GIFT
+  SIDE_BET
+}
+
+enum PlayerInteractionStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  DECLINED
+  CANCELLED
+  EXPIRED
+  VOIDED
+}
+
+// Shared persistence model for player-to-player Gifts and Side Bets (docs/GIFTS_AND_SIDE_BETS_DESIGN.md).
+// A Gift goes straight to COMPLETED in one transaction. A Side Bet walks PENDING -> ACTIVE -> COMPLETED
+// (or DECLINED/CANCELLED/EXPIRED/VOIDED). Only Gifts are implemented server-side so far (Phase 2); the
+// side-bet fields (handId, winnerId, expiresAt, etc.) are included now so the schema doesn't need a second
+// migration when side bets ship.
+model PlayerInteraction {
+  id          String                   @id @default(cuid())
+  type        PlayerInteractionType
+  status      PlayerInteractionStatus  @default(PENDING)
+  catalogKey  String
+  tableId     String
+  handId      String?
+  initiatorId String
+  recipientId String
+  stakeCents  Int                      @default(0)
+  payoutCents Int?
+  winnerId    String?
+  metadata    Json?
+  externalRef String                   @unique
+  createdAt   DateTime                 @default(now())
+  respondedAt DateTime?
+  resolvedAt  DateTime?
+  expiresAt   DateTime?
+
+  table     PokerTable @relation(fields: [tableId], references: [id])
+  hand      Hand?      @relation(fields: [handId], references: [id])
+  initiator User       @relation("InteractionsInitiated", fields: [initiatorId], references: [id])
+  recipient User       @relation("InteractionsReceived", fields: [recipientId], references: [id])
+
+  @@index([tableId, status])
+  @@index([recipientId, status])
+  @@index([handId])
+}
+
 model LobbyChatMessage {
   id           String   @id
   scope        String   @default("lobby")
@@ -297,6 +348,10 @@ model User {
   // Admin audit trail
   adminLogsAsActor  AdminLog[] @relation("AdminLogActor")
   adminLogsAsTarget AdminLog[] @relation("AdminLogTarget")
+
+  // Player interactions (gifts / side bets — docs/GIFTS_AND_SIDE_BETS_DESIGN.md)
+  interactionsInitiated PlayerInteraction[] @relation("InteractionsInitiated")
+  interactionsReceived  PlayerInteraction[] @relation("InteractionsReceived")
 
   @@index([usernameNormalized])
 }

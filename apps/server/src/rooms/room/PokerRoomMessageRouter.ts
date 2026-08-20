@@ -4,6 +4,7 @@ import {
   AddBotPayloadSchema,
   ChatPayloadSchema,
   RemoveBotPayloadSchema,
+  SendGiftPayloadSchema,
   TableInboundMessageSchema,
 } from "@poker-champ/realtime-contract";
 import { ActionPayloadSchema } from "@poker-champ/realtime-contract";
@@ -13,6 +14,11 @@ import { newBotId } from "../../engine/bots/botIds.js";
 import { listEnabledBotSummaries, resolveBotSelectionForAdd } from "../../engine/bots/BotCatalog.js";
 import { TableSeatSessionService } from "../../engine/seats/TableSeatSessionService.js";
 import { dealerRuntimeMetrics } from "../../engine/dealer/metrics/dealerRuntimeMetrics.js";
+import {
+  GIFT_CATALOG_KEY_UNKNOWN,
+  GIFT_RECIPIENT_INVALID,
+  PlayerInteractionService,
+} from "../../engine/economy/PlayerInteractionService.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomMessageRouterContract } from "./types/PokerRoomTypes.js";
 import { assertNotTournamentTableSpectator } from "../../tournaments/tournament-table-spectator.js";
@@ -199,6 +205,73 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         createdAtTs: Date.now(),
       };
       room.clients.forEach((c: Client) => room.sendTableMessageInternal(c, "CHAT_MESSAGE", payload));
+    });
+
+    room.onMessage("SEND_GIFT", async (client: Client, message: unknown) => {
+      if (room.isChatRateLimitedInternal(client.sessionId)) {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many gifts. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
+      room.touchActivityInternal();
+      const parsed = SendGiftPayloadSchema.safeParse(message);
+      if (!parsed.success) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      const userId = this.session.getUserIdForSession(client.sessionId);
+      if (!userId) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to send a gift." });
+        return;
+      }
+      if (!this.session.isActiveBoundClient(userId, client)) return;
+      const sender = room.getPlayerByUserIdInternal(userId);
+      if (!sender || sender.kind === "BOT") {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to send a gift." });
+        return;
+      }
+
+      const { recipientUserId, catalogKey } = parsed.data;
+      if (recipientUserId === userId) {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: GIFT_RECIPIENT_INVALID,
+          message: "You cannot send a gift to yourself.",
+        });
+        return;
+      }
+      const recipient = room.getPlayerByUserIdInternal(recipientUserId);
+      if (!recipient || recipient.kind === "BOT") {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: GIFT_RECIPIENT_INVALID,
+          message: "Recipient must be seated at this table.",
+        });
+        return;
+      }
+
+      try {
+        const result = await PlayerInteractionService.sendGift({
+          initiatorId: userId,
+          recipientId: recipientUserId,
+          tableId: this.ctx.state.tableId,
+          catalogKey,
+        });
+        const payload = {
+          ...result,
+          senderName: sender.name || `player_${userId.slice(0, 6)}`,
+          recipientName: recipient.name || `player_${recipientUserId.slice(0, 6)}`,
+        };
+        room.clients.forEach((c: Client) => room.sendTableMessageInternal(c, "GIFT_RECEIVED", payload));
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const code =
+          message === "INSUFFICIENT_BANKROLL" || message === GIFT_CATALOG_KEY_UNKNOWN || message === GIFT_RECIPIENT_INVALID
+            ? message
+            : "SEND_GIFT_FAILED";
+        room.sendTableMessageInternal(client, "ERROR", { code, message });
+      }
     });
 
     room.onMessage("ACTION", async (client: Client, message: unknown) => {
