@@ -1,5 +1,6 @@
 import { getPrisma } from "@poker-champ/db";
 import { nanoid } from "nanoid";
+import { SIDE_BET_CATALOG_BY_KEY } from "@poker-champ/realtime-contract";
 import {
   computeHumanPayoutAmountsByUserId,
   tournamentPayoutExternalRef,
@@ -45,6 +46,69 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 export class CashierService {
+  /**
+   * A user's bankroll minus everything currently held by PENDING/ACTIVE side bets
+   * (docs/GIFTS_AND_SIDE_BETS_DESIGN.md §5.2). This is the ONE number every balance
+   * check in this file (and PlayerInteractionService) must use instead of raw
+   * bankrollCents — a held stake never leaves the ledger, so bankrollCents alone
+   * overstates what a user can actually still commit to a new buy-in, gift, or bet.
+   *
+   * Computed, not materialized: as initiator, a PENDING/ACTIVE row holds `stakeCents`.
+   * As recipient, only an ACTIVE row holds anything (a PENDING offer hasn't been
+   * accepted yet), and it holds `stakeCents * payoutMultiplier` — the accepting side's
+   * exposure scales with the catalog entry's odds, not just the initiator's stake (see
+   * PlayerInteractionService.resolveSideBetsForHand for why). Gifts never appear here:
+   * they go straight to COMPLETED in one transaction, so they're never PENDING/ACTIVE.
+   */
+  static async getSpendableCents(userId: string, tx?: any): Promise<number> {
+    const client = tx ?? getPrisma();
+    // Sequential, not Promise.all: an interactive transaction's `tx` client holds a single
+    // connection, and this codebase's convention (see every method below) is to await each
+    // query in turn within a transaction rather than run them concurrently on it.
+    const user = await client.user.findUniqueOrThrow({ where: { id: userId }, select: { bankrollCents: true } });
+    const reservedCents = await CashierService.reservedCentsForGuard(userId, client);
+    return user.bankrollCents - reservedCents;
+  }
+
+  /**
+   * Same reservedCents computation as getSpendableCents, but taking the caller's own
+   * transaction client — for the handful of methods below that fold a spendable check
+   * into their own `bankrollCents: { gte: ... }` guarded updateMany rather than call
+   * getSpendableCents (which always opens/uses its own read) twice.
+   *
+   * Known residual race: this reads reservedCents once, before the caller's guarded write
+   * acquires its row lock, so two concurrent calls for the same user (e.g. two
+   * proposeSideBet requests fired at the same instant) can both read the same reservedCents
+   * snapshot and both pass. This does NOT allow an actual overdraft of real bankroll — the
+   * moment a side bet settles, resolveSideBetsForHand's debitUser call re-checks
+   * bankrollCents for real, atomically, and fails clean if the money genuinely isn't there.
+   * The narrow window only means reservedCents accounting can be briefly over-optimistic,
+   * never that chips are created or double-spent. Closing it fully would need an explicit
+   * row lock (e.g. `SELECT ... FOR UPDATE` on the User row) before this read, which no other
+   * method in this class does today — flagged here as a deliberate, bounded trade-off rather
+   * than fixed silently, since full serializability wasn't asked for and isn't free.
+   */
+  private static async reservedCentsForGuard(userId: string, tx: any): Promise<number> {
+    const rows = await tx.playerInteraction.findMany({
+      where: {
+        type: "SIDE_BET",
+        status: { in: ["PENDING", "ACTIVE"] },
+        OR: [{ initiatorId: userId }, { recipientId: userId, status: "ACTIVE" }],
+      },
+      select: { initiatorId: true, recipientId: true, status: true, stakeCents: true, catalogKey: true },
+    });
+    let reserved = 0;
+    for (const row of rows) {
+      if (row.initiatorId === userId) {
+        reserved += row.stakeCents;
+      } else if (row.recipientId === userId && row.status === "ACTIVE") {
+        const multiplier = SIDE_BET_CATALOG_BY_KEY.get(row.catalogKey)?.payoutMultiplier ?? 1;
+        reserved += Math.round(row.stakeCents * multiplier);
+      }
+    }
+    return reserved;
+  }
+
   private static assertTableMeta(tableMeta: { name: string; creatorId?: string }): void {
     if (!tableMeta.name || tableMeta.name.trim().length === 0) {
       throw new Error(TABLE_NAME_REQUIRED);
@@ -92,8 +156,12 @@ export class CashierService {
       const existingTx = await t.balanceTransaction.findUnique({ where: { externalRef } });
       if (existingTx) return { success: true };
 
+      // Guard against reservedCents, not just raw bankrollCents — see getSpendableCents'
+      // and reservedCentsForGuard's comments for why an unguarded gte here would let a
+      // side-bet stake be spent twice (once as a held reservation, once as a real debit).
+      const reserved = await CashierService.reservedCentsForGuard(userId, t);
       const debitResult = await t.user.updateMany({
-        where: { id: userId, bankrollCents: { gte: amountCents } },
+        where: { id: userId, bankrollCents: { gte: amountCents + reserved } },
         data: { bankrollCents: { decrement: amountCents } },
       });
       if (debitResult.count !== 1) {
@@ -190,8 +258,10 @@ export class CashierService {
 
       // 2. Atomically debit only if bankroll is sufficient. This avoids
       // double-success races where two concurrent buy-ins read the same balance.
+      // Guarded against reservedCents too — see debitUser's equivalent comment.
+      const reserved = await CashierService.reservedCentsForGuard(userId, tx);
       const debitResult = await tx.user.updateMany({
-        where: { id: userId, bankrollCents: { gte: amountCents } },
+        where: { id: userId, bankrollCents: { gte: amountCents + reserved } },
         data: { bankrollCents: { decrement: amountCents } },
       });
       if (debitResult.count !== 1) {
@@ -291,8 +361,10 @@ export class CashierService {
         throw new Error(TOURNAMENT_REBUY_NOT_ALLOWED);
       }
 
+      // Guarded against reservedCents too — see debitUser's equivalent comment.
+      const reserved = await CashierService.reservedCentsForGuard(userId, tx);
       const debitResult = await tx.user.updateMany({
-        where: { id: userId, bankrollCents: { gte: amountCents } },
+        where: { id: userId, bankrollCents: { gte: amountCents + reserved } },
         data: { bankrollCents: { decrement: amountCents } },
       });
       if (debitResult.count !== 1) {
@@ -469,8 +541,10 @@ export class CashierService {
         throw new Error(TOURNAMENT_FULL);
       }
 
+      // Guarded against reservedCents too — see debitUser's equivalent comment.
+      const reserved = await CashierService.reservedCentsForGuard(userId, tx);
       const debitResult = await tx.user.updateMany({
-        where: { id: userId, bankrollCents: { gte: entryFeeCents } },
+        where: { id: userId, bankrollCents: { gte: entryFeeCents + reserved } },
         data: { bankrollCents: { decrement: entryFeeCents } },
       });
       if (debitResult.count !== 1) {

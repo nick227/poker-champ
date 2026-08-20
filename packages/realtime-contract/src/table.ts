@@ -102,6 +102,54 @@ export const GiftReceivedPayloadSchema = z.object({
   createdAt: z.number().int().nonnegative(),
 });
 
+const SideBetSubjectsSchema = z.tuple([z.string().min(1), z.string().min(1)]);
+
+export const ProposeSideBetPayloadSchema = z.object({
+  recipientUserId: z.string().min(1),
+  catalogKey: z.string().min(1),
+  stakeCents: z.number().int().positive(),
+  subjectUserIds: SideBetSubjectsSchema.optional(),
+  predictedSubjectUserId: z.string().min(1).optional(),
+  clientRequestId: z.string().min(1),
+});
+
+export const RespondSideBetPayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  accept: z.boolean(),
+  clientRequestId: z.string().min(1),
+});
+
+export const CancelSideBetPayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  clientRequestId: z.string().min(1),
+});
+
+export const SideBetOfferPayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  initiatorUserId: z.string().min(1),
+  initiatorName: z.string().min(1),
+  recipientUserId: z.string().min(1),
+  catalogKey: z.string().min(1),
+  stakeCents: z.number().int().nonnegative(),
+  subjectUserIds: SideBetSubjectsSchema.optional(),
+  subjectNames: z.tuple([z.string().min(1), z.string().min(1)]).optional(),
+  predictedSubjectUserId: z.string().min(1).optional(),
+  expiresAt: z.number().int().nonnegative(),
+});
+
+export const SideBetUpdatePayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  status: z.enum(["ACTIVE", "DECLINED", "CANCELLED", "EXPIRED"]),
+});
+
+export const SideBetResolvedPayloadSchema = z.object({
+  interactionId: z.string().min(1),
+  catalogKey: z.string().min(1),
+  winnerId: z.string().min(1).nullable(),
+  payoutCents: z.number().int().nonnegative(),
+  resolutionNote: z.string().min(1),
+});
+
 export const ChatMessagePayloadSchema = z.object({
   id: z.string().min(1),
   tableId: z.string().min(1),
@@ -121,6 +169,9 @@ export const TableInboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("CHAT"), payload: ChatPayloadSchema }),
   z.object({ type: z.literal("SET_SITTING_OUT"), payload: SetSittingOutPayloadSchema }),
   z.object({ type: z.literal("SEND_GIFT"), payload: SendGiftPayloadSchema }),
+  z.object({ type: z.literal("PROPOSE_SIDE_BET"), payload: ProposeSideBetPayloadSchema }),
+  z.object({ type: z.literal("RESPOND_SIDE_BET"), payload: RespondSideBetPayloadSchema }),
+  z.object({ type: z.literal("CANCEL_SIDE_BET"), payload: CancelSideBetPayloadSchema }),
 ]);
 
 export const HeroActionOptionsSchema = z.object({
@@ -338,6 +389,9 @@ export const TableOutboundMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("BOTS_LIST"), payload: BotsListPayloadSchema }),
   z.object({ type: z.literal("CHAT_MESSAGE"), payload: ChatMessagePayloadSchema }),
   z.object({ type: z.literal("GIFT_RECEIVED"), payload: GiftReceivedPayloadSchema }),
+  z.object({ type: z.literal("SIDE_BET_OFFER"), payload: SideBetOfferPayloadSchema }),
+  z.object({ type: z.literal("SIDE_BET_UPDATE"), payload: SideBetUpdatePayloadSchema }),
+  z.object({ type: z.literal("SIDE_BET_RESOLVED"), payload: SideBetResolvedPayloadSchema }),
 ]);
 
 export type TableJoinOptions = z.infer<typeof TableJoinOptionsSchema>;
@@ -356,3 +410,9 @@ export type ChatMessagePayload = z.infer<typeof ChatMessagePayloadSchema>;
 export type BotSummary = z.infer<typeof BotSummarySchema>;
 export type SendGiftPayload = z.infer<typeof SendGiftPayloadSchema>;
 export type GiftReceivedPayload = z.infer<typeof GiftReceivedPayloadSchema>;
+export type ProposeSideBetPayload = z.infer<typeof ProposeSideBetPayloadSchema>;
+export type RespondSideBetPayload = z.infer<typeof RespondSideBetPayloadSchema>;
+export type CancelSideBetPayload = z.infer<typeof CancelSideBetPayloadSchema>;
+export type SideBetOfferPayload = z.infer<typeof SideBetOfferPayloadSchema>;
+export type SideBetUpdatePayload = z.infer<typeof SideBetUpdatePayloadSchema>;
+export type SideBetResolvedPayload = z.infer<typeof SideBetResolvedPayloadSchema>;

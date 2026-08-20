@@ -2132,6 +2132,22 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     });
   }
 
+  /**
+   * Called via matchMaker.remoteRoomCall (same cross-process pattern as beginEconomicAdmission)
+   * from PlayerInteractionService.resolveSideBetsForHand's two callers: the hand-end hook (this
+   * room, same process — still routed through remoteRoomCall for one code path) and the global
+   * reconciliation sweep in index.ts, which has no room reference at all and must look this
+   * table's live room up by tableId first. A no-op if the table isn't currently live (nothing to
+   * notify) — the resolution itself already happened and is durable in the DB regardless.
+   */
+  async broadcastSideBetResolved(
+    results: { interactionId: string; catalogKey: string; winnerId: string | null; payoutCents: number; resolutionNote: string }[],
+  ): Promise<void> {
+    for (const result of results) {
+      this.clients.forEach((c) => this.sendTableMessageInternal(c, "SIDE_BET_RESOLVED", result));
+    }
+  }
+
   async endEconomicAdmission(userId: string, token: string): Promise<void> {
     await this.withTableLifecycleReadLock(async () => {
       const userTokens = this.buyInAdmissionsByUser.get(userId);

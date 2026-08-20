@@ -64,6 +64,16 @@ type MultiTableState = {
   dispatchTableAction: (input: { tableId: string; action: TableActionKey; amountCents?: number }) => boolean;
   dispatchSendChat: (input: { tableId: string; text: string }) => boolean;
   dispatchSendGift: (input: { tableId: string; recipientUserId: string; catalogKey: string }) => boolean;
+  dispatchProposeSideBet: (input: {
+    tableId: string;
+    recipientUserId: string;
+    catalogKey: string;
+    stakeCents: number;
+    subjectUserIds?: [string, string];
+    predictedSubjectUserId?: string;
+  }) => boolean;
+  dispatchRespondSideBet: (input: { tableId: string; interactionId: string; accept: boolean }) => boolean;
+  dispatchCancelSideBet: (input: { tableId: string; interactionId: string }) => boolean;
   dispatchListBots: (input: { tableId: string }) => boolean;
   dispatchRejoin: (input: { tableId: string }) => boolean;
   dispatchJoinTable: (input: { tableId: string; buyInCents: number }) => boolean;
@@ -268,6 +278,34 @@ export const useMultiTableStore = create<MultiTableState>()(
         const payload = { recipientUserId, catalogKey, clientRequestId: nanoid(12) };
         if (!isValidTableInbound("SEND_GIFT", payload)) return false;
         return sender("SEND_GIFT", payload);
+      },
+      dispatchProposeSideBet: ({ tableId, recipientUserId, catalogKey, stakeCents, subjectUserIds, predictedSubjectUserId }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = {
+          recipientUserId,
+          catalogKey,
+          stakeCents,
+          subjectUserIds,
+          predictedSubjectUserId,
+          clientRequestId: nanoid(12),
+        };
+        if (!isValidTableInbound("PROPOSE_SIDE_BET", payload)) return false;
+        return sender("PROPOSE_SIDE_BET", payload);
+      },
+      dispatchRespondSideBet: ({ tableId, interactionId, accept }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = { interactionId, accept, clientRequestId: nanoid(12) };
+        if (!isValidTableInbound("RESPOND_SIDE_BET", payload)) return false;
+        return sender("RESPOND_SIDE_BET", payload);
+      },
+      dispatchCancelSideBet: ({ tableId, interactionId }): boolean => {
+        const sender = get().tableSenders[tableId];
+        if (!sender) return false;
+        const payload = { interactionId, clientRequestId: nanoid(12) };
+        if (!isValidTableInbound("CANCEL_SIDE_BET", payload)) return false;
+        return sender("CANCEL_SIDE_BET", payload);
       },
       dispatchListBots: ({ tableId }): boolean => {
         const sender = get().tableSenders[tableId];

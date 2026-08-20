@@ -646,6 +646,18 @@ export class SettlementService {
       })),
     });
 
+    // Fast path for any ACTIVE side bets scoped to this hand (docs/GIFTS_AND_SIDE_BETS_DESIGN.md
+    // §5.3/§5.4) — resolved right after Hand/HandPayout are persisted, since resolution reads only
+    // that data. Idempotent and best-effort: the reconciliation sweep is the actual durability
+    // guarantee if this throws or the process dies before it runs, so a failure here must not take
+    // down hand settlement itself.
+    try {
+      const { PlayerInteractionService } = await import("../../economy/PlayerInteractionService.js");
+      await PlayerInteractionService.resolveSideBetsForHand(state.tableId, state.handId);
+    } catch (err: unknown) {
+      logger.error({ err, tableId: state.tableId, handId: state.handId }, "SIDE_BET_HAND_END_RESOLVE_FAILED");
+    }
+
     if (!persistence.botStats) return;
 
     const dealtBotIds: string[] = [];

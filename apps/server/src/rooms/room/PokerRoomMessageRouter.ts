@@ -5,6 +5,10 @@ import {
   ChatPayloadSchema,
   RemoveBotPayloadSchema,
   SendGiftPayloadSchema,
+  ProposeSideBetPayloadSchema,
+  RespondSideBetPayloadSchema,
+  CancelSideBetPayloadSchema,
+  SIDE_BET_CATALOG_BY_KEY,
   TableInboundMessageSchema,
 } from "@poker-champ/realtime-contract";
 import { ActionPayloadSchema } from "@poker-champ/realtime-contract";
@@ -17,6 +21,18 @@ import { dealerRuntimeMetrics } from "../../engine/dealer/metrics/dealerRuntimeM
 import {
   GIFT_CATALOG_KEY_UNKNOWN,
   GIFT_RECIPIENT_INVALID,
+  DAILY_PAIR_CAP_EXCEEDED,
+  SIDE_BET_CATALOG_KEY_UNKNOWN,
+  SIDE_BET_RECIPIENT_INVALID,
+  SIDE_BET_STAKE_OUT_OF_BOUNDS,
+  SIDE_BET_SUBJECTS_REQUIRED,
+  SIDE_BET_SUBJECTS_INVALID,
+  SIDE_BET_PREDICTION_REQUIRED,
+  SIDE_BET_PREDICTION_INVALID,
+  SIDE_BET_NO_ACTIVE_HAND,
+  SIDE_BET_NOT_FOUND,
+  SIDE_BET_NOT_INITIATOR,
+  SIDE_BET_NOT_RECIPIENT,
   PlayerInteractionService,
 } from "../../engine/economy/PlayerInteractionService.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
@@ -28,6 +44,24 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
     private readonly ctx: PokerRoomContext,
     private readonly session: PokerRoomSessionManager,
   ) {}
+
+  /** True if this seated user is currently dealt into the hand in progress (has cards live,
+   *  win or fold). Used to enforce "no own-hand side bets" (docs/GIFTS_AND_SIDE_BETS_DESIGN.md
+   *  §9/§10) — the router owns this check because it needs live game state, which
+   *  PlayerInteractionService (DB-only) doesn't have access to. */
+  private isDealtIntoCurrentHand(userId: string): boolean {
+    const player = this.ctx.state.playersById.get(userId);
+    return !!player && (player.status === "ACTIVE" || player.status === "FOLDED" || player.status === "ALL_IN");
+  }
+
+  private sendToUserId(userId: string, type: string, payload: unknown): void {
+    const room = this.ctx.room;
+    for (const c of room.clients) {
+      if (this.session.getUserIdForSession(c.sessionId) === userId) {
+        room.sendTableMessageInternal(c, type, payload);
+      }
+    }
+  }
 
   private assertHeroCanAct(userId: string): void {
     assertNotTournamentTableSpectator({
@@ -257,6 +291,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
           recipientId: recipientUserId,
           tableId: this.ctx.state.tableId,
           catalogKey,
+          bigBlindCents: this.ctx.state.bigBlindCents,
           clientRequestId,
         });
         const payload = {
@@ -268,9 +303,192 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code =
-          message === "INSUFFICIENT_BANKROLL" || message === GIFT_CATALOG_KEY_UNKNOWN || message === GIFT_RECIPIENT_INVALID
+          message === "INSUFFICIENT_BANKROLL" ||
+          message === GIFT_CATALOG_KEY_UNKNOWN ||
+          message === GIFT_RECIPIENT_INVALID ||
+          message === DAILY_PAIR_CAP_EXCEEDED
             ? message
             : "SEND_GIFT_FAILED";
+        room.sendTableMessageInternal(client, "ERROR", { code, message });
+      }
+    });
+
+    const sideBetErrorCodes = new Set<string>([
+      "INSUFFICIENT_BANKROLL",
+      DAILY_PAIR_CAP_EXCEEDED,
+      SIDE_BET_CATALOG_KEY_UNKNOWN,
+      SIDE_BET_RECIPIENT_INVALID,
+      SIDE_BET_STAKE_OUT_OF_BOUNDS,
+      SIDE_BET_SUBJECTS_REQUIRED,
+      SIDE_BET_SUBJECTS_INVALID,
+      SIDE_BET_PREDICTION_REQUIRED,
+      SIDE_BET_PREDICTION_INVALID,
+      SIDE_BET_NO_ACTIVE_HAND,
+      SIDE_BET_NOT_FOUND,
+      SIDE_BET_NOT_INITIATOR,
+      SIDE_BET_NOT_RECIPIENT,
+    ]);
+
+    room.onMessage("PROPOSE_SIDE_BET", async (client: Client, message: unknown) => {
+      if (room.isChatRateLimitedInternal(client.sessionId)) {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many side bet offers. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
+      room.touchActivityInternal();
+      const parsed = ProposeSideBetPayloadSchema.safeParse(message);
+      if (!parsed.success) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      const userId = this.session.getUserIdForSession(client.sessionId);
+      if (!userId) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to propose a side bet." });
+        return;
+      }
+      if (!this.session.isActiveBoundClient(userId, client)) return;
+      const initiator = room.getPlayerByUserIdInternal(userId);
+      if (!initiator || initiator.kind === "BOT") {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to propose a side bet." });
+        return;
+      }
+
+      const { recipientUserId, catalogKey, stakeCents, subjectUserIds, predictedSubjectUserId, clientRequestId } = parsed.data;
+      if (recipientUserId === userId) {
+        room.sendTableMessageInternal(client, "ERROR", { code: SIDE_BET_RECIPIENT_INVALID, message: "You cannot propose a side bet to yourself." });
+        return;
+      }
+      const recipient = room.getPlayerByUserIdInternal(recipientUserId);
+      if (!recipient || recipient.kind === "BOT") {
+        room.sendTableMessageInternal(client, "ERROR", { code: SIDE_BET_RECIPIENT_INVALID, message: "Recipient must be seated at this table." });
+        return;
+      }
+
+      const handId = this.ctx.state.handId;
+      if (!handId || this.ctx.state.street === "WAITING") {
+        room.sendTableMessageInternal(client, "ERROR", { code: SIDE_BET_NO_ACTIVE_HAND, message: "No hand in progress to bet on." });
+        return;
+      }
+
+      const entry = SIDE_BET_CATALOG_BY_KEY.get(catalogKey);
+      if (entry?.requiresSubjects) {
+        if (!subjectUserIds || !this.isDealtIntoCurrentHand(subjectUserIds[0]) || !this.isDealtIntoCurrentHand(subjectUserIds[1])) {
+          room.sendTableMessageInternal(client, "ERROR", {
+            code: SIDE_BET_SUBJECTS_INVALID,
+            message: "Both subjects must be currently dealt into the hand.",
+          });
+          return;
+        }
+      }
+
+      try {
+        const result = await PlayerInteractionService.proposeSideBet({
+          initiatorId: userId,
+          recipientId: recipientUserId,
+          tableId: this.ctx.state.tableId,
+          handId,
+          catalogKey,
+          stakeCents,
+          bigBlindCents: this.ctx.state.bigBlindCents,
+          subjectUserIds,
+          predictedSubjectUserId,
+          clientRequestId,
+        });
+        const subjectNames = subjectUserIds
+          ? ([
+              room.getPlayerByUserIdInternal(subjectUserIds[0])?.name ?? "player",
+              room.getPlayerByUserIdInternal(subjectUserIds[1])?.name ?? "player",
+            ] as [string, string])
+          : undefined;
+        const payload = {
+          ...result,
+          initiatorName: initiator.name || `player_${userId.slice(0, 6)}`,
+          subjectNames,
+        };
+        this.sendToUserId(userId, "SIDE_BET_OFFER", payload);
+        this.sendToUserId(recipientUserId, "SIDE_BET_OFFER", payload);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const code = sideBetErrorCodes.has(message) ? message : "PROPOSE_SIDE_BET_FAILED";
+        room.sendTableMessageInternal(client, "ERROR", { code, message });
+      }
+    });
+
+    room.onMessage("RESPOND_SIDE_BET", async (client: Client, message: unknown) => {
+      if (room.isChatRateLimitedInternal(client.sessionId)) {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many side bet responses. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
+      room.touchActivityInternal();
+      const parsed = RespondSideBetPayloadSchema.safeParse(message);
+      if (!parsed.success) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      const userId = this.session.getUserIdForSession(client.sessionId);
+      if (!userId) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to respond to a side bet." });
+        return;
+      }
+      if (!this.session.isActiveBoundClient(userId, client)) return;
+
+      const { interactionId, accept, clientRequestId } = parsed.data;
+      try {
+        const result = await PlayerInteractionService.respondSideBet({
+          interactionId,
+          recipientId: userId,
+          accept,
+          bigBlindCents: this.ctx.state.bigBlindCents,
+          clientRequestId,
+        });
+        const payload = { interactionId: result.interactionId, status: result.status };
+        this.sendToUserId(result.initiatorId, "SIDE_BET_UPDATE", payload);
+        this.sendToUserId(result.recipientId, "SIDE_BET_UPDATE", payload);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const code = sideBetErrorCodes.has(message) ? message : "RESPOND_SIDE_BET_FAILED";
+        room.sendTableMessageInternal(client, "ERROR", { code, message });
+      }
+    });
+
+    room.onMessage("CANCEL_SIDE_BET", async (client: Client, message: unknown) => {
+      if (room.isChatRateLimitedInternal(client.sessionId)) {
+        room.sendTableMessageInternal(client, "ERROR", {
+          code: "RATE_LIMITED",
+          message: "Too many requests. Slow down.",
+          retryAfterSeconds: 2,
+        });
+        return;
+      }
+      room.touchActivityInternal();
+      const parsed = CancelSideBetPayloadSchema.safeParse(message);
+      if (!parsed.success) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "BAD_MESSAGE", details: parsed.error.flatten() });
+        return;
+      }
+      const userId = this.session.getUserIdForSession(client.sessionId);
+      if (!userId) {
+        room.sendTableMessageInternal(client, "ERROR", { code: "UNAUTHORIZED", message: "Must be seated to cancel a side bet." });
+        return;
+      }
+      if (!this.session.isActiveBoundClient(userId, client)) return;
+
+      const { interactionId, clientRequestId } = parsed.data;
+      try {
+        const result = await PlayerInteractionService.cancelSideBet({ interactionId, initiatorId: userId, clientRequestId });
+        const payload = { interactionId: result.interactionId, status: result.status };
+        this.sendToUserId(result.initiatorId, "SIDE_BET_UPDATE", payload);
+        this.sendToUserId(result.recipientId, "SIDE_BET_UPDATE", payload);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        const code = sideBetErrorCodes.has(message) ? message : "CANCEL_SIDE_BET_FAILED";
         room.sendTableMessageInternal(client, "ERROR", { code, message });
       }
     });

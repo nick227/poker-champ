@@ -3,6 +3,9 @@ import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
 import { HandHistorySheet } from "@/components/domain/history/HandHistorySheet";
 import { GiftToast } from "@/components/domain/interactions/GiftToast";
+import { SideBetOfferBanner } from "@/components/domain/interactions/SideBetOfferBanner";
+import { SideBetResolvedToast } from "@/components/domain/interactions/SideBetResolvedToast";
+import { ActiveSideBetsStrip } from "@/components/domain/interactions/ActiveSideBetsStrip";
 import { ActiveTablesDropdown } from "@/features/table";
 import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
@@ -35,6 +38,13 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
       />
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       <GiftToast gifts={renderModel.giftFeed} />
+      <SideBetResolvedToast sideBets={renderModel.sideBets} heroUserId={renderModel.heroUserId} />
+      <SideBetOfferBanner
+        sideBets={renderModel.sideBets}
+        heroUserId={renderModel.heroUserId}
+        onRespond={(interactionId, accept) => actions.respondSideBet({ interactionId, accept })}
+      />
+      <ActiveSideBetsStrip sideBets={renderModel.sideBets} heroUserId={renderModel.heroUserId} onCancel={actions.cancelSideBet} />
       {uiState.playerPopup && (
         <PlayerHistoryPopup
           visible
@@ -43,6 +53,13 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
           userId={uiState.playerPopup.userId}
           onSendGift={(catalogKey) =>
             actions.sendGift({ recipientUserId: uiState.playerPopup!.userId, catalogKey })
+          }
+          bigBlindCents={renderModel.bigBlindCents}
+          availableSubjects={renderModel.opponents
+            .filter((o) => !o.isBot && o.id !== renderModel.heroUserId && o.id !== uiState.playerPopup!.userId)
+            .map((o) => ({ userId: o.id, name: o.name }))}
+          onProposeSideBet={(input) =>
+            actions.proposeSideBet({ recipientUserId: uiState.playerPopup!.userId, ...input })
           }
         />
       )}

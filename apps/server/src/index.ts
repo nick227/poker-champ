@@ -26,6 +26,7 @@ import { MonetizationRouter } from "./http/MonetizationRouter.js";
 import { handleStripeWebhook, checkForStuckStripeEvents } from "./http/webhooks/stripe.js";
 import { openApiSpec } from "./http/openapi.js";
 import { RecoveryService } from "./engine/recovery/RecoveryService.js";
+import { PlayerInteractionService } from "./engine/economy/PlayerInteractionService.js";
 import { recomputeLeaderboardSafely } from "./engine/persistence/LeaderboardAggregationService.js";
 import { loadEnv } from "./config/env.js";
 import { isLeaderboardEnabled, isLessonsV1Enabled } from "./config/features.js";
@@ -231,6 +232,7 @@ let tournamentDirectorInterval: NodeJS.Timeout | null = null;
 let leaderboardInterval: NodeJS.Timeout | null = null;
 let eventLoopLagInterval: NodeJS.Timeout | null = null;
 let memoryLogInterval: NodeJS.Timeout | null = null;
+let sideBetSweepInterval: NodeJS.Timeout | null = null;
 let shuttingDown = false;
 
 async function shutdown(reason: string, exitCode: number = 0) {
@@ -264,6 +266,10 @@ async function shutdown(reason: string, exitCode: number = 0) {
   if (eventLoopLagInterval) {
     clearInterval(eventLoopLagInterval);
     eventLoopLagInterval = null;
+  }
+  if (sideBetSweepInterval) {
+    clearInterval(sideBetSweepInterval);
+    sideBetSweepInterval = null;
   }
   if (memoryLogInterval) {
     clearInterval(memoryLogInterval);
@@ -311,6 +317,15 @@ async function start() {
       logger.error({ err }, "Periodic StripeEvent stuck-claim check failed");
     });
   }, 30 * 60 * 1000);
+
+  // Side-bet reconciliation sweep (docs/GIFTS_AND_SIDE_BETS_DESIGN.md §5.4) — the durability
+  // backstop for ACTIVE bets whose hand-end hook never ran (process restart, throw, etc.) and
+  // for auto-expiring PENDING offers past their 30s TTL. Not tied to any specific room process.
+  sideBetSweepInterval = setInterval(() => {
+    PlayerInteractionService.sweepStaleSideBets().catch((err) => {
+      logger.error({ err }, "Periodic side-bet sweep failed");
+    });
+  }, 30 * 1000);
 
   const tournamentPollMs = Number(process.env.TOURNAMENT_DIRECTOR_POLL_MS ?? "30000");
   if (Number.isFinite(tournamentPollMs) && tournamentPollMs >= 5000) {

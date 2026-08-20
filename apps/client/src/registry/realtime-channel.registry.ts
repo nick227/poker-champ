@@ -1,12 +1,16 @@
 import { isValidLobbyOutbound, isValidTableOutbound } from "@/realtime/contract.guards";
 import { useBankrollStore } from "@/stores/bankroll.store";
 import { useProfileStore } from "@/stores/profile.store";
+import { useTableStore } from "@/features/table/stores/table.store";
 import type {
   TableSnapshotPayload,
   ChatMessagePayload,
   OnlinePlayerSummary,
   BotSummary,
   GiftReceivedPayload,
+  SideBetOfferPayload,
+  SideBetUpdatePayload,
+  SideBetResolvedPayload,
 } from "@poker-champ/realtime-contract";
 
 export type RealtimeScope = "lobby" | "table";
@@ -145,6 +149,37 @@ const realtimeChannelByScope: ScopeRegistryMap = {
       const p = payload as { bots?: BotSummary[] };
       if (!context.tableId) return;
       context.onBotsList?.(context.tableId, Array.isArray(p?.bots) ? p.bots : []);
+    },
+    SIDE_BET_OFFER: (payload, context) => {
+      if (!context.tableId) return;
+      const p = payload as SideBetOfferPayload;
+      if (!p?.interactionId) return;
+      useTableStore.getState().upsertSideBetOffer(context.tableId, p);
+    },
+    SIDE_BET_UPDATE: (payload, context) => {
+      if (!context.tableId) return;
+      const p = payload as SideBetUpdatePayload;
+      if (!p?.interactionId) return;
+      useTableStore.getState().updateSideBetStatus(context.tableId, p);
+    },
+    SIDE_BET_RESOLVED: (payload, context) => {
+      if (!context.tableId) return;
+      const p = payload as SideBetResolvedPayload;
+      if (!p?.interactionId) return;
+      const before = useTableStore.getState().sideBetsByTableId[context.tableId]?.[p.interactionId];
+      useTableStore.getState().resolveSideBet(context.tableId, p);
+
+      // Same rationale as GIFT_RECEIVED above: the payout already happened server-side
+      // (PlayerInteractionService.resolveSideBetsForHand) — this only keeps the header wallet
+      // display in sync. payoutCents is 0 for a VOIDED bet, so this is a safe no-op there.
+      const myUserId = useProfileStore.getState().profile.userId;
+      if (myUserId && before && typeof p?.payoutCents === "number" && p.payoutCents > 0) {
+        if (p.winnerId === myUserId) {
+          useBankrollStore.getState().applyDelta(p.payoutCents);
+        } else if (myUserId === before.initiatorUserId || myUserId === before.recipientUserId) {
+          useBankrollStore.getState().applyDelta(-p.payoutCents);
+        }
+      }
     },
   },
 };

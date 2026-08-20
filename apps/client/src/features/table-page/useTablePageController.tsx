@@ -146,6 +146,9 @@ export function useTablePageController({
     dispatchTableAction,
     dispatchSendChat,
     dispatchSendGift,
+    dispatchProposeSideBet,
+    dispatchRespondSideBet,
+    dispatchCancelSideBet,
     dispatchListBots,
     dispatchRejoin,
     dispatchJoinTable,
@@ -158,6 +161,7 @@ export function useTablePageController({
     snapshotsByTableId,
     chatMessagesForTable,
     giftFeedForTable,
+    sideBetsForTable,
     botSummariesForTable,
     botSummariesUpdatedAtForTable,
     connectionStatusForTable,
@@ -1022,6 +1026,27 @@ export function useTablePageController({
     [tableId, dispatchSendGift],
   );
 
+  const proposeSideBet = useCallback(
+    (input: {
+      recipientUserId: string;
+      catalogKey: string;
+      stakeCents: number;
+      subjectUserIds?: [string, string];
+      predictedSubjectUserId?: string;
+    }) => dispatchProposeSideBet({ tableId, ...input }),
+    [tableId, dispatchProposeSideBet],
+  );
+
+  const respondSideBet = useCallback(
+    (input: { interactionId: string; accept: boolean }) => dispatchRespondSideBet({ tableId, ...input }),
+    [tableId, dispatchRespondSideBet],
+  );
+
+  const cancelSideBet = useCallback(
+    (interactionId: string) => dispatchCancelSideBet({ tableId, interactionId }),
+    [tableId, dispatchCancelSideBet],
+  );
+
   useEffect(() => {
     const pending = pendingRemoveBotIdRef.current;
     if (pending == null) return;
@@ -1167,6 +1192,9 @@ export function useTablePageController({
       displayEvents,
       pendingAction: pendingActionForTable,
       giftFeed: giftFeedForTable,
+      sideBets: sideBetsForTable,
+      bigBlindCents: snapshot?.table?.bigBlindCents,
+      heroUserId,
       canRebuy,
       leaveTournamentBusy,
       tableTopBarRight,
@@ -1217,6 +1245,9 @@ export function useTablePageController({
       closePlayerPopup: () => setPlayerPopup(null),
       onPlayerPress,
       sendGift,
+      proposeSideBet,
+      respondSideBet,
+      cancelSideBet,
       openAddBotPicker: handleAddBotPress,
       pickBot: handleBotPick,
       sendAction,

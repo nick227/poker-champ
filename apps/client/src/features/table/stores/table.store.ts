@@ -1,13 +1,41 @@
 import { create } from "zustand";
-import type { TableSnapshotPayload, ChatMessagePayload, BotSummary, GiftReceivedPayload } from "@poker-champ/realtime-contract";
+import type {
+  TableSnapshotPayload,
+  ChatMessagePayload,
+  BotSummary,
+  GiftReceivedPayload,
+  SideBetOfferPayload,
+  SideBetUpdatePayload,
+  SideBetResolvedPayload,
+} from "@poker-champ/realtime-contract";
 
 const CHAT_MESSAGES_CAP = 100;
 const GIFT_FEED_CAP = 20;
+
+export type SideBetStatus = "PENDING" | "ACTIVE" | "DECLINED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "VOIDED";
+
+export type SideBetEntry = {
+  interactionId: string;
+  status: SideBetStatus;
+  initiatorUserId: string;
+  initiatorName?: string;
+  recipientUserId: string;
+  catalogKey: string;
+  stakeCents: number;
+  subjectUserIds?: [string, string];
+  subjectNames?: [string, string];
+  predictedSubjectUserId?: string;
+  expiresAt?: number;
+  winnerId?: string | null;
+  payoutCents?: number;
+  resolutionNote?: string;
+};
 
 type TableStoreState = {
   snapshotsByTableId: Record<string, TableSnapshotPayload | undefined>;
   chatMessagesByTableId: Record<string, ChatMessagePayload[]>;
   giftFeedByTableId: Record<string, GiftReceivedPayload[]>;
+  sideBetsByTableId: Record<string, Record<string, SideBetEntry>>;
   botSummariesByTableId: Record<string, BotSummary[]>;
   botSummariesUpdatedAtByTableId: Record<string, number>;
   lastSeqByTableId: Record<string, number>;
@@ -26,6 +54,9 @@ type TableStoreState = {
   resetSnapshotStream: (tableId: string) => void;
   appendChatMessage: (tableId: string, message: ChatMessagePayload) => void;
   appendGiftEvent: (tableId: string, gift: GiftReceivedPayload) => void;
+  upsertSideBetOffer: (tableId: string, offer: SideBetOfferPayload) => void;
+  updateSideBetStatus: (tableId: string, update: SideBetUpdatePayload) => void;
+  resolveSideBet: (tableId: string, resolved: SideBetResolvedPayload) => void;
   setBotSummaries: (tableId: string, bots: BotSummary[]) => void;
   setConnectionStatus: (tableId: string, status: "CONNECTED" | "RECONNECTING" | "DISCONNECTED") => void;
   clearConnectionStatus: (tableId: string) => void;
@@ -41,6 +72,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
   snapshotsByTableId: {},
   chatMessagesByTableId: {},
   giftFeedByTableId: {},
+  sideBetsByTableId: {},
   botSummariesByTableId: {},
   botSummariesUpdatedAtByTableId: {},
   lastSeqByTableId: {},
@@ -87,6 +119,55 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       if (list.some((g) => g.interactionId === gift.interactionId)) return s;
       const next = [...list, gift].slice(-GIFT_FEED_CAP);
       return { giftFeedByTableId: { ...s.giftFeedByTableId, [tableId]: next } };
+    }),
+  upsertSideBetOffer: (tableId, offer) =>
+    set((s) => {
+      const forTable = s.sideBetsByTableId[tableId] ?? {};
+      const entry: SideBetEntry = {
+        interactionId: offer.interactionId,
+        status: "PENDING",
+        initiatorUserId: offer.initiatorUserId,
+        initiatorName: offer.initiatorName,
+        recipientUserId: offer.recipientUserId,
+        catalogKey: offer.catalogKey,
+        stakeCents: offer.stakeCents,
+        subjectUserIds: offer.subjectUserIds,
+        subjectNames: offer.subjectNames,
+        predictedSubjectUserId: offer.predictedSubjectUserId,
+        expiresAt: offer.expiresAt,
+      };
+      return { sideBetsByTableId: { ...s.sideBetsByTableId, [tableId]: { ...forTable, [offer.interactionId]: entry } } };
+    }),
+  updateSideBetStatus: (tableId, update) =>
+    set((s) => {
+      const forTable = s.sideBetsByTableId[tableId] ?? {};
+      const existing = forTable[update.interactionId];
+      if (!existing) return s;
+      return {
+        sideBetsByTableId: {
+          ...s.sideBetsByTableId,
+          [tableId]: { ...forTable, [update.interactionId]: { ...existing, status: update.status } },
+        },
+      };
+    }),
+  resolveSideBet: (tableId, resolved) =>
+    set((s) => {
+      const forTable = s.sideBetsByTableId[tableId] ?? {};
+      const existing = forTable[resolved.interactionId];
+      const entry: SideBetEntry = existing
+        ? { ...existing, status: "COMPLETED", winnerId: resolved.winnerId, payoutCents: resolved.payoutCents, resolutionNote: resolved.resolutionNote }
+        : {
+            interactionId: resolved.interactionId,
+            status: "COMPLETED",
+            initiatorUserId: "",
+            recipientUserId: "",
+            catalogKey: resolved.catalogKey,
+            stakeCents: 0,
+            winnerId: resolved.winnerId,
+            payoutCents: resolved.payoutCents,
+            resolutionNote: resolved.resolutionNote,
+          };
+      return { sideBetsByTableId: { ...s.sideBetsByTableId, [tableId]: { ...forTable, [resolved.interactionId]: entry } } };
     }),
   setBotSummaries: (tableId, bots) =>
     set((s) => ({
@@ -207,6 +288,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
       const { [tableId]: _chat, ...chatMessagesByTableId } = s.chatMessagesByTableId;
       const { [tableId]: _gifts, ...giftFeedByTableId } = s.giftFeedByTableId;
+      const { [tableId]: _sideBets, ...sideBetsByTableId } = s.sideBetsByTableId;
       const { [tableId]: _bots, ...botSummariesByTableId } = s.botSummariesByTableId;
       const { [tableId]: _botsAt, ...botSummariesUpdatedAtByTableId } = s.botSummariesUpdatedAtByTableId;
       const { [tableId]: _status, ...statusByTableId } = s.statusByTableId;
@@ -219,6 +301,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         snapshotsByTableId,
         chatMessagesByTableId,
         giftFeedByTableId,
+        sideBetsByTableId,
         botSummariesByTableId,
         botSummariesUpdatedAtByTableId,
         statusByTableId,

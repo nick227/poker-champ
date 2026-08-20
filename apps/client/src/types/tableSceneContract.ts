@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { TableSnapshotPayload, BotSummary, GiftReceivedPayload } from "@poker-champ/realtime-contract";
+import type { SideBetEntry } from "@/features/table/stores/table.store";
 import type { TableSceneModel } from "@/features/table";
 import type { TableSceneMode } from "@/features/table";
 import type { TableLoadPhase } from "@/lib/tableLoadPhase";
@@ -59,6 +60,9 @@ export type TablePageController = {
     displayEvents: TableDisplayEvents;
     pendingAction?: PendingAction;
     giftFeed: GiftReceivedPayload[];
+    sideBets: Record<string, SideBetEntry>;
+    bigBlindCents?: number;
+    heroUserId?: string;
     canRebuy: boolean;
     leaveTournamentBusy: boolean;
     tableTopBarRight: ReactNode;
@@ -110,6 +114,15 @@ export type TablePageController = {
     closePlayerPopup: () => void;
     onPlayerPress: (opponent: Opponent) => void;
     sendGift: (input: { recipientUserId: string; catalogKey: string }) => boolean;
+    proposeSideBet: (input: {
+      recipientUserId: string;
+      catalogKey: string;
+      stakeCents: number;
+      subjectUserIds?: [string, string];
+      predictedSubjectUserId?: string;
+    }) => boolean;
+    respondSideBet: (input: { interactionId: string; accept: boolean }) => boolean;
+    cancelSideBet: (interactionId: string) => boolean;
     openAddBotPicker: () => void;
     pickBot: (botId: string) => void;
     sendAction: (payload: { type: TableAction; amount?: number }) => boolean;
