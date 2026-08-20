@@ -136,18 +136,17 @@ export function SeatInteractionSheet({
           <View className="ui-stack-3" style={{ flex: 1, minHeight: 0 }}>
             <BackRow to="menu" />
             <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-              <View className="ui-row-wrap ui-inline-2">
+              <View className="ui-stack-2">
                 {GIFT_CATALOG.map((entry: GiftCatalogEntry) => (
                   <Pressable
                     key={entry.id}
                     onPress={() => handleSendGift(entry.id)}
-                    className="ui-surface px-3 py-2 items-center"
-                    style={{ width: 84 }}
+                    className="ui-surface px-3 py-2 ui-row items-center justify-between"
                   >
-                    <Text variant="h2">{entry.emoji}</Text>
-                    <Text variant="label" numberOfLines={1}>
-                      {entry.label}
-                    </Text>
+                    <View className="ui-row items-center ui-inline-2">
+                      <Text variant="h2">{entry.emoji}</Text>
+                      <Text variant="label">{entry.label}</Text>
+                    </View>
                     <Text variant="muted">{formatCents(entry.costCents)}</Text>
                   </Pressable>
                 ))}
