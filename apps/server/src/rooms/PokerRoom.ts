@@ -1113,7 +1113,7 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
     return this.normalizeActionPayload(payload);
   }
 
-  getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string } | null {
+  getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string; botId: string } | null {
     return this.getPlayerByUserId(userId);
   }
 
@@ -1773,9 +1773,9 @@ export class PokerRoom extends Room<{ state: PokerState; metadata: PokerRoomMeta
    * @param userId - The user ID to search for
    * @returns Player info or null if user not found
    */
-  private getPlayerByUserId(userId: string): { id: string; kind: string; name: string } | null {
+  private getPlayerByUserId(userId: string): { id: string; kind: string; name: string; botId: string } | null {
     for (const player of this.state.playersById.values()) {
-      if (player.id === userId) return { id: player.id, kind: player.kind, name: player.name };
+      if (player.id === userId) return { id: player.id, kind: player.kind, name: player.name, botId: player.botId };
     }
     return null;
   }
