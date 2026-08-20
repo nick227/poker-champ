@@ -35,7 +35,7 @@ import {
   SIDE_BET_NOT_RECIPIENT,
   PlayerInteractionService,
 } from "../../engine/economy/PlayerInteractionService.js";
-import { ensureCashTableBotUser, getCashTableBotUserId } from "../../engine/economy/botInteractionUsers.js";
+import { ensureCashTableBotUser } from "../../engine/economy/botInteractionUsers.js";
 import { logger } from "../../lib/logger.js";
 import type { PokerRoomSessionManager } from "./PokerRoomSessionManager.js";
 import type { PokerRoomContext, PokerRoomMessageRouterContract } from "./types/PokerRoomTypes.js";
@@ -79,29 +79,15 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
 
   /** A bot recipient can't click Accept/Decline — respond immediately through the exact
    *  same path (respondSideBetAndBroadcast) a real response would use, with a simple
-   *  coin-flip decision. Not meant to be a "smart" bot, just unblock the flow.
-   *  `economicRecipientId` is the bot's durable getCashTableBotUserId(...) id — the same
-   *  one the PlayerInteraction row was created with — not the live seat id. */
-  private async triggerBotSideBetResponse(interactionId: string, economicRecipientId: string): Promise<void> {
+   *  coin-flip decision. Not meant to be a "smart" bot, just unblock the flow. */
+  private async triggerBotSideBetResponse(interactionId: string, botId: string): Promise<void> {
     const accept = Math.random() < 0.5;
     await this.respondSideBetAndBroadcast({
       interactionId,
-      recipientId: economicRecipientId,
+      recipientId: botId,
       accept,
       clientRequestId: `bot_auto_${nanoid(12)}`,
     });
-  }
-
-  /** For a bot recipient, ensures its durable economic User row exists — keyed by the
-   *  stable CATALOG id (player.botId), never the ephemeral runtime seat id (player.id,
-   *  regenerated on every "Add bot") — and returns that id. For a human, the live seat id
-   *  already IS their real userId; returned unchanged. This is the one place a bot's
-   *  seat identity gets translated into its money identity — every Gift/Side Bet call site
-   *  must go through here rather than passing recipient.id straight through. */
-  private async resolveEconomicRecipientId(recipient: { id: string; kind: string; name: string; botId: string }): Promise<string> {
-    if (recipient.kind !== "BOT") return recipient.id;
-    await ensureCashTableBotUser(recipient.botId, recipient.name);
-    return getCashTableBotUserId(recipient.botId);
   }
 
   private sendToUserId(userId: string, type: string, payload: unknown): void {
@@ -336,10 +322,12 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
 
       try {
-        const economicRecipientId = await this.resolveEconomicRecipientId(recipient);
+        if (recipient.kind === "BOT") {
+          await ensureCashTableBotUser(recipient.id, recipient.name);
+        }
         const result = await PlayerInteractionService.sendGift({
           initiatorId: userId,
-          recipientId: economicRecipientId,
+          recipientId: recipientUserId,
           tableId: this.ctx.state.tableId,
           catalogKey,
           bigBlindCents: this.ctx.state.bigBlindCents,
@@ -436,10 +424,12 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
       }
 
       try {
-        const economicRecipientId = await this.resolveEconomicRecipientId(recipient);
+        if (recipient.kind === "BOT") {
+          await ensureCashTableBotUser(recipient.id, recipient.name);
+        }
         const result = await PlayerInteractionService.proposeSideBet({
           initiatorId: userId,
-          recipientId: economicRecipientId,
+          recipientId: recipientUserId,
           tableId: this.ctx.state.tableId,
           handId,
           catalogKey,
@@ -469,8 +459,8 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         // the propose flow — the offer just sits PENDING and gets caught by the 30s TTL sweep,
         // same as any other unresolved offer.
         if (recipient.kind === "BOT") {
-          this.triggerBotSideBetResponse(result.interactionId, economicRecipientId).catch((err: unknown) => {
-            logger.error({ err, interactionId: result.interactionId, economicRecipientId }, "BOT_SIDE_BET_AUTO_RESPONSE_FAILED");
+          this.triggerBotSideBetResponse(result.interactionId, recipient.id).catch((err: unknown) => {
+            logger.error({ err, interactionId: result.interactionId, botId: recipient.id }, "BOT_SIDE_BET_AUTO_RESPONSE_FAILED");
           });
         }
       } catch (err: unknown) {

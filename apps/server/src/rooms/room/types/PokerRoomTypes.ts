@@ -123,7 +123,7 @@ export interface PokerRoomFacade {
   updateMetadataCountsInternal(): void;
   maybeStartPendingInstantGameSeedInternal(): void;
   normalizeActionPayloadInternal(payload: unknown): { payload: unknown; actionId: string; handId?: string } | null;
-  getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string; botId: string } | null;
+  getPlayerByUserIdInternal(userId: string): { id: string; kind: string; name: string } | null;
   getPlayerStackCentsInternal(userId: string): number;
   findPlayerSeatInternal(userId: string): number | null;
   withJoinLockInternal(key: string, fn: () => Promise<void>): Promise<void>;
