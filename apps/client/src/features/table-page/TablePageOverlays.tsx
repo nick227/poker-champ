@@ -5,6 +5,7 @@ import { HandHistorySheet } from "@/components/domain/history/HandHistorySheet";
 import { GiftToast } from "@/components/domain/interactions/GiftToast";
 import { SideBetOfferBanner } from "@/components/domain/interactions/SideBetOfferBanner";
 import { SideBetResolvedToast } from "@/components/domain/interactions/SideBetResolvedToast";
+import { SideBetStatusToast } from "@/components/domain/interactions/SideBetStatusToast";
 import { ActiveSideBetsStrip } from "@/components/domain/interactions/ActiveSideBetsStrip";
 import { SeatInteractionSheet } from "@/components/domain/interactions/SeatInteractionSheet";
 import { ActiveTablesDropdown } from "@/features/table";
@@ -40,6 +41,7 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       <GiftToast gifts={renderModel.giftFeed} />
       <SideBetResolvedToast sideBets={renderModel.sideBets} heroUserId={renderModel.heroUserId} />
+      <SideBetStatusToast sideBets={renderModel.sideBets} heroUserId={renderModel.heroUserId} />
       <SideBetOfferBanner
         sideBets={renderModel.sideBets}
         heroUserId={renderModel.heroUserId}

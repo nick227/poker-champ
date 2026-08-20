@@ -1,6 +1,11 @@
 import { getPrisma } from "@poker-champ/db";
 import { matchMaker } from "@colyseus/core";
-import { GIFT_CATALOG_BY_KEY, SIDE_BET_CATALOG_BY_KEY } from "@poker-champ/realtime-contract";
+import {
+  GIFT_CATALOG_BY_KEY,
+  SIDE_BET_CATALOG_BY_KEY,
+  sideBetMinStakeCents,
+  sideBetMaxStakeCents,
+} from "@poker-champ/realtime-contract";
 import type { SideBetCatalogEntry } from "@poker-champ/realtime-contract";
 import { CashierService } from "./CashierService.js";
 import { evaluateSideBetCondition, type ResolvableHand } from "./SideBetConditionEvaluator.js";
@@ -23,6 +28,10 @@ export const SIDE_BET_NOT_RECIPIENT = "SIDE_BET_NOT_RECIPIENT" as const;
 
 /** §12: 20 BB-equivalent per ordered pair per rolling 24h, gifts + side-bet stakes combined. */
 const DAILY_PAIR_CAP_BIG_BLINDS = 20;
+/** Same floor rationale as SIDE_BET_MAX_STAKE_FLOOR_CENTS — on a penny-stakes table, 20 BB is
+ *  only 20 cents, which would make the per-pair cap bind before a single $1-ceiling side bet
+ *  could ever be placed. Floored so the two limits stay coherent with each other. */
+const DAILY_PAIR_CAP_FLOOR_CENTS = 500;
 
 export type SendGiftResult = {
   interactionId: string;
@@ -107,7 +116,7 @@ export class PlayerInteractionService {
       select: { stakeCents: true },
     });
     const priorTotal = rows.reduce((sum: number, r: { stakeCents: number }) => sum + r.stakeCents, 0);
-    const capCents = DAILY_PAIR_CAP_BIG_BLINDS * bigBlindCents;
+    const capCents = Math.max(DAILY_PAIR_CAP_BIG_BLINDS * bigBlindCents, DAILY_PAIR_CAP_FLOOR_CENTS);
     if (priorTotal + additionalStakeCents > capCents) {
       throw new Error(DAILY_PAIR_CAP_EXCEEDED);
     }
@@ -269,8 +278,8 @@ export class PlayerInteractionService {
     if (!entry) throw new Error(SIDE_BET_CATALOG_KEY_UNKNOWN);
     if (initiatorId === recipientId) throw new Error(SIDE_BET_RECIPIENT_INVALID);
 
-    const minCents = entry.minStakeBigBlinds * bigBlindCents;
-    const maxCents = entry.maxStakeBigBlinds * bigBlindCents;
+    const minCents = sideBetMinStakeCents(entry, bigBlindCents);
+    const maxCents = sideBetMaxStakeCents(entry, bigBlindCents);
     if (stakeCents < minCents || stakeCents > maxCents) throw new Error(SIDE_BET_STAKE_OUT_OF_BOUNDS);
 
     if (entry.requiresSubjects) {
@@ -415,8 +424,8 @@ export class PlayerInteractionService {
     // blinds can increase between propose and accept (§7). Out-of-bounds at accept time
     // voids the offer outright rather than leaving it dangling for the TTL to clean up.
     const entry = SIDE_BET_CATALOG_BY_KEY.get(row.catalogKey);
-    const maxCents = (entry?.maxStakeBigBlinds ?? 0) * bigBlindCents;
-    const minCents = (entry?.minStakeBigBlinds ?? 0) * bigBlindCents;
+    const maxCents = entry ? sideBetMaxStakeCents(entry, bigBlindCents) : 0;
+    const minCents = entry ? sideBetMinStakeCents(entry, bigBlindCents) : 0;
     const voidOffer = async (reason: string): Promise<boolean> => {
       const voided = await prisma.playerInteraction.updateMany({
         where: { id: interactionId, status: "PENDING" },
@@ -457,6 +466,25 @@ export class PlayerInteractionService {
       return { interactionId, status: current.status as SideBetUpdateResult["status"], ...ids, alreadyProcessed: true };
     }
     return { interactionId, status: "ACTIVE", ...ids };
+  }
+
+  /**
+   * Whether a still-PENDING offer's recipient can actually cover their exposure right now —
+   * the same check respondSideBet's accept branch makes, but exposed standalone so a caller
+   * (the bot auto-response trigger) can decide accept vs. decline BEFORE attempting the accept,
+   * instead of attempting it and having it fail into a silently-expiring PENDING offer.
+   */
+  static async getRecipientAffordability(
+    interactionId: string,
+    recipientId: string,
+  ): Promise<{ canAfford: boolean; exposureCents: number; spendableCents: number } | null> {
+    const prisma = getPrisma();
+    const row = await prisma.playerInteraction.findUnique({ where: { id: interactionId } });
+    if (!row || row.type !== "SIDE_BET" || row.recipientId !== recipientId) return null;
+    const entry = SIDE_BET_CATALOG_BY_KEY.get(row.catalogKey);
+    const exposureCents = exposureCentsForRole("recipient", row.stakeCents, entry);
+    const spendableCents = await CashierService.getSpendableCents(recipientId);
+    return { canAfford: spendableCents >= exposureCents, exposureCents, spendableCents };
   }
 
   /**

@@ -26,16 +26,24 @@ export function SideBetResolvedToast({ sideBets, heroUserId }: SideBetResolvedTo
 
   const entry = SIDE_BET_CATALOG_BY_KEY.get(current.catalogKey);
   const label = entry?.label ?? "side bet";
+  // The evaluator's note refers to bet subjects positionally ("First subject", "Second
+  // subject") since it has no access to display names — swap in the actual names captured
+  // on the original offer so the reason reads naturally instead of "First subject won."
+  const note = current.subjectNames
+    ? current.resolutionNote
+        ?.replace("First subject", current.subjectNames[0])
+        .replace("Second subject", current.subjectNames[1])
+    : current.resolutionNote;
 
   let message: string;
   if (current.status === "VOIDED") {
-    message = `🎲 ${label} voided — ${current.resolutionNote ?? "no result."}`;
+    message = `🎲 ${label} voided — ${note ?? "no result."}`;
   } else if (heroUserId && current.winnerId === heroUserId) {
-    message = `🎲 You won the ${label}! +${formatCents(current.payoutCents ?? 0)}`;
+    message = `🎲 You won ${formatCents(current.payoutCents ?? 0)} — ${label}${note ? `. ${note}` : ""}`;
   } else if (heroUserId && (current.initiatorUserId === heroUserId || current.recipientUserId === heroUserId)) {
-    message = `🎲 You lost the ${label}. -${formatCents(current.payoutCents ?? 0)}`;
+    message = `🎲 You lost ${formatCents(current.payoutCents ?? 0)} — ${label}${note ? `. ${note}` : ""}`;
   } else {
-    message = `🎲 ${label} resolved.`;
+    message = `🎲 ${label} resolved${note ? `. ${note}` : ""}`;
   }
 
   return <Toast message={message} variant={current.status === "VOIDED" ? "default" : "success"} onDismiss={() => setCurrent(null)} />;

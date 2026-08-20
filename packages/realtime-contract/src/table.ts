@@ -129,6 +129,7 @@ export const SideBetOfferPayloadSchema = z.object({
   initiatorUserId: z.string().min(1),
   initiatorName: z.string().min(1),
   recipientUserId: z.string().min(1),
+  recipientName: z.string().min(1),
   catalogKey: z.string().min(1),
   stakeCents: z.number().int().nonnegative(),
   subjectUserIds: SideBetSubjectsSchema.optional(),

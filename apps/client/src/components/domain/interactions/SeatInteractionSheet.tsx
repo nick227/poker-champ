@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { GIFT_CATALOG, SIDE_BET_CATALOG, type GiftCatalogEntry, type SideBetCatalogEntry } from "@poker-champ/realtime-contract";
+import {
+  GIFT_CATALOG,
+  SIDE_BET_CATALOG,
+  sideBetMinStakeCents,
+  sideBetMaxStakeCents,
+  type GiftCatalogEntry,
+  type SideBetCatalogEntry,
+} from "@poker-champ/realtime-contract";
 import { ModalSheet } from "@/components/containers/ModalSheet";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
@@ -53,19 +60,21 @@ export function SeatInteractionSheet({
   const [subjectA, setSubjectA] = useState<string | null>(null);
   const [subjectB, setSubjectB] = useState<string | null>(null);
   const [predicted, setPredicted] = useState<string | null>(null);
-  const [stakeBigBlinds, setStakeBigBlinds] = useState(1);
+  const [stakeCents, setStakeCents] = useState(0);
   const proposingBetRef = useRef(false);
 
   const selectedBetEntry = SIDE_BET_CATALOG.find((b) => b.id === selectedBetKey) ?? null;
   const canBet = Boolean(targetUserId && bigBlindCents);
+  const minStakeCents = selectedBetEntry && bigBlindCents ? sideBetMinStakeCents(selectedBetEntry, bigBlindCents) : 0;
+  const maxStakeCents = selectedBetEntry && bigBlindCents ? sideBetMaxStakeCents(selectedBetEntry, bigBlindCents) : 0;
 
   useEffect(() => {
-    if (!selectedBetEntry) return;
-    setStakeBigBlinds(selectedBetEntry.minStakeBigBlinds);
+    if (!selectedBetEntry || !bigBlindCents) return;
+    setStakeCents(sideBetMinStakeCents(selectedBetEntry, bigBlindCents));
     setSubjectA(null);
     setSubjectB(null);
     setPredicted(null);
-  }, [selectedBetEntry]);
+  }, [selectedBetEntry, bigBlindCents]);
 
   const resetAll = () => {
     setStep("menu");
@@ -104,7 +113,7 @@ export function SeatInteractionSheet({
     proposingBetRef.current = true;
     onProposeSideBet({
       catalogKey: selectedBetEntry.id,
-      stakeCents: stakeBigBlinds * bigBlindCents,
+      stakeCents,
       subjectUserIds: selectedBetEntry.requiresSubjects && subjectA && subjectB ? [subjectA, subjectB] : undefined,
       predictedSubjectUserId: selectedBetEntry.requiresPrediction ? (predicted ?? undefined) : undefined,
     });
@@ -162,6 +171,7 @@ export function SeatInteractionSheet({
                   key={entry.id}
                   onPress={() => {
                     setSelectedBetKey(entry.id);
+                    if (bigBlindCents) setStakeCents(sideBetMinStakeCents(entry, bigBlindCents));
                     setStep("sidebet-config");
                   }}
                   className="ui-surface px-3 py-2"
@@ -234,13 +244,15 @@ export function SeatInteractionSheet({
             ) : null}
 
             <Text variant="label">
-              Stake: {stakeBigBlinds} BB{bigBlindCents ? ` (${formatCents(stakeBigBlinds * bigBlindCents)})` : ""}
+              Stake: {formatCents(stakeCents)}
+              {bigBlindCents ? ` (${(stakeCents / bigBlindCents).toFixed(Number.isInteger(stakeCents / bigBlindCents) ? 0 : 1)} BB)` : ""}
             </Text>
             <Slider
-              value={stakeBigBlinds}
-              min={selectedBetEntry.minStakeBigBlinds}
-              max={selectedBetEntry.maxStakeBigBlinds}
-              onValueChange={setStakeBigBlinds}
+              value={stakeCents}
+              min={minStakeCents}
+              max={maxStakeCents}
+              step={bigBlindCents ?? 1}
+              onValueChange={setStakeCents}
             />
 
             <Button title={`Propose to ${targetName}`} intent="primary" onPress={handleProposeBet} disabled={!betReady} />

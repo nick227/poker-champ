@@ -79,9 +79,19 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
 
   /** A bot recipient can't click Accept/Decline — respond immediately through the exact
    *  same path (respondSideBetAndBroadcast) a real response would use, with a simple
-   *  coin-flip decision. Not meant to be a "smart" bot, just unblock the flow. */
+   *  coin-flip decision. Not meant to be a "smart" bot, just unblock the flow.
+   *
+   *  Bots start with a zero bankroll and only ever hold what a human has actually gifted
+   *  them — that's intentional (bots shouldn't get spendable chips for free just to accept
+   *  a bet). But the coin flip must not blindly pick "accept" and let it fail into a
+   *  silently-expiring PENDING offer: check affordability first so an insolvent bot always
+   *  declines immediately instead of making the human wait out the 30s TTL for nothing. */
   private async triggerBotSideBetResponse(interactionId: string, botId: string): Promise<void> {
-    const accept = Math.random() < 0.5;
+    let accept = Math.random() < 0.5;
+    if (accept) {
+      const affordability = await PlayerInteractionService.getRecipientAffordability(interactionId, botId);
+      if (!affordability || !affordability.canAfford) accept = false;
+    }
     await this.respondSideBetAndBroadcast({
       interactionId,
       recipientId: botId,
@@ -448,6 +458,7 @@ export class PokerRoomMessageRouter implements PokerRoomMessageRouterContract {
         const payload = {
           ...result,
           initiatorName: initiator.name || `player_${userId.slice(0, 6)}`,
+          recipientName: recipient.name || `player_${recipientUserId.slice(0, 6)}`,
           subjectNames,
         };
         this.sendToUserId(userId, "SIDE_BET_OFFER", payload);

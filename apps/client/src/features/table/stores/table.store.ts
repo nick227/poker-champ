@@ -20,6 +20,7 @@ export type SideBetEntry = {
   initiatorUserId: string;
   initiatorName?: string;
   recipientUserId: string;
+  recipientName?: string;
   catalogKey: string;
   stakeCents: number;
   subjectUserIds?: [string, string];
@@ -129,6 +130,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         initiatorUserId: offer.initiatorUserId,
         initiatorName: offer.initiatorName,
         recipientUserId: offer.recipientUserId,
+        recipientName: offer.recipientName,
         catalogKey: offer.catalogKey,
         stakeCents: offer.stakeCents,
         subjectUserIds: offer.subjectUserIds,

@@ -85,3 +85,16 @@ export const SIDE_BET_CATALOG: SideBetCatalogEntry[] = [
 export const SIDE_BET_CATALOG_BY_KEY: ReadonlyMap<string, SideBetCatalogEntry> = new Map(
   SIDE_BET_CATALOG.map((entry) => [entry.id, entry]),
 );
+
+/** A side bet's ceiling is the greater of its BB-relative cap and this flat floor, so a
+ *  penny-stakes table (where 5 BB can be a few cents) still supports a meaningful bet. The
+ *  minimum stays purely BB-relative — a novelty-sized bet should still be possible. */
+export const SIDE_BET_MAX_STAKE_FLOOR_CENTS = 100;
+
+export function sideBetMinStakeCents(entry: SideBetCatalogEntry, bigBlindCents: number): number {
+  return entry.minStakeBigBlinds * bigBlindCents;
+}
+
+export function sideBetMaxStakeCents(entry: SideBetCatalogEntry, bigBlindCents: number): number {
+  return Math.max(entry.maxStakeBigBlinds * bigBlindCents, SIDE_BET_MAX_STAKE_FLOOR_CENTS);
+}
