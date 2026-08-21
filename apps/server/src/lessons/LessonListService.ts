@@ -256,5 +256,6 @@ function assembleLessonListItem(
     repeatable: lesson.repeatable,
     recommendedOrder: lesson.recommendedOrder,
     conceptTags,
+    format: (lesson.format as LessonListLessonDto["format"]) ?? "STANDARD",
   };
 }

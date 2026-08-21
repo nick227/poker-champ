@@ -334,6 +334,7 @@ model User {
   createdTables        PokerTable[]             @relation("TableCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
   lessonAttempts       LessonAttempt[]
+  drillSessions        DrillSession[]
   conceptMastery       UserConceptMastery[]
   userAwards           UserAward[]
   curriculumProgress   UserCurriculumProgress?
@@ -580,11 +581,28 @@ model Lesson {
   applyCtaText      String? // lesson-specific apply-at-table CTA
   blogPostSlug      String? // optional related blog post (slug)
   replayHandId      String? // optional related replay hand id
+  format            String   @default("STANDARD") // STANDARD | DRILL
+  drillConfigJson   Json? // DRILL only: { drillType: DrillCategory, questionCount: number }
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  steps    LessonStep[]
-  attempts LessonAttempt[]
+  steps         LessonStep[]
+  attempts      LessonAttempt[]
+  drillSessions DrillSession[]
+}
+
+model DrillSession {
+  id            String    @id
+  lessonId      String
+  lesson        Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionsJson Json // server-only source of truth: full generated/curated question set incl. correctIndex
+  status        String    @default("ACTIVE") // ACTIVE | COMPLETED
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([userId, lessonId, status])
 }
 
 model LessonStep {

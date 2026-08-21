@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getRuntimeConfigFromGradingSpec } from "./utils/runtimeConfig.js";
 import { asObject } from "./utils/objectHelpers.js";
 import { repairLessonSnapshot } from "./repairLessonSnapshot.js";
-import type { LessonDetailResponseDto } from "./types.js";
+import type { LessonDetailResponseDto, LessonFormat } from "./types.js";
 
 function getGradingDisplay(gradingSpecJson: unknown): {
   expectedAction: string | null;
@@ -43,6 +43,12 @@ export async function getLesson(
     return { ok: false, error: "NOT_FOUND", status: 404, message: "Lesson not found" };
   }
 
+  const format = (lesson.format as LessonFormat) ?? "STANDARD";
+  const drillConfig =
+    format === "DRILL" && lesson.drillConfigJson
+      ? (lesson.drillConfigJson as { drillType: string; questionCount: number })
+      : null;
+
   const steps = lesson.steps.map((step) => {
     const runtime = getRuntimeConfigFromGradingSpec(step.gradingSpecJson);
     const gradingDisplay = getGradingDisplay(step.gradingSpecJson);
@@ -82,6 +88,8 @@ export async function getLesson(
         blogPostSlug: lesson.blogPostSlug,
         replayHandId: lesson.replayHandId,
         steps,
+        format,
+        drillConfig,
       },
     },
   };

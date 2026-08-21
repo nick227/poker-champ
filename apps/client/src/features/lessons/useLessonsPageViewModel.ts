@@ -41,6 +41,7 @@ export type LessonCatalogItem = {
   stateChip: { label: string; cls: string };
   difficultyChipClass: string;
   actionButton: LessonButtonDescriptor;
+  format: "STANDARD" | "DRILL";
 };
 
 export type DailyChallengeType = "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
@@ -74,6 +75,7 @@ type RemoteLessonSummary = {
   bestScorePct?: number | null;
   recommendedOrder: number;
   conceptTags?: string[];
+  format?: "STANDARD" | "DRILL";
 };
 
 type RemoteDailyChallenge = {
@@ -180,6 +182,7 @@ function toCatalogItem(remote: RemoteLessonSummary): LessonCatalogItem {
     recommendedOrder: remote.recommendedOrder,
     stateChip: getStateChip(state),
     difficultyChipClass: getDifficultyChipClass(difficulty),
+    format: remote.format === "DRILL" ? "DRILL" : "STANDARD",
     actionButton: getLessonActionButton({
       enabled: remote.hasAccess !== false,
       applyCtaText: remote.applyCtaText,
@@ -241,6 +244,7 @@ export function useLessonsPageViewModel() {
             bestScorePct: item.bestScorePct ?? null,
             recommendedOrder: item.recommendedOrder,
             conceptTags: item.conceptTags ?? [],
+            format: item.format,
           })),
         );
       } catch (err) {

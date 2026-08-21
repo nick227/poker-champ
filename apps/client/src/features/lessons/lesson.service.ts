@@ -8,6 +8,7 @@ import type {
   LessonFeedback,
   LessonMasteryConcept,
 } from "./lesson.types";
+import type { CompleteDrillSessionResponse, DrillSessionResponse } from "./drills/drill.types";
 
 type LessonsListResponse = {
   cadence?: { completedAttemptsLast7Days: number };
@@ -41,6 +42,7 @@ type LessonsListResponse = {
     repeatable: boolean;
     recommendedOrder: number;
     conceptTags?: string[];
+    format?: "STANDARD" | "DRILL";
   }>;
   masteryByConceptCode: Record<string, unknown>;
 };
@@ -125,6 +127,24 @@ class LessonService {
 
   getMastery() {
     return request<LessonMasteryResponse>("GET", "/api/lessons/mastery");
+  }
+
+  startDrillSession(lessonId: string) {
+    return request<DrillSessionResponse>(
+      "POST",
+      `/api/lessons/${encodeURIComponent(lessonId)}/drill-session`,
+    );
+  }
+
+  completeDrillSession(
+    lessonId: string,
+    body: { sessionId: string; answers: Array<{ questionId: string; selectedIndex: number }> },
+  ) {
+    return request<CompleteDrillSessionResponse>(
+      "POST",
+      `/api/lessons/${encodeURIComponent(lessonId)}/drill-attempts/complete`,
+      body,
+    );
   }
 
   getUtilitiesOverview(params?: { lessonId?: string; stepId?: string }) {

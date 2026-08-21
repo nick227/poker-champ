@@ -44,6 +44,8 @@ export type LessonDefinition = {
   blogPostSlug?: string | null;
   replayHandId?: string | null;
   steps: LessonStep[];
+  format?: "STANDARD" | "DRILL";
+  drillConfig?: { drillType: string; questionCount: number } | null;
 };
 
 export type GhostAttemptSummary = {

@@ -341,6 +341,9 @@ export function ModulesSection({
                         className: item.difficultyChipClass,
                         text: item.difficulty,
                       },
+                      ...(item.format === "DRILL"
+                        ? [{ id: `${item.id}-format`, className: "bg-brand/20", text: "Drill" }]
+                        : []),
                       {
                         id: `${item.id}-role`,
                         className: "bg-panel",

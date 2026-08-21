@@ -2,6 +2,7 @@
 
 export type LessonState = "not_started" | "in_progress" | "completed";
 export type LessonRole = "teaches" | "drills" | "tests";
+export type LessonFormat = "STANDARD" | "DRILL";
 export type ModuleCode =
   | "MODULE_A"
   | "MODULE_B"
@@ -35,6 +36,7 @@ export interface LessonListLessonDto {
   repeatable: boolean;
   recommendedOrder: number;
   conceptTags: string[];
+  format: LessonFormat;
 }
 
 export interface LessonListResponseDto {
@@ -95,6 +97,8 @@ export interface LessonDetailResponseDto {
     blogPostSlug: string | null;
     replayHandId: string | null;
     steps: LessonDetailStepDto[];
+    format: LessonFormat;
+    drillConfig: { drillType: string; questionCount: number } | null;
   };
 }
 

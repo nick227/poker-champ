@@ -7,6 +7,7 @@ import { listLessons, getMastery } from "../lessons/LessonListService.js";
 import { getLesson } from "../lessons/LessonDetailService.js";
 import { getUtilitiesOverview } from "../lessons/LessonAnalyticsService.js";
 import { startOrResumeAttempt, submitStep } from "../lessons/LessonAttemptService.js";
+import { startDrillSession, completeDrillSession } from "../lessons/drills/DrillSessionService.js";
 
 const asyncHandler =
   (fn: express.RequestHandler): express.RequestHandler =>
@@ -20,6 +21,16 @@ const AttemptPathSchema = z.object({
 
 const SubmitBodySchema = z.object({
   answer: z.unknown(),
+});
+
+const SubmitDrillAnswersBodySchema = z.object({
+  sessionId: z.string().min(1).max(191),
+  answers: z.array(
+    z.object({
+      questionId: z.string().min(1).max(191),
+      selectedIndex: z.number().int().min(0).max(3),
+    }),
+  ),
 });
 
 const OverviewQuerySchema = z.object({
@@ -116,6 +127,30 @@ function createLessonsRouter(prisma: ReturnType<typeof getPrisma>) {
       stepId,
       userId,
       answer: bodyParsed.data.answer,
+    });
+    handle(res, result);
+  }));
+
+  lessonRoutes.post("/drill-session", asyncHandler(async (req, res) => {
+    const userId = requireUserId(req, res);
+    if (userId === null) return;
+    const result = await startDrillSession(prisma, { lessonId: lessonIdFromParams(req), userId });
+    handle(res, result);
+  }));
+
+  lessonRoutes.post("/drill-attempts/complete", asyncHandler(async (req, res) => {
+    const bodyParsed = SubmitDrillAnswersBodySchema.safeParse(req.body);
+    if (!bodyParsed.success) {
+      res.status(400).json({ error: "Invalid payload" });
+      return;
+    }
+    const userId = requireUserId(req, res);
+    if (userId === null) return;
+    const result = await completeDrillSession(prisma, {
+      lessonId: lessonIdFromParams(req),
+      userId,
+      sessionId: bodyParsed.data.sessionId,
+      answers: bodyParsed.data.answers,
     });
     handle(res, result);
   }));
