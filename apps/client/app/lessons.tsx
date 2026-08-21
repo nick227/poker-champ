@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Screen } from "@/components/containers/Screen";
 import {
   DailyChallengesSection,
+  DrillsSection,
   LESSONS_SECTION_ORDER,
   LessonsHeroCard,
   ModulesSection,
@@ -44,6 +45,8 @@ export default function LessonsScreen() {
     <Screen ready={ready}>
       <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16, paddingBottom: 28 }} showsVerticalScrollIndicator>
         <LessonsHeroCard vm={vm} onOpenLesson={openLesson} />
+
+        <DrillsSection vm={vm} onOpenLesson={openLesson} />
 
         {visibleSectionIds.map((sectionId) => (
           <View key={sectionId}>

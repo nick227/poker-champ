@@ -358,6 +358,14 @@ export function useLessonsPageViewModel() {
     return selected;
   }, [catalog, remoteDailyChallenges]);
 
+  const drillLessons = useMemo(
+    () =>
+      catalog
+        .filter((item) => item.enabled && item.format === "DRILL")
+        .sort((a, b) => a.recommendedOrder - b.recommendedOrder),
+    [catalog],
+  );
+
   const moduleCards = useMemo(() => {
     const grouped: Record<ModuleCode, LessonCatalogItem[]> = {
       MODULE_A: [],
@@ -366,7 +374,12 @@ export function useLessonsPageViewModel() {
       MODULE_D: [],
       MODULE_GHOST: [],
     };
-    for (const item of catalog) grouped[item.moduleCode].push(item);
+    // Drills get their own featured section (see drillLessons) rather than being
+    // buried alongside standard lessons inside a module card.
+    for (const item of catalog) {
+      if (item.format === "DRILL") continue;
+      grouped[item.moduleCode].push(item);
+    }
     return (Object.keys(grouped) as ModuleCode[])
       .filter((moduleCode) => grouped[moduleCode].length > 0)
       .map((moduleCode) => {
@@ -395,5 +408,6 @@ export function useLessonsPageViewModel() {
     recentCompletedLessons,
     dailyChallenges,
     moduleCards,
+    drillLessons,
   };
 }

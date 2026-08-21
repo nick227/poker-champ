@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { Text } from "@/components/base/Text";
 import { Button } from "@/components/base/Button";
 import { Surface } from "@/components/containers/Surface";
@@ -138,6 +138,60 @@ function ContinueSection({
         </View>
       </Surface>
     </Surface>
+  );
+}
+
+export function DrillsSection({
+  vm,
+  onOpenLesson,
+}: {
+  vm: LessonsPageViewModel;
+  onOpenLesson: (lessonId: string, enabled: boolean) => void;
+}) {
+  if (vm.drillLessons.length === 0) return null;
+
+  return (
+    <View className="mt-5 rounded-2xl border-2 border-brand bg-brand/5 p-4">
+      <Text variant="h2" className="text-base text-brand">
+        {LESSONS_PAGE_COPY.sections.drills.title}
+      </Text>
+      <Text variant="muted" className="mt-1 text-xs">
+        {LESSONS_PAGE_COPY.sections.drills.subtitle}
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 10, paddingTop: 12, paddingRight: 4 }}
+      >
+        {vm.drillLessons.map((lesson) => (
+          <Pressable
+            key={lesson.id}
+            onPress={() => onOpenLesson(lesson.id, lesson.enabled)}
+            className="w-40 rounded-xl border border-border bg-panel p-3 active:opacity-85"
+            testID={`drill-card-${lesson.id}`}
+          >
+            <Text variant="body" className="font-semibold" numberOfLines={2}>
+              {lesson.title}
+            </Text>
+            <Text variant="muted" className="mt-1 text-xs">
+              {lesson.bestScorePct != null
+                ? `${LESSONS_PAGE_COPY.sections.dailyChallenges.bestPrefix} ${lesson.bestScorePct}%`
+                : "Not started"}
+            </Text>
+            <View className="mt-3">
+              <Button
+                title={getLessonsButtonLabel(LESSONS_BUTTON_KEYS.DRILL_PRACTICE)}
+                onPress={() => onOpenLesson(lesson.id, lesson.enabled)}
+                intent="primary"
+                size="sm"
+                minWidth={0}
+                className="w-full"
+              />
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -341,9 +395,6 @@ export function ModulesSection({
                         className: item.difficultyChipClass,
                         text: item.difficulty,
                       },
-                      ...(item.format === "DRILL"
-                        ? [{ id: `${item.id}-format`, className: "bg-brand/20", text: "Drill" }]
-                        : []),
                       {
                         id: `${item.id}-role`,
                         className: "bg-panel",

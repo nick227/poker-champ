@@ -7,6 +7,7 @@ export const LESSONS_BUTTON_KEYS = {
   LESSON_START: "LESSON_START",
   CHALLENGE_RESUME: "CHALLENGE_RESUME",
   CHALLENGE_START: "CHALLENGE_START",
+  DRILL_PRACTICE: "DRILL_PRACTICE",
 } as const;
 
 export type LessonsButtonKey = (typeof LESSONS_BUTTON_KEYS)[keyof typeof LESSONS_BUTTON_KEYS];
@@ -26,6 +27,11 @@ export const LESSONS_PAGE_COPY = {
     trainedSuffix: "in the last 7 days.",
   },
   sections: {
+    drills: {
+      title: "Drills",
+      subtitle: "Quick poker math reps.",
+      ctaLabel: "Practice",
+    },
     continue: {
       title: "Continue",
       cardHeading: "Continue where you left off",
@@ -95,6 +101,7 @@ const LESSONS_BUTTON_LABELS: Record<LessonsButtonKey, (context?: LessonsButtonCo
   LESSON_START: () => "Start Lesson",
   CHALLENGE_RESUME: () => "Resume Challenge",
   CHALLENGE_START: () => "Start Challenge",
+  DRILL_PRACTICE: () => "Practice",
 };
 
 export function getLessonsButtonLabel(key: LessonsButtonKey, context?: LessonsButtonContext): string {
