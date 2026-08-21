@@ -2229,6 +2229,147 @@ export const openApiSpec = {
         },
       },
     },
+    "/api/lessons/{lessonId}/drill-session": {
+      post: {
+        tags: ["lessons"],
+        operationId: "lessonsStartDrillSession",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { in: "path", name: "lessonId", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Drill session started",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    sessionId: { type: "string" },
+                    lessonId: { type: "string" },
+                    title: { type: "string" },
+                    questions: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string" },
+                          category: { type: "string" },
+                          street: { type: "string" },
+                          prompt: { type: "string" },
+                          heroHand: { type: "array", items: { type: "string" } },
+                          villainHand: { type: "array", items: { type: "string" } },
+                          board: { type: "array", items: { type: "string" } },
+                          contextLines: { type: "array", items: { type: "string" } },
+                          options: { type: "array", items: { type: "string" } },
+                          correctIndex: { type: "integer" },
+                          explanation: { type: "string" },
+                        },
+                        required: ["id", "category", "prompt", "options", "correctIndex", "explanation"],
+                      },
+                    },
+                  },
+                  required: ["sessionId", "lessonId", "title", "questions"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "422": {
+            description: "Lesson is not a drill",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/api/lessons/{lessonId}/drill-attempts/complete": {
+      post: {
+        tags: ["lessons"],
+        operationId: "lessonsCompleteDrillAttempt",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { in: "path", name: "lessonId", required: true, schema: { type: "string" } },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  sessionId: { type: "string" },
+                  answers: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        questionId: { type: "string" },
+                        selectedIndex: { type: "integer" },
+                      },
+                      required: ["questionId", "selectedIndex"],
+                    },
+                  },
+                },
+                required: ["sessionId", "answers"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Drill attempt graded and recorded",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    attempt: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        lessonId: { type: "string" },
+                        status: { type: "string" },
+                        scorePct: { type: "number", nullable: true },
+                      },
+                      required: ["id", "lessonId", "status", "scorePct"],
+                    },
+                    correctCount: { type: "integer" },
+                    totalCount: { type: "integer" },
+                    awardsGranted: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          awardId: { type: "string" },
+                          reason: { type: "string" },
+                        },
+                        required: ["awardId", "reason"],
+                      },
+                    },
+                  },
+                  required: ["attempt", "correctCount", "totalCount"],
+                },
+              },
+            },
+          },
+          "401": {
+            description: "Unauthorized",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
     "/api/bots": {
       get: {
         tags: ["bots"],
