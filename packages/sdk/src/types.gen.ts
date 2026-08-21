@@ -1732,6 +1732,8 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
+                /** @description Client-side cache-busting timestamp; ignored by the server. */
+                _t?: number;
             };
             header?: never;
             path?: never;
@@ -1756,6 +1758,15 @@ export interface operations {
                             heroWonCents: number;
                             heroActionSummary?: string | null;
                             hasReplay?: boolean;
+                            boardCards?: string[];
+                            heroCards?: string[];
+                            totalPotCents?: number;
+                            winners?: {
+                                userId?: string | null;
+                                displayName?: string | null;
+                                amountCents: number;
+                            }[];
+                            reason?: string | null;
                         }[];
                         nextCursor: string | null;
                     };

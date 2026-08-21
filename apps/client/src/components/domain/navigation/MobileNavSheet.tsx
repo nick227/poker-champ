@@ -40,10 +40,10 @@ export function MobileNavSheet({ visible, onClose, active }: Props) {
                 onClose();
                 router.push(targetPath);
               }}
-              className={`ui-touch flex-row items-center gap-3 rounded-2 px-3 py-3 ${
+              className={`ui-touch flex-row items-center justify-start gap-3 rounded-2 px-3 py-3 ${
                 isActive
-                  ? "bg-panel-elevated border-l-2 border-gold"
-                  : "border-l-2 border-transparent"
+                  ? "bg-panel-elevated"
+                  : ""
               }`}
               accessibilityRole="link"
               accessibilityLabel={screen.bottomBarLabel ?? screen.title}

@@ -87,22 +87,8 @@ export default function LeaderboardScreen() {
   return (
     <Screen ready={ready}>
       <View className="flex-1 p-4 bg-bg">
-        <View className="flex-row items-start gap-2 py-2 h-14">
-          {CATEGORY_OPTIONS.map((option) => {
-            const active = option.key === category;
-            return (
-              <Button
-                key={option.key}
-                title={option.label}
-                onPress={() => setCategory(option.key)}
-                intent="neutral"
-                size="sm"
-                selected={active}
-                className="min-h-[32px] px-3"
-                textClassName={active ? "text-text" : "text-muted"}
-              />
-            );
-          })}
+        <View className="flex-row items-center py-2 h-14">
+          <Text className="text-2xl font-bold text-white">Leaderboard</Text>
         </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>

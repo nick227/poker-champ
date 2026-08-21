@@ -26,17 +26,14 @@ export function LobbyHomeScreen() {
     <LobbyPageShell model={m} ready={ready}>
       <View className={`pb-5 ${padded ? "px-4" : ""}`}>
         <LobbyPageHeader
-          title="Lobby"
-          subtitle="Jump into cash games or register for upcoming tournaments."
-          onNewCashTable={m.openCreateTable}
-          onCreateTournament={m.handleCreateTournament}
+          title="Poker Champ"
           compact={compact}
         />
         <LobbyQuickActions
+          onCreateTournament={m.handleCreateTournament}
           onQuickStart={m.openCreateTable}
           onLeaderboard={() => m.router.push("/leaderboard")}
           onTraining={() => m.router.push("/lessons")}
-          onProfile={() => m.router.push("/settings")}
         />
         <LobbySummaryCards
           tablesLive={cashStats.tablesLive}

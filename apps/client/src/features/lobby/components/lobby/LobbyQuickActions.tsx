@@ -10,30 +10,30 @@ type QuickAction = {
 };
 
 type Props = {
+  onCreateTournament: () => void;
   onQuickStart: () => void;
   onLeaderboard: () => void;
   onTraining: () => void;
-  onProfile: () => void;
 };
 
 export function LobbyQuickActions({
+  onCreateTournament,
   onQuickStart,
   onLeaderboard,
   onTraining,
-  onProfile,
 }: Props) {
   const actions: QuickAction[] = [
+    {
+      label: "New tournament",
+      detail: "Create and host",
+      icon: "trophy-outline",
+      onPress: onCreateTournament,
+    },
     {
       label: "Quick start",
       detail: "Play bots heads-up or 9-max",
       icon: "dice-outline",
       onPress: onQuickStart,
-    },
-    {
-      label: "Leaderboard",
-      detail: "See where you rank",
-      icon: "bar-chart-outline",
-      onPress: onLeaderboard,
     },
     {
       label: "Poker training",
@@ -42,10 +42,10 @@ export function LobbyQuickActions({
       onPress: onTraining,
     },
     {
-      label: "My profile",
-      detail: "Stats and hand history",
-      icon: "person-outline",
-      onPress: onProfile,
+      label: "Leaderboard",
+      detail: "See where you rank",
+      icon: "bar-chart-outline",
+      onPress: onLeaderboard,
     },
   ];
 
