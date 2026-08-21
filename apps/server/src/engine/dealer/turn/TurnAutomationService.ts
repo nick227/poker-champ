@@ -36,6 +36,7 @@ import type { HeroActionOptions } from "@poker-champ/realtime-contract";
 import type { PokerState } from "../../../state/PokerState.js";
 import { getAutoActionHandCap } from "../../../config/seats.js";
 import { logger } from "../../../lib/logger.js";
+import type { DealerDiagnosticEvent } from "../orchestration/DealerDiagnostics.js";
 
 // ============================================================================
 // IMPORTS - Poker Rules & Game Logic
@@ -85,7 +86,20 @@ export class TurnAutomationService {
     getBotDelayMs: () => number;
     scheduleHumanTurnTimeout?: (userId: string) => void;
     onAutoSitOutReachedCap?: (args: { userId: string; stackCents: number }) => Promise<void> | void;
+    emitDiagnostic?: (event: DealerDiagnosticEvent) => void;
   }) {}
+
+  /**
+   * Tracks consecutive "no player at the seat to act" retries for the same
+   * (tableId, handId, street, toActSeat) tuple. This branch assumes the missing seat
+   * mapping is always a one-tick race and retries until it resolves. If the underlying
+   * state is ever genuinely broken (not just a race), an unbounded retry here would
+   * monopolize the event loop — so bound it and yield via a timer instead of a
+   * microtask, which never lets I/O run.
+   */
+  private noPlayerAtSeatRetry: { key: string; count: number } | null = null;
+  private static readonly MAX_NO_PLAYER_AT_SEAT_RETRIES = 5;
+  private static readonly NO_PLAYER_AT_SEAT_RETRY_DELAY_MS = 10;
 
   // ============================================================================
   // AUTOMATION METHODS
@@ -134,17 +148,51 @@ export class TurnAutomationService {
     const player = state.playersById.get(toActId);
     if (!toActId || !player) {
       // Transient ordering: street may have advanced but seat mapping not yet committed.
-      // Log and retry one tick later so the caller's state flush completes first.
-      logger.warn(
-        { street: state.street, toActSeat: state.toActSeat },
-        "AUTOMATION_NO_PLAYER_AT_SEAT",
-      );
+      // Retry a tick later so the caller's state flush completes first. Bounded and on a
+      // timer (not queueMicrotask) so a genuinely broken mapping can't monopolize the
+      // event loop — a timer yields to I/O between attempts, a microtask does not.
+      const retryKey = `${state.tableId}:${state.handId}:${state.street}:${state.toActSeat}`;
+      if (this.noPlayerAtSeatRetry?.key === retryKey) {
+        this.noPlayerAtSeatRetry.count += 1;
+      } else {
+        this.noPlayerAtSeatRetry = { key: retryKey, count: 1 };
+      }
+      const retryCount = this.noPlayerAtSeatRetry.count;
+      const diagnosticContext = {
+        tableId: state.tableId,
+        handId: state.handId,
+        handNumber: state.handNumber,
+        street: state.street,
+        toActSeat: state.toActSeat,
+        toActId,
+        seats: [...state.seats],
+        playerIds: [...state.playersById.keys()],
+        retryCount,
+      };
+      if (retryCount > TurnAutomationService.MAX_NO_PLAYER_AT_SEAT_RETRIES) {
+        logger.error(diagnosticContext, "AUTOMATION_NO_PLAYER_AT_SEAT_CIRCUIT_BREAKER_TRIPPED");
+        this.deps.emitDiagnostic?.({
+          level: "error",
+          type: "AUTOMATION_NO_PLAYER_AT_SEAT_CIRCUIT_BREAKER_TRIPPED",
+          message: "maybeActForBot found no player at the seat to act after repeated retries; halting to avoid monopolizing the event loop.",
+          context: diagnosticContext,
+        });
+        logger.info(
+          { street: state.street, toActSeat: state.toActSeat, result: "circuit_breaker_tripped" },
+          "MAYBE_ACT_FOR_BOT_RESULT",
+        );
+        return;
+      }
+      logger.warn(diagnosticContext, "AUTOMATION_NO_PLAYER_AT_SEAT");
       logger.info(
-        { street: state.street, toActSeat: state.toActSeat, result: "retry_scheduled" },
+        { street: state.street, toActSeat: state.toActSeat, result: "retry_scheduled", retryCount },
         "MAYBE_ACT_FOR_BOT_RESULT",
       );
-      queueMicrotask(() => this.maybeActForBot());
+      setTimeout(() => this.maybeActForBot(), TurnAutomationService.NO_PLAYER_AT_SEAT_RETRY_DELAY_MS);
       return;
+    }
+    if (this.noPlayerAtSeatRetry) {
+      this.noPlayerAtSeatRetry = null;
     }
     if (!eligibleToAct(player) || !player.needsAction) {
       if (player.kind === "BOT" && player.needsAction) {

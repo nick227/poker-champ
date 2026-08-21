@@ -239,6 +239,15 @@ export class Dealer {
 
   private pendingBotActionTimeoutIds = new Set<ReturnType<typeof setTimeout>>();
 
+  /**
+   * Tracks consecutive non-PokerError failures for the same (handId, street, bot, action)
+   * tuple. Persistence errors (e.g. a Hand row missing from a stale/reset DB) are
+   * deterministic — re-driving just repeats the same failure forever, hammering the DB
+   * and logs. Once the streak trips, stop re-driving instead of looping.
+   */
+  private botActionFailureStreak: { key: string; count: number } | null = null;
+  private static readonly MAX_CONSECUTIVE_BOT_ACTION_FAILURES = 3;
+
   private setNextStepOwner(owner: NextStepOwner, trigger: string): void {
     if (this.nextStepOwner !== owner) {
       logger.info(
@@ -332,6 +341,7 @@ export class Dealer {
       void (async () => {
         try {
           await this.handleAction(botId, payload);
+          this.botActionFailureStreak = null;
           logger.info({ botId, action: payload.action }, "DRIVE_CALLED_AFTER_BOT_ACTION");
           await this.driveGame("BOT_ACTION_EXECUTED");
         } catch (err) {
@@ -357,6 +367,32 @@ export class Dealer {
             },
             "BOT_SCHEDULED_ACTION_FAILED",
           );
+          const failureKey = `${this.state.handId}:${this.state.street}:${botId}:${payload.action}`;
+          if (this.botActionFailureStreak?.key === failureKey) {
+            this.botActionFailureStreak.count += 1;
+          } else {
+            this.botActionFailureStreak = { key: failureKey, count: 1 };
+          }
+          if (this.botActionFailureStreak.count >= Dealer.MAX_CONSECUTIVE_BOT_ACTION_FAILURES) {
+            logger.error(
+              {
+                tableId: this.state.tableId,
+                handId: this.state.handId,
+                street: this.state.street,
+                botId,
+                action: payload.action,
+                consecutiveFailures: this.botActionFailureStreak.count,
+              },
+              "BOT_SCHEDULED_ACTION_CIRCUIT_BREAKER_TRIPPED",
+            );
+            this.emitDiagnostic({
+              level: "error",
+              type: "BOT_SCHEDULED_ACTION_CIRCUIT_BREAKER_TRIPPED",
+              message: "Bot action failed repeatedly on the same hand/street; halting automatic re-drive to avoid a hot loop.",
+              context: this.buildDiagnosticContext({ botId, action: payload.action }),
+            });
+            return;
+          }
           await this.driveGame("BOT_SCHEDULED_ACTION_FAILED").catch((driveErr: unknown) => {
             logger.error({ err: driveErr, botId, action: payload.action }, "BOT_SCHEDULED_ACTION_FAILED_REDRIVE_FAILED");
           });
@@ -615,6 +651,7 @@ export class Dealer {
       getBotDelayMs: () => this.getBotDelayMs(),
       scheduleHumanTurnTimeout: (userId) => this.scheduleHumanTurnTimeout(userId),
       onAutoSitOutReachedCap: this.onAutoSitOutReachedCap,
+      emitDiagnostic: (event) => this.emitDiagnostic(event),
     });
     this.playerLifecycleService = new PlayerLifecycleService({
       state: this.state,

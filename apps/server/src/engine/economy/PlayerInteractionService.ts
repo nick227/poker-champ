@@ -658,6 +658,23 @@ export class PlayerInteractionService {
   }
 
   /**
+   * Force-voids every ACTIVE side bet tied to a hand that's being voided instead of
+   * resolved normally (manually/admin today; a future automated stuck-hand recovery
+   * path later). Deliberately not a ledger operation: side-bet stakes only move at
+   * resolution time (see resolveSideBetsForHand's CashierService calls above), so an
+   * ACTIVE bet has never debited anyone — voiding it is a pure status flip, nothing to
+   * refund. Not wired into any caller yet; there is no admin void-hand action today.
+   */
+  static async voidSideBetsForHand(tableId: string, handId: string, reason: string): Promise<number> {
+    const prisma = getPrisma();
+    const result = await prisma.playerInteraction.updateMany({
+      where: { tableId, handId, type: "SIDE_BET", status: "ACTIVE" },
+      data: { status: "VOIDED", resolvedAt: new Date(), metadata: { voidReason: reason } },
+    });
+    return result.count;
+  }
+
+  /**
    * The reconciliation sweep (§5.4): finds PlayerInteraction rows still PENDING past their
    * expiresAt (auto-expire, since nothing was ever held for a PENDING offer — no refund
    * needed, just a status flip) and ACTIVE rows whose target hand has already ended in
