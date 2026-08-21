@@ -2,9 +2,7 @@ import { View } from "react-native";
 import { PlayingCard } from "../PlayingCard";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import type { SeatPlateCards } from "./seatPlate.types";
-import { BASE_CARD_HEIGHT, BASE_CARD_WIDTH } from "../tokens/card-dimensions.tokens";
-
-const PAIR_BASE_WIDTH = BASE_CARD_WIDTH * 2 - 22;
+import { BASE_CARD_HEIGHT, PAIR_BASE_WIDTH } from "../tokens/card-dimensions.tokens";
 
 /** Compact hole-card fan — overlays the avatar (GG), does not stack a tall column. */
 export function SeatHoleCards({

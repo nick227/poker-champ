@@ -4,6 +4,9 @@
 export const BASE_CARD_WIDTH = 70;
 export const BASE_CARD_HEIGHT = 90;
 
+/** Width of the fanned two-card hole-card pair (1.0 scale) — cards overlap by 22px. */
+export const PAIR_BASE_WIDTH = BASE_CARD_WIDTH * 2 - 22;
+
 /** Standard card scales used throughout the app (frozen to prevent mutation). */
 const CARD_SCALES = Object.freeze({
   MINI: 0.6,

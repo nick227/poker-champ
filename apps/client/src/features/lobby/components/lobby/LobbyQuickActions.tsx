@@ -24,16 +24,16 @@ export function LobbyQuickActions({
 }: Props) {
   const actions: QuickAction[] = [
     {
-      label: "New tournament",
-      detail: "Create and host",
-      icon: "trophy-outline",
-      onPress: onCreateTournament,
-    },
-    {
       label: "Quick start",
       detail: "Play bots heads-up or 9-max",
       icon: "dice-outline",
       onPress: onQuickStart,
+    },
+    {
+      label: "New tournament",
+      detail: "Create and host",
+      icon: "trophy-outline",
+      onPress: onCreateTournament,
     },
     {
       label: "Poker training",

@@ -4,7 +4,7 @@ import { AvatarDisc } from "../player-panel/AvatarDisc";
 import type { Opponent } from "../table.adapter";
 import type { CardFacePackId } from "@/assets/cards/packs";
 import { SEAT_PLATE } from "./stageGeometry";
-import { BASE_CARD_HEIGHT } from "../tokens/card-dimensions.tokens";
+import { BASE_CARD_HEIGHT, PAIR_BASE_WIDTH } from "../tokens/card-dimensions.tokens";
 import { SeatHoleCards } from "./SeatHoleCards";
 import { SeatTurnAura } from "./SeatTurnAura";
 import { isBannerStatus } from "./SeatStatusBanner";
@@ -108,6 +108,18 @@ export function SeatPlate({
   // Nameplate is centered within `width`, wider than the avatar — this is its right edge.
   const plateRight = (width + plateW) / 2;
   const interactSize = compact ? 20 : 22;
+
+  // Hole cards fan out centered in `width` — on narrow (mobile) plates the fanned pair can
+  // span nearly the full plate, leaving no in-bounds gap for the gift badge. Derive the
+  // badge's left offset from the actual card-pair bounds (falling back to the old fixed
+  // inset when there's room) instead of a fixed pixel guess, so it never sits on top of cards.
+  const cardPairLeft = (width - PAIR_BASE_WIDTH * cardScale) / 2;
+  const giftBadgeSize = 28;
+  const giftBadgeGap = 4;
+  const giftBadgeLeft = Math.min(
+    compact ? 6 : 10,
+    cardPairLeft - giftBadgeSize - giftBadgeGap,
+  );
 
   const body = (
     <View
@@ -230,10 +242,10 @@ export function SeatPlate({
           style={{
             position: "absolute",
             top: cardPeek,
-            left: compact ? 6 : 10,
-            width: 28,
-            height: 28,
-            borderRadius: 14,
+            left: giftBadgeLeft,
+            width: giftBadgeSize,
+            height: giftBadgeSize,
+            borderRadius: giftBadgeSize / 2,
             backgroundColor: "rgba(0,0,0,0.9)",
             borderWidth: 1.5,
             borderColor: "rgba(255,255,255,0.4)",
