@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Text } from "@/components/base/Text";
@@ -12,15 +12,22 @@ import { useIsDesktopWorkspace } from "@/hooks/useIsDesktopWorkspace";
 import { getSettingsTargetPath } from "@/lib/authNavigation";
 import { loginPathWithNext } from "@/lib/nav";
 import { ProfilePill } from "@/components/domain/navigation/ProfilePill";
-import { useActiveTableStatus, type ActiveTableStatus } from "@/hooks/useActiveTableStatus";
+import {
+  useActiveTableStatus,
+  type ActiveTableStatus,
+} from "@/hooks/useActiveTableStatus";
 import { TournamentInfoModal } from "@/features/table/components/table/TournamentInfoModal";
 import { formatChipCount } from "@/lib/money/table-money";
 import { chips } from "@/lib/money/types";
-import { formatCountdownTo, formatTournamentStatus } from "@/lib/tournament.utils";
-import { APP_NAME } from "@/constants/copy";
+import {
+  formatCountdownTo,
+  formatTournamentStatus,
+} from "@/lib/tournament.utils";
 
 /** Live "status · level · blinds · next level in" line, ticking once a second while a level clock is running. */
-function useTournamentSummaryLine(tournament: ActiveTableStatus["tournament"]): string | null {
+function useTournamentSummaryLine(
+  tournament: ActiveTableStatus["tournament"],
+): string | null {
   const [, forceTick] = useState(0);
 
   useEffect(() => {
@@ -32,7 +39,10 @@ function useTournamentSummaryLine(tournament: ActiveTableStatus["tournament"]): 
   if (!tournament) return null;
 
   const blindsLine = `${formatChipCount(chips(tournament.smallBlindCents))} / ${formatChipCount(chips(tournament.bigBlindCents))}`;
-  const anteSuffix = tournament.anteCents > 0 ? ` (ante ${formatChipCount(chips(tournament.anteCents))})` : "";
+  const anteSuffix =
+    tournament.anteCents > 0
+      ? ` (ante ${formatChipCount(chips(tournament.anteCents))})`
+      : "";
   const countdown = formatCountdownTo(tournament.nextLevelAtTs);
 
   const parts = [
@@ -76,21 +86,33 @@ export function WorkspaceStatusBar({
   const leadingLabel = tableStatus
     ? tableStatus.tournament
       ? tableStatus.tableName
-      : [tableStatus.tableName, tableStatus.stakesLine].filter(Boolean).join("  ·  ")
+      : [tableStatus.tableName, tableStatus.stakesLine]
+          .filter(Boolean)
+          .join("  ·  ")
     : null;
   const tournamentId = tableStatus?.tournament?.tournamentId;
-  const tournamentSummary = useTournamentSummaryLine(tableStatus?.tournament ?? null);
+  const tournamentSummary = useTournamentSummaryLine(
+    tableStatus?.tournament ?? null,
+  );
+  // Route-gated, not just "menu is non-null": the table screen that published this
+  // menu can remain mounted beneath a pushed route (nav sheet links use router.push),
+  // so its unmount cleanup may not have fired yet. Trust the URL, not component lifecycle.
+  const showTableMenu = pathname.startsWith("/table/") && !!tableMenu && React.isValidElement(tableMenu);
 
   return (
     <View
-      className={`ui-row items-center justify-between border-b border-border gap-3 pt-4 shrink-0 ${
-        isDesktopWorkspace ? "pb-4" : "px-4 pt-3 pb-3"
+      className={`ui-row items-center justify-between border-b border-border pt-4 shrink-0 ${
+        isDesktopWorkspace ? "gap-3 pb-4" : "gap-2 px-3 pt-3 pb-3"
       }`}
     >
       {!isDesktopWorkspace ? (
-        <IconButton icon={<Icon name="menu" size={20} />} size="sm" onPress={openMobileNav} />
+        <IconButton
+          icon={<Icon name="menu" size={20} />}
+          size="sm"
+          onPress={openMobileNav}
+        />
       ) : null}
-      <View className="flex-1 min-w-0 flex-col px-4 justify-center">
+      <View className={`flex-1 min-w-0 flex-col justify-center ${isDesktopWorkspace ? "px-4" : "px-1"}`}>
         <View className="flex-row items-center gap-2">
           {leadingLabel ? (
             <Text
@@ -101,15 +123,6 @@ export function WorkspaceStatusBar({
             >
               {leadingLabel}
             </Text>
-          ) : !isDesktopWorkspace ? (
-            <Pressable
-              onPress={() => router.push("/lobby")}
-              className="ui-touch"
-              accessibilityRole="link"
-              accessibilityLabel={APP_NAME}
-            >
-              <Text className="text-lg text-gold">♠</Text>
-            </Pressable>
           ) : null}
           {tournamentId ? (
             <IconButton
@@ -139,42 +152,65 @@ export function WorkspaceStatusBar({
         />
       ) : null}
       <View className="ui-row items-center gap-3 shrink-0">
-        <Pressable
-          onPress={onPressOnline}
-          disabled={!onPressOnline}
-          className={`btn h-9 items-center justify-center rounded-2 ${isDesktopWorkspace ? "px-3" : "px-2"}`}
-          style={{ backgroundColor: "transparent" }}
-          accessibilityRole="button"
-          accessibilityLabel={onlineLabel}
-        >
-          <View className="ui-row items-center gap-2">
-            <View className="h-1.5 w-1.5 rounded-full bg-brand" />
-            {isDesktopWorkspace ? (
-              <Text variant="muted" className="text-[13px] tracking-wide">
-                {onlineLabel}
-              </Text>
-            ) : null}
-          </View>
-        </Pressable>
-        {authenticated ? (
-          <ProfilePill
-            username={username}
-            amountCents={amountCents}
-            avatarUrl={avatarUrl}
-            avatarSize={28}
-            onPress={() => router.push(settingsPath)}
-          />
+        {showTableMenu ? (
+          React.cloneElement(tableMenu as React.ReactElement<any>, {
+            profileSlot: authenticated ? (
+              <ProfilePill
+                username={username}
+                amountCents={amountCents}
+                avatarUrl={avatarUrl}
+                avatarSize={isDesktopWorkspace ? 28 : 22}
+                compact={!isDesktopWorkspace}
+                onPress={() => router.push(settingsPath)}
+              />
+            ) : (
+              <Button
+                title="Login / Register"
+                intent="accent"
+                size="sm"
+                shape="hud"
+                minWidth={0}
+                onPress={() => router.push(loginPathWithNext(pathname))}
+              />
+            ),
+          })
         ) : (
-          <Button
-            title="Login / Register"
-            intent="accent"
-            size="sm"
-            shape="hud"
-            minWidth={0}
-            onPress={() => router.push(loginPathWithNext(pathname))}
-          />
+          <>
+            <Pressable
+              onPress={onPressOnline}
+              disabled={!onPressOnline}
+              className={`btn h-9 items-center justify-center rounded-2 ${isDesktopWorkspace ? "px-3" : "px-2"}`}
+              style={{ backgroundColor: "transparent" }}
+              accessibilityRole="button"
+              accessibilityLabel={onlineLabel}
+            >
+              <View className="ui-row items-center gap-2">
+                <View className="h-1.5 w-1.5 rounded-full bg-brand" />
+                <Text variant="muted" className="text-[13px] tracking-wide">
+                  {onlineLabel}
+                </Text>
+              </View>
+            </Pressable>
+            {authenticated ? (
+              <ProfilePill
+                username={username}
+                amountCents={amountCents}
+                avatarUrl={avatarUrl}
+                avatarSize={28}
+                onPress={() => router.push(settingsPath)}
+              />
+            ) : (
+              <Button
+                title="Login / Register"
+                intent="accent"
+                size="sm"
+                shape="hud"
+                minWidth={0}
+                onPress={() => router.push(loginPathWithNext(pathname))}
+              />
+            )}
+          </>
         )}
-        {tableMenu}
       </View>
     </View>
   );

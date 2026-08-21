@@ -31,7 +31,6 @@ const DESKTOP_COLS: Array<{
   { key: "name", label: "Table", flex: CASH_COL_FLEX.name, sortable: true },
   { key: "blinds", label: "Stakes", flex: CASH_COL_FLEX.blinds, sortable: true },
   { key: "players", label: "Players", flex: CASH_COL_FLEX.players, sortable: true },
-  { key: "status", label: "Status", flex: CASH_COL_FLEX.status, sortable: true },
 ];
 
 export function LobbyTableList({

@@ -3,7 +3,6 @@ import { Text } from "@/components/base/Text";
 import type { LobbyTableRow } from "@/lib/lobbyTables";
 import {
   cashLobbyCtaLabel,
-  cashLobbyStatusLabel,
   resolveCashLobbyCta,
   resolveCashLobbyStatus,
   type CashLobbyCta,
@@ -15,7 +14,6 @@ export const CASH_COL_FLEX = {
   name: 2.2,
   blinds: 1.2,
   players: 0.9,
-  status: 1.1,
   action: 0.9,
 } as const;
 
@@ -24,18 +22,7 @@ export function formatCashBlinds(table: LobbyTableRow): string {
   return `${formatLobbyUsd(table.smallBlindCents)} / ${formatLobbyUsd(table.bigBlindCents)}`;
 }
 
-export function cashStatusClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
-  if (status === "joined" || status === "live") return "text-brand";
-  if (status === "open") return "text-muted";
-  return "text-danger";
-}
 
-/** Compact rows retain a small status marker where horizontal space is constrained. */
-export function cashStatusDotClass(status: ReturnType<typeof resolveCashLobbyStatus>): string {
-  if (status === "joined" || status === "live") return "bg-brand";
-  if (status === "open") return "bg-border";
-  return "bg-danger";
-}
 
 function cashCtaKind(cta: CashLobbyCta): LobbyRowCtaKind {
   if (cta === "join") return "join";
@@ -114,11 +101,7 @@ export function LobbyCashDesktopRow({
       >
         {formatLobbyCount(table.players, table.seats)}
       </Text>
-      <View style={{ flex: CASH_COL_FLEX.status }} className="pr-2">
-        <Text variant="body" className={`text-[12px] ${cashStatusClass(status)}`} numberOfLines={1}>
-          {cashLobbyStatusLabel(status)}
-        </Text>
-      </View>
+
       <View style={{ flex: CASH_COL_FLEX.action }} className="items-end">
         <LobbyRowCta
           title={joining ? "…" : cashLobbyCtaLabel(cta, true)}

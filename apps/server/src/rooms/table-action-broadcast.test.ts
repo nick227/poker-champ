@@ -13,13 +13,29 @@ vi.mock("@poker-champ/db", () => {
     userAward: { findMany: () => Promise.resolve([]), create: () => Promise.resolve({}), update: () => Promise.resolve({}) },
     userHandCount: { findMany: () => Promise.resolve([]), update: () => Promise.resolve({}) },
     awardGrantEvent: { create: () => Promise.resolve({}) },
+    tableSeatSession: {
+      findMany: () => Promise.resolve([]),
+      count: () => Promise.resolve(0),
+      findUnique: () => Promise.resolve(null),
+      findFirst: () => Promise.resolve(null),
+      create: () => Promise.resolve({}),
+      update: () => Promise.resolve({}),
+      updateMany: () => Promise.resolve({}),
+      upsert: () => Promise.resolve({}),
+      deleteMany: () => Promise.resolve({}),
+    },
     $executeRawUnsafe: () => Promise.resolve(0),
+    $queryRawUnsafe: () => Promise.resolve([]),
   };
   return {
     getPrisma: () => ({
       user: { findUnique: () => Promise.resolve(null), findMany: () => Promise.resolve([]) },
       tableSnapshotLog: { create: () => Promise.resolve({}) },
+      tableSeatSession: mockTx.tableSeatSession,
+      playerBalance: { count: () => Promise.resolve(0) },
       $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx),
+      $executeRawUnsafe: () => Promise.resolve(0),
+      $queryRawUnsafe: () => Promise.resolve([]),
     }),
     disconnectPrisma: () => Promise.resolve(),
   };
@@ -1318,6 +1334,7 @@ async function setupHumanVsBotRoom() {
         const dealerAny = room.dealer as any;
         const beforeSeq = room.state.handActionSeq;
         dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "CALL" }, 0);
+        dealerAny.turnManager.autoActionDispatcher?.pendingAutoActionTokenKeys?.clear();
         dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "CALL" }, 400);
 
         await waitFor(
@@ -1380,6 +1397,7 @@ async function setupHumanVsBotRoom() {
         const dealerAny = room.dealer as any;
         const beforeSeq = room.state.handActionSeq;
         dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "FOLD" }, 0);
+        dealerAny.turnManager.autoActionDispatcher?.pendingAutoActionTokenKeys?.clear();
         dealerAny.turnManager.enqueueInternalAction(botUserId, { action: "FOLD" }, 500);
 
         await waitFor(

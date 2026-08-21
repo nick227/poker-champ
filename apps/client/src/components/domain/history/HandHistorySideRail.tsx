@@ -325,7 +325,7 @@ export function HandHistorySideRail({ visible, onClose }: { visible: boolean; on
             ListEmptyComponent={
               !historyStore.isLoading ? (
                 <View className="flex-1 items-center justify-center p-8">
-                  <Text variant="muted">No hands found.</Text>
+                  <Text variant="muted">{historyStore.error ?? "No hands found."}</Text>
                 </View>
               ) : null
             }

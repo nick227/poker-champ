@@ -970,6 +970,13 @@ export const openApiSpec = {
             required: false,
             schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
           },
+          {
+            name: "_t",
+            in: "query",
+            required: false,
+            description: "Client-side cache-busting timestamp; ignored by the server.",
+            schema: { type: "integer" },
+          },
         ],
         responses: {
           "200": {
@@ -992,6 +999,22 @@ export const openApiSpec = {
                           heroWonCents: { type: "integer" },
                           heroActionSummary: { type: "string", nullable: true },
                           hasReplay: { type: "boolean" },
+                          boardCards: { type: "array", items: { type: "string" } },
+                          heroCards: { type: "array", items: { type: "string" } },
+                          totalPotCents: { type: "integer" },
+                          winners: {
+                            type: "array",
+                            items: {
+                              type: "object",
+                              properties: {
+                                userId: { type: "string", nullable: true },
+                                displayName: { type: "string", nullable: true },
+                                amountCents: { type: "integer" },
+                              },
+                              required: ["amountCents"],
+                            },
+                          },
+                          reason: { type: "string", nullable: true },
                         },
                         required: [
                           "id",

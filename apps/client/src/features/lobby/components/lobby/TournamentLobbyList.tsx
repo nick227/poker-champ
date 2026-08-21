@@ -145,7 +145,7 @@ export function TournamentLobbyList({
               Starts{onSort ? lobbySortCaret(sortKey === "startTime", sortDir) : ""}
             </Text>
           </Pressable>
-          <View style={{ width: 76 }} />
+          <View style={{ width: 96 }} />
         </View>
         {rows}
       </View>

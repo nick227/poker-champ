@@ -20,6 +20,7 @@ export default defineConfig({
           "@react-navigation/native",
           "expo-secure-store",
           "react-native-mmkv",
+          "react-native-css-interop",
         ],
       },
     },

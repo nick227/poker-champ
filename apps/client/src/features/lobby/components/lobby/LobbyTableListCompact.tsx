@@ -4,12 +4,11 @@ import type { LobbyTableRow } from "@/lib/lobbyTables";
 import { lobbySortCaret, type LobbySortDir, type LobbySortKey } from "../../lobbyTableSort";
 import {
   cashLobbyCtaLabel,
-  cashLobbyStatusLabel,
   resolveCashLobbyCta,
   resolveCashLobbyStatus,
 } from "../../cashLobbyRow";
 import { formatLobbyCount } from "../../lobbyFormat";
-import { cashStatusClass, cashStatusDotClass, formatCashBlinds } from "./LobbyCashDesktopRow";
+import { formatCashBlinds } from "./LobbyCashDesktopRow";
 import { LobbyRowCta, type LobbyRowCtaKind } from "./LobbyRowCta";
 
 type Props = {
@@ -76,7 +75,7 @@ export function LobbyTableListCompact({
             Seats{lobbySortCaret(sortKey === "players", sortDir)}
           </Text>
         </Pressable>
-        <View style={{ width: 72 }} />
+        <View style={{ width: 100 }} />
       </View>
       {[
         ...pinnedTables.map((t) => ({ table: t, pinned: true })),
@@ -106,18 +105,9 @@ export function LobbyTableListCompact({
               <Text variant="body" className="font-mono text-[12px] tabular-nums" numberOfLines={1}>
                 {formatLobbyCount(table.players, table.seats)}
               </Text>
-              <View className="ui-row items-center gap-1 mt-0.5">
-                <View className={`h-1.5 w-1.5 rounded-full ${cashStatusDotClass(status)}`} />
-                <Text
-                  variant="body"
-                  className={`text-[10px] ${cashStatusClass(status)}`}
-                  numberOfLines={1}
-                >
-                  {cashLobbyStatusLabel(status)}
-                </Text>
-              </View>
+
             </View>
-            <View style={{ width: 72 }} className="items-end pl-2">
+            <View style={{ width: 100 }} className="items-end pl-2">
               <LobbyRowCta
                 title={joining ? "…" : cashLobbyCtaLabel(cta, true)}
                 kind={cashCtaKind(cta)}

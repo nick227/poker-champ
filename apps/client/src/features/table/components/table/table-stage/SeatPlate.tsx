@@ -105,6 +105,9 @@ export function SeatPlate({
   const cardVisualHeight = Math.round(BASE_CARD_HEIGHT * cardScale);
   // Hard seam: card bottoms stop at the nameplate top — never cover name/stack.
   const cardsTop = Math.max(0, nameplateTop - cardVisualHeight + 6);
+  // Nameplate is centered within `width`, wider than the avatar — this is its right edge.
+  const plateRight = (width + plateW) / 2;
+  const interactSize = compact ? 20 : 22;
 
   const body = (
     <View
@@ -260,19 +263,21 @@ export function SeatPlate({
   // Sibling to pressableBody, not nested inside it — tapping "+" must never also fire
   // onPress (stats popup / bot removal).
   return (
-    <View style={{ width, height }}>
+    <View style={{ width, height, overflow: "visible" }}>
       {pressableBody}
+      {/* Anchored to the nameplate's top-right corner (not the card-peek line) so it
+          never overlaps the hole cards, which peek down over the avatar above it. */}
       <Pressable
         onPress={onInteractPress}
         accessibilityRole="button"
         accessibilityLabel={`Send gift or propose side bet to ${name}`}
         style={{
           position: "absolute",
-          top: cardPeek,
-          right: compact ? 6 : 10,
-          width: 22,
-          height: 22,
-          borderRadius: 11,
+          top: nameplateTop,
+          left: plateRight - interactSize / 2,
+          width: interactSize,
+          height: interactSize,
+          borderRadius: interactSize / 2,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "rgba(3,5,8,0.94)",

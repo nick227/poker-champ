@@ -67,12 +67,12 @@ export function PokerActionButton({
     >
       <View pointerEvents="none">
         <Text
-          numberOfLines={1}
           allowFontScaling={false}
           style={{
             color: paint.text,
             fontWeight: "900",
             fontSize: BUTTONS.LABEL_SIZE,
+            lineHeight: 20,
             letterSpacing: 0.4,
             textAlign: "center",
           }}

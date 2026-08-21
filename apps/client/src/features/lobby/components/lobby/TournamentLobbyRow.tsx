@@ -126,7 +126,7 @@ export function TournamentLobbyRow({
             {pinned ? "Joined" : formatLobbyTournamentStatus(tournament, nowMs)}
           </Text>
         </View>
-        <View style={{ width: 76 }} className="items-end">
+        <View style={{ width: 96 }} className="items-end">
           <LobbyRowCta
             title={actionInFlight ? "…" : compactTournamentCtaLabel(cta.label)}
             kind={tourneyCtaKind(cta)}

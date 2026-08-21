@@ -109,12 +109,14 @@ export const TOKENS_CSS = `/* Design tokens: single source of truth. 4px base sc
 }
 
 /* Document: viewport only (in tokens so web build includes it) */
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   margin: 0;
   background-color: hsl(var(--c-bg));
   color: hsl(var(--c-text));
+  overflow-x: hidden;
 }
 
 /* React mount */
@@ -132,6 +134,7 @@ html, body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 /* Mobile content column (<768). Fluid from 768+; desktop shell uses .app-shell-desktop + .app-main. */
@@ -143,6 +146,7 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 @media (min-width: 768px) {
@@ -204,11 +208,15 @@ html, body {
   background-color: transparent;
 }
 
-#root, #root div, #root span {
+#root,
+#root div,
+#root span {
   box-sizing: border-box;
 }
 
-#root input, #root textarea, #root select {
+#root input,
+#root textarea,
+#root select {
   background-color: hsl(var(--c-panel));
   border: 1px solid hsl(var(--c-border-subtle));
   border-radius: var(--r-md);
@@ -216,11 +224,13 @@ html, body {
   padding: var(--s-3);
 }
 
-#root input::placeholder, #root textarea::placeholder {
+#root input::placeholder,
+#root textarea::placeholder {
   color: hsl(var(--c-placeholder));
 }
 
-#root button:not(.btn), #root [role="button"]:not(.btn) {
+#root button:not(.btn),
+#root [role="button"]:not(.btn) {
   background-color: hsl(var(--c-brand));
   color: hsl(var(--c-text));
   border: none;
@@ -243,8 +253,8 @@ html, body {
 }
 
 .bottom-sheet {
-  max-width: 100% !important;
-  width: 640px !important;
+  width: 100% !important;
+  max-width: 640px !important;
   margin: 0 auto;
 }
 
