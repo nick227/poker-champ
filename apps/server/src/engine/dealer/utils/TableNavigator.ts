@@ -142,9 +142,17 @@ export function resolvePlayersReadyForNextHand(state: PokerState): PlayerState[]
   );
 }
 
-/** A cash table must pause for rebuy instead of starting a bot-only hand. */
-export function hasHumanReadyForNextHand(players: readonly PlayerState[]): boolean {
-  return players.some((player) => player.kind === "HUMAN");
+/**
+ * A cash table must pause instead of starting a bot-only hand. A seated-but-disconnected
+ * human is functionally bot-only: nothing at the table can act on their behalf but a bot,
+ * so treat them the same as absent for auto-deal purposes in cash games. Reconnection resumes
+ * dealing explicitly via markReconnected(), so this doesn't delay a real player coming back.
+ * Tournaments must keep running on schedule (blind levels, hand-for-hand) even through a
+ * disconnect, so the connected requirement is skipped there — mirrors resolvePlayersReadyForNextHand's
+ * ABANDONED carve-out.
+ */
+export function hasHumanReadyForNextHand(players: readonly PlayerState[], tournamentMode = false): boolean {
+  return players.some((player) => player.kind === "HUMAN" && (player.connected || tournamentMode));
 }
 
 /** Reset between-hand statuses so eligibility checks match deal intent (FOLDED/ABANDONED → ACTIVE). */

@@ -156,7 +156,7 @@ export class HandOrchestrator {
         // A busted human can leave several funded bots ready. Waiting is the
         // correct state until that human rebuys; retrying here creates a hot
         // requestDrive loop that starves the economy endpoint.
-        if (hasHumanReadyForNextHand(readyPlayers)) {
+        if (hasHumanReadyForNextHand(readyPlayers, this.deps.state.tournamentMode)) {
           void this.deps.requestDrive("START_HAND_ABORT_RECOVERY");
         }
 
@@ -255,7 +255,7 @@ export class HandOrchestrator {
       if (
         this.deps.state.street === "WAITING" &&
         activePlayers.length >= 2 &&
-        hasHumanReadyForNextHand(activePlayers)
+        hasHumanReadyForNextHand(activePlayers, this.deps.state.tournamentMode)
       ) {
         this.nextHandScheduled = false;
         await this.deps.requestDrive("NEXT_HAND_START_IMMEDIATE");
@@ -403,7 +403,7 @@ export class HandOrchestrator {
           if (
             this.deps.state.street === "WAITING" &&
             activePlayers.length >= 2 &&
-            hasHumanReadyForNextHand(activePlayers)
+            hasHumanReadyForNextHand(activePlayers, this.deps.state.tournamentMode)
           ) {
             // Release the guard before startHand so an immediate terminal hand
             // (e.g. HAND_START_NO_ACTIONABLE_ACTOR_RUNOUT) can schedule the

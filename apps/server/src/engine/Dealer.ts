@@ -2318,7 +2318,7 @@ export class Dealer {
           if (
             isNextHandStartDue(this.state, driveNow) &&
             readyPlayers.length >= 2 &&
-            hasHumanReadyForNextHand(readyPlayers)
+            hasHumanReadyForNextHand(readyPlayers, this.state.tournamentMode)
           ) {
             this.state.nextHandAtTs = 0;
             if (!this.state.handId) {
@@ -2908,7 +2908,7 @@ export class Dealer {
   private async ensureHandAdvancingAfterPlayerRemoval(removedSeat: number): Promise<void> {
     if (this.state.street === "WAITING") {
       const readyPlayers = resolvePlayersReadyForNextHand(this.state);
-      const hasHumanReady = hasHumanReadyForNextHand(readyPlayers);
+      const hasHumanReady = hasHumanReadyForNextHand(readyPlayers, this.state.tournamentMode);
       if (
         readyPlayers.length >= 2 &&
         hasHumanReady &&
