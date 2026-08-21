@@ -86,7 +86,7 @@ export function NavRail({ active }: { active: PrimaryNavKey | null }) {
             onPress={() => router.push(targetPath)}
             className={`ui-touch flex-row items-center gap-3 rounded-2 px-3 py-3 ${
               expanded ? "justify-start" : "justify-center px-2"
-            } ${isActive ? "bg-panel-elevated border-l-2 border-gold" : "border-l-2 border-transparent"}`}
+            } ${isActive ? "bg-panel-elevated" : "border-transparent"}`}
             accessibilityLabel={screen.bottomBarLabel ?? screen.title}
             accessibilityState={{ selected: isActive }}
           >
