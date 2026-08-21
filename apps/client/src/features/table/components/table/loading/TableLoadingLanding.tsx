@@ -84,7 +84,7 @@ export function TableLoadingLanding({
               <LoadingIndicatorMinimal reducedMotion={reducedMotion} />
             </View>
 
-            <Text variant="h3" className="text-text text-center mb-2">
+            <Text variant="h2" className="text-text text-center mb-2">
               {loadingTitle}
             </Text>
             {statusMessage ? (

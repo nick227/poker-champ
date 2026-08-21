@@ -35,12 +35,18 @@ export function resolveBetMarkerCenter({
   const uy = dy / len;
   const avatarCenterFromTop = cardPeek + avatarSize / 2;
 
-  // Expand the pod bounds by the marker radius and a visible felt gap, then
-  // find where the inward ray first exits that rectangle.
-  const horizontalClearance = plateWidth / 2 + BET_MARKER_HALF_WIDTH + BET_MARKER_SEAT_GAP;
-  const topClearance = avatarCenterFromTop + BET_MARKER_HALF_HEIGHT + BET_MARKER_SEAT_GAP;
+  const isTopOpponent = uy > 0.1;
+  const gapOffset = isTopOpponent ? 24 : 0;
+  const currentGap = BET_MARKER_SEAT_GAP + gapOffset;
+
+  // Expand the pod bounds by the marker radius and a visible felt gap.
+  // Use avatarSize for horizontal clearance instead of plateWidth, since the
+  // plate layout width is quite wide and leaves huge gaps on the sides.
+  const visualHalfWidth = avatarSize / 2 + 12; 
+  const horizontalClearance = visualHalfWidth + BET_MARKER_HALF_WIDTH + currentGap;
+  const topClearance = avatarCenterFromTop + BET_MARKER_HALF_HEIGHT + currentGap;
   const bottomClearance =
-    plateHeight - avatarCenterFromTop + BET_MARKER_HALF_HEIGHT + BET_MARKER_SEAT_GAP;
+    plateHeight - avatarCenterFromTop + BET_MARKER_HALF_HEIGHT + currentGap;
   const xDistance =
     ux > 0.001
       ? horizontalClearance / ux
@@ -95,10 +101,19 @@ export function SeatFeltMarkers({
   const px = -uy;
   const py = ux;
 
+  const isTopOpponent = uy > 0.1;
+  const isBottomPlayer = uy < -0.1;
+
   // Extra side clearance keeps the puck out from under hole cards (seat plate is zIndex 20).
-  const dealerClearancePx = 30;
-  const dealerDist = avatarSize * 0.52;
-  const dealerSide = avatarSize * 0.38 + dealerClearancePx;
+  const clearanceOffset = isTopOpponent ? 20 : (isBottomPlayer ? 15 : 0);
+  const dealerClearancePx = 30 + clearanceOffset;
+  
+  const sideScale = isTopOpponent ? 0.48 : (isBottomPlayer ? 0.45 : 0.38);
+  const dealerSide = avatarSize * sideScale + dealerClearancePx;
+  
+  const distScale = isTopOpponent ? 0.45 : (isBottomPlayer ? 0.45 : 0.52);
+  const dealerDist = avatarSize * distScale;
+  
   const betCenter = resolveBetMarkerCenter({
     seat,
     feltCenter,

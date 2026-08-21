@@ -16,7 +16,7 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA } from "../RejoinCTA";
 import { RebuyCountdown } from "../RebuyCountdown";
-import { useTableViewShellFrame } from "./tableView.shared";
+import { useTableViewShellFrame, useOpponentsWithActiveGifts, useHeroActiveGift } from "./tableView.shared";
 import { useTurnCountdown, useTurnProgress } from "../hooks/useTurnCountdown";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import { emitSoundEvent } from "@/sound/emitSoundEvent";
@@ -59,7 +59,9 @@ export function useActiveTableSlots(
     (s) => s.pendingActionByTableId[renderModel.tableId],
   );
 
-  const opponents = (renderModel.opponents ?? []) as Opponent[];
+  const rawOpponents = (renderModel.opponents ?? []) as Opponent[];
+  const opponents = useOpponentsWithActiveGifts(snapshot?.table?.tableId, rawOpponents);
+  const heroActiveGift = useHeroActiveGift(snapshot?.table?.tableId, snapshot?.hero?.userId);
   const statusStrip = liveTableState?.statusStrip;
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
   const { formatStack, formatBet } = useTableMoneyDisplay();
@@ -345,6 +347,7 @@ export function useActiveTableSlots(
         betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
         turnProgress: isHeroToAct ? activeTurnProgress : null,
         turnCountdownSeconds: isHeroToAct ? turnCountdownSeconds : null,
+        activeGift: heroActiveGift,
       })
     : null;
 

@@ -68,11 +68,15 @@ export function AppChrome({ children }: { children: ReactNode }) {
     );
   }
 
+  // Table/slots want their own custom background preset (from AppPageRoot) to
+  // bleed through — the app-panel wash below would otherwise dim it out.
+  // const mainBleed = pathname.startsWith("/table") || pathname.startsWith("/slots");
+  const mainBleed = false;
+
   if (isDesktopWorkspace) {
-    const mainBleed = pathname.startsWith("/table") || pathname.startsWith("/slots");
     return (
       <ChromeInsetsProvider topConsumed={showStatusBar}>
-        <View className="app-shell-desktop bg-bg/70">
+        <View className={mainBleed ? "app-shell-desktop" : "app-shell-desktop bg-bg/70"}>
           <NavRail active={active} />
           <View
             className={mainBleed ? "app-main app-main--bleed" : "app-main"}
@@ -88,7 +92,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
 
   return (
     <ChromeInsetsProvider topConsumed={showStatusBar}>
-      <View className="app-content bg-bg/70">
+      <View className={mainBleed ? "app-content" : "app-content bg-bg/70"}>
         <View
           className="flex-1 min-h-0"
           style={showStatusBar ? { paddingTop: insets.top } : undefined}

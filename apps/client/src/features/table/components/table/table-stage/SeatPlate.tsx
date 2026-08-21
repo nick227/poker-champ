@@ -42,6 +42,8 @@ export type SeatPlateProps = {
    *  A sibling Pressable to the avatar body (not nested inside it), so tapping "+" never
    *  also triggers `onPress` (stats popup / bot removal). */
   onInteractPress?: () => void;
+  /** Active gift to display on the seat plate, if any. */
+  activeGift?: { emoji: string } | null;
 };
 
 const PRESSABLE_RESET: ViewStyle = {
@@ -85,6 +87,7 @@ export function SeatPlate({
   turnCountdownSeconds = null,
   isWinner = false,
   onInteractPress,
+  activeGift = null,
 }: SeatPlateProps) {
   const initial = (name.trim().slice(0, 1) || "?").toUpperCase();
   const compact = width < 120;
@@ -215,6 +218,32 @@ export function SeatPlate({
           />
         </View>
       ) : null}
+
+      {/* Active gift badge — pinned above the card-peek line (mirrors the interact
+          button's corner) so hole cards, which peek down over the avatar, never cover it. */}
+      {activeGift ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: cardPeek,
+            left: compact ? 6 : 10,
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: "rgba(0,0,0,0.9)",
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.4)",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 40,
+          }}
+        >
+          <Text style={{ fontSize: 16, lineHeight: 18, color: "white", textAlign: "center" }}>
+            {activeGift.emoji}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -269,6 +298,7 @@ export function opponentToSeatPlateProps(
     betDisplay?: string | null;
     turnProgress?: number | null;
     turnCountdownSeconds?: number | null;
+    activeGift?: { emoji: string } | null;
   },
 ): SeatPlateProps {
   const statusLabel = (() => {
@@ -294,5 +324,6 @@ export function opponentToSeatPlateProps(
     isWinner: opts?.isWinner ?? false,
     turnProgress: opts?.turnProgress ?? null,
     turnCountdownSeconds: opts?.turnCountdownSeconds ?? null,
+    activeGift: opts?.activeGift ?? null,
   };
 }

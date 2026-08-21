@@ -4,7 +4,7 @@ import { AccessibilityInfo, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useChromeInsets } from "@/components/containers/ChromeInsets";
 import { Surface } from "@/components/containers/Surface";
-import { BOOT_FADE_IN_MS, BootPreloader } from "@/components/domain/loading/BootPreloader";
+import { BootPreloader, BOOT_FADE_IN_MS } from "@/components/domain/loading/BootPreloader";
 
 type ScreenProps = {
   children: ReactNode;

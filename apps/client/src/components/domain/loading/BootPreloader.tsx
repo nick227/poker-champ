@@ -8,7 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 /** Matches tokens.css --c-bg (0 0% 5%). */
-const BOOT_BG = "#0d0d0d";
+const BOOT_BG = "transparent";
 const BOOT_MARK = "#ffe08a";
 const BOOT_CAPTION = "#e6b422";
 

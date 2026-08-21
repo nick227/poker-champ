@@ -463,18 +463,21 @@ router.get("/hands", async (req, res) => {
             name: true,
           },
         },
+        boardJson: true,
+        reason: true,
         bigBlindCents: true,
         players: {
           select: {
             startingStackCents: true,
             endingStackCents: true,
-            player: { select: { userId: true } },
+            holeCardsJson: true,
+            player: { select: { userId: true, displayName: true } },
           },
         },
         payouts: {
           select: {
             amountCents: true,
-            player: { select: { userId: true } },
+            player: { select: { userId: true, displayName: true } },
           },
         },
         actions: {
@@ -542,6 +545,12 @@ router.get("/hands", async (req, res) => {
         heroActionSummary = "Won at showdown";
       }
 
+      const winners = hand.payouts.map(p => ({
+        userId: p.player?.userId,
+        displayName: p.player?.displayName,
+        amountCents: p.amountCents,
+      }));
+
       return {
         id: hand.id,
         playedAt: hand.createdAt,
@@ -551,6 +560,11 @@ router.get("/hands", async (req, res) => {
         heroWonCents: potCents,
         heroActionSummary: heroActionSummary || undefined,
         hasReplay: handIdsWithReplay.has(hand.id),
+        boardCards: Array.isArray(hand.boardJson) ? (hand.boardJson as string[]) : [],
+        heroCards: Array.isArray(heroPlayer.holeCardsJson) ? (heroPlayer.holeCardsJson as string[]) : [],
+        totalPotCents: potCents,
+        winners,
+        reason: hand.reason,
       };
     }).filter(Boolean); // Filter out null entries
 

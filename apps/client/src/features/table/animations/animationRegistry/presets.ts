@@ -109,25 +109,21 @@ const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
   // screen. Dropped it and moved the headline ABOVE_BOARD (same treatment as SHOWDOWN) so "YOU
   // WIN" never covers the community cards or that status line either.
   POT_TIER_0: [
-    { type: "RING", durationMs: 400, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "small", anchor: "ABOVE_BOARD", durationMs: 800, delayMs: CHOREO_HEADLINE_MS },
   ],
   POT_TIER_1: [
     { type: "FLASH", plane: "BACKGROUND", durationMs: 300, delayMs: CHOREO_FLASH_MS },
-    { type: "RING", durationMs: 500, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "medium", anchor: "ABOVE_BOARD", durationMs: 900, delayMs: CHOREO_HEADLINE_MS },
   ],
   POT_TIER_2: [
     { type: "BURST", preset: "burst", delayMs: CHOREO_BURST_MS },
     { type: "FLASH", plane: "BACKGROUND", durationMs: 350, delayMs: CHOREO_FLASH_MS },
-    { type: "RING", durationMs: 600, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "large", anchor: "ABOVE_BOARD", durationMs: 1000, delayMs: CHOREO_HEADLINE_MS },
   ],
   POT_TIER_3: [
     { type: "FLASH", plane: "BACKGROUND", durationMs: 400, delayMs: CHOREO_FLASH_MS },
     { type: "BURST", durationMs: 500, rays: 12, delayMs: CHOREO_BURST_MS },
     { type: "PARTICLES", durationMs: 600, particleCount: 14, particleSpread: 55, particleShape: "square", delayMs: CHOREO_PARTICLES_MS },
-    { type: "RING", durationMs: 700, delayMs: CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", textSize: "xlarge", anchor: "ABOVE_BOARD", durationMs: 1100, delayMs: CHOREO_HEADLINE_MS },
   ],
   POT_TIER_4: [
@@ -137,7 +133,6 @@ const PRESETS: Record<PresetName, AnimationLayerDefinition[]> = {
     { type: "FLASH", plane: "BACKGROUND", durationMs: 500, delayMs: IMPACT_CHOREO_FLASH_MS },
     { type: "BURST", preset: "winBurst" },
     { type: "PARTICLES", durationMs: 800, particleCount: 20, particleSpread: 70, particleShape: "square", delayMs: IMPACT_CHOREO_PARTICLES_MS },
-    { type: "RING", durationMs: 800, delayMs: IMPACT_CHOREO_RING_MS },
     { type: "TEXT", textRole: "headline", preset: "headlineWin", anchor: "ABOVE_BOARD" },
   ],
   /** Signal-only: deal sound + haptic (see handStartTrigger.ts / useTablePageController.tsx)

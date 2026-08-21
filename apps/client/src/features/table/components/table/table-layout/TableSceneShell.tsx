@@ -127,6 +127,7 @@ export function TableSceneShell({
 
   return (
     <View
+      nativeID="table-wrapper"
       collapsable={false}
       style={[
         vars({
@@ -156,8 +157,8 @@ export function TableSceneShell({
             <View style={{ flex: 1, justifyContent: "center" }}>{board}</View>
           </View>
         ) : (
-          <Animated.View style={[{ opacity: revealOpacity }, layoutStyles.body]}>
-            <View style={layoutStyles.stageHost} collapsable={false}>
+          <Animated.View nativeID="table-body" style={[{ opacity: revealOpacity }, layoutStyles.body]}>
+            <View nativeID="table-stage-host" style={layoutStyles.stageHost} collapsable={false}>
               <TableStage
                 opponents={opponents}
                 heroPlate={heroPlate}
@@ -175,6 +176,7 @@ export function TableSceneShell({
             </View>
             {!hideBottomSection ? (
               <Surface
+                nativeID="table-action-hud"
                 as={View}
                 styleId="surface.sim.table.actionbar"
                 collapsable={false}

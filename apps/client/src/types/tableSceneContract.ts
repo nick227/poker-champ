@@ -82,6 +82,8 @@ export type TablePageController = {
     anchorBounds?: AnchorBounds;
     /** Active bet→pot / pot→winner chip-travel animations; overlay renders and reports completion. */
     chipTravelRequests: ChipTravelPlan[];
+    /** Active gift animations. */
+    giftTravelRequests: import("@/features/table/animations/GiftTravelOverlay").GiftTravelPlan[];
   };
   uiState: {
     activeTablesDropdownVisible: boolean;
@@ -146,6 +148,8 @@ export type TablePageController = {
     reportCardSlotBounds: (index: number, rect: Rect) => void;
     /** Called by ChipTravelOverlay when a chip-travel animation finishes; removes it from the queue. */
     completeChipTravel: (id: string) => void;
+    /** Called by GiftTravelOverlay when a gift animation finishes; removes it from the queue. */
+    completeGiftTravel: (id: string) => void;
     openTournamentStandings: () => void;
     closeTournamentStandings: () => void;
   };

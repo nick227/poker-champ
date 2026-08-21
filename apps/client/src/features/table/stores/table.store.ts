@@ -14,6 +14,11 @@ const GIFT_FEED_CAP = 20;
 
 export type SideBetStatus = "PENDING" | "ACTIVE" | "DECLINED" | "CANCELLED" | "EXPIRED" | "COMPLETED" | "VOIDED";
 
+export type ActiveGift = {
+  catalogKey: string;
+  expiresAtHandNumber: number;
+};
+
 export type SideBetEntry = {
   interactionId: string;
   status: SideBetStatus;
@@ -36,6 +41,8 @@ type TableStoreState = {
   snapshotsByTableId: Record<string, TableSnapshotPayload | undefined>;
   chatMessagesByTableId: Record<string, ChatMessagePayload[]>;
   giftFeedByTableId: Record<string, GiftReceivedPayload[]>;
+  activeGiftsByTableId: Record<string, Record<string, ActiveGift>>;
+  lastKnownHandNumberByTableId: Record<string, number>;
   sideBetsByTableId: Record<string, Record<string, SideBetEntry>>;
   botSummariesByTableId: Record<string, BotSummary[]>;
   botSummariesUpdatedAtByTableId: Record<string, number>;
@@ -73,6 +80,8 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
   snapshotsByTableId: {},
   chatMessagesByTableId: {},
   giftFeedByTableId: {},
+  activeGiftsByTableId: {},
+  lastKnownHandNumberByTableId: {},
   sideBetsByTableId: {},
   botSummariesByTableId: {},
   botSummariesUpdatedAtByTableId: {},
@@ -119,7 +128,23 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
       const list = s.giftFeedByTableId[tableId] ?? [];
       if (list.some((g) => g.interactionId === gift.interactionId)) return s;
       const next = [...list, gift].slice(-GIFT_FEED_CAP);
-      return { giftFeedByTableId: { ...s.giftFeedByTableId, [tableId]: next } };
+      
+      const snapshot = s.snapshotsByTableId[tableId];
+      const maxSeats = snapshot?.table?.maxSeats ?? 6;
+      const currentHand = snapshot?.hand?.handNumber ?? s.lastKnownHandNumberByTableId[tableId] ?? 0;
+      const expiresAtHandNumber = currentHand + (3 * maxSeats);
+      
+      const tableGifts = s.activeGiftsByTableId[tableId] ?? {};
+      return { 
+        giftFeedByTableId: { ...s.giftFeedByTableId, [tableId]: next },
+        activeGiftsByTableId: {
+          ...s.activeGiftsByTableId,
+          [tableId]: {
+            ...tableGifts,
+            [gift.recipientUserId]: { catalogKey: gift.catalogKey, expiresAtHandNumber }
+          }
+        }
+      };
     }),
   upsertSideBetOffer: (tableId, offer) =>
     set((s) => {
@@ -214,6 +239,26 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         return s;
       }
       
+      // Expire gifts
+      let nextActiveGifts = s.activeGiftsByTableId;
+      const currentHandNumber = snapshot.hand?.handNumber;
+      if (currentHandNumber !== undefined) {
+        const tableGifts = s.activeGiftsByTableId[tableId];
+        if (tableGifts) {
+          let modified = false;
+          const nextTableGifts = { ...tableGifts };
+          for (const [userId, gift] of Object.entries(nextTableGifts)) {
+            if (currentHandNumber >= gift.expiresAtHandNumber) {
+              delete nextTableGifts[userId];
+              modified = true;
+            }
+          }
+          if (modified) {
+            nextActiveGifts = { ...nextActiveGifts, [tableId]: nextTableGifts };
+          }
+        }
+      }
+
       const now = Date.now();
       return {
         snapshotsByTableId: {
@@ -227,6 +272,14 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         errorByTableId: {
           ...s.errorByTableId,
           [tableId]: undefined,
+        },
+        activeGiftsByTableId: nextActiveGifts,
+        lastKnownHandNumberByTableId: {
+          ...s.lastKnownHandNumberByTableId,
+          [tableId]: Math.max(
+            s.lastKnownHandNumberByTableId[tableId] ?? 0,
+            snapshot.hand?.handNumber ?? 0
+          ),
         },
         loadSignalsByTableId: {
           ...s.loadSignalsByTableId,
@@ -285,11 +338,12 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         [tableId]: error,
       },
     })),
-  clearTable: (tableId) =>
+    clearTable: (tableId) =>
     set((s) => {
       const { [tableId]: _snapshot, ...snapshotsByTableId } = s.snapshotsByTableId;
       const { [tableId]: _chat, ...chatMessagesByTableId } = s.chatMessagesByTableId;
       const { [tableId]: _gifts, ...giftFeedByTableId } = s.giftFeedByTableId;
+      const { [tableId]: _activeGifts, ...activeGiftsByTableId } = s.activeGiftsByTableId;
       const { [tableId]: _sideBets, ...sideBetsByTableId } = s.sideBetsByTableId;
       const { [tableId]: _bots, ...botSummariesByTableId } = s.botSummariesByTableId;
       const { [tableId]: _botsAt, ...botSummariesUpdatedAtByTableId } = s.botSummariesUpdatedAtByTableId;
@@ -303,6 +357,7 @@ export const useTableStore = create<TableStoreState>((set, get) => ({
         snapshotsByTableId,
         chatMessagesByTableId,
         giftFeedByTableId,
+        activeGiftsByTableId,
         sideBetsByTableId,
         botSummariesByTableId,
         botSummariesUpdatedAtByTableId,

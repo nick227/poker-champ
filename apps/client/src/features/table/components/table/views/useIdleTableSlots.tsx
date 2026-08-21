@@ -12,7 +12,7 @@ import { Button } from "@/components/base/Button";
 import { Text } from "@/components/base/Text";
 import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
 import { RebuyCountdown } from "../RebuyCountdown";
-import { useTableViewShellFrame } from "./tableView.shared";
+import { useTableViewShellFrame, useOpponentsWithActiveGifts, useHeroActiveGift } from "./tableView.shared";
 import { getPlaceholderSlots } from "./tableSceneSlots";
 import type { LiveTableSlotState } from "./useActiveTableSlots";
 import { isTournamentEliminatedSpectator } from "@/features/table/lib/tournament-spectator";
@@ -34,6 +34,8 @@ export function useIdleTableSlots(
   const statusStrip = liveTableState?.statusStrip;
   const cardFacePackId = usePreferencesStore((s) => s.cardFacePackId);
   const { formatStack } = useTableMoneyDisplay();
+  const opponents = useOpponentsWithActiveGifts(snapshot?.table?.tableId, (renderModel.opponents ?? []) as Opponent[]);
+  const heroActiveGift = useHeroActiveGift(snapshot?.table?.tableId, snapshot?.hero?.userId);
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot: snapshot ?? null,
     sceneModel: liveTableState?.sceneModel,
@@ -41,7 +43,7 @@ export function useIdleTableSlots(
     connectionStatus: undefined,
     balanceCents: renderModel.balanceCents,
     topBarRight: renderModel.tableTopBarRight,
-    opponents: renderModel.opponents as Opponent[],
+    opponents,
     opponentStripEmptyState: emptyOpponentsState,
     onPlayerPress: actions.onPlayerPress,
     onSeatInteractPress: actions.onSeatInteractPress,
@@ -154,6 +156,7 @@ export function useIdleTableSlots(
         cards: heroCards,
         heroStatus,
         cardFacePackId,
+        activeGift: heroActiveGift,
       })
     : null;
 

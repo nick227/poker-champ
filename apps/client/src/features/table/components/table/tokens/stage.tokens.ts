@@ -1,15 +1,16 @@
 /**
- * Dark stage (void) behind the felt — separate from felt.tokens so parallel agents
+ * Stage atmosphere tokens — separate from felt.tokens so parallel agents
  * can keep editing rail geometry without merge thrash.
  */
 
-/** Near-black theater behind the table (not app-panel gray). */
-export const STAGE_VOID_BG = "hsl(220, 22%, 5%)";
-
-/** Soft vignette over the void — web radial; native uses a darker fill. */
+/**
+ * Soft vignette behind the felt — web radial; native uses a translucent fill.
+ * Kept light: this sits over the app's custom background preset, so it should
+ * read as a gentle depth cue, not a haze that hides the preset.
+ */
 export const STAGE_VIGNETTE = Object.freeze({
   center: "hsla(220, 18%, 10%, 0)",
-  edge: "hsla(220, 30%, 2%, 0.72)",
+  edge: "hsla(220, 30%, 2%, 0.28)",
 } as const);
 
 /** Soft lift under the oval so the table reads as furniture, not a flat UI oval. */

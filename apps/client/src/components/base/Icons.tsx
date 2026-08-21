@@ -17,6 +17,8 @@ const ICONS = {
   logo: "♠",
   share: "🔗",
   info: "ⓘ",
+  robot: "🤖",
+  history: "📜",
 } as const;
 
 const SUITS = { s: "♠", h: "♥", d: "♦", c: "♣" } as const;

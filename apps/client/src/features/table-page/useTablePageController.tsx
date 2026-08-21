@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRootNavigationState, useRouter } from "expo-router";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
+import { GIFT_CATALOG_BY_KEY } from "@poker-champ/realtime-contract";
 import { TableTopNavMenu } from "@/features/table";
 import { buildSeatContext, getHeroDisplayStatus, mapSeatsToOpponents } from "@/features/table";
 import type { Opponent, ConnectionStatus } from "@/features/table";
@@ -246,6 +247,16 @@ export function useTablePageController({
   const completeChipTravel = useCallback((id: string) => {
     setChipTravelRequests((prev) => prev.filter((p) => p.id !== id));
   }, []);
+
+  const [giftTravelRequests, setGiftTravelRequests] = useState<import("@/features/table/animations/GiftTravelOverlay").GiftTravelPlan[]>([]);
+  const enqueueGiftTravel = useCallback((plan: import("@/features/table/animations/GiftTravelOverlay").GiftTravelPlan | undefined) => {
+    if (!plan) return;
+    setGiftTravelRequests((prev) => [...prev, plan]);
+  }, []);
+  const completeGiftTravel = useCallback((id: string) => {
+    setGiftTravelRequests((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const outOfChipsNoticeShownForHandIdRef = useRef<string | null>(null);
   const lastPotWinHandIdRef = useRef<string | null>(null);
   const lastChipTravelPotWinHandIdRef = useRef<string | null>(null);
@@ -298,6 +309,49 @@ export function useTablePageController({
   const connectionStatus = tableStatus as ConnectionStatus;
   const tableError = errorForTable;
   const opponents = useMemo(() => (snapshot ? mapSeatsToOpponents(snapshot) : []), [snapshot]);
+
+  const lastGiftFeedLengthRef = useRef(giftFeedForTable.length);
+  const giftTravelIdRef = useRef(0);
+  
+  useEffect(() => {
+    if (!anchorBounds.seatByIndex) return;
+    const len = giftFeedForTable.length;
+    if (len > lastGiftFeedLengthRef.current) {
+      for (let i = lastGiftFeedLengthRef.current; i < len; i++) {
+        const gift = giftFeedForTable[i];
+        const entry = GIFT_CATALOG_BY_KEY.get(gift.catalogKey);
+        
+        let fromRect: Rect | undefined;
+        let toRect: Rect | undefined;
+        const senderSeat = opponents.find(o => o.id === gift.senderUserId)?.seat ?? (gift.senderUserId === snapshot?.hero?.userId ? snapshot?.hero?.seat : undefined);
+        const recipientSeat = opponents.find(o => o.id === gift.recipientUserId)?.seat ?? (gift.recipientUserId === snapshot?.hero?.userId ? snapshot?.hero?.seat : undefined);
+
+        if (senderSeat != null) {
+          fromRect = anchorBounds.seatByIndex[senderSeat];
+        }
+        if (!fromRect) {
+          fromRect = anchorBounds.board;
+        }
+
+        if (recipientSeat != null) {
+          toRect = anchorBounds.seatByIndex[recipientSeat];
+        }
+
+        if (fromRect && toRect && entry) {
+          enqueueGiftTravel({
+            id: `gift-travel-${++giftTravelIdRef.current}`,
+            from: fromRect,
+            to: toRect,
+            emoji: entry.emoji,
+            durationMs: 1200,
+            recipientUserId: gift.recipientUserId,
+            catalogKey: gift.catalogKey,
+          });
+        }
+      }
+    }
+    lastGiftFeedLengthRef.current = len;
+  }, [giftFeedForTable, anchorBounds.seatByIndex, opponents, snapshot?.hero?.userId, snapshot?.hero?.seat, enqueueGiftTravel]);
   const seatContext = useMemo(
     () => (snapshot ? buildSeatContext(snapshot) : undefined),
     [snapshot],
@@ -1216,6 +1270,7 @@ export function useTablePageController({
       animationRequest,
       anchorBounds,
       chipTravelRequests,
+      giftTravelRequests,
       tournamentStandingsVisible,
     },
     uiState: {
@@ -1301,6 +1356,7 @@ export function useTablePageController({
         [flushAnchorBounds]
       ),
       completeChipTravel,
+      completeGiftTravel,
       openTournamentStandings: useCallback(() => setTournamentStandingsVisible(true), []),
       closeTournamentStandings: useCallback(() => setTournamentStandingsVisible(false), []),
     },

@@ -3,10 +3,11 @@
  * the tree and avoids re-measure jitter on Android/Web. Do not remove.
  */
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { View, ActivityIndicator } from "react-native";
 import type { TableSnapshotPayload } from "@poker-champ/realtime-contract";
 import { type Opponent } from "../table.adapter";
+import { GIFT_CATALOG_BY_KEY } from "@poker-champ/realtime-contract";
 import { DealerAnnounceBar } from "../DealerAnnounceBar";
 import { ActionBar, type ActionBarOnAction } from "../action-bar";
 import { Button } from "@/components/base/Button";
@@ -24,6 +25,7 @@ import { RejoinCTA, type RejoinUiState } from "../RejoinCTA";
 import { buildHeroPlate } from "../table-stage";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useTableMoneyDisplay } from "@/features/table/context/TableMoneyDisplayContext";
+import { useTableStore } from "@/features/table/stores/table.store";
 
 export type { Opponent };
 export type { HandResultMessage };
@@ -105,6 +107,19 @@ export function ActiveTableView({
   const isReplayMode = tableMode === "replay";
   const [isPendingHeroAction, setIsPendingHeroAction] = useState(false);
   const prevRevealedBoardCardsRef = useRef<number | null>(null);
+  const activeGifts = useTableStore((s) => s.activeGiftsByTableId[snapshot.table.tableId]) || {};
+  
+  const opponentsWithGifts = useMemo(() => {
+    return opponents.map(o => {
+      const gift = activeGifts[o.id];
+      const entry = gift ? GIFT_CATALOG_BY_KEY.get(gift.catalogKey) : null;
+      return {
+        ...o,
+        activeGift: entry ? { emoji: entry.emoji } : null
+      };
+    });
+  }, [opponents, activeGifts]);
+
   const { model, shellBaseProps, board } = useTableViewShellFrame({
     snapshot,
     sceneModel,
@@ -112,7 +127,7 @@ export function ActiveTableView({
     connectionStatus,
     balanceCents,
     topBarRight,
-    opponents,
+    opponents: opponentsWithGifts,
     opponentStripEmptyState,
     onPlayerPress,
     onBoardBounds,
@@ -320,6 +335,29 @@ export function ActiveTableView({
   const { formatStack, formatBet } = useTableMoneyDisplay();
   const heroRoundBetCents =
     snapshot.seats.find((s) => s.seat === snapshot.hero.seat)?.roundBetCents ?? 0;
+  let heroActionLabel: string | undefined;
+  const lastAction = snapshot.lastAction;
+  if (snapshot.hand && lastAction && snapshot.hand.handId === lastAction.handId && lastAction.actorUserId === snapshot.hero.userId && snapshot.hand.street === lastAction.street) {
+    if (lastAction.action === "FOLD") heroActionLabel = "Fold";
+    else if (lastAction.action === "CHECK") heroActionLabel = "Check";
+    else if (lastAction.action === "CALL") heroActionLabel = "Call";
+    else if (lastAction.action === "BET") heroActionLabel = "Bet";
+    else if (lastAction.action === "RAISE") heroActionLabel = "Raise";
+    else if (lastAction.action === "ALL_IN") heroActionLabel = "All-In";
+  }
+
+  let finalHeroBetDisplay: string | null = heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null;
+  if (heroActionLabel) {
+    if (heroRoundBetCents > 0 && heroActionLabel !== "Fold" && heroActionLabel !== "Check") {
+      finalHeroBetDisplay = `${heroActionLabel} ${formatBet(heroRoundBetCents)}`;
+    } else {
+      finalHeroBetDisplay = heroActionLabel;
+    }
+  }
+
+  const heroActiveGift = activeGifts[snapshot.hero.userId];
+  const heroGiftEntry = heroActiveGift ? GIFT_CATALOG_BY_KEY.get(heroActiveGift.catalogKey) : null;
+
   const heroPlate =
     !isReplayMode && heroIsSeated
       ? buildHeroPlate({
@@ -332,9 +370,10 @@ export function ActiveTableView({
           isActiveTurn: isHeroToAct,
           isWinner: isHeroWinner,
           cardFacePackId,
-          betDisplay: heroRoundBetCents > 0 ? formatBet(heroRoundBetCents) : null,
+          betDisplay: finalHeroBetDisplay,
           turnProgress: isHeroToAct ? activeTurnProgress : null,
           turnCountdownSeconds: isHeroToAct ? turnCountdownSeconds : null,
+          activeGift: heroGiftEntry ? { emoji: heroGiftEntry.emoji } : null,
         })
       : null;
 

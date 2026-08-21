@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { lessonService } from "@/features/lessons/lesson.service";
 import { LESSONS_BUTTON_KEYS, LESSONS_MODULE_META, type LessonsButtonKey } from "./lessons.data";
+import { useAuthStore } from "@/stores/auth.store";
 
 export type LessonState = "not_started" | "in_progress" | "completed";
 export type LessonRole = "teaches" | "drills" | "tests";
@@ -195,7 +196,17 @@ export function useLessonsPageViewModel() {
   const [remoteDailyChallenges, setRemoteDailyChallenges] = useState<RemoteDailyChallenge[]>([]);
   const [cadenceLast7Days, setCadenceLast7Days] = useState<number>(0);
 
+  const authHydrated = useAuthStore((s) => s.hydrated);
+  const authToken = useAuthStore((s) => s.token);
+
   useEffect(() => {
+    if (!authHydrated) return;
+    if (!authToken) {
+      setLoadingCatalog(false);
+      setCatalogError("You must be logged in to view lessons.");
+      return;
+    }
+
     let cancelled = false;
     const run = async () => {
       setLoadingCatalog(true);
@@ -244,7 +255,7 @@ export function useLessonsPageViewModel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authHydrated, authToken]);
 
   const catalog = useMemo(() => {
     return remoteLessons

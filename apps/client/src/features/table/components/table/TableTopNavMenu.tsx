@@ -4,6 +4,7 @@ import { usePathname } from "expo-router";
 import { Button } from "@/components/base/Button";
 import { IconButton } from "@/components/base/IconButton";
 import { Icon } from "@/components/base/Icons";
+import { Ionicons } from "@expo/vector-icons";
 
 export type TableTopNavMenuProps = {
   chatBadge?: number;
@@ -67,13 +68,35 @@ export function TableTopNavMenu({
   const menuTop = anchor ? anchor.y + anchor.height + 6 : 60;
 
   return (
-    <View className="relative">
+    <View className="relative flex-row items-center gap-1">
+      {!addBotDisabled && (
+        <IconButton
+          variant="link"
+          icon={<Ionicons name="person-add-outline" size={20} className="text-white" />}
+          onPress={onAddBot}
+        />
+      )}
+      <IconButton
+        variant="link"
+        icon={<Ionicons name="color-palette-outline" size={20} className="text-white" />}
+        onPress={onOpenTheme}
+      />
+      <IconButton
+        variant="link"
+        icon={<Ionicons name="time-outline" size={20} className="text-white" />}
+        onPress={onOpenHandHistory}
+      />
+      <IconButton
+        variant="link"
+        icon={<Ionicons name="chatbubble-outline" size={20} className="text-white" />}
+        onPress={onOpenChat}
+        badge={chatBadge}
+      />
       <View ref={triggerRef}>
         <IconButton
           variant="link"
           icon={<Icon name="menu" size={20} />}
           onPress={() => (open ? closeMenu() : openMenu())}
-          badge={chatBadge}
         />
       </View>
       {open ? (
@@ -84,52 +107,6 @@ export function TableTopNavMenu({
               className="min-w-[180px] rounded-lg border border-border-subtle px-2 py-2"
               style={{ backgroundColor: "rgba(20, 24, 30, 0.96)" }}
             >
-              <View className="mb-1">
-                <Button
-                  title="Add bot"
-                  onPress={() => runAndClose(onAddBot)}
-                  disabled={addBotDisabled}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title="Copy invite link"
-                  onPress={() => runAndClose(onCopyInviteLink)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title="Share invite"
-                  onPress={() => runAndClose(onShareInviteLink)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title="Theme"
-                  onPress={() => runAndClose(onOpenTheme)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
-              <View className="mb-1">
-                <Button
-                  title="View hand history"
-                  onPress={() => runAndClose(onOpenHandHistory)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
               {onToggleMoneyDisplayMode ? (
                 <View className="mb-1">
                   <Button
@@ -141,15 +118,6 @@ export function TableTopNavMenu({
                   />
                 </View>
               ) : null}
-              <View className="mb-1">
-                <Button
-                  title={`Table chat${chatBadge ? ` (${chatBadge})` : ""}`}
-                  onPress={() => runAndClose(onOpenChat)}
-                  intent="neutral"
-                  shape="row"
-                  size="md"
-                />
-              </View>
               <View className="mb-1">
                 <Button
                   title="Discord chat"

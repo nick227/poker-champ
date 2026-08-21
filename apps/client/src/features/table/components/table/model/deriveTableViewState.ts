@@ -251,7 +251,7 @@ export function deriveTableViewState(
   const heroStackCents = getHeroStackCents(snapshot, seatContext);
   const heroSeat = snapshot.hero.seat ?? null;
   const toActSeat = hand?.toActSeat ?? null;
-  const isHeroToAct = heroSeat != null && toActSeat != null && heroSeat === toActSeat;
+  const isHeroToAct = isMyTurn;
   const heroName = seatContext.heroSeat?.name;
   const heroAvatarUrl = snapshot.hero.avatarUrl ?? seatContext.heroSeat?.avatarUrl ?? undefined;
   const lastHandResult = snapshot.lastHandResult;

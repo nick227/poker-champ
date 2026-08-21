@@ -86,7 +86,7 @@ export default function LeaderboardScreen() {
 
   return (
     <Screen ready={ready}>
-      <View className="flex-1 p-4">
+      <View className="flex-1 p-4 bg-bg">
         <View className="flex-row items-start gap-2 py-2 h-14">
           {CATEGORY_OPTIONS.map((option) => {
             const active = option.key === category;

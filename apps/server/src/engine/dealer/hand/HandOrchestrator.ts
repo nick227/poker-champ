@@ -86,6 +86,7 @@ export class HandOrchestrator {
     this.deps.state.runoutMode = "NONE";
     this.deps.state.handId = ""; // CRITICAL: Clear handId when transitioning to WAITING
     this.deps.state.toActSeat = -1; // Clear turn state
+    this.deps.state.roundCurrentBetCents = 0; // Clear current bet in WAITING
     // Clear all needsAction flags - no one should need action in WAITING
     for (const p of this.deps.state.playersById.values()) {
       p.needsAction = false;

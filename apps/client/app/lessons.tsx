@@ -42,7 +42,7 @@ export default function LessonsScreen() {
 
   return (
     <Screen ready={ready}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 28 }} showsVerticalScrollIndicator>
+      <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16, paddingBottom: 28 }} showsVerticalScrollIndicator>
         <LessonsHeroCard vm={vm} onOpenLesson={openLesson} />
 
         {visibleSectionIds.map((sectionId) => (

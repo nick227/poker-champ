@@ -39,6 +39,7 @@ export function IconButton({
   size = "md",
   variant = "ghost",
   badge,
+  accessibilityLabel,
 }: {
   icon: ReactNode;
   onPress: () => void;
@@ -49,6 +50,7 @@ export function IconButton({
   variant?: "primary" | "ghost" | "link";
   /** When > 0, shows a compact count badge (e.g. unseen messages). */
   badge?: number;
+  accessibilityLabel?: string;
 }) {
   const resolvedIntent: IconButtonIntent =
     intent ?? (variant === "primary" ? "primary" : variant === "ghost" ? "secondary" : "ghost");
@@ -74,6 +76,7 @@ export function IconButton({
       disabled={disabled}
       hitSlop={8}
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         {

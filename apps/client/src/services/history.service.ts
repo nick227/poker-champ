@@ -14,6 +14,15 @@ export interface HandHistoryListItem {
   heroWonCents: number;
   heroActionSummary?: string;
   hasReplay?: boolean;
+  boardCards: string[];
+  heroCards: string[];
+  totalPotCents: number;
+  winners: Array<{
+    userId?: string | null;
+    displayName?: string | null;
+    amountCents: number;
+  }>;
+  reason: string | null;
 }
 
 export interface HandHistoryDetail {
@@ -109,6 +118,7 @@ class HistoryServiceImpl implements HistoryService {
         query: {
           cursor: input.cursor,
           limit: input.limit ?? DEFAULT_HISTORY_LIMIT,
+          _t: Date.now(),
         },
       });
 

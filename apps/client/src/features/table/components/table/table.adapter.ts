@@ -159,6 +159,7 @@ export type Opponent = {
     faceDown: boolean;
     visible: boolean;
   };
+  activeGift?: { emoji: string } | null;
 };
 
 /** Hero display status: uses connected + disconnectDeadlineTs for Reconnecting… vs Sitting out. */
@@ -187,6 +188,7 @@ export function getHeroDisplayStatus(snapshot: TableSnapshotPayload, seatContext
 }
 
 export function getIsMyTurn(snapshot: TableSnapshotPayload, seatContext?: SeatContext): boolean {
+  if (isHandResultSettled(snapshot)) return false;
   const hand = snapshot.hand;
   const heroSeat = getResolvedHeroSeat(snapshot, seatContext);
   if (!hand || !heroSeat) return false;
@@ -231,15 +233,28 @@ export function mapSeatsToOpponents(snapshot: TableSnapshotPayload): Opponent[] 
       if (isInHand) cards = { faceDown: true, visible: true };
     }
 
+    let actionLabel: string | undefined;
+    const hand = snapshot.hand;
+    const lastAction = snapshot.lastAction;
+    if (hand && lastAction && hand.handId === lastAction.handId && lastAction.actorUserId === seat.userId && hand.street === lastAction.street) {
+      if (lastAction.action === "FOLD") actionLabel = "Fold";
+      else if (lastAction.action === "CHECK") actionLabel = "Check";
+      else if (lastAction.action === "CALL") actionLabel = "Call";
+      else if (lastAction.action === "BET") actionLabel = "Bet";
+      else if (lastAction.action === "RAISE") actionLabel = "Raise";
+      else if (lastAction.action === "ALL_IN") actionLabel = "All-In";
+    }
+
     opponents.push({
       seat: seat.seat,
       id: seat.userId,
       name: seat.name || "Player",
       stackCents: seat.stackCents,
       isDealer: seat.seat === snapshot.hand?.dealerSeat,
-      isActive: seat.isToAct,
+      isActive: isHandResultSettled(snapshot) ? false : seat.isToAct,
       isBot: seat.isBot ?? false,
       status: getSeatOpponentStatus(seat, serverNowTs, !isHandResultSettled(snapshot)),
+      actionLabel,
       ...(seat.roundBetCents > 0 ? { roundBetCents: seat.roundBetCents } : {}),
       ...(seat.avatarUrl && { avatarUrl: seat.avatarUrl }),
       cards,

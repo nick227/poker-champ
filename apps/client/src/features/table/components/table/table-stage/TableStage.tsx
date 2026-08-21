@@ -14,7 +14,6 @@ import {
 import { EmptySeatMarker } from "./EmptySeatMarker";
 import { opponentToSeatPlateProps, SeatPlate, type SeatPlateProps } from "./SeatPlate";
 import { SeatFeltMarkers } from "./SeatFeltMarkers";
-import { StageAtmosphere } from "./StageAtmosphere";
 import { STAGE_TABLE_LIFT } from "../tokens/stage.tokens";
 
 export type TableStageProps = {
@@ -66,8 +65,7 @@ export function TableStage({
     : null;
 
   return (
-    <View style={styles.host} onLayout={onLayout} collapsable={false}>
-      <StageAtmosphere />
+    <View nativeID="table-stage" style={styles.host} onLayout={onLayout} collapsable={false}>
       {layout ? (
         <View
           pointerEvents="none"
@@ -107,6 +105,7 @@ export function TableStage({
       ) : null}
       {layout ? (
         <View
+          nativeID="table-board-area"
           pointerEvents="box-none"
           style={[
             styles.boardSafe,
@@ -205,15 +204,24 @@ export function TableStage({
             }
 
             const betCents = opponent.roundBetCents ?? 0;
+            let finalBetDisplay: string | null = betCents > 0 ? formatBet(betCents) : null;
+            if (opponent.actionLabel) {
+              if (betCents > 0 && opponent.actionLabel !== "Fold" && opponent.actionLabel !== "Check") {
+                finalBetDisplay = `${opponent.actionLabel} ${formatBet(betCents)}`;
+              } else {
+                finalBetDisplay = opponent.actionLabel;
+              }
+            }
             const props = opponentToSeatPlateProps(
               opponent,
               formatStack(opponent.stackCents ?? 0),
               cardFacePackId,
               {
-                betDisplay: betCents > 0 ? formatBet(betCents) : null,
+                betDisplay: finalBetDisplay,
                 isWinner: winnerName != null && opponent.name === winnerName,
                 turnProgress: opponent.isActive ? activeTurnProgress : null,
                 turnCountdownSeconds: opponent.isActive ? turnCountdownSeconds : null,
+                activeGift: opponent.activeGift,
               },
             );
             const plate = (

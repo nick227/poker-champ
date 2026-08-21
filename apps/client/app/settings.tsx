@@ -91,7 +91,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen ready={ready}>
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 24, maxWidth: 1400, alignSelf: "center" }}>
+      <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         <ProfileAvatarSection
           avatarUrl={profile.avatarUrl}
           username={profile.username}

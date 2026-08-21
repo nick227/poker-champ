@@ -51,6 +51,10 @@ export default defineConfig({
         find: "expo-router",
         replacement: path.resolve(process.cwd(), "src/__mocks__/expo-router.ts"),
       },
+      {
+        find: "nativewind",
+        replacement: path.resolve(process.cwd(), "src/__mocks__/nativewind.ts"),
+      },
     ],
   },
 });

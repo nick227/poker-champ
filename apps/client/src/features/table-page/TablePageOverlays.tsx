@@ -1,7 +1,7 @@
 import { ChooseTableModal, TournamentStandingsModal } from "@/features/lobby";
 import { PlayerHistoryPopup } from "@/features/table";
 import { ChatOverlay } from "@/components/domain/chat/ChatOverlay";
-import { HandHistorySheet } from "@/components/domain/history/HandHistorySheet";
+import { HandHistorySideRail } from "@/components/domain/history/HandHistorySideRail";
 import { GiftToast } from "@/components/domain/interactions/GiftToast";
 import { SideBetOfferBanner } from "@/components/domain/interactions/SideBetOfferBanner";
 import { SideBetResolvedToast } from "@/components/domain/interactions/SideBetResolvedToast";
@@ -13,6 +13,7 @@ import { BotPickerSheet } from "@/features/table";
 import { ThemePickerSheet } from "@/features/table";
 import { TableAnimationOverlay } from "@/features/table/animations/TableAnimationOverlay";
 import { ChipTravelOverlay } from "@/features/table/animations/ChipTravelOverlay";
+import { GiftTravelOverlay } from "@/features/table/animations/GiftTravelOverlay";
 import { MODAL } from "@/constants/copy";
 import type { TablePageController } from "@/types/tableSceneContract";
 
@@ -37,6 +38,10 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
       <ChipTravelOverlay
         requests={renderModel.chipTravelRequests}
         onRequestComplete={actions.completeChipTravel}
+      />
+      <GiftTravelOverlay
+        requests={renderModel.giftTravelRequests}
+        onRequestComplete={actions.completeGiftTravel}
       />
       <ChatOverlay visible={chatVisible} onClose={closeChat} messages={chatMessages} onSend={sendChat} />
       <GiftToast gifts={renderModel.giftFeed} />
@@ -96,7 +101,7 @@ export function TablePageOverlays({ renderModel, uiState, actions }: TablePageOv
         onSelectTable={actions.selectTableFromDropdown}
       />
       <ThemePickerSheet visible={uiState.themePickerVisible} onClose={actions.closeThemePicker} />
-      <HandHistorySheet visible={uiState.handHistoryVisible} onClose={actions.closeHandHistory} />
+      <HandHistorySideRail visible={uiState.handHistoryVisible} onClose={actions.closeHandHistory} />
       <BotPickerSheet
         visible={uiState.botPickerVisible}
         loading={uiState.botPickerLoading}

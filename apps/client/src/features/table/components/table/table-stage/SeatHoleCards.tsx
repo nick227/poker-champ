@@ -37,7 +37,7 @@ export function SeatHoleCards({
         height: BASE_CARD_HEIGHT * scale,
         alignItems: "center",
         justifyContent: "flex-start",
-        opacity: inactive ? 0.32 : 1,
+        opacity: inactive ? 0.12 : 1,
         transform: [{ translateY: inactive ? 8 : 2 }],
       }}
     >

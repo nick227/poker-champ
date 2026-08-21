@@ -5,27 +5,26 @@
  */
 import { StyleSheet } from "react-native";
 import { ACTION_BAR_HEIGHT } from "../constants/table-layout.constants";
-import { STAGE_VOID_BG } from "../tokens/stage.tokens";
 
 export const layoutStyles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: "column",
     alignItems: "stretch",
-    backgroundColor: STAGE_VOID_BG,
+    backgroundColor: "transparent",
   },
   body: {
     flex: 1,
     minHeight: 0,
     width: "100%",
     flexDirection: "column",
-    backgroundColor: STAGE_VOID_BG,
+    backgroundColor: "transparent",
   },
   stageHost: {
     flex: 1,
     minHeight: 0,
     width: "100%",
-    backgroundColor: STAGE_VOID_BG,
+    backgroundColor: "transparent",
     // Let south nameplates paint above the host edge; HUD sits below in layout.
     overflow: "visible",
   },
