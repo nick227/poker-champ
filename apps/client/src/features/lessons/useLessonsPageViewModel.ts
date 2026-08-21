@@ -44,11 +44,13 @@ export type LessonCatalogItem = {
   format: "STANDARD" | "DRILL";
 };
 
-export type DailyChallengeType = "recovery" | "weak_spot" | "fresh_rep" | "repeatable";
-
-export type DailyChallengeItem = {
-  lesson: LessonCatalogItem;
-  type: DailyChallengeType;
+export type CategoryPanel = {
+  id: ModuleCode;
+  meta: (typeof LESSONS_MODULE_META)[ModuleCode];
+  lessons: LessonCatalogItem[];
+  done: number;
+  total: number;
+  pct: number;
 };
 
 type RemoteLessonSummary = {
@@ -76,11 +78,6 @@ type RemoteLessonSummary = {
   recommendedOrder: number;
   conceptTags?: string[];
   format?: "STANDARD" | "DRILL";
-};
-
-type RemoteDailyChallenge = {
-  lessonId: string;
-  type: DailyChallengeType;
 };
 
 function normalizeDifficulty(value: string): Difficulty {
@@ -192,11 +189,19 @@ function toCatalogItem(remote: RemoteLessonSummary): LessonCatalogItem {
   };
 }
 
+const CATEGORY_PANEL_ORDER: ModuleCode[] = [
+  "DRILLS",
+  "MODULE_A",
+  "MODULE_B",
+  "MODULE_C",
+  "MODULE_D",
+  "MODULE_GHOST",
+];
+
 export function useLessonsPageViewModel() {
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [remoteLessons, setRemoteLessons] = useState<RemoteLessonSummary[]>([]);
-  const [remoteDailyChallenges, setRemoteDailyChallenges] = useState<RemoteDailyChallenge[]>([]);
   const [cadenceLast7Days, setCadenceLast7Days] = useState<number>(0);
 
   const authHydrated = useAuthStore((s) => s.hydrated);
@@ -218,7 +223,6 @@ export function useLessonsPageViewModel() {
         const listRes = await lessonService.listLessons();
         if (cancelled) return;
         setCadenceLast7Days(listRes.cadence?.completedAttemptsLast7Days ?? 0);
-        setRemoteDailyChallenges((listRes.dailyChallenges ?? []).filter((item) => item.lessonId));
         setRemoteLessons(
           (listRes.lessons ?? []).map((item) => ({
             id: item.id,
@@ -279,84 +283,6 @@ export function useLessonsPageViewModel() {
     [catalog],
   );
   const firstLesson = useMemo(() => catalog.find((item) => item.enabled) ?? null, [catalog]);
-  const recentCompletedLessons = useMemo(
-    () =>
-      catalog
-        .filter((item) => item.enabled && item.state === "completed")
-        .sort((a, b) => {
-          const aTs = a.lastAttemptedAt ? new Date(a.lastAttemptedAt).getTime() : 0;
-          const bTs = b.lastAttemptedAt ? new Date(b.lastAttemptedAt).getTime() : 0;
-          return bTs - aTs;
-        })
-        .slice(0, 3),
-    [catalog],
-  );
-  const dailyChallenges = useMemo<DailyChallengeItem[]>(() => {
-    const enabledLessons = catalog.filter((item) => item.enabled);
-    if (remoteDailyChallenges.length > 0) {
-      const byId = new Map(enabledLessons.map((lesson) => [lesson.id, lesson] as const));
-      const fromServer = remoteDailyChallenges
-        .map((item) => {
-          const lesson = byId.get(item.lessonId);
-          if (!lesson) return null;
-          return { lesson, type: item.type } satisfies DailyChallengeItem;
-        })
-        .filter((item): item is DailyChallengeItem => item != null);
-      if (fromServer.length > 0) return fromServer.slice(0, 3);
-    }
-
-    const selected: DailyChallengeItem[] = [];
-    const selectedIds = new Set<string>();
-    const pushChallenge = (lesson: LessonCatalogItem | null | undefined, type: DailyChallengeType) => {
-      if (!lesson || selectedIds.has(lesson.id) || selected.length >= 3) return;
-      selected.push({ lesson, type });
-      selectedIds.add(lesson.id);
-    };
-
-    const recoveryLesson = enabledLessons.find((item) => item.state === "in_progress");
-    pushChallenge(recoveryLesson, "recovery");
-
-    const weakSpotLesson =
-      [...enabledLessons]
-        .filter((item) => item.state === "completed")
-        .sort((a, b) => {
-          const aScore = a.bestScorePct ?? a.lastScorePct ?? 50;
-          const bScore = b.bestScorePct ?? b.lastScorePct ?? 50;
-          if (aScore !== bScore) return aScore - bScore;
-          return a.title.localeCompare(b.title);
-        })[0] ?? null;
-    pushChallenge(weakSpotLesson, "weak_spot");
-
-    const freshRepLesson =
-      [...enabledLessons]
-        .filter((item) => item.state === "not_started")
-        .sort((a, b) => {
-          if (a.moduleCode !== b.moduleCode) return a.moduleCode.localeCompare(b.moduleCode);
-          if (a.recommendedOrder !== b.recommendedOrder) return a.recommendedOrder - b.recommendedOrder;
-          return a.title.localeCompare(b.title);
-        })[0] ?? null;
-    pushChallenge(freshRepLesson, "fresh_rep");
-
-    const repeatableFallback = [...enabledLessons]
-      .filter((item) => item.repeatable || item.role === "drills")
-      .sort((a, b) => {
-        if (a.state !== b.state) {
-          if (a.state === "in_progress") return -1;
-          if (b.state === "in_progress") return 1;
-        }
-        return a.title.localeCompare(b.title);
-      });
-    for (const lesson of repeatableFallback) {
-      pushChallenge(lesson, "repeatable");
-      if (selected.length >= 3) break;
-    }
-
-    if (selected.length === 0) {
-      for (const lesson of enabledLessons.slice(0, 3)) pushChallenge(lesson, "fresh_rep");
-    }
-
-    return selected;
-  }, [catalog, remoteDailyChallenges]);
 
   const drillLessons = useMemo(
     () =>
@@ -366,36 +292,33 @@ export function useLessonsPageViewModel() {
     [catalog],
   );
 
-  const moduleCards = useMemo(() => {
+  const categoryPanels = useMemo<CategoryPanel[]>(() => {
     const grouped: Record<ModuleCode, LessonCatalogItem[]> = {
+      DRILLS: drillLessons,
       MODULE_A: [],
       MODULE_B: [],
       MODULE_C: [],
       MODULE_D: [],
       MODULE_GHOST: [],
     };
-    // Drills get their own featured section (see drillLessons) rather than being
-    // buried alongside standard lessons inside a module card.
     for (const item of catalog) {
       if (item.format === "DRILL") continue;
       grouped[item.moduleCode].push(item);
     }
-    return (Object.keys(grouped) as ModuleCode[])
-      .filter((moduleCode) => grouped[moduleCode].length > 0)
-      .map((moduleCode) => {
-        const lessons = grouped[moduleCode];
-        const done = lessons.filter((item) => item.state === "completed").length;
-        const pct = lessons.length > 0 ? Math.round((done / lessons.length) * 100) : 0;
-        return {
-          moduleCode,
-          meta: LESSONS_MODULE_META[moduleCode],
-          lessons,
-          done,
-          total: lessons.length,
-          pct,
-        };
-      });
-  }, [catalog]);
+    return CATEGORY_PANEL_ORDER.filter((id) => grouped[id].length > 0).map((id) => {
+      const lessons = grouped[id];
+      const done = lessons.filter((item) => item.state === "completed").length;
+      const pct = lessons.length > 0 ? Math.round((done / lessons.length) * 100) : 0;
+      return {
+        id,
+        meta: LESSONS_MODULE_META[id],
+        lessons,
+        done,
+        total: lessons.length,
+        pct,
+      };
+    });
+  }, [catalog, drillLessons]);
 
   return {
     loadingCatalog,
@@ -405,9 +328,7 @@ export function useLessonsPageViewModel() {
     completedCount,
     inProgressLesson,
     firstLesson,
-    recentCompletedLessons,
-    dailyChallenges,
-    moduleCards,
+    categoryPanels,
     drillLessons,
   };
 }
